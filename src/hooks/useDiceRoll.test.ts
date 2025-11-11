@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useDiceRoll } from './useDiceRoll'
+import { useDiceStore } from '../store/useDiceStore'
 import * as THREE from 'three'
 
 describe('useDiceRoll', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Reset Zustand store before each test
+    useDiceStore.getState().reset()
   })
 
   describe('initial state', () => {
@@ -14,14 +17,14 @@ describe('useDiceRoll', () => {
       expect(result.current.canRoll).toBe(true)
     })
 
-    it('should start with empty roll history', () => {
-      const { result } = renderHook(() => useDiceRoll())
-      expect(result.current.rollHistory).toEqual([])
+    it('should start with empty roll history in store', () => {
+      renderHook(() => useDiceRoll())
+      expect(useDiceStore.getState().rollHistory).toEqual([])
     })
 
-    it('should start with null lastResult', () => {
-      const { result } = renderHook(() => useDiceRoll())
-      expect(result.current.lastResult).toBeNull()
+    it('should start with null lastResult in store', () => {
+      renderHook(() => useDiceRoll())
+      expect(useDiceStore.getState().lastResult).toBeNull()
     })
 
     it('should start with isRolling false', () => {
@@ -120,7 +123,7 @@ describe('useDiceRoll', () => {
         result.current.onDiceRest(5)
       })
 
-      expect(result.current.lastResult).toBe(5)
+      expect(useDiceStore.getState().lastResult).toBe(5)
     })
 
     it('should add result to roll history', () => {
@@ -134,7 +137,7 @@ describe('useDiceRoll', () => {
         result.current.onDiceRest(3)
       })
 
-      expect(result.current.rollHistory).toEqual([3])
+      expect(useDiceStore.getState().rollHistory).toEqual([3])
     })
 
     it('should accumulate multiple results in history', () => {
@@ -152,7 +155,7 @@ describe('useDiceRoll', () => {
         })
       }
 
-      expect(result.current.rollHistory).toEqual(rolls)
+      expect(useDiceStore.getState().rollHistory).toEqual(rolls)
     })
 
     it('should set isRolling to false when dice comes to rest', () => {
@@ -194,8 +197,8 @@ describe('useDiceRoll', () => {
         result.current.onDiceRest(5)
       })
 
-      expect(result.current.lastResult).toBeNull()
-      expect(result.current.rollHistory).toEqual([])
+      expect(useDiceStore.getState().lastResult).toBeNull()
+      expect(useDiceStore.getState().rollHistory).toEqual([])
     })
   })
 
@@ -211,13 +214,13 @@ describe('useDiceRoll', () => {
         result.current.onDiceRest(4)
       })
 
-      expect(result.current.rollHistory.length).toBeGreaterThan(0)
+      expect(useDiceStore.getState().rollHistory.length).toBeGreaterThan(0)
 
       act(() => {
         result.current.reset()
       })
 
-      expect(result.current.rollHistory).toEqual([])
+      expect(useDiceStore.getState().rollHistory).toEqual([])
     })
 
     it('should clear lastResult', () => {
@@ -230,13 +233,13 @@ describe('useDiceRoll', () => {
         result.current.onDiceRest(6)
       })
 
-      expect(result.current.lastResult).toBe(6)
+      expect(useDiceStore.getState().lastResult).toBe(6)
 
       act(() => {
         result.current.reset()
       })
 
-      expect(result.current.lastResult).toBeNull()
+      expect(useDiceStore.getState().lastResult).toBeNull()
     })
 
     it('should reset isRolling state', () => {
