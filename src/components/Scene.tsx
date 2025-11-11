@@ -49,8 +49,8 @@ function Scene() {
       <PerspectiveCamera
         makeDefault
         position={[0, 12, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
         fov={50}
+        lookAt={[0, 0, 0]}
       />
 
       {/* Lighting - optimized for top-down view */}
