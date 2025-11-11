@@ -1,6 +1,7 @@
 import { useRef, useCallback, useMemo } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { PerspectiveCamera, Box } from '@react-three/drei'
+import { Canvas, useThree } from '@react-three/fiber'
+import { Box } from '@react-three/drei'
+import { useEffect } from 'react'
 import { Physics, RigidBody } from '@react-three/rapier'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { D6, D6Handle } from './dice/D6'
@@ -22,6 +23,19 @@ function Scene() {
 
   const diceRef = useRef<D6Handle>(null)
   const { canRoll, roll, onDiceRest } = useDiceRoll()
+
+  // Component to set up top-down camera
+  function CameraSetup() {
+    const { camera } = useThree()
+
+    useEffect(() => {
+      camera.position.set(0, 12, 0)
+      camera.lookAt(0, 0, 0)
+      camera.updateProjectionMatrix()
+    }, [camera])
+
+    return null
+  }
 
   const handleRollClick = useCallback(() => {
     console.log('Roll button clicked')
@@ -45,13 +59,8 @@ function Scene() {
       gl={{ antialias: true, alpha: false }}
       dpr={[1, 2]} // Device pixel ratio (1x for low-end, 2x for high-end)
     >
-      {/* Top-down camera - looking straight down into dice box */}
-      <PerspectiveCamera
-        makeDefault
-        position={[0, 12, 0]}
-        fov={50}
-        lookAt={[0, 0, 0]}
-      />
+      {/* Set up top-down camera */}
+      <CameraSetup />
 
       {/* Lighting - optimized for top-down view */}
       <ambientLight intensity={0.6} />
