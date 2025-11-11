@@ -39,7 +39,6 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
 }, ref) => {
   const rigidBodyRef = useRef<RapierRigidBody>(null)
   const initialPositionRef = useRef(position)
-  const initialRotationRef = useRef(rotation)
   const { isAtRest, faceValue, updateMotion, readFaceValue, reset: resetFaceDetection } = useFaceDetection()
   const { isDragging, onPointerDown, onPointerMove, onPointerUp, getFlickImpulse } = useDiceInteraction()
   const { shakeImpulse, tiltImpulse } = useDeviceMotion()

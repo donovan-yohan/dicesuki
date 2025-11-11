@@ -47,7 +47,7 @@ export interface DeviceMotionState {
  * ```
  */
 export function useDeviceMotion(): DeviceMotionState {
-  const [isSupported, setIsSupported] = useState(typeof DeviceMotionEvent !== 'undefined')
+  const [isSupported] = useState(typeof DeviceMotionEvent !== 'undefined')
   const [permissionState, setPermissionState] = useState<PermissionState>(
     typeof DeviceMotionEvent !== 'undefined' ? 'prompt' : 'unsupported'
   )
@@ -55,7 +55,7 @@ export function useDeviceMotion(): DeviceMotionState {
   const [shakeImpulse, setShakeImpulse] = useState<THREE.Vector3 | null>(null)
   const [tiltImpulse, setTiltImpulse] = useState<THREE.Vector3 | null>(null)
 
-  const shakeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const shakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /**
    * Request device motion permission

@@ -277,15 +277,15 @@ describe('useDeviceMotion', () => {
   describe('error handling', () => {
     it('should handle unsupported devices gracefully', () => {
       // Mock unsupported device
-      const originalDeviceMotionEvent = global.DeviceMotionEvent
-      ;(global as any).DeviceMotionEvent = undefined
+      const originalDeviceMotionEvent = (globalThis as any).DeviceMotionEvent
+      ;(globalThis as any).DeviceMotionEvent = undefined
 
       const { result } = renderHook(() => useDeviceMotion())
 
       expect(result.current.isSupported).toBe(false)
       expect(result.current.permissionState).toBe('unsupported')
 
-      ;(global as any).DeviceMotionEvent = originalDeviceMotionEvent
+      ;(globalThis as any).DeviceMotionEvent = originalDeviceMotionEvent
     })
 
     it('should handle null acceleration data', async () => {

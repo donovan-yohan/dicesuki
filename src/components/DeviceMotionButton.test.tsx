@@ -10,14 +10,14 @@ describe('DeviceMotionButton', () => {
   describe('unsupported devices', () => {
     it('should not render when device motion is unsupported', () => {
       // Mock unsupported device
-      const originalDeviceMotionEvent = global.DeviceMotionEvent
-      ;(global as any).DeviceMotionEvent = undefined
+      const originalDeviceMotionEvent = (globalThis as any).DeviceMotionEvent
+      ;(globalThis as any).DeviceMotionEvent = undefined
 
       render(<DeviceMotionButton />)
 
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
 
-      ;(global as any).DeviceMotionEvent = originalDeviceMotionEvent
+      ;(globalThis as any).DeviceMotionEvent = originalDeviceMotionEvent
     })
   })
 
@@ -108,7 +108,7 @@ describe('DeviceMotionButton', () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('granted')
       ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
 
-      const { rerender } = render(<DeviceMotionButton />)
+      render(<DeviceMotionButton />)
 
       const promptButton = screen.getByRole('button')
       expect(promptButton.className).toContain('bg-')

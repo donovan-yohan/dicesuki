@@ -35,7 +35,7 @@ describe('D6 Geometry', () => {
     })
 
     it('should have unit-length normals', () => {
-      D6_FACE_NORMALS.forEach(({ normal, value }) => {
+      D6_FACE_NORMALS.forEach(({ normal }) => {
         const length = Math.sqrt(normal.x ** 2 + normal.y ** 2 + normal.z ** 2)
         expect(length).toBeCloseTo(1, 5)
       })
