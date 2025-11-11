@@ -20,8 +20,6 @@ import { useDiceStore } from '../store/useDiceStore'
  * - Only UI components subscribe to store, not the Scene component
  */
 function Scene() {
-  console.log('🎬 Scene component rendered')
-
   const diceRef = useRef<D6Handle>(null)
   const { canRoll, roll, onDiceRest } = useDiceRoll()
 
@@ -39,16 +37,13 @@ function Scene() {
   }
 
   const handleRollClick = useCallback(() => {
-    console.log('Roll button clicked')
     const impulse = roll()
-    console.log('Impulse generated:', impulse)
     if (impulse && diceRef.current) {
       diceRef.current.applyImpulse(impulse)
     }
   }, [roll])
 
   const handleDiceRest = useCallback((faceValue: number) => {
-    console.log('Dice rolled:', faceValue)
     onDiceRest(faceValue)
   }, [onDiceRest])
 
@@ -154,8 +149,6 @@ function Scene() {
 function ResultDisplay() {
   const lastResult = useDiceStore((state) => state.lastResult)
 
-  console.log('📊 ResultDisplay render - lastResult:', lastResult)
-
   if (lastResult === null) return null
 
   return (
@@ -172,8 +165,6 @@ function ResultDisplay() {
  */
 function HistoryDisplay() {
   const rollHistory = useDiceStore((state) => state.rollHistory)
-
-  console.log('📜 HistoryDisplay render - history length:', rollHistory.length)
 
   if (rollHistory.length === 0) return null
 

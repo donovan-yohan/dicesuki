@@ -120,12 +120,9 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
 
   // Handle flick impulse when pointer is released
   useEffect(() => {
-    console.log('🎯 Flick useEffect triggered - isDragging:', isDragging)
     if (!isDragging) {
       const flickImpulse = getFlickImpulse()
-      console.log('🎯 Retrieved flick impulse:', flickImpulse)
       if (flickImpulse && rigidBodyRef.current) {
-        console.log('✅ Applying flick impulse:', flickImpulse)
 
         // Apply impulse directly to current dice (no reset)
         rigidBodyRef.current.applyImpulse(
@@ -154,7 +151,6 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
   // Handle shake impulse from device motion
   useEffect(() => {
     if (shakeImpulse && rigidBodyRef.current) {
-      console.log('📱 Applying shake impulse:', shakeImpulse)
 
       // Apply shake impulse directly to current dice
       rigidBodyRef.current.applyImpulse(
@@ -182,7 +178,6 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
   // Handle tilt impulse from device motion
   useEffect(() => {
     if (tiltImpulse && rigidBodyRef.current) {
-      console.log('📱 Applying tilt impulse:', tiltImpulse)
 
       // Apply tilt impulse directly to current dice
       rigidBodyRef.current.applyImpulse(
@@ -270,17 +265,9 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
         geometry={geometry}
         castShadow
         receiveShadow
-        onPointerDown={(e) => {
-          console.log('🖱️ D6 onPointerDown fired')
-          onPointerDown(e)
-        }}
-        onPointerMove={(e) => {
-          onPointerMove(e)
-        }}
-        onPointerUp={(e) => {
-          console.log('🖱️ D6 onPointerUp fired')
-          onPointerUp(e)
-        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
       >
         <meshStandardMaterial color={color} />
       </mesh>

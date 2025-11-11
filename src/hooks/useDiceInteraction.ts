@@ -58,7 +58,6 @@ export function useDiceInteraction(): DiceInteraction {
    */
   const calculateVelocity = useCallback((): THREE.Vector3 | null => {
     const samples = samplesRef.current
-    console.log('📊 Calculating velocity from', samples.length, 'samples')
     if (samples.length < 2) return null
 
     // Use recent samples for velocity calculation
@@ -74,7 +73,6 @@ export function useDiceInteraction(): DiceInteraction {
     const positionDelta = last.position.clone().sub(first.position)
     const velocity = positionDelta.divideScalar(timeDelta)
 
-    console.log('📊 Calculated velocity:', velocity, 'speed:', velocity.length())
     return velocity
   }, [])
 
