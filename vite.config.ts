@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import fs from 'fs'
+import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -8,9 +10,12 @@ export default defineConfig({
     exclude: ['@react-three/rapier']
   },
   server: {
-    host: true,
+    host: '0.0.0.0',
     port: 3000,
-    https: true
+    https: {
+      key: fs.readFileSync(path.resolve(__dirname, '.cert/localhost+3-key.pem')),
+      cert: fs.readFileSync(path.resolve(__dirname, '.cert/localhost+3.pem')),
+    }
   },
   test: {
     globals: true,
