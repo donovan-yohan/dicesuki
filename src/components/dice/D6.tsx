@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { createD6Geometry } from '../../lib/geometries'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
+import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 
 interface D6Props {
   position?: [number, number, number]
@@ -39,6 +40,7 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
   const initialPositionRef = useRef(position)
   const initialRotationRef = useRef(rotation)
   const { isAtRest, faceValue, updateMotion, readFaceValue, reset: resetFaceDetection } = useFaceDetection()
+  const { isDragging, onPointerDown, onPointerMove, onPointerUp, getFlickImpulse } = useDiceInteraction()
   const hasNotifiedRef = useRef(false)
   const pendingNotificationRef = useRef<number | null>(null)
 
@@ -114,6 +116,37 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
     }
   }, [isAtRest])
 
+  // Handle flick impulse when pointer is released
+  useEffect(() => {
+    if (!isDragging) {
+      const flickImpulse = getFlickImpulse()
+      if (flickImpulse && rigidBodyRef.current) {
+        console.log('Applying flick impulse:', flickImpulse)
+
+        // Apply impulse directly to current dice (no reset)
+        rigidBodyRef.current.applyImpulse(
+          { x: flickImpulse.x, y: flickImpulse.y, z: flickImpulse.z },
+          true
+        )
+
+        // Add some angular impulse for realistic tumbling
+        const angularImpulse = new THREE.Vector3(
+          (Math.random() - 0.5) * 0.5,
+          (Math.random() - 0.5) * 0.5,
+          (Math.random() - 0.5) * 0.5
+        )
+        rigidBodyRef.current.applyTorqueImpulse(
+          { x: angularImpulse.x, y: angularImpulse.y, z: angularImpulse.z },
+          true
+        )
+
+        // Reset face detection to track new roll
+        resetFaceDetection()
+        hasNotifiedRef.current = false
+      }
+    }
+  }, [isDragging, getFlickImpulse, resetFaceDetection])
+
   // Notify parent OUTSIDE of the physics loop using requestAnimationFrame
   useEffect(() => {
     if (isAtRest && faceValue !== null && !hasNotifiedRef.current && onRest) {
@@ -173,7 +206,14 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
       restitution={0.3}
       friction={0.6}
     >
-      <mesh geometry={geometry} castShadow receiveShadow>
+      <mesh
+        geometry={geometry}
+        castShadow
+        receiveShadow
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
         <meshStandardMaterial color={color} />
       </mesh>
     </RigidBody>
