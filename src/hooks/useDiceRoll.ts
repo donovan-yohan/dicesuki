@@ -1,11 +1,10 @@
 import { useState, useCallback, useRef } from 'react'
 import * as THREE from 'three'
+import { useDiceStore } from '../store/useDiceStore'
 
 export interface DiceRollState {
   canRoll: boolean
   isRolling: boolean
-  lastResult: number | null
-  rollHistory: number[]
   roll: () => THREE.Vector3 | null
   onDiceRest: (faceValue: number) => void
   reset: () => void
@@ -17,14 +16,16 @@ export interface DiceRollState {
  * Handles:
  * - Roll state management (can roll, is rolling)
  * - Impulse generation for physics
- * - Roll history tracking
  * - Result callbacks
+ *
+ * NOTE: lastResult and rollHistory are now in useDiceStore
+ * to prevent Canvas re-renders when UI state changes.
  */
 export function useDiceRoll(): DiceRollState {
   const [canRoll, setCanRoll] = useState(true)
   const [isRolling, setIsRolling] = useState(false)
-  const [lastResult, setLastResult] = useState<number | null>(null)
-  const [rollHistory, setRollHistory] = useState<number[]>([])
+  const recordResult = useDiceStore((state) => state.recordResult)
+  const resetStore = useDiceStore((state) => state.reset)
 
   // Track if we're expecting a result from the current roll
   const awaitingResultRef = useRef(false)
@@ -66,20 +67,21 @@ export function useDiceRoll(): DiceRollState {
 
   /**
    * Callback when dice comes to rest
-   * Updates state with the result
+   * Updates state with the result via Zustand store
    */
   const onDiceRest = useCallback((faceValue: number) => {
     // Only process if we're awaiting a result from a roll
     if (!awaitingResultRef.current) {
+      console.log('Ignoring phantom roll:', faceValue, '(not awaiting result)')
       return
     }
 
-    setLastResult(faceValue)
-    setRollHistory((prev) => [...prev, faceValue])
+    console.log('useDiceRoll: Recording result:', faceValue)
+    recordResult(faceValue)
     setIsRolling(false)
     setCanRoll(true)
     awaitingResultRef.current = false
-  }, [])
+  }, [recordResult])
 
   /**
    * Reset all roll state
@@ -87,16 +89,13 @@ export function useDiceRoll(): DiceRollState {
   const reset = useCallback(() => {
     setCanRoll(true)
     setIsRolling(false)
-    setLastResult(null)
-    setRollHistory([])
+    resetStore()
     awaitingResultRef.current = false
-  }, [])
+  }, [resetStore])
 
   return {
     canRoll,
     isRolling,
-    lastResult,
-    rollHistory,
     roll,
     onDiceRest,
     reset,
