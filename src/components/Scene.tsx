@@ -3,12 +3,30 @@ import { Canvas, useThree } from '@react-three/fiber'
 import { Box } from '@react-three/drei'
 import { useEffect } from 'react'
 import { Physics, RigidBody } from '@react-three/rapier'
+import { useRapier } from '@react-three/rapier'
+import * as THREE from 'three'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { D6, D6Handle } from './dice/D6'
 import { RollButton } from './RollButton'
 import { DeviceMotionButton } from './DeviceMotionButton'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useDiceStore } from '../store/useDiceStore'
+import { useDeviceMotion } from '../hooks/useDeviceMotion'
+
+/**
+ * Component to dynamically update physics gravity based on device motion
+ */
+function PhysicsController({ gravityVector }: { gravityVector: THREE.Vector3 }) {
+  const { world } = useRapier()
+
+  useEffect(() => {
+    if (world) {
+      world.gravity = { x: gravityVector.x, y: gravityVector.y, z: gravityVector.z }
+    }
+  }, [world, gravityVector])
+
+  return null
+}
 
 /**
  * Main 3D scene component
@@ -18,10 +36,12 @@ import { useDiceStore } from '../store/useDiceStore'
  * - Physics world (Canvas) must NEVER re-render due to UI state changes
  * - UI state (lastResult, rollHistory) is in Zustand store
  * - Only UI components subscribe to store, not the Scene component
+ * - Device motion updates physics gravity in real-time for tilt-based interaction
  */
 function Scene() {
   const diceRef = useRef<D6Handle>(null)
   const { canRoll, roll, onDiceRest } = useDiceRoll()
+  const { gravityVector } = useDeviceMotion()
 
   // Component to set up top-down camera
   function CameraSetup() {
@@ -73,7 +93,9 @@ function Scene() {
       />
 
       {/* Physics world */}
-      <Physics gravity={[0, -9.81, 0]}>
+      <Physics gravity={[gravityVector.x, gravityVector.y, gravityVector.z]}>
+        <PhysicsController gravityVector={gravityVector} />
+
         {/* Ground Plane - Larger to prevent falling off */}
         <RigidBody type="fixed" position={[0, -0.25, 0]}>
           <Box args={[20, 0.5, 20]} receiveShadow>

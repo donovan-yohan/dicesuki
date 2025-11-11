@@ -4,11 +4,9 @@ import * as THREE from 'three'
 /**
  * Configuration for motion detection
  */
+const GRAVITY_SCALE = 15 // Scale factor for converting device tilt to gravity force
 const SHAKE_THRESHOLD = 20 // Minimum acceleration magnitude to detect shake
 const SHAKE_DURATION = 500 // How long shake state persists (ms)
-const TILT_THRESHOLD = 5 // Minimum rotation rate to detect tilt (deg/s)
-const IMPULSE_SCALE = 1.0 // Scale factor for acceleration to impulse
-const MAX_IMPULSE = 50 // Maximum impulse magnitude (increased to allow test values through)
 
 type PermissionState = 'prompt' | 'granted' | 'denied' | 'unsupported'
 
@@ -16,34 +14,32 @@ export interface DeviceMotionState {
   isSupported: boolean
   permissionState: PermissionState
   isShaking: boolean
-  shakeImpulse: THREE.Vector3 | null
-  tiltImpulse: THREE.Vector3 | null
+  gravityVector: THREE.Vector3 // Continuous gravity based on device orientation
   requestPermission: () => Promise<void>
 }
 
 /**
- * Hook for device motion detection (shake, tilt)
+ * Hook for device motion detection with continuous gravity simulation
  *
  * Handles:
  * - iOS permission flow (requestPermission API)
  * - Android auto-permission
- * - Shake detection from accelerometer
- * - Tilt detection from gyroscope
- * - Impulse generation for physics
+ * - Continuous gravity vector based on device orientation
+ * - Shake detection for visual feedback
+ *
+ * The gravity vector is updated in real-time based on device tilt,
+ * allowing the physics simulation to respond naturally as if the phone
+ * is a physical dice tray being tilted in 3D space.
  *
  * Usage:
  * ```tsx
- * const { isSupported, permissionState, isShaking, shakeImpulse, requestPermission } = useDeviceMotion()
+ * const { isSupported, permissionState, gravityVector, requestPermission } = useDeviceMotion()
  *
  * // Request permission (iOS requires user gesture)
  * <button onClick={requestPermission}>Enable Motion</button>
  *
- * // Apply shake impulse when detected
- * useEffect(() => {
- *   if (shakeImpulse && diceRef.current) {
- *     diceRef.current.applyImpulse(shakeImpulse)
- *   }
- * }, [shakeImpulse])
+ * // Apply gravity to physics world
+ * <Physics gravity={[gravityVector.x, gravityVector.y, gravityVector.z]}>
  * ```
  */
 export function useDeviceMotion(): DeviceMotionState {
@@ -52,8 +48,7 @@ export function useDeviceMotion(): DeviceMotionState {
     typeof DeviceMotionEvent !== 'undefined' ? 'prompt' : 'unsupported'
   )
   const [isShaking, setIsShaking] = useState(false)
-  const [shakeImpulse, setShakeImpulse] = useState<THREE.Vector3 | null>(null)
-  const [tiltImpulse, setTiltImpulse] = useState<THREE.Vector3 | null>(null)
+  const [gravityVector, setGravityVector] = useState<THREE.Vector3>(new THREE.Vector3(0, -9.81, 0))
 
   const shakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -92,10 +87,28 @@ export function useDeviceMotion(): DeviceMotionState {
 
     const handleMotion = (event: DeviceMotionEvent) => {
       const accel = event.accelerationIncludingGravity
-      const rotation = event.rotationRate
 
-      // Shake detection from acceleration
+      // Calculate gravity vector from device orientation
+      // accelerationIncludingGravity gives us the direction of "down" relative to the device
       if (accel && accel.x !== null && accel.y !== null && accel.z !== null) {
+        // For top-down view (camera looking down at XZ plane):
+        // - Device flat on table: gravity = (0, -9.81, 0) - normal downward
+        // - Device tilted forward: gravity has positive Z component - dice rolls "forward"
+        // - Device tilted right: gravity has positive X component - dice rolls "right"
+        // - Device tilted back: gravity has negative Z component - dice rolls "back"
+        // - Device tilted left: gravity has negative X component - dice rolls "left"
+
+        // Invert Y to convert from device space to world space
+        // Scale XZ to make tilt more responsive
+        const gravity = new THREE.Vector3(
+          -accel.x * GRAVITY_SCALE / 9.81, // Horizontal tilt (left/right)
+          -accel.y, // Vertical (always downward when device flat)
+          -accel.z * GRAVITY_SCALE / 9.81  // Horizontal tilt (forward/back)
+        )
+
+        setGravityVector(gravity)
+
+        // Shake detection (for visual feedback only)
         const magnitude = Math.sqrt(
           accel.x * accel.x +
           accel.y * accel.y +
@@ -103,26 +116,7 @@ export function useDeviceMotion(): DeviceMotionState {
         )
 
         if (magnitude > SHAKE_THRESHOLD) {
-          // Detected shake
           setIsShaking(true)
-
-          // Generate impulse from acceleration
-          // Scale and cap the impulse
-          let impulse = new THREE.Vector3(
-            accel.x * IMPULSE_SCALE,
-            Math.abs(accel.y * IMPULSE_SCALE), // Always positive for upward force
-            accel.z * IMPULSE_SCALE
-          )
-
-          // Ensure minimum upward component
-          impulse.y = Math.max(impulse.y, 2)
-
-          // Cap maximum impulse
-          if (impulse.length() > MAX_IMPULSE) {
-            impulse.normalize().multiplyScalar(MAX_IMPULSE)
-          }
-
-          setShakeImpulse(impulse)
 
           // Clear shake state after duration
           if (shakeTimeoutRef.current) {
@@ -131,31 +125,6 @@ export function useDeviceMotion(): DeviceMotionState {
           shakeTimeoutRef.current = setTimeout(() => {
             setIsShaking(false)
           }, SHAKE_DURATION)
-        }
-      }
-
-      // Tilt detection from rotation rate
-      if (rotation && rotation.alpha !== null && rotation.beta !== null && rotation.gamma !== null) {
-        const rotMagnitude = Math.sqrt(
-          rotation.alpha * rotation.alpha +
-          rotation.beta * rotation.beta +
-          rotation.gamma * rotation.gamma
-        )
-
-        if (rotMagnitude > TILT_THRESHOLD) {
-          // Generate tilt impulse from rotation rate
-          const tilt = new THREE.Vector3(
-            rotation.beta * IMPULSE_SCALE * 0.3,
-            2, // Small upward component
-            -rotation.alpha * IMPULSE_SCALE * 0.3
-          )
-
-          // Cap maximum
-          if (tilt.length() > MAX_IMPULSE * 0.5) {
-            tilt.normalize().multiplyScalar(MAX_IMPULSE * 0.5)
-          }
-
-          setTiltImpulse(tilt)
         }
       }
     }
@@ -174,8 +143,7 @@ export function useDeviceMotion(): DeviceMotionState {
     isSupported,
     permissionState,
     isShaking,
-    shakeImpulse,
-    tiltImpulse,
+    gravityVector,
     requestPermission
   }
 }
