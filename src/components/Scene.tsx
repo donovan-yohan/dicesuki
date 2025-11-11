@@ -6,6 +6,7 @@ import { Physics, RigidBody } from '@react-three/rapier'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { D6, D6Handle } from './dice/D6'
 import { RollButton } from './RollButton'
+import { DeviceMotionButton } from './DeviceMotionButton'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useDiceStore } from '../store/useDiceStore'
 
@@ -136,6 +137,9 @@ function Scene() {
 
       {/* Roll Button */}
       <RollButton onClick={handleRollClick} disabled={!canRoll} />
+
+      {/* Device Motion Permission Button */}
+      <DeviceMotionButton />
 
       {/* Roll History */}
       <HistoryDisplay />

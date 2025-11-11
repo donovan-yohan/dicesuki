@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { createD6Geometry } from '../../lib/geometries'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
+import { useDeviceMotion } from '../../hooks/useDeviceMotion'
 
 interface D6Props {
   position?: [number, number, number]
@@ -41,6 +42,7 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
   const initialRotationRef = useRef(rotation)
   const { isAtRest, faceValue, updateMotion, readFaceValue, reset: resetFaceDetection } = useFaceDetection()
   const { isDragging, onPointerDown, onPointerMove, onPointerUp, getFlickImpulse } = useDiceInteraction()
+  const { shakeImpulse, tiltImpulse } = useDeviceMotion()
   const hasNotifiedRef = useRef(false)
   const pendingNotificationRef = useRef<number | null>(null)
 
@@ -148,6 +150,62 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
       }
     }
   }, [isDragging, getFlickImpulse, resetFaceDetection])
+
+  // Handle shake impulse from device motion
+  useEffect(() => {
+    if (shakeImpulse && rigidBodyRef.current) {
+      console.log('📱 Applying shake impulse:', shakeImpulse)
+
+      // Apply shake impulse directly to current dice
+      rigidBodyRef.current.applyImpulse(
+        { x: shakeImpulse.x, y: shakeImpulse.y, z: shakeImpulse.z },
+        true
+      )
+
+      // Add random angular impulse for realistic tumbling
+      const angularImpulse = new THREE.Vector3(
+        (Math.random() - 0.5) * 2,
+        (Math.random() - 0.5) * 2,
+        (Math.random() - 0.5) * 2
+      )
+      rigidBodyRef.current.applyTorqueImpulse(
+        { x: angularImpulse.x, y: angularImpulse.y, z: angularImpulse.z },
+        true
+      )
+
+      // Reset face detection to track new roll
+      resetFaceDetection()
+      hasNotifiedRef.current = false
+    }
+  }, [shakeImpulse, resetFaceDetection])
+
+  // Handle tilt impulse from device motion
+  useEffect(() => {
+    if (tiltImpulse && rigidBodyRef.current) {
+      console.log('📱 Applying tilt impulse:', tiltImpulse)
+
+      // Apply tilt impulse directly to current dice
+      rigidBodyRef.current.applyImpulse(
+        { x: tiltImpulse.x, y: tiltImpulse.y, z: tiltImpulse.z },
+        true
+      )
+
+      // Add smaller angular impulse for subtle tumbling
+      const angularImpulse = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.5,
+        (Math.random() - 0.5) * 0.5,
+        (Math.random() - 0.5) * 0.5
+      )
+      rigidBodyRef.current.applyTorqueImpulse(
+        { x: angularImpulse.x, y: angularImpulse.y, z: angularImpulse.z },
+        true
+      )
+
+      // Reset face detection to track new roll
+      resetFaceDetection()
+      hasNotifiedRef.current = false
+    }
+  }, [tiltImpulse, resetFaceDetection])
 
   // Notify parent OUTSIDE of the physics loop using requestAnimationFrame
   useEffect(() => {
