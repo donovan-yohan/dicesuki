@@ -1,6 +1,6 @@
 import { useRef, useCallback, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, PerspectiveCamera, Box } from '@react-three/drei'
+import { PerspectiveCamera, Box } from '@react-three/drei'
 import { Physics, RigidBody } from '@react-three/rapier'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { D6, D6Handle } from './dice/D6'
@@ -45,26 +45,26 @@ function Scene() {
       gl={{ antialias: true, alpha: false }}
       dpr={[1, 2]} // Device pixel ratio (1x for low-end, 2x for high-end)
     >
-      {/* Camera setup */}
-      <PerspectiveCamera makeDefault position={[0, 5, 10]} fov={50} />
-
-      {/* Camera controls */}
-      <OrbitControls
-        enableDamping
-        dampingFactor={0.05}
-        minDistance={5}
-        maxDistance={20}
-        maxPolarAngle={Math.PI / 2}
+      {/* Top-down camera - looking straight down into dice box */}
+      <PerspectiveCamera
+        makeDefault
+        position={[0, 12, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        fov={50}
       />
 
-      {/* Lighting */}
-      <ambientLight intensity={0.5} />
+      {/* Lighting - optimized for top-down view */}
+      <ambientLight intensity={0.6} />
       <directionalLight
-        position={[10, 10, 5]}
-        intensity={1}
+        position={[5, 15, 5]}
+        intensity={1.2}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
+        shadow-camera-left={-10}
+        shadow-camera-right={10}
+        shadow-camera-top={10}
+        shadow-camera-bottom={-10}
       />
 
       {/* Physics world */}
