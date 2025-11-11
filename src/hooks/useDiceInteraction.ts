@@ -5,11 +5,11 @@ import type { ThreeEvent } from '@react-three/fiber'
 /**
  * Configuration for interaction behavior
  */
-const VELOCITY_THRESHOLD = 0.5 // Minimum velocity to register as a flick (units/s)
-const IMPULSE_SCALE = 3 // Scale factor for converting velocity to impulse
+const VELOCITY_THRESHOLD = 0.1 // Minimum velocity to register as a flick (units/s) - LOWERED for sensitivity
+const IMPULSE_SCALE = 5 // Scale factor for converting velocity to impulse - INCREASED for stronger flicks
 const MAX_IMPULSE = 50 // Maximum impulse magnitude
-const MIN_UPWARD_IMPULSE = 3 // Minimum upward component for realistic throw
-const VELOCITY_SAMPLE_WINDOW = 3 // Number of recent samples to average
+const MIN_UPWARD_IMPULSE = 2 // Minimum upward component for realistic throw - LOWERED for gentler flicks
+const VELOCITY_SAMPLE_WINDOW = 2 // Number of recent samples to average - REDUCED for faster response
 
 interface PointerSample {
   position: THREE.Vector3
@@ -58,6 +58,7 @@ export function useDiceInteraction(): DiceInteraction {
    */
   const calculateVelocity = useCallback((): THREE.Vector3 | null => {
     const samples = samplesRef.current
+    console.log('📊 Calculating velocity from', samples.length, 'samples')
     if (samples.length < 2) return null
 
     // Use recent samples for velocity calculation
@@ -73,6 +74,7 @@ export function useDiceInteraction(): DiceInteraction {
     const positionDelta = last.position.clone().sub(first.position)
     const velocity = positionDelta.divideScalar(timeDelta)
 
+    console.log('📊 Calculated velocity:', velocity, 'speed:', velocity.length())
     return velocity
   }, [])
 

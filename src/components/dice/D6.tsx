@@ -118,10 +118,12 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
 
   // Handle flick impulse when pointer is released
   useEffect(() => {
+    console.log('🎯 Flick useEffect triggered - isDragging:', isDragging)
     if (!isDragging) {
       const flickImpulse = getFlickImpulse()
+      console.log('🎯 Retrieved flick impulse:', flickImpulse)
       if (flickImpulse && rigidBodyRef.current) {
-        console.log('Applying flick impulse:', flickImpulse)
+        console.log('✅ Applying flick impulse:', flickImpulse)
 
         // Apply impulse directly to current dice (no reset)
         rigidBodyRef.current.applyImpulse(
@@ -210,9 +212,17 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
         geometry={geometry}
         castShadow
         receiveShadow
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
+        onPointerDown={(e) => {
+          console.log('🖱️ D6 onPointerDown fired')
+          onPointerDown(e)
+        }}
+        onPointerMove={(e) => {
+          onPointerMove(e)
+        }}
+        onPointerUp={(e) => {
+          console.log('🖱️ D6 onPointerUp fired')
+          onPointerUp(e)
+        }}
       >
         <meshStandardMaterial color={color} />
       </mesh>
