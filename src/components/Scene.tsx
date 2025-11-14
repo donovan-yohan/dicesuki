@@ -1,7 +1,6 @@
 import { useRef, useCallback } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { Box } from '@react-three/drei'
-import { useEffect } from 'react'
 import { Physics, RigidBody } from '@react-three/rapier'
 import { useRapier } from '@react-three/rapier'
 import * as THREE from 'three'
@@ -148,24 +147,6 @@ function Scene() {
   const removeDice = useDiceManagerStore((state) => state.removeDice)
   const removeAllDice = useDiceManagerStore((state) => state.removeAllDice)
 
-  // Component to set up top-down camera
-  function CameraSetup() {
-    const { camera } = useThree()
-
-    useEffect(() => {
-      // Reduce FOV to 40 degrees (from default 75) for less distortion
-      // Camera at 15 units up for appropriate dice size
-      if (camera instanceof THREE.PerspectiveCamera) {
-        camera.fov = 40
-      }
-      camera.position.set(0, 15, 0)
-      camera.lookAt(0, 0, 0)
-      camera.updateProjectionMatrix()
-    }, [camera])
-
-    return null
-  }
-
   const handleRollClick = useCallback(() => {
     const impulse = roll(dice.length)
     if (impulse && diceRef.current) {
@@ -205,9 +186,12 @@ function Scene() {
         shadows
         gl={{ antialias: true, alpha: false }}
         dpr={[1, 2]} // Device pixel ratio (1x for low-end, 2x for high-end)
+        camera={{
+          position: [0, 15, 0],
+          fov: 40
+        }}
       >
-      {/* Set up top-down camera */}
-      <CameraSetup />
+      {/* Camera already configured via Canvas props */}
 
       {/* Lighting - optimized for top-down view */}
       <ambientLight intensity={0.6} />
