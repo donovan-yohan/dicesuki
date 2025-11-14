@@ -166,12 +166,8 @@ function Scene() {
   }, [addDice])
 
   const handleRemoveDice = useCallback((id: string) => {
-    if (id === 'all') {
-      removeAllDice()
-    } else {
-      removeDice(id)
-    }
-  }, [removeDice, removeAllDice])
+    removeDice(id)
+  }, [removeDice])
 
   return (
     <>
@@ -179,7 +175,7 @@ function Scene() {
       <HamburgerMenu
         onAddDice={handleAddDice}
         onRemoveDice={handleRemoveDice}
-        diceCount={dice.length}
+        dice={dice}
       />
 
       <Canvas

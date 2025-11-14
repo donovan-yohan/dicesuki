@@ -1,16 +1,22 @@
 import { useState } from 'react'
 
+interface DiceInstance {
+  id: string
+  type: string
+  color: string
+}
+
 interface HamburgerMenuProps {
   onAddDice?: (type: string) => void
   onRemoveDice?: (id: string) => void
-  diceCount?: number
+  dice?: DiceInstance[]
 }
 
 /**
  * Hamburger menu component for dice management
  * Provides UI for adding and removing different types of dice
  */
-export function HamburgerMenu({ onAddDice, onRemoveDice, diceCount = 1 }: HamburgerMenuProps) {
+export function HamburgerMenu({ onAddDice, onRemoveDice, dice = [] }: HamburgerMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   const toggleMenu = () => setIsOpen(!isOpen)
@@ -18,6 +24,10 @@ export function HamburgerMenu({ onAddDice, onRemoveDice, diceCount = 1 }: Hambur
   const handleAddDice = (type: string) => {
     onAddDice?.(type)
     setIsOpen(false)
+  }
+
+  const handleRemoveDice = (id: string) => {
+    onRemoveDice?.(id)
   }
 
   return (
@@ -43,14 +53,54 @@ export function HamburgerMenu({ onAddDice, onRemoveDice, diceCount = 1 }: Hambur
           />
 
           {/* Menu Content */}
-          <div className="absolute top-0 left-0 w-64 h-full bg-gray-900 z-30 shadow-xl transition-transform">
+          <div className="absolute top-0 left-0 w-72 h-full bg-gray-900 z-30 shadow-xl transition-transform overflow-y-auto">
             <div className="p-6">
               <h2 className="text-white text-xl font-bold mb-6">Dice Management</h2>
 
-              {/* Current Dice Count */}
-              <div className="mb-6 p-4 bg-gray-800 rounded-lg">
-                <div className="text-gray-400 text-sm">Active Dice</div>
-                <div className="text-white text-2xl font-bold">{diceCount}</div>
+              {/* Current Dice List */}
+              <div className="mb-6">
+                <h3 className="text-gray-400 text-sm font-semibold mb-3">
+                  Active Dice ({dice.length})
+                </h3>
+                {dice.length === 0 ? (
+                  <div className="p-4 bg-gray-800 rounded-lg text-gray-500 text-sm text-center">
+                    No dice added yet
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {dice.map((die, index) => (
+                      <div
+                        key={die.id}
+                        className="flex items-center justify-between p-3 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Color indicator */}
+                          <div
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: die.color }}
+                          />
+                          {/* Dice info */}
+                          <div>
+                            <div className="text-white font-medium">
+                              {die.type.toUpperCase()}
+                            </div>
+                            <div className="text-gray-500 text-xs">
+                              #{index + 1}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Remove button */}
+                        <button
+                          onClick={() => handleRemoveDice(die.id)}
+                          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-600 text-gray-400 hover:text-white transition-colors"
+                          title="Remove dice"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Add Dice Section */}
@@ -63,17 +113,6 @@ export function HamburgerMenu({ onAddDice, onRemoveDice, diceCount = 1 }: Hambur
                   <MenuButton onClick={() => handleAddDice('d12')} label="D12 (Dodecahedron)" disabled />
                   <MenuButton onClick={() => handleAddDice('d20')} label="D20 (Icosahedron)" disabled />
                 </div>
-              </div>
-
-              {/* Remove All Section */}
-              <div className="mt-6 pt-6 border-t border-gray-700">
-                <button
-                  onClick={() => onRemoveDice?.('all')}
-                  className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-semibold"
-                  disabled={diceCount === 0}
-                >
-                  Remove All Dice
-                </button>
               </div>
             </div>
           </div>
