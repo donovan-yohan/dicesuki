@@ -4,11 +4,10 @@ import { getDiceFaceValue, DiceShape } from '../lib/geometries'
 
 /**
  * Thresholds for detecting when a dice is at rest
- * More conservative thresholds to prevent false positives
+ * Only tracks angular velocity to detect rotation (ignores sliding)
  */
-const VELOCITY_THRESHOLD = 0.01  // Linear velocity threshold (reduced from 0.1)
-const ANGULAR_VELOCITY_THRESHOLD = 0.01  // Angular velocity threshold (reduced from 0.1)
-const REST_DURATION_MS = 1000  // Time in milliseconds dice must be still (reduced from 2000 for better UX)
+const ANGULAR_VELOCITY_THRESHOLD = 0.01  // Angular velocity threshold - dice stops rotating
+const REST_DURATION_MS = 1000  // Time in milliseconds dice must be still
 
 interface FaceDetectionState {
   isAtRest: boolean
@@ -42,17 +41,19 @@ export function useFaceDetection(): FaceDetectionState {
 
   /**
    * Update motion state and check if dice is at rest
+   *
+   * Only tracks angular velocity to detect rotation/tumbling.
+   * Ignores linear velocity to avoid false positives from sliding.
    */
   const updateMotion = useCallback((velocity: THREE.Vector3, angularVelocity: THREE.Vector3) => {
     lastVelocityRef.current.copy(velocity)
     lastAngularVelocityRef.current.copy(angularVelocity)
 
-    const velocityMagnitude = velocity.length()
     const angularVelocityMagnitude = angularVelocity.length()
 
-    const isStill =
-      velocityMagnitude < VELOCITY_THRESHOLD &&
-      angularVelocityMagnitude < ANGULAR_VELOCITY_THRESHOLD
+    // Only check angular velocity - dice is "at rest" when not rotating
+    // This allows detecting re-rolls even if dice lands on same face
+    const isStill = angularVelocityMagnitude < ANGULAR_VELOCITY_THRESHOLD
 
     if (isStill) {
       if (restStartTimeRef.current === null) {
@@ -82,6 +83,16 @@ export function useFaceDetection(): FaceDetectionState {
       }
 
       const value = getDiceFaceValue(quaternion, shape)
+      
+      // DEBUG: Log the actual face detection process
+      if (import.meta.env.DEV) {
+        console.log('🔍 Face Detection:', {
+          isAtRest,
+          detectedValue: value,
+          quaternion: `(${quaternion.x.toFixed(3)}, ${quaternion.y.toFixed(3)}, ${quaternion.z.toFixed(3)}, ${quaternion.w.toFixed(3)})`
+        })
+      }
+      
       setFaceValue(value)
     },
     [isAtRest]

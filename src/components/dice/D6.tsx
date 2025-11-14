@@ -2,16 +2,17 @@ import { useRef, useEffect, useImperativeHandle, forwardRef, useMemo, memo } fro
 import { RigidBody, RapierRigidBody } from '@react-three/rapier'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { createD6Geometry } from '../../lib/geometries'
+import { createD6Geometry, createD6Material } from '../../lib/geometries'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 
 interface D6Props {
+  id?: string
   position?: [number, number, number]
   rotation?: [number, number, number]
   size?: number
   color?: string
-  onRest?: (faceValue: number) => void
+  onRest?: (id: string, faceValue: number) => void
 }
 
 export interface D6Handle {
@@ -30,6 +31,7 @@ export interface D6Handle {
  * @param ref - Imperative handle to control dice (applyImpulse, reset)
  */
 const D6Component = forwardRef<D6Handle, D6Props>(({
+  id = 'dice-0',
   position = [0, 5, 0],
   rotation = [0, 0, 0],
   size = 1,
@@ -61,6 +63,15 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
         Math.random() * Math.PI * 2
       )
       const quaternion = new THREE.Quaternion().setFromEuler(randomRotation)
+      
+      // DEBUG: Log the rotation being applied
+      if (import.meta.env.DEV) {
+        console.log('🎲 applyImpulse - Setting rotation:', {
+          eulerDegrees: `(${(randomRotation.x * 180 / Math.PI).toFixed(1)}°, ${(randomRotation.y * 180 / Math.PI).toFixed(1)}°, ${(randomRotation.z * 180 / Math.PI).toFixed(1)}°)`,
+          quaternion: `(${quaternion.x.toFixed(3)}, ${quaternion.y.toFixed(3)}, ${quaternion.z.toFixed(3)}, ${quaternion.w.toFixed(3)})`
+        })
+      }
+      
       rigidBodyRef.current.setRotation(
         { x: quaternion.x, y: quaternion.y, z: quaternion.z, w: quaternion.w },
         true
@@ -162,14 +173,14 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
                              Math.sqrt(angVel.x**2 + angVel.y**2 + angVel.z**2) < 0.01
 
           if (stillAtRest) {
-            onRest(pendingNotificationRef.current)
+            onRest(id, pendingNotificationRef.current)
             hasNotifiedRef.current = true
           }
           pendingNotificationRef.current = null
         }
       })
     }
-  }, [isAtRest, faceValue, onRest])
+  }, [isAtRest, faceValue, onRest, id])
 
   // Update physics state every frame
   useFrame(() => {
@@ -191,14 +202,14 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
     }
   })
 
-  // Memoize geometry to prevent recreation on re-renders
+  // Memoize geometry and material to prevent recreation on re-renders
   const geometry = useMemo(() => createD6Geometry(size), [size])
+  const material = useMemo(() => createD6Material(color), [color])
 
   return (
     <RigidBody
       ref={rigidBodyRef}
       position={position}
-      rotation={rotation}
       colliders="cuboid"
       type="dynamic"
       restitution={0.3}
@@ -206,14 +217,13 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
     >
       <mesh
         geometry={geometry}
+        material={material}
         castShadow
         receiveShadow
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-      >
-        <meshStandardMaterial color={color} />
-      </mesh>
+      />
     </RigidBody>
   )
 })

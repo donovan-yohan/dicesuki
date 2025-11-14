@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Scene from './components/Scene'
 import { checkDeviceCompatibility } from './lib/deviceDetection'
+import { DeviceMotionProvider } from './contexts/DeviceMotionContext'
 
 function App() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
@@ -47,9 +48,11 @@ function App() {
 
   // Main app
   return (
-    <div className="w-full h-full">
-      <Scene />
-    </div>
+    <DeviceMotionProvider>
+      <div className="w-full h-full">
+        <Scene />
+      </div>
+    </DeviceMotionProvider>
   )
 }
 
