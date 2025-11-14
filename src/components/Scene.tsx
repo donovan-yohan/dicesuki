@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useState } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { Box } from '@react-three/drei'
 import { Physics, RigidBody } from '@react-three/rapier'
@@ -274,7 +274,7 @@ function ResultDisplay() {
   const pendingCount = isRolling ? expectedDiceCount - currentRoll.length : 0
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 md:left-auto md:right-4 md:translate-x-0 bg-black bg-opacity-75 text-white px-6 py-4 rounded-lg text-center z-20 shadow-xl min-w-[200px]">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 md:top-20 md:left-auto md:right-4 md:translate-x-0 bg-black bg-opacity-75 text-white px-6 py-4 rounded-lg text-center z-20 shadow-xl min-w-[200px]">
       <div className="text-sm text-gray-300 mb-2">
         {isRolling ? 'Rolling...' : 'You rolled:'}
       </div>
@@ -308,34 +308,90 @@ function ResultDisplay() {
 }
 
 /**
- * History display component
- * Subscribes ONLY to rollHistory from store
+ * History display component with flyout panel
+ * Shows compact icon with most recent sum in top-right
+ * Expands to show full roll history breakdown when clicked
  */
 function HistoryDisplay() {
   const rollHistory = useDiceStore((state) => state.rollHistory)
+  const [isOpen, setIsOpen] = useState(false)
 
   if (rollHistory.length === 0) return null
 
+  const mostRecent = rollHistory[rollHistory.length - 1]
+
   return (
-    <div className="absolute top-32 left-1/2 -translate-x-1/2 md:top-4 md:left-4 md:translate-x-0 bg-black bg-opacity-75 text-white px-4 py-2 rounded-lg text-sm">
-      <div className="text-gray-400 mb-1">History:</div>
-      <div className="flex gap-2 flex-wrap max-w-xs justify-center md:justify-start">
-        {rollHistory.slice(-5).map((roll, idx) => (
-          <div key={idx} className="flex flex-col items-center">
-            {roll.dice.length > 1 ? (
-              <>
-                <div className="text-xs text-gray-500">
-                  {roll.dice.map(d => d.value).join('+')}
+    <>
+      {/* Compact history button - top right */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="fixed top-4 right-4 z-30 bg-black bg-opacity-75 hover:bg-opacity-90 text-white px-3 py-2 rounded-lg shadow-lg transition-all flex items-center gap-2"
+        title="View roll history"
+      >
+        <span className="text-lg">📜</span>
+        <span className="font-bold text-orange-400">{mostRecent.sum}</span>
+      </button>
+
+      {/* Flyout panel - slides in from right */}
+      {isOpen && (
+        <>
+          {/* Backdrop - click to close */}
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setIsOpen(false)}
+          />
+
+          {/* Flyout content */}
+          <div className="fixed top-0 right-0 h-full w-80 bg-gray-900 shadow-2xl z-50 overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-gray-900 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Roll History</h2>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* History list - newest first */}
+            <div className="px-6 py-4 space-y-3">
+              {[...rollHistory].reverse().map((roll, idx) => (
+                <div
+                  key={idx}
+                  className="bg-gray-800 rounded-lg p-4 border border-gray-700"
+                >
+                  {/* Roll number */}
+                  <div className="text-xs text-gray-500 mb-2">
+                    Roll #{rollHistory.length - idx}
+                  </div>
+
+                  {/* Dice values */}
+                  <div className="flex gap-2 flex-wrap mb-2">
+                    {roll.dice.map((die, dieIdx) => (
+                      <span
+                        key={dieIdx}
+                        className="bg-gray-700 text-white px-3 py-1 rounded font-bold"
+                      >
+                        {die.value}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Sum */}
+                  <div className="border-t border-gray-700 pt-2 mt-2">
+                    <div className="text-xs text-gray-400">Sum</div>
+                    <div className="text-2xl font-bold text-orange-400">
+                      {roll.sum}
+                    </div>
+                  </div>
                 </div>
-                <span className="text-orange-400 font-bold">{roll.sum}</span>
-              </>
-            ) : (
-              <span className="text-orange-400 font-bold">{roll.sum}</span>
-            )}
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
-    </div>
+        </>
+      )}
+    </>
   )
 }
 
