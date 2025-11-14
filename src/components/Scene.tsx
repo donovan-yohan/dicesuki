@@ -8,7 +8,6 @@ import * as THREE from 'three'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { D6, D6Handle } from './dice/D6'
 import { RollButton } from './RollButton'
-import { DeviceMotionButton } from './DeviceMotionButton'
 import { DebugOverlay } from './DebugOverlay'
 import { SettingsButton } from './SettingsButton'
 import { HamburgerMenu } from './HamburgerMenu'
@@ -58,15 +57,15 @@ function ViewportBoundaries() {
   // Calculate viewport bounds based on camera frustum at ground level (y=0)
   const aspect = size.width / size.height
   const fov = perspectiveCamera.fov
-  const distance = camera.position.y || 14 // Camera height (dynamically read, fallback to 14)
+  const distance = camera.position.y || 15 // Camera height (dynamically read, fallback to 15)
 
   // Calculate viewport dimensions at ground plane
   const vFOV = THREE.MathUtils.degToRad(fov)
   const height = 2 * Math.tan(vFOV / 2) * distance
   const width = height * aspect
 
-  // Add 10% margin to ensure walls are slightly outside viewport
-  const margin = 0.1
+  // Tighter bounds - reduce margin to create a more confined dice tray
+  const margin = -0.05 // Negative margin to make space tighter than viewport
   const bounds = {
     left: -(width / 2) * (1 + margin),
     right: (width / 2) * (1 + margin),
@@ -76,8 +75,8 @@ function ViewportBoundaries() {
     height: height * (1 + margin)
   }
 
-  const wallThickness = 0.5
-  const wallHeight = 8 // Height from ground to ceiling
+  const wallThickness = 0.3
+  const wallHeight = 6 // Match ceiling height to prevent dice escape
   const wallY = wallHeight / 2 // Center Y position for walls
 
   return (
@@ -91,34 +90,34 @@ function ViewportBoundaries() {
 
       {/* Top wall (positive Z) */}
       <RigidBody type="fixed" position={[0, wallY, bounds.top]}>
-        <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]}>
-          <meshStandardMaterial transparent opacity={0} />
+        <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
+          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
         </Box>
       </RigidBody>
 
       {/* Bottom wall (negative Z) */}
       <RigidBody type="fixed" position={[0, wallY, bounds.bottom]}>
-        <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]}>
-          <meshStandardMaterial transparent opacity={0} />
+        <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
+          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
         </Box>
       </RigidBody>
 
       {/* Right wall (positive X) */}
       <RigidBody type="fixed" position={[bounds.right, wallY, 0]}>
-        <Box args={[wallThickness, wallHeight, bounds.height]}>
-          <meshStandardMaterial transparent opacity={0} />
+        <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
+          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
         </Box>
       </RigidBody>
 
       {/* Left wall (negative X) */}
       <RigidBody type="fixed" position={[bounds.left, wallY, 0]}>
-        <Box args={[wallThickness, wallHeight, bounds.height]}>
-          <meshStandardMaterial transparent opacity={0} />
+        <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
+          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
         </Box>
       </RigidBody>
 
       {/* Ceiling - prevents dice from flying away when phone upside down */}
-      <RigidBody type="fixed" position={[0, wallHeight, 0]}>
+      <RigidBody type="fixed" position={[0, 6, 0]}>
         <Box args={[bounds.width, wallThickness, bounds.height]}>
           <meshStandardMaterial transparent opacity={0} />
         </Box>
@@ -155,11 +154,11 @@ function Scene() {
 
     useEffect(() => {
       // Reduce FOV to 40 degrees (from default 75) for less distortion
-      // Camera at 14 units up for appropriate dice size
+      // Camera at 15 units up for appropriate dice size
       if (camera instanceof THREE.PerspectiveCamera) {
         camera.fov = 40
       }
-      camera.position.set(0, 14, 0)
+      camera.position.set(0, 15, 0)
       camera.lookAt(0, 0, 0)
       camera.updateProjectionMatrix()
     }, [camera])
@@ -225,7 +224,7 @@ function Scene() {
       />
 
       {/* Physics world - gravity updated via PhysicsController, not props */}
-      <Physics gravity={[0, -9.81, 0]}>
+      <Physics gravity={[0, -9.81, 0]} timeStep="vary">
         <PhysicsController gravityRef={gravityRef} />
 
         {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
@@ -256,9 +255,6 @@ function Scene() {
     {/* Roll Button */}
     <RollButton onClick={handleRollClick} disabled={!canRoll} />
 
-    {/* Device Motion Permission Button - subscribes to device motion directly */}
-    <DeviceMotionButton />
-
     {/* Debug Overlay - subscribes to device motion directly */}
     <DebugOverlay />
 
@@ -286,14 +282,15 @@ function ResultDisplay() {
 
   if (!hasRoll) return null
 
-  const displayDice = isRolling || currentRoll.length === expectedDiceCount ? currentRoll : lastResult?.dice || []
+  // Show currentRoll only if we have actual dice in it, otherwise show lastResult
+  const displayDice = currentRoll.length > 0 ? currentRoll : lastResult?.dice || []
   const displaySum = displayDice.reduce((acc, d) => acc + d.value, 0)
 
   // Calculate how many dice are still pending
   const pendingCount = isRolling ? expectedDiceCount - currentRoll.length : 0
 
   return (
-    <div className="absolute top-4 right-4 bg-black bg-opacity-75 text-white px-6 py-4 rounded-lg text-center z-20 shadow-xl min-w-[200px]">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 md:left-auto md:right-4 md:translate-x-0 bg-black bg-opacity-75 text-white px-6 py-4 rounded-lg text-center z-20 shadow-xl min-w-[200px]">
       <div className="text-sm text-gray-300 mb-2">
         {isRolling ? 'Rolling...' : 'You rolled:'}
       </div>
@@ -336,9 +333,9 @@ function HistoryDisplay() {
   if (rollHistory.length === 0) return null
 
   return (
-    <div className="absolute top-4 left-72 bg-black bg-opacity-75 text-white px-4 py-2 rounded-lg text-sm">
+    <div className="absolute top-32 left-1/2 -translate-x-1/2 md:top-4 md:left-4 md:translate-x-0 bg-black bg-opacity-75 text-white px-4 py-2 rounded-lg text-sm">
       <div className="text-gray-400 mb-1">History:</div>
-      <div className="flex gap-2 flex-wrap max-w-xs">
+      <div className="flex gap-2 flex-wrap max-w-xs justify-center md:justify-start">
         {rollHistory.slice(-5).map((roll, idx) => (
           <div key={idx} className="flex flex-col items-center">
             {roll.dice.length > 1 ? (

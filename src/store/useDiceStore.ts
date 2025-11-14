@@ -87,7 +87,8 @@ export const useDiceStore = create<DiceStore>((set, get) => ({
         }
 
         return {
-          currentRoll: newRoll,
+          currentRoll: [],
+          expectedDiceCount: 0,
           lastResult: rollResult,
           rollHistory: [...state.rollHistory, rollResult]
         }
