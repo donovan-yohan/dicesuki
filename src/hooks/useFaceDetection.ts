@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { getDiceFaceValue, DiceShape } from '../lib/geometries'
+import { DiceShape, getDiceFaceValue } from '../lib/geometries'
 
 /**
  * Thresholds for detecting when a dice is at rest
@@ -61,15 +61,21 @@ export function useFaceDetection(): FaceDetectionState {
       } else {
         const restDuration = performance.now() - restStartTimeRef.current
         if (restDuration >= REST_DURATION_MS) {
+          if (import.meta.env.DEV && !isAtRest) {
+            console.log('🎲 Face Detection: Dice at rest (angular:', angularVelocityMagnitude.toFixed(4), ')')
+          }
           setIsAtRest(true)
         }
       }
     } else {
       // Reset if motion detected
-      if (restStartTimeRef.current !== null) {
+      if (restStartTimeRef.current !== null || isAtRest) {
+        if (import.meta.env.DEV && isAtRest) {
+          console.log('🎲 Face Detection: Dice moving (angular:', angularVelocityMagnitude.toFixed(4), ')')
+        }
         restStartTimeRef.current = null
+        setIsAtRest(false)
       }
-      setIsAtRest(false)
     }
   }, [])
 
@@ -83,15 +89,6 @@ export function useFaceDetection(): FaceDetectionState {
       }
 
       const value = getDiceFaceValue(quaternion, shape)
-      
-      // DEBUG: Log the actual face detection process
-      if (import.meta.env.DEV) {
-        console.log('🔍 Face Detection:', {
-          isAtRest,
-          detectedValue: value,
-          quaternion: `(${quaternion.x.toFixed(3)}, ${quaternion.y.toFixed(3)}, ${quaternion.z.toFixed(3)}, ${quaternion.w.toFixed(3)})`
-        })
-      }
       
       setFaceValue(value)
     },

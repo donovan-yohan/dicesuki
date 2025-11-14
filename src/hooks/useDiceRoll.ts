@@ -83,26 +83,26 @@ export function useDiceRoll(): DiceRollState {
    *
    * Business Logic:
    * - Motion mode ON: Accept all results (continuous rolling)
-   * - Motion mode OFF: Only accept results from button-triggered rolls
+   * - Motion mode OFF: Accept results from button-triggered rolls OR motion-control tilts
+   *
+   * IMPORTANT: We now accept motion control results even when motion mode is OFF.
+   * This allows users to tilt their phone to roll dice without explicitly enabling motion mode.
+   * The "awaiting result" check is removed because motion controls (gravity tilt) don't
+   * call roll() but still cause legitimate dice movement.
    */
   const onDiceRest = useCallback((diceId: string, faceValue: number) => {
-    // Check motion mode from UI store (no subscription, no re-renders)
-    const motionMode = useUIStore.getState().motionMode
+    // Accept all results - both button-triggered and motion-control triggered
+    // The "phantom roll" concept only applies to spurious detections, not actual dice movement
 
-    // In motion mode: always accept results (continuous rolling)
-    // In normal mode: only process if we're awaiting a result from a button roll
-    if (!motionMode && !awaitingResultRef.current) {
-      console.log('Ignoring phantom roll:', diceId, faceValue, '(not awaiting result)')
-      return
-    }
-
-    // In motion mode, ensure we have started tracking the roll
+    // Ensure we have started tracking the roll (for both motion mode and button rolls)
     const expectedCount = useDiceStore.getState().expectedDiceCount
-    if (motionMode && expectedCount === 0) {
-      // Motion mode but no roll started - get current dice count and start tracking
+    if (expectedCount === 0) {
+      // No roll tracking started - this is a motion-control roll
       const diceCount = useDiceManagerStore.getState().dice.length
-      console.log('Motion mode: Starting roll tracking with', diceCount, 'dice')
+      console.log('useDiceRoll: Motion-control detected, starting roll tracking with', diceCount, 'dice')
       startRoll(diceCount)
+      setIsRolling(true)
+      awaitingResultRef.current = true
     }
 
     console.log('useDiceRoll: Recording dice result:', diceId, faceValue)
@@ -113,6 +113,7 @@ export function useDiceRoll(): DiceRollState {
     const updatedExpectedCount = useDiceStore.getState().expectedDiceCount
 
     if (currentRoll.length === updatedExpectedCount) {
+      console.log('useDiceRoll: Roll complete, all', updatedExpectedCount, 'dice reported')
       setIsRolling(false)
       setCanRoll(true)
       awaitingResultRef.current = false
