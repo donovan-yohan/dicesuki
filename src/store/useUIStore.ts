@@ -15,7 +15,7 @@ interface UIStore {
 }
 
 export const useUIStore = create<UIStore>((set) => ({
-  showDebugOverlay: true,
+  showDebugOverlay: false,
   toggleDebugOverlay: () => set((state) => ({ showDebugOverlay: !state.showDebugOverlay })),
 
   motionMode: false,
