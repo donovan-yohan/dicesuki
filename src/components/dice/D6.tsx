@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { createD6Geometry, createD6Material } from '../../lib/geometries'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
+import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
 
 interface D6Props {
   id?: string
@@ -33,7 +34,7 @@ export interface D6Handle {
 const D6Component = forwardRef<D6Handle, D6Props>(({
   id = 'dice-0',
   position = [0, 5, 0],
-  rotation = [0, 0, 0],
+  rotation: _rotation = [0, 0, 0], // Prefixed with _ to indicate intentionally unused
   size = 1,
   color = 'orange',
   onRest
@@ -42,8 +43,10 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
   const initialPositionRef = useRef(position)
   const { isAtRest, faceValue, updateMotion, readFaceValue, reset: resetFaceDetection } = useFaceDetection()
   const { isDragging, onPointerDown, onPointerMove, onPointerUp, getFlickImpulse } = useDiceInteraction()
+  const { isShakingRef } = useDeviceMotionRef()
   const hasNotifiedRef = useRef(false)
   const pendingNotificationRef = useRef<number | null>(null)
+  const lastShakeStateRef = useRef(false)
 
   // Expose imperative handle
   useImperativeHandle(ref, () => ({
@@ -194,6 +197,26 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
       new THREE.Vector3(angularVelocity.x, angularVelocity.y, angularVelocity.z)
     )
 
+    // Apply angular impulse when shake is detected
+    const isShaking = isShakingRef.current
+    if (isShaking && !lastShakeStateRef.current) {
+      // Shake just started - add random angular velocity
+      const shakeTorque = new THREE.Vector3(
+        (Math.random() - 0.5) * 3,
+        (Math.random() - 0.5) * 3,
+        (Math.random() - 0.5) * 3
+      )
+      rigidBodyRef.current.applyTorqueImpulse(
+        { x: shakeTorque.x, y: shakeTorque.y, z: shakeTorque.z },
+        true
+      )
+
+      // Reset face detection to track new roll
+      resetFaceDetection()
+      hasNotifiedRef.current = false
+    }
+    lastShakeStateRef.current = isShaking
+
     // Read face value when at rest
     if (isAtRest) {
       const rotation = rigidBodyRef.current.rotation()
@@ -214,6 +237,7 @@ const D6Component = forwardRef<D6Handle, D6Props>(({
       type="dynamic"
       restitution={0.3}
       friction={0.6}
+      canSleep={false}
     >
       <mesh
         geometry={geometry}

@@ -20,6 +20,7 @@ export interface DeviceMotionState {
   isShaking: boolean
   gravityVector: THREE.Vector3 // Throttled gravity for UI display only
   gravityRef: React.MutableRefObject<THREE.Vector3> // Real-time gravity for physics (60fps)
+  isShakingRef: React.MutableRefObject<boolean> // Real-time shake detection for physics (60fps)
   requestPermission: () => Promise<void>
 }
 
@@ -66,10 +67,15 @@ export function useDeviceMotion(): DeviceMotionState {
 
   // Real-time gravity for physics (updated every frame, no React re-renders)
   const gravityRef = useRef<THREE.Vector3>(new THREE.Vector3(0, -9.81, 0))
+  const isShakingRef = useRef<boolean>(false)
 
   // Throttle mechanism for UI updates
   const lastUIUpdateRef = useRef<number>(0)
   const shakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Debug: Track if motion events are being received
+  const lastMotionEventRef = useRef<number>(0)
+  const motionEventCountRef = useRef<number>(0)
 
   /**
    * Request device motion permission
@@ -102,9 +108,28 @@ export function useDeviceMotion(): DeviceMotionState {
    * Detects shake and tilt gestures, generates impulses
    */
   useEffect(() => {
-    if (permissionState !== 'granted') return
+    if (permissionState !== 'granted') {
+      if (import.meta.env.DEV) {
+        console.log('🎯 DeviceMotion: Event listener NOT added - permission:', permissionState)
+      }
+      return
+    }
+
+    if (import.meta.env.DEV) {
+      console.log('🎯 DeviceMotion: Adding event listener - permission:', permissionState)
+    }
 
     const handleMotion = (event: DeviceMotionEvent) => {
+      // Debug: Track motion events
+      motionEventCountRef.current++
+      const now = performance.now()
+
+      // Log every 2 seconds to verify events are firing
+      if (import.meta.env.DEV && now - lastMotionEventRef.current > 2000) {
+        console.log(`🎯 DeviceMotion: Still receiving events (${motionEventCountRef.current} total)`)
+        lastMotionEventRef.current = now
+      }
+
       const accelTotal = event.accelerationIncludingGravity
       const accelLinear = event.acceleration // Linear acceleration WITHOUT gravity (may be null on some devices)
 
@@ -220,6 +245,7 @@ export function useDeviceMotion(): DeviceMotionState {
 
         if (magnitude > SHAKE_THRESHOLD) {
           setIsShaking(true)
+          isShakingRef.current = true
 
           // Clear shake state after duration
           if (shakeTimeoutRef.current) {
@@ -227,6 +253,7 @@ export function useDeviceMotion(): DeviceMotionState {
           }
           shakeTimeoutRef.current = setTimeout(() => {
             setIsShaking(false)
+            isShakingRef.current = false
           }, SHAKE_DURATION)
         }
       }
@@ -235,6 +262,9 @@ export function useDeviceMotion(): DeviceMotionState {
     window.addEventListener('devicemotion', handleMotion)
 
     return () => {
+      if (import.meta.env.DEV) {
+        console.log('🎯 DeviceMotion: Removing event listener (cleanup)')
+      }
       window.removeEventListener('devicemotion', handleMotion)
       if (shakeTimeoutRef.current) {
         clearTimeout(shakeTimeoutRef.current)
@@ -248,6 +278,7 @@ export function useDeviceMotion(): DeviceMotionState {
     isShaking,
     gravityVector,
     gravityRef,
+    isShakingRef,
     requestPermission
   }
 }

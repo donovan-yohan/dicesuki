@@ -3,11 +3,12 @@ import * as THREE from 'three'
 import { useDeviceMotion } from '../hooks/useDeviceMotion'
 
 /**
- * Ref context - Contains only the stable gravityRef
+ * Ref context - Contains only the stable refs
  * This context NEVER changes, so components subscribing to it never re-render
  */
 interface DeviceMotionRefContext {
   gravityRef: React.MutableRefObject<THREE.Vector3>
+  isShakingRef: React.MutableRefObject<boolean>
 }
 
 /**
@@ -35,8 +36,9 @@ export function DeviceMotionProvider({ children }: { children: ReactNode }) {
   // Ref context value - STABLE, never changes reference
   // Empty dependency array ensures this object is created once and frozen forever
   const refValue = useMemo<DeviceMotionRefContext>(() => ({
-    gravityRef: deviceMotion.gravityRef
-  }), []) // Empty deps - gravityRef is stable
+    gravityRef: deviceMotion.gravityRef,
+    isShakingRef: deviceMotion.isShakingRef
+  }), []) // Empty deps - refs are stable
 
   // State context value - changes when any state property changes
   const stateValue = useMemo<DeviceMotionStateContext>(() => ({
