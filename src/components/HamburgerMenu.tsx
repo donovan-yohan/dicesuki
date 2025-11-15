@@ -107,11 +107,11 @@ export function HamburgerMenu({ onAddDice, onRemoveDice, dice = [] }: HamburgerM
               <div className="mb-4">
                 <h3 className="text-gray-400 text-sm font-semibold mb-3">Add Dice</h3>
                 <div className="space-y-2">
+                  <MenuButton onClick={() => handleAddDice('d4')} label="D4 (Tetrahedron)" />
                   <MenuButton onClick={() => handleAddDice('d6')} label="D6 (Cube)" />
-                  <MenuButton onClick={() => handleAddDice('d4')} label="D4 (Tetrahedron)" disabled />
-                  <MenuButton onClick={() => handleAddDice('d8')} label="D8 (Octahedron)" disabled />
-                  <MenuButton onClick={() => handleAddDice('d12')} label="D12 (Dodecahedron)" disabled />
-                  <MenuButton onClick={() => handleAddDice('d20')} label="D20 (Icosahedron)" disabled />
+                  <MenuButton onClick={() => handleAddDice('d8')} label="D8 (Octahedron)" />
+                  <MenuButton onClick={() => handleAddDice('d12')} label="D12 (Dodecahedron)" />
+                  <MenuButton onClick={() => handleAddDice('d20')} label="D20 (Icosahedron)" />
                 </div>
               </div>
             </div>

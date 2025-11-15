@@ -167,15 +167,15 @@ export function createD4Geometry(size: number = 1): THREE.TetrahedronGeometry {
 
 
 /**
- * Create a single solid color material for D6 dice
+ * Create a single solid color material for dice
  *
- * This replaces the old multi-material approach that rendered numbers on faces.
- * Numbers are now displayed only in the UI after face detection.
+ * This material is used for all dice types.
+ * Numbers are displayed only in the UI after face detection.
  *
  * @param color - Dice body color
  * @returns Single material for all faces
  */
-export function createD6Material(
+export function createDiceMaterial(
   color: string = 'orange'
 ): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
@@ -183,6 +183,16 @@ export function createD6Material(
     roughness: 0.7,
     metalness: 0.1
   })
+}
+
+/**
+ * Create a single solid color material for D6 dice
+ * @deprecated Use createDiceMaterial instead
+ */
+export function createD6Material(
+  color: string = 'orange'
+): THREE.MeshStandardMaterial {
+  return createDiceMaterial(color)
 }
 
 /**

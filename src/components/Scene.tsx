@@ -5,7 +5,7 @@ import { Physics, RigidBody } from '@react-three/rapier'
 import { useRapier } from '@react-three/rapier'
 import * as THREE from 'three'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
-import { D6, D6Handle } from './dice/D6'
+import { Dice, DiceHandle } from './dice/Dice'
 import { RollButton } from './RollButton'
 import { DebugOverlay } from './DebugOverlay'
 import { SettingsButton } from './SettingsButton'
@@ -136,7 +136,7 @@ function ViewportBoundaries() {
  * - Device motion updates physics gravity in real-time for tilt-based interaction
  */
 function Scene() {
-  const diceRef = useRef<D6Handle>(null)
+  const diceRef = useRef<DiceHandle>(null)
   // Only subscribe to RefContext - STABLE, never causes re-renders
   const { gravityRef } = useDeviceMotionRef()
   const { canRoll, roll, onDiceRest } = useDiceRoll()
@@ -145,7 +145,6 @@ function Scene() {
   const dice = useDiceManagerStore((state) => state.dice)
   const addDice = useDiceManagerStore((state) => state.addDice)
   const removeDice = useDiceManagerStore((state) => state.removeDice)
-  const removeAllDice = useDiceManagerStore((state) => state.removeAllDice)
 
   const handleRollClick = useCallback(() => {
     const impulse = roll(dice.length)
@@ -212,9 +211,10 @@ function Scene() {
 
         {/* Render all dice from store */}
         {dice.map((die, index) => (
-          <D6
+          <Dice
             key={die.id}
             id={die.id}
+            shape={die.type}
             ref={index === 0 ? diceRef : undefined}
             position={die.position}
             rotation={die.rotation}
