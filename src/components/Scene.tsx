@@ -216,7 +216,7 @@ function Scene() {
             ref={index === 0 ? diceRef : undefined}
             position={die.position}
             rotation={die.rotation}
-            size={1}
+            size={0.67}
             color={die.color}
             onRest={handleDiceRest}
           />

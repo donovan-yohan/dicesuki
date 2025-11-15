@@ -134,17 +134,22 @@ export function getDiceFaceValue(
       throw new Error(`Unknown shape: ${shape}`)
   }
 
-  const upVector = new THREE.Vector3(0, 1, 0)
+  // D4 dice work differently - the value is determined by the face touching the ground
+  // (pointing down), not the face pointing up like other dice
+  const targetVector = shape === 'd4'
+    ? new THREE.Vector3(0, -1, 0)  // Down vector for D4
+    : new THREE.Vector3(0, 1, 0)   // Up vector for all other dice
+
   let maxDot = -Infinity
   let faceValue = 1
 
-  // Find which face normal is most aligned with the up vector
+  // Find which face normal is most aligned with the target vector
   for (const face of faceNormals) {
     // Rotate the face normal by the dice's quaternion
     const rotatedNormal = face.normal.clone().applyQuaternion(quaternion)
 
-    // Calculate dot product with up vector
-    const dot = rotatedNormal.dot(upVector)
+    // Calculate dot product with target vector
+    const dot = rotatedNormal.dot(targetVector)
 
     // Track the face with maximum alignment
     if (dot > maxDot) {

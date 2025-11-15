@@ -22,6 +22,8 @@ export function HamburgerMenu({ onAddDice, onRemoveDice, dice = [] }: HamburgerM
   const toggleMenu = () => setIsOpen(!isOpen)
 
   const handleAddDice = (type: string) => {
+    console.log('HamburgerMenu: handleAddDice called with type:', type)
+    console.log('HamburgerMenu: onAddDice prop:', onAddDice)
     onAddDice?.(type)
     setIsOpen(false)
   }
