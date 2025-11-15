@@ -12,6 +12,7 @@ import {
   DRAG_SPIN_FACTOR,
   DRAG_ROLL_FACTOR,
   EDGE_CHAMFER_RADIUS,
+  MAX_DICE_VELOCITY,
 } from '../../config/physicsConfig'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
@@ -23,6 +24,7 @@ import {
   createD4Geometry,
   createD6Geometry,
   createD8Geometry,
+  createD10Geometry,
   createDiceMaterial,
 } from '../../lib/geometries'
 import { useUIStore } from '../../store/useUIStore'
@@ -39,6 +41,7 @@ interface DiceProps {
 
 export interface DiceHandle {
   applyImpulse: (impulse: THREE.Vector3) => void
+  applyRollImpulse: (impulse: THREE.Vector3) => void // Apply impulse without resetting position
   reset: () => void
 }
 
@@ -118,6 +121,31 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
         rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true)
 
         // Apply impulse
+        rigidBodyRef.current.applyImpulse(
+          { x: impulse.x, y: impulse.y, z: impulse.z },
+          true,
+        )
+
+        // Add random angular impulse for tumbling
+        const angularImpulse = new THREE.Vector3(
+          (Math.random() - 0.5) * 2,
+          (Math.random() - 0.5) * 2,
+          (Math.random() - 0.5) * 2,
+        )
+        rigidBodyRef.current.applyTorqueImpulse(
+          { x: angularImpulse.x, y: angularImpulse.y, z: angularImpulse.z },
+          true,
+        )
+
+        // Reset face detection
+        resetFaceDetection()
+        hasNotifiedRef.current = false
+      },
+      applyRollImpulse: (impulse: THREE.Vector3) => {
+        if (!rigidBodyRef.current) return
+
+        // Apply impulse to dice in current position (no reset)
+        // This allows spam clicking roll button to shake up dice
         rigidBodyRef.current.applyImpulse(
           { x: impulse.x, y: impulse.y, z: impulse.z },
           true,
@@ -327,6 +355,16 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
         )
         readFaceValue(quaternion, shape)
       }
+
+      // Clamp velocity to prevent wall clipping from spam clicking roll button
+      const currentSpeed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2)
+      if (currentSpeed > MAX_DICE_VELOCITY) {
+        const scale = MAX_DICE_VELOCITY / currentSpeed
+        rigidBodyRef.current.setLinvel(
+          { x: velocity.x * scale, y: velocity.y * scale, z: velocity.z * scale },
+          true,
+        )
+      }
     })
 
     // Select geometry based on shape
@@ -338,6 +376,8 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
           return createD6Geometry(size)
         case 'd8':
           return createD8Geometry(size)
+        case 'd10':
+          return createD10Geometry(size)
         case 'd12':
           return createD12Geometry(size)
         case 'd20':
@@ -347,7 +387,15 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       }
     }, [shape, size])
 
-    const material = useMemo(() => createDiceMaterial(color), [color])
+    const material = useMemo(() => {
+      const mat = createDiceMaterial(color)
+      // D10 should use flat shading to show distinct kite-shaped faces
+      if (shape === 'd10') {
+        mat.flatShading = true
+        mat.needsUpdate = true
+      }
+      return mat
+    }, [color, shape])
 
     // Calculate half-extents for D6 collider
     const halfSize = size / 2

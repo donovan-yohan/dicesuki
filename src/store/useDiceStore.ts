@@ -42,6 +42,7 @@ interface DiceStore {
   recordDiceResult: (id: string, value: number, type: string) => void
   completeRoll: () => void
   reset: () => void
+  clearHistory: () => void
 }
 
 export const useDiceStore = create<DiceStore>((set, get) => ({
@@ -127,5 +128,13 @@ export const useDiceStore = create<DiceStore>((set, get) => ({
     expectedDiceCount: 0,
     lastResult: null,
     rollHistory: []
+  }),
+
+  /**
+   * Clear roll history only
+   */
+  clearHistory: () => set({
+    rollHistory: [],
+    lastResult: null
   })
 }))

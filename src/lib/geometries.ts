@@ -55,6 +55,24 @@ export const D8_FACE_NORMALS: DiceFace[] = [
 ]
 
 /**
+ * D10 (pentagonal trapezohedron) face normals in world space
+ * Pentagonal trapezohedron: 10 faces, numbered 0-9 or 1-10
+ * Using 0-9 numbering (common for D10)
+ */
+export const D10_FACE_NORMALS: DiceFace[] = [
+  { value: 0, normal: new THREE.Vector3(0, -1, 0).normalize() },
+  { value: 1, normal: new THREE.Vector3(0.951, -0.309, 0).normalize() },
+  { value: 2, normal: new THREE.Vector3(0.588, -0.309, 0.749).normalize() },
+  { value: 3, normal: new THREE.Vector3(-0.588, -0.309, 0.749).normalize() },
+  { value: 4, normal: new THREE.Vector3(-0.951, -0.309, 0).normalize() },
+  { value: 5, normal: new THREE.Vector3(-0.588, -0.309, -0.749).normalize() },
+  { value: 6, normal: new THREE.Vector3(0.588, -0.309, -0.749).normalize() },
+  { value: 7, normal: new THREE.Vector3(0.951, 0.309, 0).normalize() },
+  { value: 8, normal: new THREE.Vector3(0, 0.309, 0.951).normalize() },
+  { value: 9, normal: new THREE.Vector3(0, 1, 0).normalize() },
+]
+
+/**
  * D12 (dodecahedron) face normals in world space
  * Dodecahedron: 12 pentagonal faces
  */
@@ -124,7 +142,8 @@ export function getDiceFaceValue(
       faceNormals = D8_FACE_NORMALS
       break
     case 'd10':
-      throw new Error('D10 not yet implemented')
+      faceNormals = D10_FACE_NORMALS
+      break
     case 'd12':
       faceNormals = D12_FACE_NORMALS
       break
@@ -221,6 +240,62 @@ export function createD6Geometry(size: number = 1): THREE.BoxGeometry {
 export function createD8Geometry(size: number = 1): THREE.OctahedronGeometry {
   // detail level adds subdivision for smoother, more rounded edges
   return new THREE.OctahedronGeometry(size, POLYHEDRON_DETAIL_LEVEL)
+}
+
+/**
+ * Creates a D10 (pentagonal trapezohedron) geometry with appropriate size
+ * Custom geometry since Three.js doesn't provide it natively
+ * @param size - The size of the d10 (default: 1)
+ * @returns BufferGeometry for the D10
+ */
+export function createD10Geometry(size: number = 1): THREE.BufferGeometry {
+  // Pentagonal trapezohedron - 10 kite-shaped faces
+  // 12 vertices total: top apex, bottom apex, and 10 middle vertices in zigzag pattern
+  // Reference: https://aqandrew.com/blog/10-sided-die-react/
+
+  const vertices: number[] = [
+    // Vertex 0: Top apex
+    0, size, 0,
+    // Vertex 1: Bottom apex
+    0, -size, 0,
+  ]
+
+  // Generate 10 middle vertices in a zigzag pattern (alternating heights)
+  // 0.105 ≈ tan(6°) - the altitude offset from equator
+  const sides = 10
+  const altitude = 0.105 * size
+
+  for (let i = 0; i < sides; i++) {
+    const angle = (i * Math.PI * 2) / sides
+    const x = -Math.cos(angle) * size
+    const z = -Math.sin(angle) * size
+    const y = altitude * (i % 2 ? 1 : -1) // Alternate up/down
+    vertices.push(x, y, z)
+  }
+
+  // 20 triangular faces forming 10 kite-shaped faces
+  // Vertices wind counter-clockwise when viewed from outside
+  const indices = new Uint16Array([
+    // Top 10 triangles (connecting top apex to middle ring)
+    // Winding: apex -> vertex(i) -> vertex(i+1) for outward normals
+    0, 3, 2,   0, 4, 3,   0, 5, 4,   0, 6, 5,   0, 7, 6,
+    0, 8, 7,   0, 9, 8,   0, 10, 9,  0, 11, 10, 0, 2, 11,
+
+    // Bottom 10 triangles (connecting bottom apex to middle ring)
+    // Winding: apex -> vertex(i+1) -> vertex(i) for outward normals (reversed from top)
+    1, 2, 3,   1, 3, 4,   1, 4, 5,   1, 5, 6,   1, 6, 7,
+    1, 7, 8,   1, 8, 9,   1, 9, 10,  1, 10, 11, 1, 11, 2,
+  ])
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))
+  geometry.setIndex(new THREE.BufferAttribute(indices, 1))
+
+  // Compute face normals for flat shading (sharp edges between faces)
+  // This gives each face its own normal rather than smooth-blending across vertices
+  geometry.computeVertexNormals()
+
+  return geometry
 }
 
 /**

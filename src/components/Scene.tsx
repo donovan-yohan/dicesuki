@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react'
+import { useRef, useCallback, useState, useEffect } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { Box } from '@react-three/drei'
 import { Physics, RigidBody } from '@react-three/rapier'
@@ -7,15 +7,14 @@ import * as THREE from 'three'
 import { GRAVITY } from '../config/physicsConfig'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { Dice, DiceHandle } from './dice/Dice'
-import { RollButton } from './RollButton'
-import { DebugOverlay } from './DebugOverlay'
-import { SettingsButton } from './SettingsButton'
-import { HamburgerMenu } from './HamburgerMenu'
+import { BottomNav, CenterRollButton, CornerIcon, UIToggleMini } from './layout'
+import { DiceManagerPanel, HistoryPanel } from './panels'
+// import { SettingsPanel } from './panels' // TODO: Not yet implemented
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useUIStore } from '../store/useUIStore'
-import { useDeviceMotionRef } from '../contexts/DeviceMotionContext'
+import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
 
 /**
  * Component to dynamically update physics gravity based on device motion
@@ -25,6 +24,11 @@ import { useDeviceMotionRef } from '../contexts/DeviceMotionContext'
 function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<THREE.Vector3> }) {
   const { world } = useRapier()
   const motionMode = useUIStore((state) => state.motionMode)
+
+  // Log when motion mode changes
+  useEffect(() => {
+    console.log('PhysicsController: Motion mode changed to:', motionMode)
+  }, [motionMode])
 
   // useFrame runs every frame, synchronized with Three.js render loop
   // This is the correct way to update physics in R3F - no useEffect, no requestAnimationFrame
@@ -145,9 +149,13 @@ function ViewportBoundaries() {
  * - Device motion updates physics gravity in real-time for tilt-based interaction
  */
 function Scene() {
-  const diceRef = useRef<DiceHandle>(null)
+  // Create refs for ALL dice (not just the first one)
+  const diceRefs = useRef<Map<string, DiceHandle>>(new Map())
+
   // Only subscribe to RefContext - STABLE, never causes re-renders
   const { gravityRef } = useDeviceMotionRef()
+  // Get requestPermission from state context
+  const { requestPermission } = useDeviceMotionState()
   const { canRoll, roll, onDiceRest } = useDiceRoll()
 
   // Subscribe to dice manager store
@@ -155,10 +163,30 @@ function Scene() {
   const addDice = useDiceManagerStore((state) => state.addDice)
   const removeDice = useDiceManagerStore((state) => state.removeDice)
 
+  // UI state
+  const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
+  const [isDiceManagerOpen, setIsDiceManagerOpen] = useState(false)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  // const [isSettingsOpen, setIsSettingsOpen] = useState(false) // TODO: Not yet implemented
+
+  // Detect if mobile
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
   const handleRollClick = useCallback(() => {
+    // Allow spam clicking - no canRoll check
     const impulse = roll(dice.length)
-    if (impulse && diceRef.current) {
-      diceRef.current.applyImpulse(impulse)
+    if (impulse) {
+      // Apply impulse to ALL dice in their current positions
+      // This allows spam clicking to shake up dice
+      diceRefs.current.forEach((diceHandle) => {
+        diceHandle.applyRollImpulse(impulse)
+      })
     }
   }, [roll, dice.length])
 
@@ -168,8 +196,18 @@ function Scene() {
 
   const handleAddDice = useCallback((type: string) => {
     console.log('Adding dice:', type)
-    addDice(type)
+    addDice(type as import('../lib/geometries').DiceShape)
   }, [addDice])
+
+  const handleToggleMotion = useCallback(async () => {
+    if (!motionMode) {
+      // Enabling motion mode - request permission first
+      console.log('Requesting device motion permission...')
+      await requestPermission()
+    }
+    // Toggle the mode
+    toggleMotionMode()
+  }, [motionMode, requestPermission, toggleMotionMode])
 
   const handleRemoveDice = useCallback((id: string) => {
     removeDice(id)
@@ -185,13 +223,6 @@ function Scene() {
 
   return (
     <>
-      {/* Hamburger Menu */}
-      <HamburgerMenu
-        onAddDice={handleAddDice}
-        onRemoveDice={handleRemoveDice}
-        dice={dice}
-      />
-
       <Canvas
         shadows
         gl={{ antialias: true, alpha: false }}
@@ -228,12 +259,18 @@ function Scene() {
         <ViewportBoundaries />
 
         {/* Render all dice from store */}
-        {dice.map((die, index) => (
+        {dice.map((die) => (
           <Dice
             key={die.id}
             id={die.id}
             shape={die.type}
-            ref={index === 0 ? diceRef : undefined}
+            ref={(el) => {
+              if (el) {
+                diceRefs.current.set(die.id, el)
+              } else {
+                diceRefs.current.delete(die.id)
+              }
+            }}
             position={die.position}
             rotation={die.rotation}
             size={0.67}
@@ -250,17 +287,63 @@ function Scene() {
     {/* Result Display - subscribes to store */}
     <ResultDisplay />
 
-    {/* Roll Button */}
-    <RollButton onClick={handleRollClick} disabled={!canRoll} />
+    {/* NEW LAYOUT SYSTEM */}
+    {/* Bottom Navigation Bar */}
+    <BottomNav
+      isVisible={isUIVisible}
+      onToggleUI={toggleUIVisibility}
+      onOpenDiceManager={() => setIsDiceManagerOpen(true)}
+      onOpenHistory={() => setIsHistoryOpen(true)}
+      onToggleMotion={handleToggleMotion} // Request permission when enabling
+      isMobile={isMobile}
+      motionModeActive={motionMode}
+    />
 
-    {/* Debug Overlay - subscribes to device motion directly */}
-    <DebugOverlay />
+    {/* Center Roll Button - elevated above nav */}
+    <CenterRollButton onClick={handleRollClick} isRolling={false} />
 
-    {/* Settings Button */}
-    <SettingsButton />
+    {/* Top-Left Corner: Settings */}
+    <CornerIcon
+      position="top-left"
+      onClick={() => {}} // TODO: Settings panel not yet implemented
+      label="Settings"
+      isVisible={isUIVisible}
+    >
+      ⚙️
+    </CornerIcon>
 
-    {/* Roll History */}
-    <HistoryDisplay />
+    {/* Top-Right Corner: Profile/Room (placeholder) */}
+    <CornerIcon
+      position="top-right"
+      onClick={() => console.log('Profile clicked')}
+      label="Profile"
+      isVisible={isUIVisible}
+    >
+      👤
+    </CornerIcon>
+
+    {/* Mini UI Toggle - shows when UI hidden */}
+    <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
+
+    {/* THEMED PANELS */}
+    <DiceManagerPanel
+      isOpen={isDiceManagerOpen}
+      onClose={() => setIsDiceManagerOpen(false)}
+      onAddDice={handleAddDice}
+      onRemoveDice={handleRemoveDice}
+      dice={dice}
+    />
+
+    <HistoryPanel
+      isOpen={isHistoryOpen}
+      onClose={() => setIsHistoryOpen(false)}
+    />
+
+    {/* TODO: Settings panel not yet implemented */}
+    {/* <SettingsPanel
+      isOpen={isSettingsOpen}
+      onClose={() => setIsSettingsOpen(false)}
+    /> */}
   </>
   )
 }
@@ -288,13 +371,14 @@ function ResultDisplay() {
   const pendingCount = isRolling ? expectedDiceCount - currentRoll.length : 0
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 md:top-20 md:left-auto md:right-4 md:translate-x-0 bg-black bg-opacity-75 text-white px-6 py-4 rounded-lg text-center z-20 shadow-xl min-w-[200px]">
-      <div className="text-sm text-gray-300 mb-2">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 md:top-20 md:left-auto md:right-4 md:translate-x-0 text-white text-center z-20 flex flex-col items-center gap-3">
+      {/* Label with background for readability */}
+      <div className="text-sm text-gray-300 bg-black bg-opacity-75 px-3 py-1 rounded">
         {isRolling ? 'Rolling...' : 'You rolled:'}
       </div>
 
       {/* Individual dice values */}
-      <div className="flex gap-2 justify-center mb-3 flex-wrap">
+      <div className="flex gap-2 justify-center flex-wrap">
         {displayDice.map((die, idx) => (
           <span key={idx} className="text-2xl font-bold bg-gray-700 px-3 py-1 rounded">
             {die.value}
@@ -310,7 +394,7 @@ function ResultDisplay() {
 
       {/* Sum */}
       {displayDice.length > 1 && (
-        <div className="border-t border-gray-600 pt-2">
+        <div className="bg-black bg-opacity-75 px-4 py-2 rounded">
           <div className="text-xs text-gray-400">Sum</div>
           <div className="text-3xl font-bold text-orange-400">
             {isRolling ? `${displaySum} + ?` : displaySum}
@@ -318,101 +402,6 @@ function ResultDisplay() {
         </div>
       )}
     </div>
-  )
-}
-
-/**
- * History display component with flyout panel
- * Shows compact icon with most recent sum in top-right
- * Expands to show full roll history breakdown when clicked
- */
-function HistoryDisplay() {
-  const rollHistory = useDiceStore((state) => state.rollHistory)
-  const [isOpen, setIsOpen] = useState(false)
-
-  // Only show history when we have at least 2 rolls (current + at least 1 historical)
-  if (rollHistory.length < 2) return null
-
-  // Show the second-most recent roll (first historical entry, not current)
-  const displayRoll = rollHistory[rollHistory.length - 2]
-
-  return (
-    <>
-      {/* Compact history button - top right */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 right-4 z-30 bg-black bg-opacity-75 hover:bg-opacity-90 text-white px-3 py-2 rounded-lg shadow-lg transition-all flex items-center gap-2"
-        title="View roll history"
-      >
-        <span className="text-lg">📜</span>
-        <span className="font-bold text-orange-400">{displayRoll.sum}</span>
-      </button>
-
-      {/* Flyout panel - slides in from right */}
-      {isOpen && (
-        <>
-          {/* Backdrop - click to close */}
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
-            onClick={() => setIsOpen(false)}
-          />
-
-          {/* Flyout content */}
-          <div className="fixed top-0 right-0 h-full w-80 bg-gray-900 shadow-2xl z-50 overflow-y-auto">
-            {/* Header */}
-            <div className="sticky top-0 bg-gray-900 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-white">Roll History</h2>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* History list - newest first */}
-            <div className="px-6 py-4 space-y-3">
-              {[...rollHistory].reverse().map((roll, idx) => (
-                <div
-                  key={idx}
-                  className="bg-gray-800 rounded-lg p-4 border border-gray-700"
-                >
-                  {/* Roll number */}
-                  <div className="text-xs text-gray-500 mb-2">
-                    Roll #{rollHistory.length - idx}
-                  </div>
-
-                  {/* Dice values */}
-                  <div className="flex gap-2 flex-wrap mb-2">
-                    {roll.dice.map((die, dieIdx) => (
-                      <div
-                        key={dieIdx}
-                        className="flex flex-col items-center"
-                      >
-                        <span className="bg-gray-700 text-white px-3 py-1 rounded font-bold">
-                          {die.value}
-                        </span>
-                        <span className="text-xs text-gray-500 mt-1">
-                          {die.type.toUpperCase()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Sum */}
-                  <div className="border-t border-gray-700 pt-2 mt-2">
-                    <div className="text-xs text-gray-400">Sum</div>
-                    <div className="text-2xl font-bold text-orange-400">
-                      {roll.sum}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </>
   )
 }
 

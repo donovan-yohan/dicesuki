@@ -65,23 +65,24 @@ export function useDiceRoll(): DiceRollState {
   /**
    * Initiate a dice roll
    * Returns impulse vector to apply to the physics body
-   * Returns null if roll is not allowed
+   * Always returns an impulse (allows spam clicking)
    */
   const roll = useCallback((diceCount: number): THREE.Vector3 | null => {
-    if (!canRoll) {
-      return null
+    // Allow spam clicking - no canRoll check
+    // Don't update state here since we're allowing continuous rolling
+    // State is updated when dice come to rest
+
+    // Only start roll tracking if not already rolling
+    if (!isRolling) {
+      setIsRolling(true)
+      awaitingResultRef.current = true
+      rollIdRef.current = Date.now()
+      // Start new roll in store
+      startRoll(diceCount)
     }
 
-    setCanRoll(false)
-    setIsRolling(true)
-    awaitingResultRef.current = true
-    rollIdRef.current = Date.now()
-
-    // Start new roll in store
-    startRoll(diceCount)
-
     return generateImpulse()
-  }, [canRoll, generateImpulse, startRoll])
+  }, [isRolling, generateImpulse, startRoll])
 
   /**
    * Callback when dice comes to rest

@@ -67,22 +67,24 @@ export const EDGE_CHAMFER_RADIUS = 0.08
 /**
  * Horizontal impulse strength range for button rolls
  * - Min/Max random range for XZ plane force
- * - Current: 2-5 units
+ * - Current: 1-3 units (decreased for spam clicking)
  * - Higher: Dice travels farther horizontally
  * - Lower: Dice stays more centered
+ * - Users can spam click for harder rolls
  */
-export const ROLL_HORIZONTAL_MIN = 2
-export const ROLL_HORIZONTAL_MAX = 5
+export const ROLL_HORIZONTAL_MIN = 1
+export const ROLL_HORIZONTAL_MAX = 3
 
 /**
  * Upward impulse strength range for button rolls
  * - Min/Max random range for Y axis force
- * - Current: 5-8 units
+ * - Current: 3-5 units (decreased for spam clicking)
  * - Higher: Dice flies higher, more tumbling
  * - Lower: Lower trajectory, faster settling
+ * - Users can spam click for harder rolls
  */
-export const ROLL_VERTICAL_MIN = 5
-export const ROLL_VERTICAL_MAX = 8
+export const ROLL_VERTICAL_MIN = 3
+export const ROLL_VERTICAL_MAX = 5
 
 // ============================================================================
 // FACE DETECTION & REST STATE
@@ -212,6 +214,16 @@ export const MIN_THROW_SPEED = 2
  * - 15: Cap throws lower
  */
 export const MAX_THROW_SPEED = 20
+
+/**
+ * Maximum linear velocity for dice (world units/s)
+ * - Prevents dice from moving too fast and clipping through walls
+ * - Applied continuously to all dice movement (roll impulses, drag, throws)
+ * - 25: Safe limit prevents wall clipping while allowing dynamic rolls
+ * - 30: Higher limit, more risk of clipping
+ * - 20: Conservative limit, very safe
+ */
+export const MAX_DICE_VELOCITY = 25
 
 /**
  * Number of position samples for velocity calculation
