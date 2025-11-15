@@ -14,6 +14,7 @@ import {
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
+import { useUIStore } from '../../store/useUIStore'
 
 interface DiceProps {
   id?: string
@@ -55,6 +56,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(({
   const { isAtRest, faceValue, updateMotion, readFaceValue, reset: resetFaceDetection } = useFaceDetection()
   const { isDragging, onPointerDown, onPointerMove, onPointerUp, getFlickImpulse } = useDiceInteraction()
   const { isShakingRef } = useDeviceMotionRef()
+  const motionMode = useUIStore((state) => state.motionMode)
   const hasNotifiedRef = useRef(false)
   const pendingNotificationRef = useRef<number | null>(null)
   const lastShakeStateRef = useRef(false)
@@ -192,23 +194,25 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(({
       new THREE.Vector3(angularVelocity.x, angularVelocity.y, angularVelocity.z)
     )
 
-    // Apply angular impulse when shake is detected
-    const isShaking = isShakingRef.current
-    if (isShaking && !lastShakeStateRef.current) {
-      const shakeTorque = new THREE.Vector3(
-        (Math.random() - 0.5) * 3,
-        (Math.random() - 0.5) * 3,
-        (Math.random() - 0.5) * 3
-      )
-      rigidBodyRef.current.applyTorqueImpulse(
-        { x: shakeTorque.x, y: shakeTorque.y, z: shakeTorque.z },
-        true
-      )
+    // Apply angular impulse when shake is detected (only if motion mode is enabled)
+    if (motionMode) {
+      const isShaking = isShakingRef.current
+      if (isShaking && !lastShakeStateRef.current) {
+        const shakeTorque = new THREE.Vector3(
+          (Math.random() - 0.5) * 3,
+          (Math.random() - 0.5) * 3,
+          (Math.random() - 0.5) * 3
+        )
+        rigidBodyRef.current.applyTorqueImpulse(
+          { x: shakeTorque.x, y: shakeTorque.y, z: shakeTorque.z },
+          true
+        )
 
-      resetFaceDetection()
-      hasNotifiedRef.current = false
+        resetFaceDetection()
+        hasNotifiedRef.current = false
+      }
+      lastShakeStateRef.current = isShaking
     }
-    lastShakeStateRef.current = isShaking
 
     // Read face value when at rest
     if (isAtRest) {

@@ -13,6 +13,7 @@ import { HamburgerMenu } from './HamburgerMenu'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
+import { useUIStore } from '../store/useUIStore'
 import { useDeviceMotionRef } from '../contexts/DeviceMotionContext'
 
 /**
@@ -22,13 +23,20 @@ import { useDeviceMotionRef } from '../contexts/DeviceMotionContext'
  */
 function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<THREE.Vector3> }) {
   const { world } = useRapier()
+  const motionMode = useUIStore((state) => state.motionMode)
 
   // useFrame runs every frame, synchronized with Three.js render loop
   // This is the correct way to update physics in R3F - no useEffect, no requestAnimationFrame
   useFrame(() => {
     if (world) {
-      const gravity = gravityRef.current
-      world.gravity = { x: gravity.x, y: gravity.y, z: gravity.z }
+      if (motionMode) {
+        // Use device motion gravity when motion mode is enabled
+        const gravity = gravityRef.current
+        world.gravity = { x: gravity.x, y: gravity.y, z: gravity.z }
+      } else {
+        // Use standard downward gravity when motion mode is disabled
+        world.gravity = { x: 0, y: -9.81, z: 0 }
+      }
     }
   })
 
