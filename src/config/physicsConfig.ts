@@ -115,7 +115,7 @@ export const ANGULAR_VELOCITY_THRESHOLD = 0.01
  * - 500ms: Faster results, slight risk of misreads
  * - 1500ms: Very conservative, slower gameplay
  */
-export const REST_DURATION_MS = 1000
+export const REST_DURATION_MS = 500
 
 // ============================================================================
 // DRAG INTERACTION
@@ -313,6 +313,112 @@ export const UI_UPDATE_THROTTLE = 100
  * - 0: Sharp edges, cheapest
  */
 export const POLYHEDRON_DETAIL_LEVEL = 0
+
+// ============================================================================
+// HAPTIC FEEDBACK
+// ============================================================================
+
+/**
+ * Minimum speed required to trigger haptic feedback (world units/s)
+ * - Filters out stationary and slow-moving dice
+ * - 0.5: Requires meaningful movement
+ * - 1.0: Only fast collisions vibrate
+ * - 0.2: More sensitive, vibrates on gentle bumps
+ */
+export const HAPTIC_MIN_SPEED = 1.0
+
+/**
+ * Minimum velocity change to detect impact (world units/s)
+ * - Measures deceleration from collision
+ * - 0.5: Detects moderate impacts
+ * - 1.0: Only strong impacts
+ * - 0.3: More sensitive to gentle collisions
+ */
+export const HAPTIC_MIN_VELOCITY_CHANGE = 0.5
+
+/**
+ * Dot product threshold for impact detection
+ * - Force must oppose velocity direction (negative dot product)
+ * - -0.3: Force must be somewhat opposing motion
+ * - -0.5: Force must strongly oppose motion (fewer triggers)
+ * - -0.1: Allow more perpendicular forces (more triggers)
+ */
+export const HAPTIC_FORCE_DIRECTION_THRESHOLD = -0.5
+
+/**
+ * Minimum force magnitude to trigger any haptic (physics units)
+ * - Filters weak contacts and friction
+ * - 5: Moderate threshold
+ * - 10: Only significant impacts
+ * - 2: More sensitive to light touches
+ */
+export const HAPTIC_MIN_FORCE = 50
+
+/**
+ * Force threshold to bypass direction check (physics units)
+ * - High-force impacts skip the dot product direction filter
+ * - Allows wall collisions with positive dot products to vibrate
+ * - 30: Good threshold for wall vs dice-to-dice distinction
+ * - 40: More conservative, only very strong impacts bypass
+ * - 20: More lenient, more impacts bypass direction check
+ */
+export const HAPTIC_HIGH_FORCE_BYPASS = 30
+
+/**
+ * Force threshold for light vibration (physics units)
+ * - Below this: no vibration (too weak)
+ * - At this level: light tap (10ms)
+ * - 20: Gentle bumps
+ * - 30: Moderate impacts only
+ * - 10: Very sensitive
+ */
+export const HAPTIC_LIGHT_THRESHOLD = 75
+
+/**
+ * Force threshold for medium vibration (physics units)
+ * - Below this: light vibration
+ * - At this level: medium bump (30ms)
+ * - 50: Normal dice collisions
+ * - 70: Harder impacts only
+ * - 30: More frequent medium vibrations
+ */
+export const HAPTIC_MEDIUM_THRESHOLD = 100
+
+/**
+ * Vibration duration for light impacts (milliseconds)
+ * - Duration of haptic pulse for gentle collisions
+ * - 10: Quick tap
+ * - 15: Slightly longer
+ * - 5: Very subtle
+ */
+export const HAPTIC_LIGHT_DURATION = 1
+
+/**
+ * Vibration duration for medium impacts (milliseconds)
+ * - Duration of haptic pulse for normal collisions
+ * - 30: Noticeable bump
+ * - 40: Stronger feedback
+ * - 20: More subtle
+ */
+export const HAPTIC_MEDIUM_DURATION = 15
+
+/**
+ * Vibration duration for strong impacts (milliseconds)
+ * - Duration of haptic pulse for hard collisions
+ * - 50: Strong impact feel
+ * - 70: Very strong feedback
+ * - 40: Moderate strong feedback
+ */
+export const HAPTIC_STRONG_DURATION = 75
+
+/**
+ * Minimum time between haptic triggers (milliseconds)
+ * - Prevents overwhelming vibration spam
+ * - 50: Up to 20 vibrations per second
+ * - 100: Up to 10 vibrations per second (less spam)
+ * - 30: More frequent feedback (may feel buzzy)
+ */
+export const HAPTIC_THROTTLE_MS = 100
 
 // ============================================================================
 // PRESETS (Quick configs for different feels)

@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import * as THREE from 'three'
 import {
-  LINEAR_VELOCITY_THRESHOLD,
   ANGULAR_VELOCITY_THRESHOLD,
   REST_DURATION_MS,
 } from '../config/physicsConfig'

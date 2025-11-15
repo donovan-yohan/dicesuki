@@ -222,7 +222,7 @@ function Scene() {
   const { gravityRef } = useDeviceMotionRef()
   // Get requestPermission from state context
   const { requestPermission } = useDeviceMotionState()
-  const { canRoll, roll, onDiceRest } = useDiceRoll()
+  const { roll, onDiceRest } = useDiceRoll()
 
   // Subscribe to dice manager store
   const dice = useDiceManagerStore((state) => state.dice)
