@@ -216,8 +216,11 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         </div>
       </FlyoutPanel>
 
-      {/* Theme Selector Modal - manages its own visibility */}
-      {showThemeSelector && <ThemeSelector />}
+      {/* Theme Selector Modal */}
+      <ThemeSelector
+        isOpen={showThemeSelector}
+        onClose={() => setShowThemeSelector(false)}
+      />
     </>
   )
 }

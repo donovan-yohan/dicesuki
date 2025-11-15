@@ -879,19 +879,20 @@ export const dungeonCastleTheme: Theme = {
 
   dice: {
     defaultColors: {
-      d4: '#4b0000', // Dark red
-      d6: '#2f4f4f', // Dark slate gray
-      d8: '#8b0000', // Dark red
-      d10: '#696969', // Dim gray
-      d12: '#2d2d2d', // Dark gray
-      d20: '#b22222', // Firebrick red
+      d4: '#8b0000', // Brighter dark red (was too dark)
+      d6: '#708090', // Lighter slate gray (was too dark)
+      d8: '#cd5c5c', // Indian red (brighter)
+      d10: '#a9a9a9', // Lighter gray (was too dark)
+      d12: '#696969', // Dim gray (lightened)
+      d20: '#dc143c', // Crimson (brighter red)
     },
     materials: {
-      roughness: 0.8,
-      metalness: 0.3, // Slightly metallic (iron dice)
+      roughness: 0.6, // Less rough for more reflection (was 0.8)
+      metalness: 0.4, // More metallic shine (was 0.3)
+      emissiveIntensity: 0.1, // Slight glow to help visibility
     },
     numbering: {
-      color: '#c0c0c0', // Silver
+      color: '#ffffff', // Pure white for better contrast (was silver)
       style: 'engraved',
       depth: 0.1,
     },
@@ -899,17 +900,17 @@ export const dungeonCastleTheme: Theme = {
 
   environment: {
     floor: {
-      color: '#2d2d2d', // Dark stone
+      color: '#6a6a6a', // Much lighter gray
       material: {
-        roughness: 0.9,
+        roughness: 0.75,
         metalness: 0.1,
       },
       receiveShadow: true,
     },
     walls: {
-      color: '#3a3a3a', // Stone gray
+      color: '#7a7a7a', // Much lighter gray
       material: {
-        roughness: 0.95,
+        roughness: 0.8,
         metalness: 0.0,
       },
       visible: true,
@@ -917,21 +918,21 @@ export const dungeonCastleTheme: Theme = {
     },
     ceiling: {
       visible: true,
-      color: '#1a1a1a',
+      color: '#4a4a4a',
     },
     lighting: {
       ambient: {
-        color: '#8b0000', // Dark red (torch light)
-        intensity: 0.3, // Dim dungeon lighting
+        color: '#ffcc88', // Bright warm light
+        intensity: 1.2, // Very bright ambient
       },
       directional: {
-        color: '#ff4500', // Orange red (flickering torch)
-        intensity: 0.5,
+        color: '#ffd699', // Very bright warm light
+        intensity: 1.5, // Maximum brightness
         position: [2, 5, 3],
       },
     },
     background: {
-      color: '#0a0a0a',
+      color: '#3a3a3a', // Much lighter background
     },
   },
 }
