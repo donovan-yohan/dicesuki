@@ -5,12 +5,25 @@
  * Used by ThemeProvider to load and manage themes.
  */
 
-import { defaultTheme, fantasyTheme, type Theme } from './tokens'
+import {
+  defaultTheme,
+  fantasyTheme,
+  critterForestTheme,
+  dungeonCastleTheme,
+  neonCyberCityTheme,
+  type Theme,
+} from './tokens'
 
 /**
  * All available themes in the application
  */
-export const THEME_REGISTRY: Theme[] = [defaultTheme, fantasyTheme]
+export const THEME_REGISTRY: Theme[] = [
+  defaultTheme,
+  fantasyTheme,
+  critterForestTheme,
+  dungeonCastleTheme,
+  neonCyberCityTheme,
+]
 
 /**
  * Get a theme by ID

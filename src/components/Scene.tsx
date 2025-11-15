@@ -15,6 +15,7 @@ import { useDiceStore } from '../store/useDiceStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useUIStore } from '../store/useUIStore'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
+import { useTheme } from '../contexts/ThemeContext'
 
 /**
  * Component to dynamically update physics gravity based on device motion
@@ -49,6 +50,36 @@ function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<
 }
 
 /**
+ * Themed lighting component
+ * Uses theme's lighting configuration for ambient and directional lights
+ */
+function ThemedLighting() {
+  const { currentTheme } = useTheme()
+  const lighting = currentTheme.environment.lighting
+
+  return (
+    <>
+      <ambientLight
+        color={lighting.ambient.color}
+        intensity={lighting.ambient.intensity}
+      />
+      <directionalLight
+        position={lighting.directional.position}
+        color={lighting.directional.color}
+        intensity={lighting.directional.intensity}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-left={-10}
+        shadow-camera-right={10}
+        shadow-camera-top={10}
+        shadow-camera-bottom={-10}
+      />
+    </>
+  )
+}
+
+/**
  * Viewport-aligned boundaries component
  * Calculates frustum dimensions and renders ground, walls, and ceiling
  * Updates automatically on window resize via useThree's size reactivity
@@ -57,6 +88,8 @@ function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<
  */
 function ViewportBoundaries() {
   const { camera, size } = useThree()
+  const { currentTheme } = useTheme()
+  const env = currentTheme.environment
 
   // Ensure camera FOV is set (default to 40 if not yet configured)
   const perspectiveCamera = camera as THREE.PerspectiveCamera
@@ -88,52 +121,86 @@ function ViewportBoundaries() {
   }
 
   const wallThickness = 0.3
-  const wallHeight = 6 // Match ceiling height to prevent dice escape
+  const wallHeight = env.walls.height || 6 // Use theme's wall height or default to 6
   const wallY = wallHeight / 2 // Center Y position for walls
 
   return (
     <>
       {/* Ground Plane - sized to viewport */}
       <RigidBody type="fixed" position={[0, -0.5, 0]}>
-        <Box args={[bounds.width, 1, bounds.height]} receiveShadow>
-          <meshStandardMaterial color="#444444" />
+        <Box
+          args={[bounds.width, 1, bounds.height]}
+          receiveShadow={env.floor.receiveShadow !== false}
+        >
+          <meshStandardMaterial
+            color={env.floor.color}
+            roughness={env.floor.material.roughness}
+            metalness={env.floor.material.metalness}
+          />
         </Box>
       </RigidBody>
 
-      {/* Top wall (positive Z) */}
-      <RigidBody type="fixed" position={[0, wallY, bounds.top]}>
-        <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
-        </Box>
-      </RigidBody>
+      {/* Walls - only render if visible */}
+      {env.walls.visible && (
+        <>
+          {/* Top wall (positive Z) */}
+          <RigidBody type="fixed" position={[0, wallY, bounds.top]}>
+            <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
 
-      {/* Bottom wall (negative Z) */}
-      <RigidBody type="fixed" position={[0, wallY, bounds.bottom]}>
-        <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
-        </Box>
-      </RigidBody>
+          {/* Bottom wall (negative Z) */}
+          <RigidBody type="fixed" position={[0, wallY, bounds.bottom]}>
+            <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
 
-      {/* Right wall (positive X) */}
-      <RigidBody type="fixed" position={[bounds.right, wallY, 0]}>
-        <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
-        </Box>
-      </RigidBody>
+          {/* Right wall (positive X) */}
+          <RigidBody type="fixed" position={[bounds.right, wallY, 0]}>
+            <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
 
-      {/* Left wall (negative X) */}
-      <RigidBody type="fixed" position={[bounds.left, wallY, 0]}>
-        <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
-        </Box>
-      </RigidBody>
+          {/* Left wall (negative X) */}
+          <RigidBody type="fixed" position={[bounds.left, wallY, 0]}>
+            <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
+        </>
+      )}
 
       {/* Ceiling - prevents dice from flying away when phone upside down */}
-      <RigidBody type="fixed" position={[0, 6, 0]}>
-        <Box args={[bounds.width, wallThickness, bounds.height]}>
-          <meshStandardMaterial transparent opacity={0} />
-        </Box>
-      </RigidBody>
+      {env.ceiling.visible && (
+        <RigidBody type="fixed" position={[0, 6, 0]}>
+          <Box args={[bounds.width, wallThickness, bounds.height]}>
+            <meshStandardMaterial
+              color={env.ceiling.color || '#1a1a1a'}
+              transparent
+              opacity={env.ceiling.color ? 1 : 0}
+            />
+          </Box>
+        </RigidBody>
+      )}
     </>
   )
 }
@@ -237,19 +304,8 @@ function Scene() {
       >
       {/* Camera already configured via Canvas props */}
 
-      {/* Lighting - optimized for top-down view */}
-      <ambientLight intensity={0.6} />
-      <directionalLight
-        position={[5, 15, 5]}
-        intensity={1.2}
-        castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-10}
-      />
+      {/* Themed Lighting */}
+      <ThemedLighting />
 
       {/* Physics world - gravity updated via PhysicsController, not props */}
       <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
