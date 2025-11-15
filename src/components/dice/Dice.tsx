@@ -62,7 +62,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       id = 'dice-0',
       shape,
       position = [0, 5, 0],
-      rotation = [0, 0, 0],
+      // rotation = [0, 0, 0], // Not used, removed to fix TS error
       size = 1,
       color = 'orange',
       onRest,
