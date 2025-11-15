@@ -1,13 +1,11 @@
 import { useCallback, useRef, useState } from 'react'
 import * as THREE from 'three'
+import {
+  LINEAR_VELOCITY_THRESHOLD,
+  ANGULAR_VELOCITY_THRESHOLD,
+  REST_DURATION_MS,
+} from '../config/physicsConfig'
 import { DiceShape, getDiceFaceValue } from '../lib/geometries'
-
-/**
- * Thresholds for detecting when a dice is at rest
- * Only tracks angular velocity to detect rotation (ignores sliding)
- */
-const ANGULAR_VELOCITY_THRESHOLD = 0.01 // Angular velocity threshold - dice stops rotating
-const REST_DURATION_MS = 1000 // Time in milliseconds dice must be still
 
 interface FaceDetectionState {
   isAtRest: boolean
@@ -62,13 +60,6 @@ export function useFaceDetection(): FaceDetectionState {
         } else {
           const restDuration = performance.now() - restStartTimeRef.current
           if (restDuration >= REST_DURATION_MS) {
-            if (import.meta.env.DEV && !isAtRest) {
-              console.log(
-                '🎲 Face Detection: Dice at rest (angular:',
-                angularVelocityMagnitude.toFixed(4),
-                ')',
-              )
-            }
             setIsAtRest(true)
           }
         }

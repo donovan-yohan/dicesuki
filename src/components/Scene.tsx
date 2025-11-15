@@ -4,6 +4,7 @@ import { Box } from '@react-three/drei'
 import { Physics, RigidBody } from '@react-three/rapier'
 import { useRapier } from '@react-three/rapier'
 import * as THREE from 'three'
+import { GRAVITY } from '../config/physicsConfig'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { Dice, DiceHandle } from './dice/Dice'
 import { RollButton } from './RollButton'
@@ -35,7 +36,7 @@ function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<
         world.gravity = { x: gravity.x, y: gravity.y, z: gravity.z }
       } else {
         // Use standard downward gravity when motion mode is disabled
-        world.gravity = { x: 0, y: -9.81, z: 0 }
+        world.gravity = { x: 0, y: GRAVITY, z: 0 }
       }
     }
   })
@@ -199,6 +200,9 @@ function Scene() {
           position: [0, 15, 0],
           fov: 40
         }}
+        // Enable pointer events for touch and mouse
+        // This ensures pointer events reach the mesh components
+        style={{ touchAction: 'none' }}
       >
       {/* Camera already configured via Canvas props */}
 
@@ -217,7 +221,7 @@ function Scene() {
       />
 
       {/* Physics world - gravity updated via PhysicsController, not props */}
-      <Physics gravity={[0, -9.81, 0]} timeStep="vary">
+      <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
         <PhysicsController gravityRef={gravityRef} />
 
         {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
@@ -326,9 +330,11 @@ function HistoryDisplay() {
   const rollHistory = useDiceStore((state) => state.rollHistory)
   const [isOpen, setIsOpen] = useState(false)
 
-  if (rollHistory.length === 0) return null
+  // Only show history when we have at least 2 rolls (current + at least 1 historical)
+  if (rollHistory.length < 2) return null
 
-  const mostRecent = rollHistory[rollHistory.length - 1]
+  // Show the second-most recent roll (first historical entry, not current)
+  const displayRoll = rollHistory[rollHistory.length - 2]
 
   return (
     <>
@@ -339,7 +345,7 @@ function HistoryDisplay() {
         title="View roll history"
       >
         <span className="text-lg">📜</span>
-        <span className="font-bold text-orange-400">{mostRecent.sum}</span>
+        <span className="font-bold text-orange-400">{displayRoll.sum}</span>
       </button>
 
       {/* Flyout panel - slides in from right */}

@@ -20,3 +20,10 @@ body,
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Prevent default touch behaviors on Canvas to allow pointer events through */
+canvas {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

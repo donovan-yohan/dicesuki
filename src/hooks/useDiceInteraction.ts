@@ -1,188 +1,326 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { ThreeEvent } from '@react-three/fiber'
+import type { RapierRigidBody } from '@react-three/rapier'
+import {
+  DRAG_PLANE_HEIGHT,
+  THROW_VELOCITY_SCALE,
+  THROW_UPWARD_BOOST,
+  MIN_THROW_SPEED,
+  MAX_THROW_SPEED,
+  VELOCITY_HISTORY_SIZE,
+} from '../config/physicsConfig'
 
-/**
- * Configuration for interaction behavior
- */
-const VELOCITY_THRESHOLD = 0.1 // Minimum velocity to register as a flick (units/s) - LOWERED for sensitivity
-const IMPULSE_SCALE = 5 // Scale factor for converting velocity to impulse - INCREASED for stronger flicks
-const MAX_IMPULSE = 50 // Maximum impulse magnitude
-const MIN_UPWARD_IMPULSE = 2 // Minimum upward component for realistic throw - LOWERED for gentler flicks
-const VELOCITY_SAMPLE_WINDOW = 2 // Number of recent samples to average - REDUCED for faster response
-
-interface PointerSample {
+interface VelocityHistoryEntry {
   position: THREE.Vector3
-  timestamp: number
+  time: number
+}
+
+interface DragState {
+  isDragging: boolean
+  targetPosition: THREE.Vector3 | null
+  throwVelocity: THREE.Vector3 | null
 }
 
 interface DiceInteraction {
   isDragging: boolean
-  onPointerDown: (event: ThreeEvent<PointerEvent>) => void
-  onPointerMove: (event: ThreeEvent<PointerEvent>) => void
-  onPointerUp: (event: ThreeEvent<PointerEvent>) => void
-  getFlickImpulse: () => THREE.Vector3 | null
+  onPointerDown: (event: ThreeEvent<PointerEvent>, rigidBody: RapierRigidBody) => void
+  getDragState: () => DragState
+  cancelDrag: () => void
 }
 
 /**
- * Hook for handling touch/mouse interaction with dice
+ * Hook for handling velocity-based drag interaction with dice
  *
- * Tracks pointer movement and calculates flick impulse based on drag velocity.
- * Provides pointer event handlers for integration with Three.js meshes.
- *
- * Usage:
- * ```tsx
- * const { isDragging, onPointerDown, onPointerMove, onPointerUp, getFlickImpulse } = useDiceInteraction()
- *
- * <mesh
- *   onPointerDown={onPointerDown}
- *   onPointerMove={onPointerMove}
- *   onPointerUp={onPointerUp}
- * >
- * ```
+ * Uses direct velocity manipulation for responsive dragging while maintaining
+ * full physics interaction. On release, calculates throw velocity from drag motion.
  */
 export function useDiceInteraction(): DiceInteraction {
+  const { camera, gl, size } = useThree()
+
   const [isDragging, setIsDragging] = useState(false)
-
-  // Use ref for immediate drag state (not affected by React rendering)
+  
+  // Refs for state that updates every frame (avoid re-renders)
   const isDraggingRef = useRef(false)
-
-  // Track pointer samples for velocity calculation
-  const samplesRef = useRef<PointerSample[]>([])
-  const flickImpulseRef = useRef<THREE.Vector3 | null>(null)
-  const dragStartRef = useRef<{ position: THREE.Vector3; timestamp: number } | null>(null)
+  const targetPositionRef = useRef<THREE.Vector3 | null>(null)
+  const throwVelocityRef = useRef<THREE.Vector3 | null>(null)
+  const dragOffsetRef = useRef<THREE.Vector3 | null>(null)
+  const currentPointerIdRef = useRef<number | null>(null)
+  const capturedElementRef = useRef<HTMLElement | null>(null)
+  const rigidBodyRef = useRef<RapierRigidBody | null>(null)
+  
+  // Velocity tracking for throw calculation
+  const velocityHistoryRef = useRef<VelocityHistoryEntry[]>([])
+  
+  // Raycasting
+  const raycaster = useRef(new THREE.Raycaster())
+  const dragPlane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), -DRAG_PLANE_HEIGHT))
 
   /**
-   * Calculate velocity from recent pointer samples
-   * Uses average of recent samples to smooth out jitter
+   * Project pointer screen coordinates onto the drag plane
    */
-  const calculateVelocity = useCallback((): THREE.Vector3 | null => {
-    const samples = samplesRef.current
-    if (samples.length < 2) return null
+  const getPointerWorldPosition = useCallback((clientX: number, clientY: number): THREE.Vector3 | null => {
+    // Convert screen coordinates to normalized device coordinates (-1 to +1)
+    const rect = gl.domElement.getBoundingClientRect()
+    const x = ((clientX - rect.left) / size.width) * 2 - 1
+    const y = -((clientY - rect.top) / size.height) * 2 + 1
 
-    // Use recent samples for velocity calculation
-    const recentSamples = samples.slice(-Math.min(VELOCITY_SAMPLE_WINDOW, samples.length))
-    if (recentSamples.length < 2) return null
+    // Update raycaster with camera and pointer position
+    raycaster.current.setFromCamera(new THREE.Vector2(x, y), camera)
 
-    const first = recentSamples[0]
-    const last = recentSamples[recentSamples.length - 1]
+    // Intersect ray with drag plane
+    const intersection = new THREE.Vector3()
+    const didIntersect = raycaster.current.ray.intersectPlane(dragPlane.current, intersection)
 
-    const timeDelta = (last.timestamp - first.timestamp) / 1000 // Convert to seconds
-    if (timeDelta === 0) return null
+    return didIntersect ? intersection : null
+  }, [camera, gl.domElement, size.width, size.height])
 
-    const positionDelta = last.position.clone().sub(first.position)
-    const velocity = positionDelta.divideScalar(timeDelta)
+  /**
+   * Calculate throw velocity from velocity history
+   */
+  const calculateThrowVelocity = useCallback((): THREE.Vector3 | null => {
+    const history = velocityHistoryRef.current
+    if (history.length < 2) return null
 
-    return velocity
+    // Use last few entries to calculate average velocity
+    const recentHistory = history.slice(-Math.min(3, history.length))
+    const velocities: THREE.Vector3[] = []
+
+    for (let i = 1; i < recentHistory.length; i++) {
+      const prev = recentHistory[i - 1]
+      const curr = recentHistory[i]
+      const dt = (curr.time - prev.time) / 1000 // Convert to seconds
+      
+      if (dt > 0) {
+        const velocity = curr.position.clone().sub(prev.position).divideScalar(dt)
+        velocities.push(velocity)
+      }
+    }
+
+    if (velocities.length === 0) return null
+
+    // Average the velocities
+    const avgVelocity = velocities.reduce((acc, v) => acc.add(v), new THREE.Vector3())
+      .divideScalar(velocities.length)
+
+    // Check if speed is above minimum threshold
+    const speed = avgVelocity.length()
+    if (speed < MIN_THROW_SPEED) return null
+
+    // Scale and clamp velocity
+    avgVelocity.multiplyScalar(THROW_VELOCITY_SCALE)
+    const clampedSpeed = Math.min(speed * THROW_VELOCITY_SCALE, MAX_THROW_SPEED)
+    avgVelocity.normalize().multiplyScalar(clampedSpeed)
+
+    // Add upward component for more dynamic throws
+    avgVelocity.y += THROW_UPWARD_BOOST
+
+    return avgVelocity
   }, [])
 
   /**
-   * Generate impulse vector from drag velocity
+   * Handle pointer down on dice mesh
    */
-  const generateFlickImpulse = useCallback((velocity: THREE.Vector3): THREE.Vector3 | null => {
-    const speed = velocity.length()
+  const onPointerDown = useCallback((event: ThreeEvent<PointerEvent>, rigidBody: RapierRigidBody) => {
+    event.stopPropagation()
+    
+    currentPointerIdRef.current = event.pointerId
+    rigidBodyRef.current = rigidBody
 
-    // Ignore slow movements
-    if (speed < VELOCITY_THRESHOLD) {
-      return null
+    // Capture pointer for continuous tracking
+    if (event.nativeEvent.target instanceof HTMLElement) {
+      event.nativeEvent.target.setPointerCapture(event.pointerId)
+      capturedElementRef.current = event.nativeEvent.target
     }
 
-    // Scale velocity to impulse
-    const impulse = velocity.clone().multiplyScalar(IMPULSE_SCALE)
+    // Get initial world position from pointer projection
+    const worldPos = getPointerWorldPosition(event.nativeEvent.clientX, event.nativeEvent.clientY)
+    if (!worldPos) return
 
-    // Add upward component for realistic throw
-    // Even horizontal flicks should lift the dice slightly
-    impulse.y = Math.max(impulse.y, MIN_UPWARD_IMPULSE)
+    // Calculate offset from dice center to pointer projection
+    const diceCenter = new THREE.Vector3()
+    event.object.getWorldPosition(diceCenter)
+    const offset = new THREE.Vector3().subVectors(diceCenter, worldPos)
 
-    // Cap maximum impulse to prevent extreme forces
-    if (impulse.length() > MAX_IMPULSE) {
-      impulse.normalize().multiplyScalar(MAX_IMPULSE)
-    }
-
-    return impulse
-  }, [])
-
-  /**
-   * Handle pointer down event
-   * Start tracking drag
-   */
-  const onPointerDown = useCallback((event: ThreeEvent<PointerEvent>) => {
     isDraggingRef.current = true
     setIsDragging(true)
+    dragOffsetRef.current = offset
+    throwVelocityRef.current = null
 
-    const sample: PointerSample = {
-      position: event.point.clone(),
-      timestamp: event.nativeEvent.timeStamp
-    }
+    // Set initial target position
+    const targetPos = worldPos.add(offset)
+    targetPositionRef.current = targetPos
 
-    samplesRef.current = [sample]
-    dragStartRef.current = sample
-    flickImpulseRef.current = null
-  }, [])
+    // Initialize velocity tracking
+    velocityHistoryRef.current = [{
+      position: targetPos.clone(),
+      time: performance.now()
+    }]
 
-  /**
-   * Handle pointer move event
-   * Track position for velocity calculation
-   */
-  const onPointerMove = useCallback((event: ThreeEvent<PointerEvent>) => {
-    if (!isDraggingRef.current) return
-
-    const sample: PointerSample = {
-      position: event.point.clone(),
-      timestamp: event.nativeEvent.timeStamp
-    }
-
-    samplesRef.current.push(sample)
-
-    // Keep only recent samples to prevent memory growth
-    if (samplesRef.current.length > VELOCITY_SAMPLE_WINDOW * 2) {
-      samplesRef.current.shift()
-    }
-  }, [])
+    // Wake up the rigid body
+    rigidBody.wakeUp()
+  }, [getPointerWorldPosition])
 
   /**
-   * Handle pointer up event
-   * Calculate final velocity and generate impulse
+   * Handle pointer move (global listener for continuous tracking)
    */
-  const onPointerUp = useCallback((event: ThreeEvent<PointerEvent>) => {
+  const onPointerMove = useCallback((event: PointerEvent) => {
+    if (!isDraggingRef.current || event.pointerId !== currentPointerIdRef.current) return
+
+    // Project current pointer position onto drag plane
+    const worldPos = getPointerWorldPosition(event.clientX, event.clientY)
+    if (!worldPos) return
+
+    // Apply the stored offset to maintain grab point
+    if (dragOffsetRef.current) {
+      worldPos.add(dragOffsetRef.current)
+    }
+
+    // Update target position
+    targetPositionRef.current = worldPos
+
+    // Track position for velocity calculation
+    const now = performance.now()
+    const history = velocityHistoryRef.current
+    
+    history.push({
+      position: worldPos.clone(),
+      time: now
+    })
+
+    // Keep only recent history
+    if (history.length > VELOCITY_HISTORY_SIZE) {
+      history.shift()
+    }
+
+    // Remove old entries (older than 100ms)
+    const cutoffTime = now - 100
+    while (history.length > 0 && history[0].time < cutoffTime) {
+      history.shift()
+    }
+  }, [getPointerWorldPosition])
+
+  /**
+   * Clear drag state and release pointer capture
+   */
+  const endDrag = useCallback(() => {
     if (!isDraggingRef.current) return
 
-    // Add final sample
-    const finalSample: PointerSample = {
-      position: event.point.clone(),
-      timestamp: event.nativeEvent.timeStamp
-    }
-    samplesRef.current.push(finalSample)
+    // Calculate throw velocity before clearing state
+    const throwVel = calculateThrowVelocity()
+    throwVelocityRef.current = throwVel
 
-    // Calculate velocity and generate impulse
-    const velocity = calculateVelocity()
-    if (velocity) {
-      const impulse = generateFlickImpulse(velocity)
-      flickImpulseRef.current = impulse
+    // Release pointer capture
+    if (capturedElementRef.current && currentPointerIdRef.current !== null) {
+      try {
+        capturedElementRef.current.releasePointerCapture(currentPointerIdRef.current)
+      } catch (error) {
+        console.warn('Failed to release pointer capture', error)
+      }
     }
 
+    // Apply throw velocity to rigid body
+    if (throwVel && rigidBodyRef.current) {
+      rigidBodyRef.current.setLinvel({
+        x: throwVel.x,
+        y: throwVel.y,
+        z: throwVel.z
+      }, true)
+      
+      // Add some random spin for realism
+      const randomSpin = new THREE.Vector3(
+        (Math.random() - 0.5) * 4,
+        (Math.random() - 0.5) * 4,
+        (Math.random() - 0.5) * 4
+      )
+      rigidBodyRef.current.setAngvel({
+        x: randomSpin.x,
+        y: randomSpin.y,
+        z: randomSpin.z
+      }, true)
+    }
+
+    // Clear refs
+    capturedElementRef.current = null
     isDraggingRef.current = false
+    targetPositionRef.current = null
+    dragOffsetRef.current = null
+    currentPointerIdRef.current = null
+    rigidBodyRef.current = null
+    velocityHistoryRef.current = []
+
     setIsDragging(false)
-    samplesRef.current = []
-    dragStartRef.current = null
-  }, [calculateVelocity, generateFlickImpulse])
+  }, [calculateThrowVelocity])
 
   /**
-   * Retrieve calculated flick impulse
-   * Returns null if no valid flick detected
-   * Clears impulse after retrieval (one-time use)
+   * Handle pointer up (global listener)
    */
-  const getFlickImpulse = useCallback((): THREE.Vector3 | null => {
-    const impulse = flickImpulseRef.current
-    flickImpulseRef.current = null // Clear after retrieval
-    return impulse
-  }, [])
+  const onPointerUp = useCallback((event: PointerEvent) => {
+    if (!isDraggingRef.current || event.pointerId !== currentPointerIdRef.current) return
+    endDrag()
+  }, [endDrag])
+
+  /**
+   * Handle pointer cancel cases (system interrupts)
+   */
+  const onPointerCancel = useCallback((event: PointerEvent) => {
+    if (!isDraggingRef.current || event.pointerId !== currentPointerIdRef.current) return
+    // Don't apply throw velocity on cancel
+    throwVelocityRef.current = null
+    endDrag()
+  }, [endDrag])
+
+  /**
+   * Handle lost pointer capture (e.g., DOM changes)
+   */
+  const onLostPointerCapture = useCallback((event: PointerEvent) => {
+    if (!isDraggingRef.current || event.pointerId !== currentPointerIdRef.current) return
+    endDrag()
+  }, [endDrag])
+
+  /**
+   * Cancel drag without applying throw velocity
+   */
+  const cancelDrag = useCallback(() => {
+    if (!isDraggingRef.current) return
+    
+    throwVelocityRef.current = null
+    endDrag()
+  }, [endDrag])
+
+  /**
+   * Get current drag state (called every frame from Dice component)
+   */
+  const getDragState = useCallback((): DragState => ({
+    isDragging: isDraggingRef.current,
+    targetPosition: targetPositionRef.current,
+    throwVelocity: throwVelocityRef.current
+  }), [])
+
+  // Global pointer event listeners
+  useEffect(() => {
+    const canvas = gl.domElement
+
+    canvas.addEventListener('pointermove', onPointerMove)
+    canvas.addEventListener('pointerleave', onPointerCancel)
+    canvas.addEventListener('lostpointercapture', onLostPointerCapture as any)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerCancel)
+
+    return () => {
+      canvas.removeEventListener('pointermove', onPointerMove)
+      canvas.removeEventListener('pointerleave', onPointerCancel)
+      canvas.removeEventListener('lostpointercapture', onLostPointerCapture as any)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerCancel)
+    }
+  }, [gl.domElement, onPointerMove, onPointerUp, onPointerCancel, onLostPointerCapture])
 
   return {
     isDragging,
     onPointerDown,
-    onPointerMove,
-    onPointerUp,
-    getFlickImpulse
+    getDragState,
+    cancelDrag
   }
 }

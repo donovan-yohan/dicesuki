@@ -1,5 +1,11 @@
 import { useState, useCallback, useRef } from 'react'
 import * as THREE from 'three'
+import {
+  ROLL_HORIZONTAL_MIN,
+  ROLL_HORIZONTAL_MAX,
+  ROLL_VERTICAL_MIN,
+  ROLL_VERTICAL_MAX,
+} from '../config/physicsConfig'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useUIStore } from '../store/useUIStore'
@@ -45,13 +51,13 @@ export function useDiceRoll(): DiceRollState {
   const generateImpulse = useCallback((): THREE.Vector3 => {
     // Random horizontal direction
     const angle = Math.random() * Math.PI * 2
-    const horizontalStrength = 2 + Math.random() * 3 // 2-5 units
+    const horizontalStrength = ROLL_HORIZONTAL_MIN + Math.random() * (ROLL_HORIZONTAL_MAX - ROLL_HORIZONTAL_MIN)
 
     const x = Math.cos(angle) * horizontalStrength
     const z = Math.sin(angle) * horizontalStrength
 
     // Upward component (stronger to ensure good tumble)
-    const y = 5 + Math.random() * 3 // 5-8 units upward
+    const y = ROLL_VERTICAL_MIN + Math.random() * (ROLL_VERTICAL_MAX - ROLL_VERTICAL_MIN)
 
     return new THREE.Vector3(x, y, z)
   }, [])

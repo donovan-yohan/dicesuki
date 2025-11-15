@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { POLYHEDRON_DETAIL_LEVEL } from '../config/physicsConfig'
 
 /**
  * Dice shape types
@@ -163,11 +164,13 @@ export function getDiceFaceValue(
 
 /**
  * Creates a D4 (tetrahedron) geometry with appropriate size
+ * Adds subdivision for slightly rounded edges
  * @param size - The size of the tetrahedron (default: 1)
  * @returns TetrahedronGeometry for the D4
  */
 export function createD4Geometry(size: number = 1): THREE.TetrahedronGeometry {
-  return new THREE.TetrahedronGeometry(size, 0)
+  // detail level adds subdivision for smoother, more rounded edges
+  return new THREE.TetrahedronGeometry(size, POLYHEDRON_DETAIL_LEVEL)
 }
 
 
@@ -211,27 +214,33 @@ export function createD6Geometry(size: number = 1): THREE.BoxGeometry {
 
 /**
  * Creates a D8 (octahedron) geometry with appropriate size
+ * Adds subdivision for slightly rounded edges
  * @param size - The size of the octahedron (default: 1)
  * @returns OctahedronGeometry for the D8
  */
 export function createD8Geometry(size: number = 1): THREE.OctahedronGeometry {
-  return new THREE.OctahedronGeometry(size, 0)
+  // detail level adds subdivision for smoother, more rounded edges
+  return new THREE.OctahedronGeometry(size, POLYHEDRON_DETAIL_LEVEL)
 }
 
 /**
  * Creates a D12 (dodecahedron) geometry with appropriate size
+ * Adds subdivision for slightly rounded edges
  * @param size - The size of the dodecahedron (default: 1)
  * @returns DodecahedronGeometry for the D12
  */
 export function createD12Geometry(size: number = 1): THREE.DodecahedronGeometry {
-  return new THREE.DodecahedronGeometry(size, 0)
+  // detail level adds subdivision for smoother, more rounded edges
+  return new THREE.DodecahedronGeometry(size, POLYHEDRON_DETAIL_LEVEL)
 }
 
 /**
  * Creates a D20 (icosahedron) geometry with appropriate size
+ * Adds subdivision for slightly rounded edges
  * @param size - The size of the icosahedron (default: 1)
  * @returns IcosahedronGeometry for the D20
  */
 export function createD20Geometry(size: number = 1): THREE.IcosahedronGeometry {
-  return new THREE.IcosahedronGeometry(size, 0)
+  // detail level adds subdivision for smoother, more rounded edges
+  return new THREE.IcosahedronGeometry(size, POLYHEDRON_DETAIL_LEVEL)
 }

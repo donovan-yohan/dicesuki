@@ -1,16 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import * as THREE from 'three'
-
-/**
- * Configuration for motion detection
- */
-const GRAVITY_SCALE = 15 // Scale factor for converting device tilt to gravity force
-const ACCELERATION_SCALE = 15 // Scale factor for linear acceleration (pseudo-force when phone moves)
-const SHAKE_THRESHOLD = 20 // Minimum acceleration magnitude to detect shake
-const SHAKE_DURATION = 500 // How long shake state persists (ms)
-const TILT_DEADZONE = 2.0 // Minimum tilt (in m/s²) to register as actual tilt (filters sensor noise)
-const ACCELERATION_DEADZONE = 1.0 // Minimum linear acceleration (in m/s²) to register (filters hand tremors)
-const UI_UPDATE_THROTTLE = 100 // Throttle UI updates to 10fps (100ms)
+import {
+  GRAVITY_SCALE,
+  ACCELERATION_SCALE,
+  SHAKE_THRESHOLD,
+  SHAKE_DURATION,
+  TILT_DEADZONE,
+  ACCELERATION_DEADZONE,
+  UI_UPDATE_THROTTLE,
+} from '../config/physicsConfig'
 
 type PermissionState = 'prompt' | 'granted' | 'denied' | 'unsupported'
 
