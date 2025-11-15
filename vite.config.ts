@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
 
+// Check if SSL certificates exist (only in local development)
+const certKeyPath = path.resolve(__dirname, '.cert/localhost+3-key.pem')
+const certPath = path.resolve(__dirname, '.cert/localhost+3.pem')
+const hasLocalCerts = fs.existsSync(certKeyPath) && fs.existsSync(certPath)
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -12,10 +17,13 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
-    https: {
-      key: fs.readFileSync(path.resolve(__dirname, '.cert/localhost+3-key.pem')),
-      cert: fs.readFileSync(path.resolve(__dirname, '.cert/localhost+3.pem')),
-    }
+    // Only use HTTPS in local development with certificates
+    ...(hasLocalCerts && {
+      https: {
+        key: fs.readFileSync(certKeyPath),
+        cert: fs.readFileSync(certPath),
+      }
+    })
   },
   test: {
     globals: true,
