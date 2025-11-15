@@ -115,7 +115,7 @@ export const ANGULAR_VELOCITY_THRESHOLD = 0.01
  * - 500ms: Faster results, slight risk of misreads
  * - 1500ms: Very conservative, slower gameplay
  */
-export const REST_DURATION_MS = 1000
+export const REST_DURATION_MS = 500
 
 // ============================================================================
 // DRAG INTERACTION
