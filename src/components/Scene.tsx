@@ -8,8 +8,7 @@ import { GRAVITY } from '../config/physicsConfig'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { Dice, DiceHandle } from './dice/Dice'
 import { BottomNav, CenterRollButton, CornerIcon, UIToggleMini } from './layout'
-import { DiceManagerPanel, HistoryPanel } from './panels'
-// import { SettingsPanel } from './panels' // TODO: Not yet implemented
+import { DiceManagerPanel, HistoryPanel, SettingsPanel } from './panels'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
@@ -234,7 +233,7 @@ function Scene() {
   const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
   const [isDiceManagerOpen, setIsDiceManagerOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
-  // const [isSettingsOpen, setIsSettingsOpen] = useState(false) // TODO: Not yet implemented
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   // Detect if mobile
   const [isMobile, setIsMobile] = useState(false)
@@ -361,7 +360,7 @@ function Scene() {
     {/* Top-Left Corner: Settings */}
     <CornerIcon
       position="top-left"
-      onClick={() => {}} // TODO: Settings panel not yet implemented
+      onClick={() => setIsSettingsOpen(true)}
       label="Settings"
       isVisible={isUIVisible}
     >
@@ -395,11 +394,10 @@ function Scene() {
       onClose={() => setIsHistoryOpen(false)}
     />
 
-    {/* TODO: Settings panel not yet implemented */}
-    {/* <SettingsPanel
+    <SettingsPanel
       isOpen={isSettingsOpen}
       onClose={() => setIsSettingsOpen(false)}
-    /> */}
+    />
   </>
   )
 }
