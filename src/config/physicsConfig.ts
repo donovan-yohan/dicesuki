@@ -325,7 +325,7 @@ export const POLYHEDRON_DETAIL_LEVEL = 0
  * - 1.0: Only fast collisions vibrate
  * - 0.2: More sensitive, vibrates on gentle bumps
  */
-export const HAPTIC_MIN_SPEED = 0.5
+export const HAPTIC_MIN_SPEED = 1.0
 
 /**
  * Minimum velocity change to detect impact (world units/s)
@@ -343,7 +343,7 @@ export const HAPTIC_MIN_VELOCITY_CHANGE = 0.5
  * - -0.5: Force must strongly oppose motion (fewer triggers)
  * - -0.1: Allow more perpendicular forces (more triggers)
  */
-export const HAPTIC_FORCE_DIRECTION_THRESHOLD = -0.3
+export const HAPTIC_FORCE_DIRECTION_THRESHOLD = -0.5
 
 /**
  * Minimum force magnitude to trigger any haptic (physics units)
@@ -352,7 +352,17 @@ export const HAPTIC_FORCE_DIRECTION_THRESHOLD = -0.3
  * - 10: Only significant impacts
  * - 2: More sensitive to light touches
  */
-export const HAPTIC_MIN_FORCE = 5
+export const HAPTIC_MIN_FORCE = 50
+
+/**
+ * Force threshold to bypass direction check (physics units)
+ * - High-force impacts skip the dot product direction filter
+ * - Allows wall collisions with positive dot products to vibrate
+ * - 30: Good threshold for wall vs dice-to-dice distinction
+ * - 40: More conservative, only very strong impacts bypass
+ * - 20: More lenient, more impacts bypass direction check
+ */
+export const HAPTIC_HIGH_FORCE_BYPASS = 30
 
 /**
  * Force threshold for light vibration (physics units)
@@ -362,7 +372,7 @@ export const HAPTIC_MIN_FORCE = 5
  * - 30: Moderate impacts only
  * - 10: Very sensitive
  */
-export const HAPTIC_LIGHT_THRESHOLD = 15
+export const HAPTIC_LIGHT_THRESHOLD = 75
 
 /**
  * Force threshold for medium vibration (physics units)
@@ -381,7 +391,7 @@ export const HAPTIC_MEDIUM_THRESHOLD = 100
  * - 15: Slightly longer
  * - 5: Very subtle
  */
-export const HAPTIC_LIGHT_DURATION = 5
+export const HAPTIC_LIGHT_DURATION = 1
 
 /**
  * Vibration duration for medium impacts (milliseconds)
@@ -390,7 +400,7 @@ export const HAPTIC_LIGHT_DURATION = 5
  * - 40: Stronger feedback
  * - 20: More subtle
  */
-export const HAPTIC_MEDIUM_DURATION = 100
+export const HAPTIC_MEDIUM_DURATION = 15
 
 /**
  * Vibration duration for strong impacts (milliseconds)
@@ -399,7 +409,7 @@ export const HAPTIC_MEDIUM_DURATION = 100
  * - 70: Very strong feedback
  * - 40: Moderate strong feedback
  */
-export const HAPTIC_STRONG_DURATION = 1000
+export const HAPTIC_STRONG_DURATION = 75
 
 /**
  * Minimum time between haptic triggers (milliseconds)
@@ -408,7 +418,7 @@ export const HAPTIC_STRONG_DURATION = 1000
  * - 100: Up to 10 vibrations per second (less spam)
  * - 30: More frequent feedback (may feel buzzy)
  */
-export const HAPTIC_THROTTLE_MS = 50
+export const HAPTIC_THROTTLE_MS = 100
 
 // ============================================================================
 // PRESETS (Quick configs for different feels)

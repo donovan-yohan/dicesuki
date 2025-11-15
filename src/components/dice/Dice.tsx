@@ -19,6 +19,7 @@ import {
   HAPTIC_MIN_FORCE,
   HAPTIC_LIGHT_THRESHOLD,
   HAPTIC_MEDIUM_THRESHOLD,
+  HAPTIC_HIGH_FORCE_BYPASS,
 } from '../../config/physicsConfig'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
@@ -445,8 +446,10 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
         const dot = velocityDir.dot(forceDir.normalize())
 
         // Only trigger haptic for opposing forces (actual impacts)
-        // This filters out sliding friction and continuous contact
-        if (dot > HAPTIC_FORCE_DIRECTION_THRESHOLD) {
+        // Exception: Skip direction check for high-force impacts (likely wall collisions)
+        // Wall collisions can have positive dot products due to rotation and glancing angles
+        const isHighForceImpact = forceMagnitude > HAPTIC_HIGH_FORCE_BYPASS
+        if (!isHighForceImpact && dot > HAPTIC_FORCE_DIRECTION_THRESHOLD) {
           lastVelocityVectorRef.current.copy(currentVelocity)
           return
         }
@@ -468,7 +471,9 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
         // Thresholds configured in physicsConfig.ts
         if (forceMagnitude < HAPTIC_MIN_FORCE) {
           return // Too weak to vibrate
-        } else if (forceMagnitude < HAPTIC_LIGHT_THRESHOLD) {
+        }
+
+        if (forceMagnitude < HAPTIC_LIGHT_THRESHOLD) {
           vibrateOnCollision('light')
         } else if (forceMagnitude < HAPTIC_MEDIUM_THRESHOLD) {
           vibrateOnCollision('medium')
