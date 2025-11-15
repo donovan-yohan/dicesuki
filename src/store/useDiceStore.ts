@@ -6,6 +6,7 @@ import { create } from 'zustand'
 export interface DiceResult {
   id: string
   value: number
+  type: string // 'd4', 'd6', 'd8', 'd12', 'd20'
 }
 
 /**
@@ -38,7 +39,7 @@ interface DiceStore {
 
   // Actions
   startRoll: (diceCount: number) => void
-  recordDiceResult: (id: string, value: number) => void
+  recordDiceResult: (id: string, value: number, type: string) => void
   completeRoll: () => void
   reset: () => void
 }
@@ -65,8 +66,8 @@ export const useDiceStore = create<DiceStore>((set, get) => ({
    * Record a single dice result
    * Adds to current roll and auto-completes if all dice have reported
    */
-  recordDiceResult: (id: string, value: number) => {
-    console.log('Store: Recording dice result:', id, value)
+  recordDiceResult: (id: string, value: number, type: string) => {
+    console.log('Store: Recording dice result:', id, value, type)
     set((state) => {
       // Check if this dice already reported (prevent duplicates)
       if (state.currentRoll.some(d => d.id === id)) {
@@ -74,7 +75,7 @@ export const useDiceStore = create<DiceStore>((set, get) => ({
         return state
       }
 
-      const newRoll = [...state.currentRoll, { id, value }]
+      const newRoll = [...state.currentRoll, { id, value, type }]
 
       // Auto-complete if all dice have reported
       if (newRoll.length === state.expectedDiceCount) {

@@ -8,7 +8,7 @@ export interface DiceRollState {
   canRoll: boolean
   isRolling: boolean
   roll: (diceCount: number) => THREE.Vector3 | null
-  onDiceRest: (diceId: string, faceValue: number) => void
+  onDiceRest: (diceId: string, faceValue: number, diceType: string) => void
   reset: () => void
 }
 
@@ -90,7 +90,7 @@ export function useDiceRoll(): DiceRollState {
    * The "awaiting result" check is removed because motion controls (gravity tilt) don't
    * call roll() but still cause legitimate dice movement.
    */
-  const onDiceRest = useCallback((diceId: string, faceValue: number) => {
+  const onDiceRest = useCallback((diceId: string, faceValue: number, diceType: string) => {
     // Accept all results - both button-triggered and motion-control triggered
     // The "phantom roll" concept only applies to spurious detections, not actual dice movement
 
@@ -105,8 +105,8 @@ export function useDiceRoll(): DiceRollState {
       awaitingResultRef.current = true
     }
 
-    console.log('useDiceRoll: Recording dice result:', diceId, faceValue)
-    recordDiceResult(diceId, faceValue)
+    console.log('useDiceRoll: Recording dice result:', diceId, faceValue, diceType)
+    recordDiceResult(diceId, faceValue, diceType)
 
     // Check if roll is complete (all dice reported)
     const currentRoll = useDiceStore.getState().currentRoll

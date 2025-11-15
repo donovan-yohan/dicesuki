@@ -23,7 +23,7 @@ interface DiceProps {
   rotation?: [number, number, number]
   size?: number
   color?: string
-  onRest?: (id: string, faceValue: number) => void
+  onRest?: (id: string, faceValue: number, diceType: string) => void
 }
 
 export interface DiceHandle {
@@ -173,7 +173,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(({
                              Math.sqrt(angVel.x**2 + angVel.y**2 + angVel.z**2) < 0.01
 
           if (stillAtRest) {
-            onRest(id, pendingNotificationRef.current)
+            onRest(id, pendingNotificationRef.current, shape)
             hasNotifiedRef.current = true
           }
           pendingNotificationRef.current = null

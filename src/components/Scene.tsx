@@ -161,8 +161,8 @@ function Scene() {
     }
   }, [roll, dice.length])
 
-  const handleDiceRest = useCallback((diceId: string, faceValue: number) => {
-    onDiceRest(diceId, faceValue)
+  const handleDiceRest = useCallback((diceId: string, faceValue: number, diceType: string) => {
+    onDiceRest(diceId, faceValue, diceType)
   }, [onDiceRest])
 
   const handleAddDice = useCallback((type: string) => {
@@ -379,12 +379,17 @@ function HistoryDisplay() {
                   {/* Dice values */}
                   <div className="flex gap-2 flex-wrap mb-2">
                     {roll.dice.map((die, dieIdx) => (
-                      <span
+                      <div
                         key={dieIdx}
-                        className="bg-gray-700 text-white px-3 py-1 rounded font-bold"
+                        className="flex flex-col items-center"
                       >
-                        {die.value}
-                      </span>
+                        <span className="bg-gray-700 text-white px-3 py-1 rounded font-bold">
+                          {die.value}
+                        </span>
+                        <span className="text-xs text-gray-500 mt-1">
+                          {die.type.toUpperCase()}
+                        </span>
+                      </div>
                     ))}
                   </div>
 
