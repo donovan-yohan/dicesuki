@@ -158,10 +158,8 @@ function Scene() {
   }, [onDiceRest])
 
   const handleAddDice = useCallback((type: string) => {
-    if (type === 'd6') {
-      addDice('d6')
-    }
-    // Other dice types not yet implemented
+    console.log('Adding dice:', type)
+    addDice(type)
   }, [addDice])
 
   const handleRemoveDice = useCallback((id: string) => {
