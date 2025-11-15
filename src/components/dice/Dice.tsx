@@ -1,7 +1,7 @@
-import { forwardRef, memo, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 
 import { useFrame } from '@react-three/fiber'
-import { RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
+import { ContactForcePayload, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
 import * as THREE from 'three'
 import {
   DICE_FRICTION,
@@ -13,10 +13,17 @@ import {
   DRAG_ROLL_FACTOR,
   EDGE_CHAMFER_RADIUS,
   MAX_DICE_VELOCITY,
+  HAPTIC_MIN_SPEED,
+  HAPTIC_MIN_VELOCITY_CHANGE,
+  HAPTIC_FORCE_DIRECTION_THRESHOLD,
+  HAPTIC_MIN_FORCE,
+  HAPTIC_LIGHT_THRESHOLD,
+  HAPTIC_MEDIUM_THRESHOLD,
 } from '../../config/physicsConfig'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
+import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import {
   DiceShape,
   createD12Geometry,
@@ -80,6 +87,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
     } = useFaceDetection()
     const { isDragging, onPointerDown, cancelDrag, getDragState } = useDiceInteraction()
     const { isShakingRef } = useDeviceMotionRef()
+    const { vibrateOnCollision } = useHapticFeedback()
     const motionMode = useUIStore((state) => state.motionMode)
     const hasNotifiedRef = useRef(false)
     const pendingNotificationRef = useRef<number | null>(null)
@@ -400,6 +408,77 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
     // Calculate half-extents for D6 collider
     const halfSize = size / 2
 
+    // Track last velocity to detect actual impacts (change in velocity)
+    const lastVelocityVectorRef = useRef<THREE.Vector3>(new THREE.Vector3())
+
+    // Handle contact forces for haptic feedback
+    const handleContactForce = useCallback(
+      (event: ContactForcePayload) => {
+        if (!rigidBodyRef.current) return
+
+        // Get current velocity vector
+        const vel = rigidBodyRef.current.linvel()
+        const currentVelocity = new THREE.Vector3(vel.x, vel.y, vel.z)
+        const speed = currentVelocity.length()
+
+        // Only process if dice is actually moving with significant speed
+        if (speed < HAPTIC_MIN_SPEED) {
+          lastVelocityVectorRef.current.copy(currentVelocity)
+          return
+        }
+
+        // Get force direction vector
+        const forceDir = new THREE.Vector3(
+          event.maxForceDirection.x,
+          event.maxForceDirection.y,
+          event.maxForceDirection.z
+        )
+        const forceMagnitude = event.maxForceMagnitude
+
+        // Normalize velocity for direction comparison
+        const velocityDir = currentVelocity.clone().normalize()
+
+        // Calculate dot product to determine if force is opposing motion
+        // dot < 0 means force is opposite to velocity (impact/collision)
+        // dot > 0 means force is same direction as velocity (pushing)
+        // dot ≈ 0 means force is perpendicular (could be sliding friction)
+        const dot = velocityDir.dot(forceDir.normalize())
+
+        // Only trigger haptic for opposing forces (actual impacts)
+        // This filters out sliding friction and continuous contact
+        if (dot > HAPTIC_FORCE_DIRECTION_THRESHOLD) {
+          lastVelocityVectorRef.current.copy(currentVelocity)
+          return
+        }
+
+        // Calculate velocity change (delta-v) to detect impact strength
+        const velocityChange = currentVelocity.clone().sub(lastVelocityVectorRef.current)
+        const deltaSpeed = velocityChange.length()
+
+        // Store current velocity for next comparison
+        lastVelocityVectorRef.current.copy(currentVelocity)
+
+        // Require significant velocity change for impact detection
+        // This filters out minor contacts and continuous forces
+        if (deltaSpeed < HAPTIC_MIN_VELOCITY_CHANGE) {
+          return
+        }
+
+        // Map force to haptic intensity based on impact strength
+        // Thresholds configured in physicsConfig.ts
+        if (forceMagnitude < HAPTIC_MIN_FORCE) {
+          return // Too weak to vibrate
+        } else if (forceMagnitude < HAPTIC_LIGHT_THRESHOLD) {
+          vibrateOnCollision('light')
+        } else if (forceMagnitude < HAPTIC_MEDIUM_THRESHOLD) {
+          vibrateOnCollision('medium')
+        } else {
+          vibrateOnCollision('strong')
+        }
+      },
+      [vibrateOnCollision],
+    )
+
     return (
       <RigidBody
         ref={rigidBodyRef}
@@ -409,6 +488,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
         restitution={DICE_RESTITUTION}
         friction={DICE_FRICTION}
         canSleep={false}
+        onContactForce={handleContactForce}
       >
         {/* Use RoundCuboid for D6 to add chamfered edges */}
         {shape === 'd6' && (

@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { FlyoutPanel } from './FlyoutPanel'
 import { ThemeSelector } from '../ThemeSelector'
+import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 
 interface SettingsPanelProps {
   isOpen: boolean
@@ -16,6 +17,7 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showThemeSelector, setShowThemeSelector] = useState(false)
+  const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
 
   return (
     <>
@@ -73,39 +75,85 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             Performance
           </h3>
 
-          <div
-            className="p-4 rounded-lg"
-            style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.2)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-            }}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span
-                className="text-sm font-medium"
-                style={{ color: 'var(--color-text-primary)' }}
+          <div className="space-y-3">
+            {/* Haptic Feedback Toggle */}
+            {isSupported && (
+              <div
+                className="p-4 rounded-lg"
+                style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                }}
               >
-                Reduce Motion
-              </span>
-              <label className="relative inline-block w-10 h-6">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={window.matchMedia('(prefers-reduced-motion: reduce)').matches}
-                  disabled
-                />
-                <div
-                  className="w-10 h-6 rounded-full transition-all peer-checked:bg-orange-500"
-                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.3)' }}
-                />
-              </label>
-            </div>
-            <p
-              className="text-xs"
-              style={{ color: 'var(--color-text-muted)' }}
+                <div className="flex items-center justify-between mb-2">
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
+                    Haptic Feedback
+                  </span>
+                  <label className="relative inline-block w-10 h-6 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={isEnabled}
+                      onChange={(e) => setEnabled(e.target.checked)}
+                    />
+                    <div
+                      className="w-10 h-6 rounded-full transition-all peer-checked:bg-orange-500"
+                      style={{ backgroundColor: 'rgba(255, 255, 255, 0.3)' }}
+                    >
+                      <div
+                        className="absolute top-1 left-1 w-4 h-4 rounded-full transition-all peer-checked:translate-x-4"
+                        style={{ backgroundColor: 'white' }}
+                      />
+                    </div>
+                  </label>
+                </div>
+                <p
+                  className="text-xs"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  Vibrate on dice collisions
+                </p>
+              </div>
+            )}
+
+            {/* Reduce Motion */}
+            <div
+              className="p-4 rounded-lg"
+              style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+              }}
             >
-              Follows system preference
-            </p>
+              <div className="flex items-center justify-between mb-2">
+                <span
+                  className="text-sm font-medium"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  Reduce Motion
+                </span>
+                <label className="relative inline-block w-10 h-6">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={window.matchMedia('(prefers-reduced-motion: reduce)').matches}
+                    disabled
+                  />
+                  <div
+                    className="w-10 h-6 rounded-full transition-all peer-checked:bg-orange-500"
+                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.3)' }}
+                  />
+                </label>
+              </div>
+              <p
+                className="text-xs"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                Follows system preference
+              </p>
+            </div>
           </div>
         </div>
 
