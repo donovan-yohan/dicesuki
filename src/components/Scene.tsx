@@ -7,13 +7,14 @@ import * as THREE from 'three'
 import { GRAVITY } from '../config/physicsConfig'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { Dice, DiceHandle } from './dice/Dice'
-import { BottomNav, CenterRollButton, CornerIcon, UIToggleMini } from './layout'
-import { DiceManagerPanel, HistoryPanel } from './panels'
+import { BottomNav, CenterRollButton, CornerIcon, UIToggleMini, DiceToolbar } from './layout'
+import { HistoryPanel } from './panels'
 // import { SettingsPanel } from './panels' // TODO: Not yet implemented
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useUIStore } from '../store/useUIStore'
+import { useDragStore } from '../store/useDragStore'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
 
 /**
@@ -163,6 +164,9 @@ function Scene() {
   const addDice = useDiceManagerStore((state) => state.addDice)
   const removeDice = useDiceManagerStore((state) => state.removeDice)
 
+  // Subscribe to drag store
+  const setOnDiceDelete = useDragStore((state) => state.setOnDiceDelete)
+
   // UI state
   const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
   const [isDiceManagerOpen, setIsDiceManagerOpen] = useState(false)
@@ -220,6 +224,12 @@ function Scene() {
       useDiceStore.getState().reset()
     }
   }, [removeDice])
+
+  // Register delete callback with drag store
+  useEffect(() => {
+    setOnDiceDelete(handleRemoveDice)
+    return () => setOnDiceDelete(undefined)
+  }, [setOnDiceDelete, handleRemoveDice])
 
   return (
     <>
@@ -325,15 +335,13 @@ function Scene() {
     {/* Mini UI Toggle - shows when UI hidden */}
     <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
 
-    {/* THEMED PANELS */}
-    <DiceManagerPanel
+    {/* DICE TOOLBAR - Compact slide-out dice management */}
+    <DiceToolbar
       isOpen={isDiceManagerOpen}
-      onClose={() => setIsDiceManagerOpen(false)}
       onAddDice={handleAddDice}
-      onRemoveDice={handleRemoveDice}
-      dice={dice}
     />
 
+    {/* THEMED PANELS */}
     <HistoryPanel
       isOpen={isHistoryOpen}
       onClose={() => setIsHistoryOpen(false)}

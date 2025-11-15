@@ -424,7 +424,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
           receiveShadow
           onPointerDown={(event) => {
             if (rigidBodyRef.current) {
-              onPointerDown(event, rigidBodyRef.current)
+              onPointerDown(event, rigidBodyRef.current, id)
             }
           }}
         />
