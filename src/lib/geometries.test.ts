@@ -35,7 +35,7 @@ describe('D6 Geometry', () => {
     })
 
     it('should have unit-length normals', () => {
-      D6_FACE_NORMALS.forEach(({ normal, value }) => {
+      D6_FACE_NORMALS.forEach(({ normal }) => {
         const length = Math.sqrt(normal.x ** 2 + normal.y ** 2 + normal.z ** 2)
         expect(length).toBeCloseTo(1, 5)
       })
@@ -47,6 +47,43 @@ describe('D6 Geometry', () => {
       const quaternion = new THREE.Quaternion(0, 0, 0, 1) // Identity rotation
       const result = getDiceFaceValue(quaternion, 'd6')
       expect(result).toBe(6)
+    })
+
+    it('should match BoxGeometry material indices to face normals', () => {
+      // This test verifies that the visual numbers on the dice
+      // match what getDiceFaceValue returns for each orientation
+
+      // BoxGeometry material order: [right(+X), left(-X), top(+Y), bottom(-Y), front(+Z), back(-Z)]
+      // createD6Materials faceMapping: [3, 4, 6, 1, 2, 5]
+
+      // Test 1: Identity rotation - top (+Y) face should be up → value 6
+      const identityQuat = new THREE.Quaternion(0, 0, 0, 1)
+      expect(getDiceFaceValue(identityQuat, 'd6')).toBe(6)
+
+      // Test 2: Rotate 90° around Z axis - right (+X) face should be up → value 3
+      const rightUpQuat = new THREE.Quaternion()
+      rightUpQuat.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2)
+      expect(getDiceFaceValue(rightUpQuat, 'd6')).toBe(3)
+
+      // Test 3: Rotate -90° around Z axis - left (-X) face should be up → value 4
+      const leftUpQuat = new THREE.Quaternion()
+      leftUpQuat.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2)
+      expect(getDiceFaceValue(leftUpQuat, 'd6')).toBe(4)
+
+      // Test 4: Rotate 180° around X axis - bottom (-Y) face should be up → value 1
+      const bottomUpQuat = new THREE.Quaternion()
+      bottomUpQuat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI)
+      expect(getDiceFaceValue(bottomUpQuat, 'd6')).toBe(1)
+
+      // Test 5: Rotate -90° around X axis - front (+Z) face should be up → value 2
+      const frontUpQuat = new THREE.Quaternion()
+      frontUpQuat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2)
+      expect(getDiceFaceValue(frontUpQuat, 'd6')).toBe(2)
+
+      // Test 6: Rotate 90° around X axis - back (-Z) face should be up → value 5
+      const backUpQuat = new THREE.Quaternion()
+      backUpQuat.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)
+      expect(getDiceFaceValue(backUpQuat, 'd6')).toBe(5)
     })
 
     it('should return 1 when dice is upside down (bottom face up)', () => {

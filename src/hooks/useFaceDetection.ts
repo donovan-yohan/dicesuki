@@ -1,14 +1,11 @@
-import { useState, useRef, useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { getDiceFaceValue, DiceShape } from '../lib/geometries'
-
-/**
- * Thresholds for detecting when a dice is at rest
- * More conservative thresholds to prevent false positives
- */
-const VELOCITY_THRESHOLD = 0.01  // Linear velocity threshold (reduced from 0.1)
-const ANGULAR_VELOCITY_THRESHOLD = 0.01  // Angular velocity threshold (reduced from 0.1)
-const REST_DURATION_MS = 1000  // Time in milliseconds dice must be still (reduced from 2000 for better UX)
+import {
+  LINEAR_VELOCITY_THRESHOLD,
+  ANGULAR_VELOCITY_THRESHOLD,
+  REST_DURATION_MS,
+} from '../config/physicsConfig'
+import { DiceShape, getDiceFaceValue } from '../lib/geometries'
 
 interface FaceDetectionState {
   isAtRest: boolean
@@ -42,35 +39,40 @@ export function useFaceDetection(): FaceDetectionState {
 
   /**
    * Update motion state and check if dice is at rest
+   *
+   * Only tracks angular velocity to detect rotation/tumbling.
+   * Ignores linear velocity to avoid false positives from sliding.
    */
-  const updateMotion = useCallback((velocity: THREE.Vector3, angularVelocity: THREE.Vector3) => {
-    lastVelocityRef.current.copy(velocity)
-    lastAngularVelocityRef.current.copy(angularVelocity)
+  const updateMotion = useCallback(
+    (velocity: THREE.Vector3, angularVelocity: THREE.Vector3) => {
+      lastVelocityRef.current.copy(velocity)
+      lastAngularVelocityRef.current.copy(angularVelocity)
 
-    const velocityMagnitude = velocity.length()
-    const angularVelocityMagnitude = angularVelocity.length()
+      const angularVelocityMagnitude = angularVelocity.length()
 
-    const isStill =
-      velocityMagnitude < VELOCITY_THRESHOLD &&
-      angularVelocityMagnitude < ANGULAR_VELOCITY_THRESHOLD
+      // Only check angular velocity - dice is "at rest" when not rotating
+      // This allows detecting re-rolls even if dice lands on same face
+      const isStill = angularVelocityMagnitude < ANGULAR_VELOCITY_THRESHOLD
 
-    if (isStill) {
-      if (restStartTimeRef.current === null) {
-        restStartTimeRef.current = performance.now()
+      if (isStill) {
+        if (restStartTimeRef.current === null) {
+          restStartTimeRef.current = performance.now()
+        } else {
+          const restDuration = performance.now() - restStartTimeRef.current
+          if (restDuration >= REST_DURATION_MS) {
+            setIsAtRest(true)
+          }
+        }
       } else {
-        const restDuration = performance.now() - restStartTimeRef.current
-        if (restDuration >= REST_DURATION_MS) {
-          setIsAtRest(true)
+        // Reset if motion detected
+        if (restStartTimeRef.current !== null || isAtRest) {
+          restStartTimeRef.current = null
+          setIsAtRest(false)
         }
       }
-    } else {
-      // Reset if motion detected
-      if (restStartTimeRef.current !== null) {
-        restStartTimeRef.current = null
-      }
-      setIsAtRest(false)
-    }
-  }, [])
+    },
+    [],
+  )
 
   /**
    * Read the face value when dice is at rest
@@ -82,9 +84,10 @@ export function useFaceDetection(): FaceDetectionState {
       }
 
       const value = getDiceFaceValue(quaternion, shape)
+
       setFaceValue(value)
     },
-    [isAtRest]
+    [isAtRest],
   )
 
   /**
@@ -101,6 +104,6 @@ export function useFaceDetection(): FaceDetectionState {
     faceValue,
     updateMotion,
     readFaceValue,
-    reset
+    reset,
   }
 }

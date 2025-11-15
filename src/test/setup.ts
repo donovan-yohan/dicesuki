@@ -1,4 +1,4 @@
-import { expect, afterEach, vi } from 'vitest'
+import { afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 
@@ -9,7 +9,7 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-global.ResizeObserver = ResizeObserverMock as any
+;(globalThis as any).ResizeObserver = ResizeObserverMock
 
 // Mock WebGL context for Three.js
 HTMLCanvasElement.prototype.getContext = vi.fn().mockImplementation((contextId) => {
