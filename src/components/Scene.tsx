@@ -164,6 +164,14 @@ function Scene() {
 
   const handleRemoveDice = useCallback((id: string) => {
     removeDice(id)
+
+    // Check if we're in the middle of a roll
+    const store = useDiceStore.getState()
+    if (store.expectedDiceCount > 0) {
+      // Reset roll state since dice count changed
+      console.log('Scene: Dice removed during roll, resetting roll state')
+      useDiceStore.getState().reset()
+    }
   }, [removeDice])
 
   return (
