@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { DeviceMotionButton } from './DeviceMotionButton'
+import { DeviceMotionProvider } from '../contexts/DeviceMotionContext'
+
+// Wrapper component to provide context
+const renderWithProvider = (component: React.ReactElement) => {
+  return render(
+    <DeviceMotionProvider>
+      {component}
+    </DeviceMotionProvider>
+  )
+}
 
 describe('DeviceMotionButton', () => {
   beforeEach(() => {
@@ -13,7 +23,7 @@ describe('DeviceMotionButton', () => {
       const originalDeviceMotionEvent = (globalThis as any).DeviceMotionEvent
       ;(globalThis as any).DeviceMotionEvent = undefined
 
-      render(<DeviceMotionButton />)
+      renderWithProvider(<DeviceMotionButton />)
 
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
 
@@ -23,7 +33,7 @@ describe('DeviceMotionButton', () => {
 
   describe('permission prompt state', () => {
     it('should show enable button when permission is prompt', () => {
-      render(<DeviceMotionButton />)
+      renderWithProvider(<DeviceMotionButton />)
 
       expect(screen.getByRole('button')).toBeInTheDocument()
       expect(screen.getByText(/enable motion/i)).toBeInTheDocument()
@@ -33,7 +43,7 @@ describe('DeviceMotionButton', () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('granted')
       ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
 
-      render(<DeviceMotionButton />)
+      renderWithProvider(<DeviceMotionButton />)
 
       const button = screen.getByRole('button')
       fireEvent.click(button)
@@ -49,7 +59,7 @@ describe('DeviceMotionButton', () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('granted')
       ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
 
-      render(<DeviceMotionButton />)
+      renderWithProvider(<DeviceMotionButton />)
 
       const button = screen.getByRole('button')
       fireEvent.click(button)
@@ -63,7 +73,7 @@ describe('DeviceMotionButton', () => {
       // Auto-grant permission
       ;(DeviceMotionEvent as any).requestPermission = undefined
 
-      render(<DeviceMotionButton />)
+      renderWithProvider(<DeviceMotionButton />)
 
       const button = screen.getByRole('button')
       fireEvent.click(button)
@@ -78,7 +88,7 @@ describe('DeviceMotionButton', () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('denied')
       ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
 
-      render(<DeviceMotionButton />)
+      renderWithProvider(<DeviceMotionButton />)
 
       const button = screen.getByRole('button')
       fireEvent.click(button)
@@ -92,7 +102,7 @@ describe('DeviceMotionButton', () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('denied')
       ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
 
-      render(<DeviceMotionButton />)
+      renderWithProvider(<DeviceMotionButton />)
 
       const button = screen.getByRole('button')
       fireEvent.click(button)
@@ -108,7 +118,7 @@ describe('DeviceMotionButton', () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('granted')
       ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
 
-      render(<DeviceMotionButton />)
+      renderWithProvider(<DeviceMotionButton />)
 
       const promptButton = screen.getByRole('button')
       expect(promptButton.className).toContain('bg-')

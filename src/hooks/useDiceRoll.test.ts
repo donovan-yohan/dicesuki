@@ -43,37 +43,41 @@ describe('useDiceRoll', () => {
       const { result } = renderHook(() => useDiceRoll())
 
       act(() => {
-        result.current.roll()
+        result.current.roll(1) // Pass diceCount
       })
 
       expect(result.current.isRolling).toBe(true)
     })
 
-    it('should set canRoll to false when roll is called', () => {
+    it('should allow spam clicking (canRoll remains true)', () => {
       const { result } = renderHook(() => useDiceRoll())
 
       act(() => {
-        result.current.roll()
+        result.current.roll(1) // Pass diceCount
       })
 
-      expect(result.current.canRoll).toBe(false)
+      // canRoll should still be true to allow spam clicking
+      expect(result.current.canRoll).toBe(true)
     })
 
-    it('should not allow rolling when canRoll is false', () => {
+    it('should allow multiple rolls (spam clicking)', () => {
       const { result } = renderHook(() => useDiceRoll())
 
-      act(() => {
-        result.current.roll()
-      })
-
-      const isRollingAfterFirst = result.current.isRolling
+      let impulse1: THREE.Vector3 | null = null
+      let impulse2: THREE.Vector3 | null = null
 
       act(() => {
-        result.current.roll() // Second roll attempt
+        impulse1 = result.current.roll(1) // First roll with diceCount
       })
 
-      // State should not change on second roll
-      expect(result.current.isRolling).toBe(isRollingAfterFirst)
+      act(() => {
+        impulse2 = result.current.roll(1) // Second roll (should be allowed)
+      })
+
+      // Both should return valid impulses
+      expect(impulse1).toBeInstanceOf(THREE.Vector3)
+      expect(impulse2).toBeInstanceOf(THREE.Vector3)
+      expect(result.current.isRolling).toBe(true)
     })
 
     it('should return impulse vector when roll is called', () => {
@@ -81,7 +85,7 @@ describe('useDiceRoll', () => {
 
       let impulse: THREE.Vector3 | null = null
       act(() => {
-        impulse = result.current.roll()
+        impulse = result.current.roll(1) // Pass diceCount
       })
 
       expect(impulse).toBeInstanceOf(THREE.Vector3)
@@ -96,12 +100,12 @@ describe('useDiceRoll', () => {
       // Roll multiple times (need to reset between rolls)
       for (let i = 0; i < 5; i++) {
         act(() => {
-          const impulse = result.current.roll()
+          const impulse = result.current.roll(1) // Pass diceCount
           if (impulse) impulses.push(impulse)
         })
 
         act(() => {
-          result.current.onDiceRest(1) // Reset state
+          result.current.onDiceRest('dice-1', 1, 'd6') // New signature: diceId, faceValue, diceType
         })
       }
 
@@ -116,28 +120,31 @@ describe('useDiceRoll', () => {
       const { result } = renderHook(() => useDiceRoll())
 
       act(() => {
-        result.current.roll()
+        result.current.roll(1) // Pass diceCount
       })
 
       act(() => {
-        result.current.onDiceRest(5)
+        result.current.onDiceRest('dice-1', 5, 'd6') // New signature
       })
 
-      expect(useDiceStore.getState().lastResult).toBe(5)
+      const lastResult = useDiceStore.getState().lastResult
+      expect(lastResult?.sum).toBe(5)
     })
 
     it('should add result to roll history', () => {
       const { result } = renderHook(() => useDiceRoll())
 
       act(() => {
-        result.current.roll()
+        result.current.roll(1) // Pass diceCount
       })
 
       act(() => {
-        result.current.onDiceRest(3)
+        result.current.onDiceRest('dice-1', 3, 'd6') // New signature
       })
 
-      expect(useDiceStore.getState().rollHistory).toEqual([3])
+      const history = useDiceStore.getState().rollHistory
+      expect(history.length).toBe(1)
+      expect(history[0].sum).toBe(3)
     })
 
     it('should accumulate multiple results in history', () => {
@@ -145,30 +152,33 @@ describe('useDiceRoll', () => {
 
       const rolls = [4, 2, 6, 1]
 
-      for (const value of rolls) {
+      for (let i = 0; i < rolls.length; i++) {
+        const value = rolls[i]
         act(() => {
-          result.current.roll()
+          result.current.roll(1) // Pass diceCount
         })
 
         act(() => {
-          result.current.onDiceRest(value)
+          result.current.onDiceRest(`dice-${i}`, value, 'd6') // New signature
         })
       }
 
-      expect(useDiceStore.getState().rollHistory).toEqual(rolls)
+      const history = useDiceStore.getState().rollHistory
+      expect(history.length).toBe(rolls.length)
+      expect(history.map(r => r.sum)).toEqual(rolls)
     })
 
     it('should set isRolling to false when dice comes to rest', () => {
       const { result } = renderHook(() => useDiceRoll())
 
       act(() => {
-        result.current.roll()
+        result.current.roll(1) // Pass diceCount
       })
 
       expect(result.current.isRolling).toBe(true)
 
       act(() => {
-        result.current.onDiceRest(6)
+        result.current.onDiceRest('dice-1', 6, 'd6') // New signature
       })
 
       expect(result.current.isRolling).toBe(false)
@@ -178,27 +188,30 @@ describe('useDiceRoll', () => {
       const { result } = renderHook(() => useDiceRoll())
 
       act(() => {
-        result.current.roll()
+        result.current.roll(1) // Pass diceCount
       })
 
-      expect(result.current.canRoll).toBe(false)
+      // canRoll remains true (spam-click allowed)
+      expect(result.current.canRoll).toBe(true)
 
       act(() => {
-        result.current.onDiceRest(2)
+        result.current.onDiceRest('dice-1', 2, 'd6') // New signature
       })
 
+      // Still true after dice rest
       expect(result.current.canRoll).toBe(true)
     })
 
-    it('should not update state if onDiceRest called without rolling', () => {
+    it('should handle motion-control rolls (no explicit roll call)', () => {
       const { result } = renderHook(() => useDiceRoll())
 
+      // Motion control triggers onDiceRest without roll() being called
       act(() => {
-        result.current.onDiceRest(5)
+        result.current.onDiceRest('dice-1', 5, 'd6')
       })
 
-      expect(useDiceStore.getState().lastResult).toBeNull()
-      expect(useDiceStore.getState().rollHistory).toEqual([])
+      const lastResult = useDiceStore.getState().lastResult
+      expect(lastResult?.sum).toBe(5)
     })
   })
 
@@ -208,10 +221,10 @@ describe('useDiceRoll', () => {
 
       // Build up some history
       act(() => {
-        result.current.roll()
+        result.current.roll(1) // Pass diceCount
       })
       act(() => {
-        result.current.onDiceRest(4)
+        result.current.onDiceRest('dice-1', 4, 'd6') // New signature
       })
 
       expect(useDiceStore.getState().rollHistory.length).toBeGreaterThan(0)
@@ -227,13 +240,13 @@ describe('useDiceRoll', () => {
       const { result } = renderHook(() => useDiceRoll())
 
       act(() => {
-        result.current.roll()
+        result.current.roll(1) // Pass diceCount
       })
       act(() => {
-        result.current.onDiceRest(6)
+        result.current.onDiceRest('dice-1', 6, 'd6') // New signature
       })
 
-      expect(useDiceStore.getState().lastResult).toBe(6)
+      expect(useDiceStore.getState().lastResult).not.toBeNull()
 
       act(() => {
         result.current.reset()
@@ -246,7 +259,7 @@ describe('useDiceRoll', () => {
       const { result } = renderHook(() => useDiceRoll())
 
       act(() => {
-        result.current.roll()
+        result.current.roll(1) // Pass diceCount
       })
 
       expect(result.current.isRolling).toBe(true)
@@ -262,15 +275,17 @@ describe('useDiceRoll', () => {
       const { result } = renderHook(() => useDiceRoll())
 
       act(() => {
-        result.current.roll()
+        result.current.roll(1) // Pass diceCount
       })
 
-      expect(result.current.canRoll).toBe(false)
+      // canRoll stays true (spam-click allowed)
+      expect(result.current.canRoll).toBe(true)
 
       act(() => {
         result.current.reset()
       })
 
+      // Still true after reset
       expect(result.current.canRoll).toBe(true)
     })
   })
@@ -281,7 +296,7 @@ describe('useDiceRoll', () => {
 
       let impulse: THREE.Vector3 | null = null
       act(() => {
-        impulse = result.current.roll()
+        impulse = result.current.roll(1) // Pass diceCount
       })
 
       // Y component should be positive (upward)
@@ -293,7 +308,7 @@ describe('useDiceRoll', () => {
 
       let impulse: THREE.Vector3 | null = null
       act(() => {
-        impulse = result.current.roll()
+        impulse = result.current.roll(1) // Pass diceCount
       })
 
       const magnitude = impulse!.length()
