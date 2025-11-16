@@ -744,6 +744,16 @@ import type { D6Props, D6Handle } from './types'
 
 ## Recent Updates
 
+### 2025-11-16: Player Inventory Architecture Design
+- **Inventory System**: Comprehensive architecture planning for persistent player inventory
+  - Each die is a unique collectible entity (similar to Genshin Impact character model)
+  - Dice organized into visual Sets with rarity tiers (common → mythic)
+  - Crafting system for combining duplicates (e.g., 2x d6 → 1x d8)
+  - Integration with saved rolls via assignable die slots
+  - Gacha/banner system design (Hoyoverse pattern with pity mechanics)
+  - Full architecture documented in `docs/INVENTORY_ARCHITECTURE.md`
+  - Related branches: `claude/drag-drop-dice-builder-01Fqx1VvQNQKYNG1fbu9bNrQ` (saved rolls)
+
 ### 2025-11-16: UI Enhancements & Theme Integration
 - **DiceToolbar**: Integrated with theme system for dynamic colors
   - Dice buttons now use `currentTheme.tokens.colors.accent` and `currentTheme.tokens.colors.surface`
