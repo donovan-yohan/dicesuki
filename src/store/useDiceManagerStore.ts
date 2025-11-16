@@ -10,16 +10,18 @@ export interface DiceInstance {
   color: string
   rollGroupId?: string  // Links dice to a saved roll group
   rollGroupName?: string // Display name for the group
+  inventoryDieId?: string // Links to specific inventory die being used
 }
 
 interface DiceManagerStore {
   dice: DiceInstance[]
-  addDice: (type: DiceShape, themeId?: string, id?: string, rollGroupId?: string, rollGroupName?: string) => string // Returns dice ID
+  addDice: (type: DiceShape, themeId?: string, id?: string, rollGroupId?: string, rollGroupName?: string, inventoryDieId?: string) => string // Returns dice ID
   removeDice: (id: string) => void
   removeAllDice: () => void
   removeRollGroup: (groupId: string) => void
   updateDicePosition: (id: string, position: [number, number, number]) => void
   updateDiceColors: (themeId: string) => void
+  getInUseDiceIds: () => string[] // Get all inventory dice IDs currently in use
 }
 
 /**
@@ -66,16 +68,10 @@ function getColorForType(type: DiceShape, themeId: string = 'default'): string {
 }
 
 export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
-  // Start with one D6 - color will be updated when theme loads
-  dice: [{
-    id: crypto.randomUUID(),
-    type: 'd6',
-    position: [0, 5, 0],
-    rotation: [0, 0, 0],
-    color: getColorForType('d6', 'default')
-  }],
+  // Start with empty table - players spawn dice from inventory
+  dice: [],
 
-  addDice: (type, themeId = 'default', id, rollGroupId, rollGroupName) => {
+  addDice: (type, themeId = 'default', id, rollGroupId, rollGroupName, inventoryDieId) => {
     const diceId = id || crypto.randomUUID() // Use provided ID or generate new one
     set((state) => ({
       dice: [
@@ -87,7 +83,8 @@ export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
           rotation: getRandomRotation(),
           color: getColorForType(type, themeId),
           rollGroupId,
-          rollGroupName
+          rollGroupName,
+          inventoryDieId
         }
       ]
     }))
@@ -115,5 +112,12 @@ export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
       ...d,
       color: getColorForType(d.type, themeId)
     }))
-  }))
+  })),
+
+  getInUseDiceIds: () => {
+    const state = useDiceManagerStore.getState()
+    return state.dice
+      .filter(d => d.inventoryDieId) // Only include dice linked to inventory
+      .map(d => d.inventoryDieId as string)
+  }
 }))
