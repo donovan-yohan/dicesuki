@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { GRAVITY } from '../config/physicsConfig'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
-import { useTheme } from '../contexts/ThemeContext'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
@@ -162,9 +161,6 @@ function Scene() {
   const dice = useDiceManagerStore((state) => state.dice)
   const addDice = useDiceManagerStore((state) => state.addDice)
   const removeDice = useDiceManagerStore((state) => state.removeDice)
-
-  // Get the active theme
-  const { theme } = useTheme()
 
   // Subscribe to drag store
   const setOnDiceDelete = useDragStore((state) => state.setOnDiceDelete)
@@ -345,9 +341,12 @@ function Scene() {
     {/* DICE TOOLBAR - Compact slide-out dice management */}
     <DiceToolbar
       isOpen={isDiceManagerOpen}
-      onClose={() => setIsDiceManagerOpen(false)}
       onAddDice={handleAddDice}
-      dice={dice}
+      onClearAll={() => {
+        // Clear all dice
+        dice.forEach(die => removeDice(die.id))
+        setIsDiceManagerOpen(false)
+      }}
     />
 
     {/* THEMED PANELS */}

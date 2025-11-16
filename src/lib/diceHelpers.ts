@@ -9,8 +9,6 @@ import {
   DiceEntry,
   SavedRoll,
   QuickPreset,
-  ExplodingConfig,
-  RerollConfig,
 } from '../types/savedRolls'
 
 /**
@@ -31,7 +29,7 @@ export function getDieMax(type: DiceShape): number {
 /**
  * Get minimum value for a dice type
  */
-export function getDieMin(type: DiceShape): number {
+export function getDieMin(_type: DiceShape): number {
   return 1
 }
 

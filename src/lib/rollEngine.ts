@@ -81,36 +81,6 @@ function rollWithReroll(
 }
 
 /**
- * Roll a single die with exploding logic
- */
-function rollWithExplosion(type: DiceShape, entry: DiceEntry): { value: number; explosions?: number[] } {
-  const { value: initialValue } = rollWithReroll(type, entry)
-  let value = initialValue
-  const explosions: number[] = []
-
-  if (entry.exploding) {
-    const explodeValue = entry.exploding.on === 'max' ? getDieMax(type) : entry.exploding.on
-    const maxExplosions = entry.exploding.limit ?? Infinity
-    let explosionCount = 0
-
-    while (value === explodeValue && explosionCount < maxExplosions) {
-      const explosion = rollSingleDie(type)
-      explosions.push(explosion)
-      value = explosion
-      explosionCount++
-    }
-  }
-
-  // Sum up all explosions
-  const totalFromExplosions = explosions.reduce((sum, exp) => sum + exp, 0)
-
-  return {
-    value: initialValue + totalFromExplosions,
-    explosions: explosions.length > 0 ? explosions : undefined,
-  }
-}
-
-/**
  * Apply value constraints (min/max) to a die value
  */
 function applyConstraints(value: number, entry: DiceEntry): number {
