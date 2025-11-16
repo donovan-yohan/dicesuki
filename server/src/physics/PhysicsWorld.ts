@@ -111,7 +111,9 @@ export class PhysicsWorld {
     type: DiceShape,
     position: [number, number, number],
     rotation: [number, number, number, number],
-    color: string
+    color: string,
+    rollGroupId?: string,
+    rollGroupName?: string
   ): void {
     if (!this.world) {
       throw new Error('Physics world not initialized')
@@ -130,7 +132,9 @@ export class PhysicsWorld {
       position,
       rotation,
       color,
-      this.config
+      this.config,
+      rollGroupId,
+      rollGroupName
     )
 
     this.dice.set(id, dice)

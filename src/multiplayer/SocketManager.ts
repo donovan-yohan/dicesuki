@@ -25,6 +25,8 @@ export interface DiceState {
   angularVelocity: [number, number, number]
   isAtRest: boolean
   faceValue: number | null
+  rollGroupId?: string      // Optional: Links dice to a saved roll group
+  rollGroupName?: string    // Optional: Display name for the group
 }
 
 export interface Player {

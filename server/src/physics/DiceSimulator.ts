@@ -18,6 +18,10 @@ export class DiceSimulator {
   private color: string
   private config: PhysicsConfig
 
+  // Roll group metadata
+  private rollGroupId?: string
+  private rollGroupName?: string
+
   // Rest detection
   private restStartTime: number | null = null
   private isAtRest: boolean = false
@@ -36,7 +40,9 @@ export class DiceSimulator {
     position: [number, number, number],
     rotation: [number, number, number, number], // Quaternion [x, y, z, w]
     color: string,
-    config: PhysicsConfig
+    config: PhysicsConfig,
+    rollGroupId?: string,
+    rollGroupName?: string
   ) {
     this.world = world
     this.id = id
@@ -44,6 +50,8 @@ export class DiceSimulator {
     this.type = type
     this.color = color
     this.config = config
+    this.rollGroupId = rollGroupId
+    this.rollGroupName = rollGroupName
 
     // Create rigid body
     this.rigidBody = this.createRigidBody(position, rotation)
@@ -278,6 +286,8 @@ export class DiceSimulator {
       angularVelocity: [angvel.x, angvel.y, angvel.z],
       isAtRest: this.isAtRest,
       faceValue: this.faceValue,
+      rollGroupId: this.rollGroupId,
+      rollGroupName: this.rollGroupName,
     }
   }
 
