@@ -22,6 +22,7 @@ import {
   HAPTIC_HIGH_FORCE_BYPASS,
 } from '../../config/physicsConfig'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
+import { useTheme } from '../../contexts/ThemeContext'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
@@ -88,6 +89,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
     } = useFaceDetection()
     const { isDragging, onPointerDown, cancelDrag, getDragState } = useDiceInteraction()
     const { isShakingRef } = useDeviceMotionRef()
+    const { currentTheme } = useTheme()
     const { vibrateOnCollision } = useHapticFeedback()
     const motionMode = useUIStore((state) => state.motionMode)
     const hasNotifiedRef = useRef(false)
@@ -397,14 +399,20 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
     }, [shape, size])
 
     const material = useMemo(() => {
-      const mat = createDiceMaterial(color)
+      const diceMaterials = currentTheme.dice.materials
+      const mat = createDiceMaterial(
+        color,
+        diceMaterials.roughness,
+        diceMaterials.metalness,
+        diceMaterials.emissiveIntensity
+      )
       // D10 should use flat shading to show distinct kite-shaped faces
       if (shape === 'd10') {
         mat.flatShading = true
         mat.needsUpdate = true
       }
       return mat
-    }, [color, shape])
+    }, [color, shape, currentTheme.dice.materials])
 
     // Calculate half-extents for D6 collider
     const halfSize = size / 2

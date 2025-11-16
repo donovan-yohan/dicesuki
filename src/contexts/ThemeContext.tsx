@@ -68,6 +68,12 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     applyCSSVariables(currentTheme)
     preloadThemeAssets(currentTheme)
 
+    // Update dice colors to match new theme
+    // Dynamically import to avoid circular dependency
+    import('../store/useDiceManagerStore').then(({ useDiceManagerStore }) => {
+      useDiceManagerStore.getState().updateDiceColors(currentTheme.id)
+    })
+
     // Save current theme to localStorage
     localStorage.setItem(STORAGE_KEY_CURRENT_THEME, currentTheme.id)
   }, [currentTheme])

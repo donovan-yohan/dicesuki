@@ -449,15 +449,16 @@ console.log('Impulse:', impulse)
 ## Haptic Feedback System
 
 ### Overview
-The dice simulator includes haptic feedback (vibration) on mobile devices when dice collide with walls or other dice. The system uses the Web Vibration API with intelligent impact detection to provide realistic tactile feedback.
+The dice simulator includes haptic feedback (vibration) on mobile devices when dice collide with walls or other dice. The system uses the Web Vibration API with intelligent impact detection to provide realistic tactile feedback. **State is managed via Zustand global store (`useUIStore`) for consistent behavior across all dice components.**
 
 ### Architecture
 
 #### Core Components
 1. **`src/lib/haptics.ts`**: Core utility with Web Vibration API wrapper
-2. **`src/hooks/useHapticFeedback.ts`**: React hook for state management and preferences
-3. **`src/components/dice/Dice.tsx`**: Collision detection and haptic triggering
-4. **`src/config/physicsConfig.ts`**: Centralized configuration for all thresholds
+2. **`src/hooks/useHapticFeedback.ts`**: React hook for vibration triggering (reads from global store)
+3. **`src/store/useUIStore.ts`**: Zustand store managing `hapticEnabled` state globally
+4. **`src/components/dice/Dice.tsx`**: Collision detection and haptic triggering
+5. **`src/config/physicsConfig.ts`**: Centralized configuration for all thresholds
 
 #### Haptic Patterns
 ```typescript
@@ -593,6 +594,26 @@ Graceful degradation: Feature detection with `isHapticsSupported()` prevents err
 
 ---
 
+## Technology Stack
+
+### React 19 Upgrade (2025-11-16)
+The project has been upgraded to React 19 and the latest React Three Fiber ecosystem:
+
+**Core Dependencies:**
+- React 19.2.0 (upgraded from 18.3.1)
+- @react-three/fiber 9.4.0 (upgraded from 8.x)
+- @react-three/drei 10.7.7
+- @react-three/rapier 2.2.0
+- @react-three/postprocessing 3.0.4 (installed for future effects)
+
+**Benefits:**
+- Improved rendering performance
+- Better concurrent features
+- Latest R3F APIs and patterns
+- Access to modern postprocessing effects
+
+---
+
 ## Project-Specific Guidelines
 
 ### File Organization
@@ -711,5 +732,5 @@ import type { D6Props, D6Handle } from './types'
 
 ---
 
-**Last Updated**: 2025-11-15
+**Last Updated**: 2025-11-16
 **Maintained By**: Claude + Development Team
