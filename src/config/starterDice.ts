@@ -5,7 +5,7 @@
  */
 
 import { NewInventoryDie } from '../types/inventory'
-import { ADVENTURER_STARTER_SET, LUCKY_BRONZE_SET } from './dieSets'
+import { getDieSetById } from './dieSets'
 
 // ============================================================================
 // Helper Function
@@ -21,8 +21,13 @@ function createStarterDie(
   name: string,
   source: NewInventoryDie['source']
 ): Omit<NewInventoryDie, 'id' | 'acquiredAt'> {
-  // Import the set configuration to get appearance/vfx
-  const setConfig = setId === 'adventurer-starter' ? ADVENTURER_STARTER_SET : LUCKY_BRONZE_SET
+  // Get the set configuration dynamically
+  const setConfig = getDieSetById(setId)
+
+  if (!setConfig) {
+    throw new Error(`Set ${setId} not found`)
+  }
+
   const variant = setConfig.rarityVariants[rarity]
 
   if (!variant) {
@@ -38,7 +43,7 @@ function createStarterDie(
     name,
     description: undefined,
     isFavorite: false,
-    isLocked: false,
+    isLocked: true,  // Starter dice are locked - can't be deleted/crafted
     source
   }
 }
@@ -50,14 +55,42 @@ function createStarterDie(
 /**
  * Complete D&D set given to all new players
  * All dice are common rarity from the Adventurer's Starter set
+ *
+ * Distribution: 6d4, 6d6, 4d8, 2d10, 2d12, 1d20
  */
 export const STARTER_DICE: Array<Omit<NewInventoryDie, 'id' | 'acquiredAt'>> = [
+  // 1 d20
   createStarterDie('d20', 'adventurer-starter', 'common', 'Starter d20', 'starter'),
-  createStarterDie('d12', 'adventurer-starter', 'common', 'Starter d12', 'starter'),
-  createStarterDie('d10', 'adventurer-starter', 'common', 'Starter d10', 'starter'),
-  createStarterDie('d8', 'adventurer-starter', 'common', 'Starter d8', 'starter'),
-  createStarterDie('d6', 'adventurer-starter', 'common', 'Starter d6', 'starter'),
-  createStarterDie('d4', 'adventurer-starter', 'common', 'Starter d4', 'starter')
+
+  // 2 d12
+  createStarterDie('d12', 'adventurer-starter', 'common', 'Starter d12 #1', 'starter'),
+  createStarterDie('d12', 'adventurer-starter', 'common', 'Starter d12 #2', 'starter'),
+
+  // 2 d10
+  createStarterDie('d10', 'adventurer-starter', 'common', 'Starter d10 #1', 'starter'),
+  createStarterDie('d10', 'adventurer-starter', 'common', 'Starter d10 #2', 'starter'),
+
+  // 4 d8
+  createStarterDie('d8', 'adventurer-starter', 'common', 'Starter d8 #1', 'starter'),
+  createStarterDie('d8', 'adventurer-starter', 'common', 'Starter d8 #2', 'starter'),
+  createStarterDie('d8', 'adventurer-starter', 'common', 'Starter d8 #3', 'starter'),
+  createStarterDie('d8', 'adventurer-starter', 'common', 'Starter d8 #4', 'starter'),
+
+  // 6 d6
+  createStarterDie('d6', 'adventurer-starter', 'common', 'Starter d6 #1', 'starter'),
+  createStarterDie('d6', 'adventurer-starter', 'common', 'Starter d6 #2', 'starter'),
+  createStarterDie('d6', 'adventurer-starter', 'common', 'Starter d6 #3', 'starter'),
+  createStarterDie('d6', 'adventurer-starter', 'common', 'Starter d6 #4', 'starter'),
+  createStarterDie('d6', 'adventurer-starter', 'common', 'Starter d6 #5', 'starter'),
+  createStarterDie('d6', 'adventurer-starter', 'common', 'Starter d6 #6', 'starter'),
+
+  // 6 d4
+  createStarterDie('d4', 'adventurer-starter', 'common', 'Starter d4 #1', 'starter'),
+  createStarterDie('d4', 'adventurer-starter', 'common', 'Starter d4 #2', 'starter'),
+  createStarterDie('d4', 'adventurer-starter', 'common', 'Starter d4 #3', 'starter'),
+  createStarterDie('d4', 'adventurer-starter', 'common', 'Starter d4 #4', 'starter'),
+  createStarterDie('d4', 'adventurer-starter', 'common', 'Starter d4 #5', 'starter'),
+  createStarterDie('d4', 'adventurer-starter', 'common', 'Starter d4 #6', 'starter')
 ]
 
 // ============================================================================
