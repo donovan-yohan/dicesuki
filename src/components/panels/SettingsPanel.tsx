@@ -7,6 +7,7 @@
 
 import { useState } from 'react'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
+import { getFormattedVersion } from '../../lib/version'
 import { ThemeSelector } from '../ThemeSelector'
 import { FlyoutPanel } from './FlyoutPanel'
 
@@ -121,6 +122,16 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 </p>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Version Display */}
+        <div className="mt-auto pt-8">
+          <div
+            className="text-center text-xs"
+            style={{ color: 'var(--color-text-muted)', opacity: 0.6 }}
+          >
+            {getFormattedVersion()}
           </div>
         </div>
       </FlyoutPanel>

@@ -11,6 +11,21 @@ class ResizeObserverMock {
 
 ;(globalThis as any).ResizeObserver = ResizeObserverMock
 
+// Mock matchMedia for components using media queries
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+})
+
 // Mock WebGL context for Three.js
 HTMLCanvasElement.prototype.getContext = vi.fn().mockImplementation((contextId) => {
   if (contextId === 'webgl' || contextId === 'webgl2') {

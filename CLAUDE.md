@@ -614,6 +614,151 @@ The project has been upgraded to React 19 and the latest React Three Fiber ecosy
 
 ---
 
+## Semantic Versioning & Release Automation
+
+### Overview
+The project uses automated semantic versioning with GitHub Actions. When a PR is merged to `main`, the version is automatically bumped, tagged, and released based on PR labels.
+
+### Version Display
+- **Location**: Settings panel (bottom)
+- **Format**: `v0.1.0` in small, muted text
+- **Source**: Read from `package.json` at build time via Vite
+- **Implementation**: `src/lib/version.ts` provides `getFormattedVersion()`
+
+### PR Labeling System
+
+Use these labels on PRs to control version bumping:
+
+| Label | Version Increment | Use Case | Example |
+|-------|------------------|----------|---------|
+| `semver:major` | x.0.0 | Breaking changes | API changes, major refactors |
+| `semver:minor` | 0.x.0 | New features | Add new dice type, new UI panel |
+| `semver:patch` | 0.0.x | Bug fixes, improvements | Fix collision bug, optimize rendering |
+| `semver:skip` | No bump | Docs, chores | Update README, refactor tests |
+
+**Default**: If no `semver:*` label is present, defaults to `patch` bump.
+
+### GitHub Actions Workflow
+
+**File**: `.github/workflows/version-bump.yml`
+
+**Trigger**: When PR is merged to `main` branch
+
+**Actions performed**:
+1. Extract PR labels from merge event
+2. Determine version bump type (major/minor/patch/skip)
+3. Calculate new version number
+4. Update `package.json` with new version
+5. Commit version bump to `main`
+6. Create git tag (e.g., `v0.2.0`)
+7. Push commit and tag to remote
+8. Create GitHub Release with PR details
+
+**Permissions required**:
+- `contents: write` - To commit and tag
+- `pull-requests: read` - To read PR labels
+
+### Setting Up Labels
+
+Labels are defined in `.github/labels.yml`. To create them in your repository:
+
+```bash
+# Using GitHub CLI
+gh label create "semver:major" --color "d73a4a" --description "Breaking changes - increment major version (x.0.0)"
+gh label create "semver:minor" --color "fbca04" --description "New features - increment minor version (0.x.0)"
+gh label create "semver:patch" --color "0e8a16" --description "Bug fixes - increment patch version (0.0.x)"
+gh label create "semver:skip" --color "d4c5f9" --description "No version bump - documentation, chores, etc."
+```
+
+Or create them manually via GitHub UI: Settings → Labels → New label
+
+### Version Utility
+
+**File**: `src/lib/version.ts`
+
+```typescript
+// Get current version
+getAppVersion() // Returns "0.1.0"
+
+// Get formatted version
+getFormattedVersion() // Returns "v0.1.0"
+```
+
+**How it works**:
+1. Vite reads version from `package.json` at build time (see `vite.config.ts`)
+2. Version is injected as `import.meta.env.VITE_APP_VERSION`
+3. Type definitions in `src/vite-env.d.ts` provide TypeScript support
+4. Version utility provides clean API for components
+
+### Testing
+
+**Test files**:
+- `src/lib/version.test.ts`: 4 tests for version utility
+- `src/components/panels/SettingsPanel.test.tsx`: 3 tests for version display
+
+**Testing approach**:
+- Use `vi.stubEnv()` to mock environment variables
+- Dynamic imports to get fresh module with stubbed env
+- Mock version utility in component tests for consistent output
+
+### Workflow Example
+
+```
+1. Create feature branch
+   $ git checkout -b feature/new-dice-type
+
+2. Make changes and commit
+   $ git commit -m "feat(dice): Add D20 dice component"
+
+3. Create PR with appropriate label
+   $ gh pr create --label "semver:minor" --title "Add D20 dice"
+
+4. Merge PR
+   → GitHub Actions workflow runs automatically
+   → Version bumps from 0.1.0 → 0.2.0
+   → Tag v0.2.0 created
+   → Release v0.2.0 published
+   → User sees "v0.2.0" in Settings panel
+```
+
+### Common Issues
+
+#### Issue: Version not updating in UI
+**Diagnosis**: Version is baked in at build time
+**Solution**: Run `npm run build` to rebuild with new version
+
+#### Issue: Workflow not running
+**Diagnosis**:
+- Check workflow file syntax
+- Verify PR was merged (not just closed)
+- Ensure branch is `main`
+
+#### Issue: Multiple labels on PR
+**Priority**: `major` > `minor` > `patch` > `skip`
+**Example**: PR with both `semver:major` and `semver:patch` will bump major version
+
+### File Structure
+
+```
+.github/
+├── workflows/
+│   └── version-bump.yml    # Automated version bumping workflow
+└── labels.yml              # Label definitions for semver
+
+src/
+├── lib/
+│   ├── version.ts          # Version utility functions
+│   └── version.test.ts     # Version utility tests
+├── components/panels/
+│   └── SettingsPanel.tsx   # Displays version in UI
+└── vite-env.d.ts          # TypeScript env definitions
+
+vite.config.ts             # Injects version at build time
+package.json               # Source of truth for version
+```
+
+---
+
 ## Project-Specific Guidelines
 
 ### File Organization

@@ -1,0 +1,145 @@
+name: Semantic Version Bump
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  version-bump:
+    # Only run if PR was merged (not just closed)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine version bump type
+        id: bump-type
+        env:
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          echo "PR Labels: $PR_LABELS"
+
+          # Default to patch if no semver label
+          BUMP_TYPE="patch"
+
+          # Check for semver labels (priority: major > minor > patch)
+          if echo "$PR_LABELS" | grep -q "semver:major"; then
+            BUMP_TYPE="major"
+          elif echo "$PR_LABELS" | grep -q "semver:minor"; then
+            BUMP_TYPE="minor"
+          elif echo "$PR_LABELS" | grep -q "semver:patch"; then
+            BUMP_TYPE="patch"
+          elif echo "$PR_LABELS" | grep -q "semver:skip"; then
+            BUMP_TYPE="skip"
+          fi
+
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "Version bump type: $BUMP_TYPE"
+
+      - name: Bump version
+        if: steps.bump-type.outputs.bump_type != 'skip'
+        id: version
+        run: |
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Split version into parts
+          IFS='.' read -r -a VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR="${VERSION_PARTS[0]}"
+          MINOR="${VERSION_PARTS[1]}"
+          PATCH="${VERSION_PARTS[2]}"
+
+          # Bump based on type
+          BUMP_TYPE="${{ steps.bump-type.outputs.bump_type }}"
+          if [ "$BUMP_TYPE" = "major" ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [ "$BUMP_TYPE" = "minor" ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          elif [ "$BUMP_TYPE" = "patch" ]; then
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          # Update package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = require('./package.json');
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - name: Commit and tag version bump
+        if: steps.bump-type.outputs.bump_type != 'skip'
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          git add package.json
+          git commit -m "chore: bump version to v$NEW_VERSION
+
+Automated version bump from PR #$PR_NUMBER: $PR_TITLE
+Bump type: ${{ steps.bump-type.outputs.bump_type }}"
+
+          # Create and push tag
+          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+          git push origin main
+          git push origin "v$NEW_VERSION"
+
+      - name: Create GitHub Release
+        if: steps.bump-type.outputs.bump_type != 'skip'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Create release notes
+          RELEASE_NOTES="## What's Changed
+
+$PR_TITLE (#$PR_NUMBER)
+
+$PR_BODY
+
+---
+**Full Changelog**: https://github.com/${{ github.repository }}/compare/v$(git describe --tags --abbrev=0 HEAD^)...v$NEW_VERSION"
+
+          # Create release using gh CLI
+          gh release create "v$NEW_VERSION" \
+            --title "v$NEW_VERSION" \
+            --notes "$RELEASE_NOTES" \
+            --latest
+
+      - name: Skip version bump
+        if: steps.bump-type.outputs.bump_type == 'skip'
+        run: |
+          echo "Skipping version bump (semver:skip label detected)"

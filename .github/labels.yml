@@ -1,0 +1,23 @@
+# Semantic Versioning Labels
+# These labels are used by the version-bump workflow to determine version increment type
+#
+# To create these labels in your repository, you can:
+# 1. Use GitHub CLI: gh label create "semver:major" --color "d73a4a" --description "Breaking changes - increment major version"
+# 2. Create them manually via GitHub UI (Settings > Labels)
+# 3. Use a GitHub Action like actions/labeler
+
+- name: semver:major
+  color: d73a4a
+  description: "Breaking changes - increment major version (x.0.0)"
+
+- name: semver:minor
+  color: fbca04
+  description: "New features - increment minor version (0.x.0)"
+
+- name: semver:patch
+  color: 0e8a16
+  description: "Bug fixes - increment patch version (0.0.x)"
+
+- name: semver:skip
+  color: d4c5f9
+  description: "No version bump - documentation, chores, etc."
