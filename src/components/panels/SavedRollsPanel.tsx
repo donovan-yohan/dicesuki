@@ -69,7 +69,14 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
     // Create unique roll group ID
     const groupId = `roll-${roll.id}-${Date.now()}`
 
-    // DON'T clear existing dice - allow multiple active rolls
+    // Clear manual dice (dice without rollGroupId) when adding a saved roll
+    const manualDice = useDiceManagerStore.getState().dice.filter(d => !d.rollGroupId)
+    manualDice.forEach(d => useDiceManagerStore.getState().removeDice(d.id))
+
+    // Clear manual roll state
+    useDiceStore.getState().clearActiveSavedRoll()
+
+    // DON'T clear saved roll groups - allow multiple active saved rolls
 
     // Build per-die bonus map (dice ID -> bonus)
     const perDieBonuses = new Map<string, number>()

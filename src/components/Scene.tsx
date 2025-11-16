@@ -407,11 +407,17 @@ function Scene() {
   const handleAddDice = useCallback(
     (type: string) => {
       console.log('Adding dice:', type)
-      // Clear active saved roll when manually adding dice
+      // Clear all saved rolls when manually adding dice
       useDiceStore.getState().clearActiveSavedRoll()
+      useDiceStore.getState().clearAllGroups()
+
+      // Remove all grouped dice, keep only manual dice
+      const groupedDice = dice.filter(d => d.rollGroupId)
+      groupedDice.forEach(d => removeDice(d.id))
+
       addDice(type as import('../lib/geometries').DiceShape, currentTheme.id)
     },
-    [addDice, currentTheme.id]
+    [addDice, currentTheme.id, dice, removeDice]
   )
 
   const handleToggleMotion = useCallback(async () => {
@@ -425,8 +431,15 @@ function Scene() {
   }, [motionMode, requestPermission, toggleMotionMode])
 
   const handleRemoveDice = useCallback((id: string) => {
-    // Clear active saved roll when manually removing dice
+    // Clear all saved rolls when manually removing dice
     useDiceStore.getState().clearActiveSavedRoll()
+    useDiceStore.getState().clearAllGroups()
+
+    // Remove all grouped dice, keep only manual dice
+    const groupedDice = dice.filter(d => d.rollGroupId && d.id !== id)
+    groupedDice.forEach(d => removeDice(d.id))
+
+    // Remove the specified dice
     removeDice(id)
 
     // Check if we're in the middle of a roll
@@ -436,11 +449,12 @@ function Scene() {
       console.log('Scene: Dice removed during roll, resetting roll state')
       useDiceStore.getState().reset()
     }
-  }, [removeDice])
+  }, [removeDice, dice])
 
   const handleClearAll = useCallback(() => {
-    // Clear active saved roll when manually clearing all dice
+    // Clear all saved rolls when manually clearing all dice
     useDiceStore.getState().clearActiveSavedRoll()
+    useDiceStore.getState().clearAllGroups()
     removeAllDice()
   }, [removeAllDice])
 
