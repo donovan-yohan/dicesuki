@@ -698,7 +698,7 @@ function ResultDisplay() {
 
   return (
     <div
-      className="absolute top-8 left-0 right-0 text-white z-20 flex items-start gap-4 overflow-x-auto pointer-events-none px-4"
+      className="absolute top-8 left-0 right-0 text-white z-20 flex items-start gap-4 overflow-x-auto pointer-events-none pl-16 pr-4"
       style={{
         maxHeight: '40vh',
         scrollbarWidth: 'thin',
