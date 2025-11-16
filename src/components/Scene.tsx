@@ -8,7 +8,7 @@ import { GRAVITY } from '../config/physicsConfig'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { Dice, DiceHandle } from './dice/Dice'
 import { BottomNav, CenterRollButton, CornerIcon, UIToggleMini } from './layout'
-import { DiceManagerPanel, HistoryPanel } from './panels'
+import { DiceManagerPanel, HistoryPanel, SavedRollsPanel } from './panels'
 // import { SettingsPanel } from './panels' // TODO: Not yet implemented
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useDiceStore } from '../store/useDiceStore'
@@ -167,6 +167,7 @@ function Scene() {
   const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
   const [isDiceManagerOpen, setIsDiceManagerOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [isSavedRollsOpen, setIsSavedRollsOpen] = useState(false)
   // const [isSettingsOpen, setIsSettingsOpen] = useState(false) // TODO: Not yet implemented
 
   // Detect if mobile
@@ -312,14 +313,14 @@ function Scene() {
       ⚙️
     </CornerIcon>
 
-    {/* Top-Right Corner: Profile/Room (placeholder) */}
+    {/* Top-Right Corner: My Dice Rolls */}
     <CornerIcon
       position="top-right"
-      onClick={() => console.log('Profile clicked')}
-      label="Profile"
+      onClick={() => setIsSavedRollsOpen(true)}
+      label="My Dice Rolls"
       isVisible={isUIVisible}
     >
-      👤
+      📋
     </CornerIcon>
 
     {/* Mini UI Toggle - shows when UI hidden */}
@@ -337,6 +338,11 @@ function Scene() {
     <HistoryPanel
       isOpen={isHistoryOpen}
       onClose={() => setIsHistoryOpen(false)}
+    />
+
+    <SavedRollsPanel
+      isOpen={isSavedRollsOpen}
+      onClose={() => setIsSavedRollsOpen(false)}
     />
 
     {/* TODO: Settings panel not yet implemented */}
