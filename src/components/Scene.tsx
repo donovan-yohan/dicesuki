@@ -308,6 +308,7 @@ function Scene() {
   const dice = useDiceManagerStore((state) => state.dice)
   const addDice = useDiceManagerStore((state) => state.addDice)
   const removeDice = useDiceManagerStore((state) => state.removeDice)
+  const removeAllDice = useDiceManagerStore((state) => state.removeAllDice)
 
   // Subscribe to drag store
   const setOnDiceDelete = useDragStore((state) => state.setOnDiceDelete)
@@ -332,10 +333,22 @@ function Scene() {
     // Allow spam clicking - no canRoll check
     const impulse = roll(dice.length)
     if (impulse) {
+      console.log(`Rolling ${dice.length} dice, refs map has ${diceRefs.current.size} entries`)
+      console.log('Dice IDs:', dice.map(d => d.id))
+      console.log('Ref keys:', Array.from(diceRefs.current.keys()))
+
+      // Check if dice count changed from saved roll - if so, clear bonuses
+      const activeSavedRoll = useDiceStore.getState().activeSavedRoll
+      if (activeSavedRoll && dice.length !== activeSavedRoll.expectedDiceCount) {
+        console.log(`Dice count changed (${dice.length} vs ${activeSavedRoll.expectedDiceCount}), clearing saved roll bonuses`)
+        useDiceStore.getState().clearActiveSavedRoll()
+      }
+
       // Apply impulse to ALL dice in their current positions
       // This allows spam clicking to shake up dice
-      diceRefs.current.forEach((diceHandle) => {
-        diceHandle.applyImpulse(impulse)
+      diceRefs.current.forEach((diceHandle, id) => {
+        console.log(`Applying impulse to dice ${id}`)
+        diceHandle.applyRollImpulse(impulse)
       })
     }
   }, [roll, dice.length])
@@ -347,11 +360,17 @@ function Scene() {
     [onDiceRest]
   )
 
+  // Get current theme
+  const { currentTheme } = useTheme()
+
   const handleAddDice = useCallback(
     (type: string) => {
-      addDice(type as any)
+      console.log('Adding dice:', type)
+      // Clear active saved roll when manually adding dice
+      useDiceStore.getState().clearActiveSavedRoll()
+      addDice(type as import('../lib/geometries').DiceShape, currentTheme.id)
     },
-    [addDice]
+    [addDice, currentTheme.id]
   )
 
   const handleToggleMotion = useCallback(async () => {
@@ -365,6 +384,8 @@ function Scene() {
   }, [motionMode, requestPermission, toggleMotionMode])
 
   const handleRemoveDice = useCallback((id: string) => {
+    // Clear active saved roll when manually removing dice
+    useDiceStore.getState().clearActiveSavedRoll()
     removeDice(id)
 
     // Check if we're in the middle of a roll
@@ -376,10 +397,17 @@ function Scene() {
     }
   }, [removeDice])
 
-  // Set up the onDiceDelete callback for drag-to-delete
+  const handleClearAll = useCallback(() => {
+    // Clear active saved roll when manually clearing all dice
+    useDiceStore.getState().clearActiveSavedRoll()
+    removeAllDice()
+  }, [removeAllDice])
+
+  // Register delete callback with drag store
   useEffect(() => {
     setOnDiceDelete(handleRemoveDice)
-  }, [handleRemoveDice, setOnDiceDelete])
+    return () => setOnDiceDelete(undefined)
+  }, [setOnDiceDelete, handleRemoveDice])
 
   return (
     <>
@@ -393,15 +421,23 @@ function Scene() {
         }}
         // Enable pointer events for touch and mouse
         // This ensures pointer events reach the mesh components
-        style={{ touchAction: 'none' }}
+        style={{
+          touchAction: 'none',
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          position: 'absolute',
+          top: 0,
+          left: 0
+        }}
       >
-      {/* Camera already configured via Canvas props */}
+        {/* Camera already configured via Canvas props */}
 
-      {/* Themed background */}
-      <ThemedBackground />
+        {/* Themed Background */}
+        <ThemedBackground />
 
-      {/* Themed lighting from theme config */}
-      <ThemedLighting />
+        {/* Themed Lighting */}
+        <ThemedLighting />
 
       {/* Physics world - gravity updated via PhysicsController, not props */}
       <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
@@ -444,11 +480,12 @@ function Scene() {
     <BottomNav
       isVisible={isUIVisible}
       onToggleUI={toggleUIVisibility}
-      onOpenDiceManager={() => setIsDiceManagerOpen(true)}
+      onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
       onOpenHistory={() => setIsHistoryOpen(true)}
       onToggleMotion={handleToggleMotion} // Request permission when enabling
       isMobile={isMobile}
       motionModeActive={motionMode}
+      diceManagerOpen={isDiceManagerOpen}
     />
 
     {/* Center Roll Button - elevated above nav */}
@@ -481,11 +518,7 @@ function Scene() {
     <DiceToolbar
       isOpen={isDiceManagerOpen}
       onAddDice={handleAddDice}
-      onClearAll={() => {
-        // Clear all dice
-        dice.forEach(die => removeDice(die.id))
-        setIsDiceManagerOpen(false)
-      }}
+      onClearAll={handleClearAll}
     />
 
     {/* THEMED PANELS */}
@@ -515,66 +548,122 @@ function ResultDisplay() {
   const currentRoll = useDiceStore((state) => state.currentRoll)
   const expectedDiceCount = useDiceStore((state) => state.expectedDiceCount)
   const lastResult = useDiceStore((state) => state.lastResult)
+  const activeSavedRoll = useDiceStore((state) => state.activeSavedRoll)
   const dice = useDiceManagerStore((state) => state.dice)
 
-  // Don't show anything if there are no dice
-  if (dice.length === 0) return null
+  // Track previous sum to trigger animation only on change
+  // IMPORTANT: Must be declared before any conditional returns (Rules of Hooks)
+  const prevSumRef = useRef<number | null>(null)
+  const [shouldAnimate, setShouldAnimate] = useState(false)
 
-  // Show last result if available
-  if (lastResult && lastResult.dice.length > 0) {
-    return (
-      <div
-        className="fixed top-24 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none"
-        style={{
-          textShadow: '0 2px 8px rgba(0, 0, 0, 0.5)'
-        }}
-      >
-        <div className="text-center">
-          <div
-            className="text-7xl font-bold mb-2 animate-bounce"
-            style={{
-              color: 'var(--color-accent)',
-              textShadow: '0 0 20px var(--color-accent-glow)'
-            }}
-          >
-            {lastResult.sum}
-          </div>
-          <div className="flex gap-2 justify-center flex-wrap">
-            {lastResult.dice.map((die, idx) => (
-              <span
-                key={`${die.id}-${idx}`}
-                className="text-lg"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                {die.type.toUpperCase()}: {die.value}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Show current roll if in progress, otherwise show last completed roll
+  const isRolling = currentRoll.length > 0 && currentRoll.length < expectedDiceCount
+  const hasRoll = currentRoll.length > 0 || lastResult !== null
 
-  // Show rolling state if dice are in motion
-  if (currentRoll.length > 0 && currentRoll.length < expectedDiceCount) {
-    return (
-      <div
-        className="fixed top-24 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none"
-        style={{
-          textShadow: '0 2px 8px rgba(0, 0, 0, 0.5)'
-        }}
-      >
-        <div
-          className="text-3xl"
-          style={{ color: 'var(--color-text-secondary)' }}
+  // Show currentRoll only if we have actual dice in it, otherwise show lastResult
+  const displayDice = currentRoll.length > 0 ? currentRoll : lastResult?.dice || []
+  
+  // Calculate dice sum (raw values)
+  const diceSum = displayDice.reduce((acc, d) => acc + d.value, 0)
+  
+  // Calculate per-die bonuses total
+  const perDieBonusesTotal = activeSavedRoll 
+    ? displayDice.reduce((acc, d) => {
+        const bonus = activeSavedRoll.perDieBonuses.get(d.id) || 0
+        return acc + bonus
+      }, 0)
+    : 0
+  
+  // Calculate grand total (dice + per-die bonuses + flat bonus)
+  const flatBonus = activeSavedRoll?.flatBonus || 0
+  const grandTotal = diceSum + perDieBonusesTotal + flatBonus
+
+  // Calculate pending dice - find which dice haven't reported yet
+  const pendingDice = isRolling
+    ? dice.filter(die => !currentRoll.some(r => r.id === die.id))
+    : []
+
+  // Trigger bounce animation only when sum changes
+  // IMPORTANT: This hook must always be called, even if we don't render anything
+  useEffect(() => {
+    if (hasRoll && prevSumRef.current !== null && prevSumRef.current !== grandTotal) {
+      setShouldAnimate(true)
+      // Reset animation after it completes
+      const timer = setTimeout(() => setShouldAnimate(false), 500)
+      return () => clearTimeout(timer)
+    }
+    prevSumRef.current = grandTotal
+  }, [grandTotal, hasRoll])
+
+  // Early return AFTER all hooks have been called
+  if (!hasRoll) return null
+
+  return (
+    <div className="absolute top-8 left-1/2 -translate-x-1/2 text-white text-center z-20 flex flex-col items-center gap-4 pointer-events-none">
+      {/* Grand Total at Top - Large with bounce animation */}
+      <div className={`flex flex-col items-center gap-1 transition-transform ${shouldAnimate ? 'animate-bounce' : ''}`}>
+        <div 
+          className="text-7xl font-bold"
+          style={{ 
+            color: 'var(--color-accent)',
+            textShadow: '0 0 20px rgba(251, 146, 60, 0.5), 0 4px 8px rgba(0, 0, 0, 0.8)'
+          }}
         >
-          Rolling... ({currentRoll.length}/{expectedDiceCount})
+          {isRolling ? '?' : grandTotal}
         </div>
+        
+        {/* Breakdown label if there's a flat bonus */}
+        {!isRolling && flatBonus !== 0 && (
+          <div className="text-sm text-gray-300 bg-black bg-opacity-75 px-3 py-1 rounded">
+            {diceSum + perDieBonusesTotal} + {flatBonus}
+          </div>
+        )}
       </div>
-    )
-  }
 
-  return null
+      {/* Individual dice values */}
+      <div className="flex gap-3 justify-center flex-wrap max-w-lg">
+        {displayDice.map((die, idx) => {
+          const perDieBonus = activeSavedRoll?.perDieBonuses.get(die.id) || 0
+          return (
+            <div key={idx} className="flex flex-col items-center gap-1">
+              <span className="text-[10px] text-gray-400 uppercase font-semibold">{die.type}</span>
+              <div 
+                className="px-4 py-2 rounded min-w-[48px] flex items-center justify-center"
+                style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                  border: '1px solid rgba(251, 146, 60, 0.3)'
+                }}
+              >
+                <span className="text-2xl font-bold">{die.value}</span>
+              </div>
+              {/* Per-die bonus label */}
+              {perDieBonus !== 0 && (
+                <div className="text-xs text-orange-300">
+                  +{perDieBonus}
+                </div>
+              )}
+            </div>
+          )
+        })}
+        
+        {/* Show pending dice */}
+        {pendingDice.map((die) => (
+          <div key={`pending-${die.id}`} className="flex flex-col items-center gap-1 animate-pulse">
+            <span className="text-[10px] text-gray-400 uppercase font-semibold">{die.type}</span>
+            <div 
+              className="px-4 py-2 rounded min-w-[48px] flex items-center justify-center"
+              style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                border: '1px solid rgba(251, 146, 60, 0.2)'
+              }}
+            >
+              <span className="text-2xl font-bold">?</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default Scene

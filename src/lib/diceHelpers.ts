@@ -202,13 +202,33 @@ export function formatSavedRoll(roll: SavedRoll): string {
     parts.push(formatDiceEntry(entry))
   }
 
-  // Add flat bonus
+  // Add flat bonus (handle sign properly in join)
   if (roll.flatBonus !== 0) {
-    const sign = roll.flatBonus > 0 ? '+' : ''
-    parts.push(`${sign}${roll.flatBonus}`)
+    if (roll.flatBonus > 0) {
+      parts.push(`${roll.flatBonus}`)
+    } else {
+      // Negative bonus - will be displayed as "- 4" instead of "+ -4"
+      parts.push(`${roll.flatBonus}`)
+    }
   }
 
-  return parts.join(' + ')
+  // Join with proper operators
+  if (parts.length === 0) return '0'
+  if (parts.length === 1) return parts[0]
+  
+  // Join all parts, handling negative numbers correctly
+  let result = parts[0]
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i]
+    if (part.startsWith('-')) {
+      // Negative number: use minus operator
+      result += ` - ${part.substring(1)}`
+    } else {
+      // Positive number: use plus operator
+      result += ` + ${part}`
+    }
+  }
+  return result
 }
 
 /**

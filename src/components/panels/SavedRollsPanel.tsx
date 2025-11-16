@@ -11,9 +11,8 @@ import { SavedRollCard } from './saved-rolls/SavedRollCard'
 import { RollBuilder } from './saved-rolls/RollBuilder'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
-import { SavedRoll } from '../../types/savedRolls'
-import { executeSavedRoll } from '../../lib/rollEngine'
 import { useDiceStore } from '../../store/useDiceStore'
+import { SavedRoll } from '../../types/savedRolls'
 import { useTheme } from '../../contexts/ThemeContext'
 
 interface SavedRollsPanelProps {
@@ -70,39 +69,30 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
     // Clear existing dice
     removeAllDice()
 
+    // Build per-die bonus map (dice ID -> bonus)
+    const perDieBonuses = new Map<string, number>()
+    let totalDiceCount = 0
+    
     // Spawn dice for each entry in the roll
+    // This uses the same flow as the dice manager, ensuring proper physics integration
     roll.dice.forEach((entry) => {
       // Spawn the number of dice specified in quantity
       for (let i = 0; i < entry.quantity; i++) {
-        addDice(entry.type, currentTheme.id)
+        const diceId = addDice(entry.type, currentTheme.id)
+        totalDiceCount++
+        
+        // Track per-die bonus
+        if (entry.perDieBonus !== 0) {
+          perDieBonuses.set(diceId, entry.perDieBonus)
+        }
       }
     })
 
-    // Execute the roll calculation
-    const result = executeSavedRoll(roll)
-
-    // Store the result in the dice store
-    const diceStore = useDiceStore.getState()
-    const totalDiceCount = roll.dice.reduce((sum, entry) => sum + entry.quantity, 0)
-    diceStore.startRoll(totalDiceCount)
-
-    // Record the result
-    // For now, we'll create individual dice results
-    let diceIndex = 0
-    result.diceResults.forEach((diceResult) => {
-      // Each diceResult has multiple individual rolls
-      diceResult.rolls.forEach((singleRoll) => {
-        if (singleRoll.wasKept) {
-          diceStore.recordDiceResult(
-            `saved-${roll.id}-${diceIndex++}`,
-            singleRoll.value,
-            diceResult.diceType
-          )
-        }
-      })
-    })
+    // Set the active saved roll in the dice store for result display
+    useDiceStore.getState().setActiveSavedRoll(roll.flatBonus, perDieBonuses, totalDiceCount)
 
     // Close the panel after spawning dice
+    // The actual rolling will happen when the user clicks the roll button
     onClose()
   }
 

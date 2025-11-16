@@ -33,12 +33,21 @@ interface DiceStore {
   currentRoll: DiceResult[]
   expectedDiceCount: number
 
+  // Saved roll tracking (for bonus display)
+  activeSavedRoll: { 
+    flatBonus: number
+    perDieBonuses: Map<string, number> // dice ID -> per-die bonus
+    expectedDiceCount: number // total number of dice in the saved roll
+  } | null
+
   // Roll history
   lastResult: RollResult | null
   rollHistory: RollResult[]
 
   // Actions
   startRoll: (diceCount: number) => void
+  setActiveSavedRoll: (flatBonus: number, perDieBonuses: Map<string, number>, expectedDiceCount: number) => void
+  clearActiveSavedRoll: () => void
   recordDiceResult: (id: string, value: number, type: string) => void
   completeRoll: () => void
   reset: () => void
@@ -48,6 +57,7 @@ interface DiceStore {
 export const useDiceStore = create<DiceStore>((set, get) => ({
   currentRoll: [],
   expectedDiceCount: 0,
+  activeSavedRoll: null,
   lastResult: null,
   rollHistory: [],
 
@@ -61,6 +71,22 @@ export const useDiceStore = create<DiceStore>((set, get) => ({
       currentRoll: [],
       expectedDiceCount: diceCount
     })
+  },
+
+  /**
+   * Set active saved roll data (for displaying bonuses)
+   */
+  setActiveSavedRoll: (flatBonus: number, perDieBonuses: Map<string, number>, expectedDiceCount: number) => {
+    set({
+      activeSavedRoll: { flatBonus, perDieBonuses, expectedDiceCount }
+    })
+  },
+
+  /**
+   * Clear active saved roll data
+   */
+  clearActiveSavedRoll: () => {
+    set({ activeSavedRoll: null })
   },
 
   /**
