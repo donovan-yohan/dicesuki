@@ -1,62 +1,62 @@
 # Artist Dice Testing Platform - Implementation Guide
 
-**Status:** Architecture Complete, Ready for Implementation
+**Status:** ✅ Phases 1-2 Complete, Ready for Testing
 **Date:** 2025-11-16
 
 ---
 
 ## 📋 Overview
 
-This package contains the complete architecture, design documents, and implementation files for the **Artist Dice Testing Platform** - a system that allows artists to create custom dice in Blender, upload them to the Daisu simulator, and test them with full physics and face detection before production deployment.
+The **Artist Dice Testing Platform** allows artists to create custom dice in Blender, upload them to the Daisu simulator, and test them with full physics and face detection before production deployment.
+
+**Current Status:**
+- ✅ Core system fully implemented
+- ✅ Preview system with full physics
+- ✅ Custom face detection working
+- ✅ Integrated into Settings panel
+- ✅ Artist documentation created
 
 ---
 
-## 📦 What's Included
+## 🎯 Quick Access
 
-### Documentation
+**For Artists:**
+- 📖 **Artist Guide:** `public/artist-resources/documentation/ARTIST_GUIDE.md`
+- 🎨 **Blender Templates:** `public/artist-resources/templates/generate_dice_templates.py`
 
-1. **`ARTIST_PLATFORM_DESIGN.md`** (Main Design Document)
-   - Complete system architecture
-   - File format specifications (GLB/glTF)
-   - Upload & preview system design
-   - Physics integration details
-   - Face detection system
-   - Artist-facing Blender export guide
-   - Production pipeline workflow
-   - 6-week implementation roadmap
-   - Testing strategy
+**For Developers:**
+- 📘 **Technical Design:** `docs/ARTIST_PLATFORM_DESIGN.md`
+- 💻 **Source Code:** See "Implementation Files" below
 
-### Implementation Files
+**How to Test:**
+1. Open Daisu app
+2. Settings → Developer Tools → Artist Testing Platform
+3. Upload a `.glb` file and test!
 
-2. **`src/types/customDice.ts`**
-   - TypeScript interfaces for custom dice system
-   - `DiceMetadata` - Complete metadata specification
-   - `CustomDiceAsset` - Asset structure
-   - `ValidationResult` - Validation system types
-   - Constants for file size limits, polygon counts, defaults
+---
 
-3. **`src/lib/diceMetadataSchema.ts`**
-   - Metadata validation utilities
-   - GLB file validation
-   - JSON schema validation
-   - Face normal validation
-   - Physics property validation
-   - Error formatting utilities
+## 📦 Implementation Files
 
-4. **`src/lib/diceMetadataGenerator.ts`**
-   - Auto-generate metadata from dice type
-   - Extract face normals from geometry
-   - Create downloadable JSON files
-   - Generate template files for artists
-   - Serialize/deserialize utilities
+### Core System
 
-5. **`src/components/panels/ArtistTestingPanel.tsx`**
-   - Complete UI component for artist testing
-   - Drag & drop file upload
-   - Metadata upload/auto-generation
-   - Real-time validation display
-   - Preview loading interface
-   - Styled with Tailwind CSS (matches project)
+**Type Definitions:**
+- `src/types/customDice.ts` - TypeScript interfaces for custom dice
+
+**Utilities:**
+- `src/lib/diceMetadataSchema.ts` - Validation utilities
+- `src/lib/diceMetadataGenerator.ts` - Metadata auto-generation
+
+**Components:**
+- `src/components/dice/CustomDice.tsx` - Custom GLB dice component (430 lines)
+- `src/components/panels/ArtistTestingPanel.tsx` - Upload interface
+- `src/components/panels/DicePreviewScene.tsx` - 3D testing environment (250 lines)
+
+**Hooks:**
+- `src/hooks/useCustomDiceLoader.ts` - GLB loading hook
+- `src/hooks/useFaceDetection.ts` - Extended with custom normals support
+
+**Enhanced Systems:**
+- `src/lib/geometries.ts` - Extended `getDiceFaceValue()` with custom normals
 
 ---
 
@@ -249,146 +249,80 @@ See **ARTIST_PLATFORM_DESIGN.md** → "Artist Documentation" → "Blender Export
 
 ---
 
-## 📊 Implementation Roadmap
+## 📊 Implementation Status
 
-### Phase 1: Core Infrastructure (Week 1-2)
+### ✅ Phase 1: Core Infrastructure (Complete)
 - ✅ TypeScript interfaces defined
 - ✅ Validation utilities created
 - ✅ Metadata generator implemented
-- ✅ UI component skeleton created
-- ⏳ File upload system integration
-- ⏳ IndexedDB storage setup
+- ✅ UI component created with drag & drop
+- ✅ File upload system integrated
+- ✅ Blob URL lifecycle management
 
-### Phase 2: Preview & Physics (Week 2-3)
-- ⏳ Create `CustomDice.tsx` component
-- ⏳ Extend `getDiceFaceValue()` for custom normals
-- ⏳ Update `useFaceDetection` hook
-- ⏳ Implement collider mapping
-- ⏳ Build preview testing environment
+### ✅ Phase 2: Preview & Physics (Complete)
+- ✅ `CustomDice.tsx` component created (430 lines)
+- ✅ `getDiceFaceValue()` extended for custom normals
+- ✅ `useFaceDetection()` hook updated
+- ✅ `useCustomDiceLoader()` hook created
+- ✅ Collider mapping implemented
+- ✅ Full preview testing environment built
+- ✅ Integrated into Settings panel
 
-### Phase 3: Artist Documentation (Week 3-4)
-- ⏳ Write complete Blender export guide
-- ⏳ Create starter templates
-- ⏳ Generate reference diagrams
-- ⏳ Build metadata generator web tool
+### 📝 Phase 3: Artist Documentation (In Progress)
+- ✅ Complete Blender export guide created
+- ✅ Blender template generator script (Python)
+- ⏳ Create actual .blend template file
+- ⏳ Generate reference diagrams (face numbering)
+- ⏳ Build metadata generator web tool (optional)
 - ⏳ Record video tutorials (optional)
 
-### Phase 4: Production Pipeline (Week 4-5)
+### ⏳ Phase 4: Production Pipeline (Planned)
 - ⏳ Set up asset directory structure
 - ⏳ Create asset registry system
 - ⏳ Theme integration
 - ⏳ Import automation scripts
 
-### Phase 5: Testing & Polish (Week 5-6)
-- ⏳ Unit tests for all new systems
-- ⏳ Integration tests
+### ⏳ Phase 5: Testing & Polish (Planned)
+- ⏳ Unit tests for new components
+- ⏳ Integration tests for upload flow
 - ⏳ Performance benchmarks
 - ⏳ Cross-browser testing
 - ⏳ Artist feedback & iteration
 
 ---
 
-## 🔧 Next Steps (Immediate)
+## 🎨 Artist Resources
 
-### 1. Complete Upload System Integration
+All artist-facing materials are in `public/artist-resources/`:
 
-The `ArtistTestingPanel` component needs:
-- Drag & drop event handlers
-- File reading and blob URL creation
-- Integration with validation utilities
-
-**Example:**
-```typescript
-const handleDrop = useCallback(async (e: React.DragEvent) => {
-  e.preventDefault()
-  const file = e.dataTransfer.files[0]
-  if (file && file.name.endsWith('.glb')) {
-    await handleFileSelect(file)
-  }
-}, [handleFileSelect])
+```
+public/artist-resources/
+├── documentation/
+│   └── ARTIST_GUIDE.md        ← Complete non-technical guide
+├── templates/
+│   └── generate_dice_templates.py  ← Blender script to generate all dice types
+└── examples/                   ← (Coming soon) Example GLB files
 ```
 
-### 2. Create CustomDice Component
+---
 
-Copy `src/components/dice/Dice.tsx` and modify to:
-- Use `useGLTF()` instead of geometry creation
-- Accept `CustomDiceAsset` prop
-- Apply metadata physics properties
-- Pass custom face normals to detection hook
+## 🚀 Next Steps
 
-**Key changes:**
-```typescript
-// Load GLB model
-const { scene } = useGLTF(asset.modelUrl)
+### For Phase 3 (Artist Documentation)
+1. **Create .blend template file** - Run the Python script in Blender to generate, then save as `.blend`
+2. **Generate face numbering diagrams** - Visual references showing number placement for each dice type
+3. **Add example GLB files** - Sample dice models artists can reference
 
-// Use custom face normals
-const { isAtRest, faceValue, updateMotion, readFaceValue } =
-  useFaceDetection(asset.metadata.faceNormals)
+### For Phase 4 (Production Pipeline)
+1. **Asset registry** - Create `src/lib/diceAssets.ts` for managing production dice
+2. **Theme integration** - Allow custom dice to be selected in theme system
+3. **Directory structure** - Set up `/public/models/dice/` with organized folders
 
-// Render
-return (
-  <RigidBody
-    restitution={asset.metadata.physics.restitution}
-    friction={asset.metadata.physics.friction}
-  >
-    <primitive object={scene} scale={asset.metadata.scale} />
-  </RigidBody>
-)
-```
-
-### 3. Update Face Detection System
-
-Modify `src/hooks/useFaceDetection.ts`:
-
-```typescript
-export function useFaceDetection(customFaceNormals?: FaceNormal[]) {
-  // Store custom normals in ref
-  const customNormalsRef = useRef(customFaceNormals)
-
-  const readFaceValue = useCallback(
-    (quaternion: THREE.Quaternion, shape: DiceShape) => {
-      const value = getDiceFaceValue(
-        quaternion,
-        shape,
-        customNormalsRef.current
-      )
-      setFaceValue(value)
-    },
-    []
-  )
-
-  // ... rest of hook
-}
-```
-
-### 4. Create Artist Documentation
-
-Start with Blender export guide:
-- Screenshot Blender export settings
-- Create face numbering diagrams for each dice type
-- Write step-by-step tutorial
-- Create video walkthrough (optional)
-
-### 5. Set Up Asset Registry
-
-Create `src/lib/diceAssets.ts`:
-
-```typescript
-export const DICE_ASSETS = {
-  d6: {
-    'wooden-oak': {
-      id: 'wooden-oak',
-      metadata: { /* ... */ },
-      modelUrl: '/models/dice/d6/wooden-oak.glb',
-      thumbnailUrl: '/models/dice/d6/wooden-oak-thumb.png'
-    }
-  }
-}
-
-export function getAssetById(type: DiceShape, id: string) {
-  return DICE_ASSETS[type]?.[id]
-}
-```
+### For Phase 5 (Testing & Polish)
+1. **Unit tests** - Test validation, metadata generation, and loader hooks
+2. **Integration tests** - Test full upload → preview → validation flow
+3. **Performance testing** - Verify 60fps with custom models
+4. **Cross-platform testing** - Test on iOS, Android, desktop browsers
 
 ---
 
@@ -563,32 +497,31 @@ This artist platform is part of the Daisu project. See main project LICENSE for 
 ---
 
 **Last Updated:** 2025-11-16
-**Version:** 1.0 (Architecture Complete)
-**Status:** Ready for Phase 1 Implementation
+**Version:** 2.0 (Phases 1-2 Complete)
+**Status:** ✅ Core System Ready for Testing
 
 ---
 
-## Appendix: File Checklist
+## File Summary
 
-### What's Been Created
+### ✅ Completed Files
+- `src/types/customDice.ts` - TypeScript interfaces
+- `src/lib/diceMetadataSchema.ts` - Validation utilities
+- `src/lib/diceMetadataGenerator.ts` - Metadata generation
+- `src/components/panels/ArtistTestingPanel.tsx` - Upload UI with drag & drop
+- `src/components/dice/CustomDice.tsx` - Custom GLB dice component
+- `src/components/panels/DicePreviewScene.tsx` - Interactive preview environment
+- `src/hooks/useCustomDiceLoader.ts` - GLB loading hook
+- `public/artist-resources/documentation/ARTIST_GUIDE.md` - Non-technical artist guide
+- `public/artist-resources/templates/generate_dice_templates.py` - Blender template generator
 
-- ✅ `docs/ARTIST_PLATFORM_DESIGN.md` - Complete architecture (12,000+ words)
-- ✅ `docs/ARTIST_PLATFORM_README.md` - This implementation guide
-- ✅ `src/types/customDice.ts` - TypeScript interfaces
-- ✅ `src/lib/diceMetadataSchema.ts` - Validation utilities
-- ✅ `src/lib/diceMetadataGenerator.ts` - Metadata generation
-- ✅ `src/components/panels/ArtistTestingPanel.tsx` - UI component
-
-### What's Needed Next
-
-- ⏳ `src/components/dice/CustomDice.tsx` - Custom dice component
-- ⏳ `src/hooks/useCustomDiceLoader.ts` - GLB loading hook
-- ⏳ `src/lib/diceAssets.ts` - Production asset registry
-- ⏳ `public/models/documentation/ARTIST_GUIDE.md` - Artist-facing docs
-- ⏳ `public/models/templates/dice-templates.blend` - Blender templates
-- ⏳ Test files for all new components
-- ⏳ Integration with existing settings panel
+### ⏳ Remaining
+- `.blend` template file (run Python script to generate)
+- Face numbering diagrams
+- Example GLB files
+- Production asset registry (`src/lib/diceAssets.ts`)
+- Unit and integration tests
 
 ---
 
-🎲 **Happy Dice Creating!** 🎲
+🎲 **Start Testing: Settings → Developer Tools → Artist Testing Platform** 🎲
