@@ -222,6 +222,33 @@ export interface LightingEffects {
   }
 }
 
+// ============================================================================
+// Critical Effects Customization
+// ============================================================================
+
+export interface CriticalGlowEffect {
+  color: string // Glow color
+  intensity: number // 0-2, glow strength
+  duration: number // milliseconds
+  pulseCount?: number // Number of pulses (default: 1)
+}
+
+export interface CriticalSuccessEffects {
+  glow?: CriticalGlowEffect
+  // Future: particles, sounds, animations, etc.
+}
+
+export interface CriticalFailureEffects {
+  glow?: CriticalGlowEffect
+  // Future: particles, sounds, animations, etc.
+}
+
+export interface CriticalEffectsConfig {
+  enabled: boolean // Master toggle
+  criticalSuccess?: CriticalSuccessEffects
+  criticalFailure?: CriticalFailureEffects
+}
+
 export interface VisualEffectsConfig {
   // Shader/Material System
   shaderStyle: 'realistic' | 'toon' | 'custom'
@@ -237,6 +264,9 @@ export interface VisualEffectsConfig {
 
   // Dynamic lighting effects
   lightingEffects?: LightingEffects
+
+  // Critical hit/fail effects
+  criticalEffects?: CriticalEffectsConfig
 }
 
 // ============================================================================
@@ -531,6 +561,25 @@ export const defaultTheme: Theme = {
         quality: 'medium',
       },
     },
+    criticalEffects: {
+      enabled: true,
+      criticalSuccess: {
+        glow: {
+          color: '#ffd700', // Gold
+          intensity: 1.0,
+          duration: 1000,
+          pulseCount: 2,
+        },
+      },
+      criticalFailure: {
+        glow: {
+          color: '#ff0000', // Red
+          intensity: 0.8,
+          duration: 800,
+          pulseCount: 1,
+        },
+      },
+    },
   },
 }
 
@@ -720,6 +769,25 @@ export const fantasyTheme: Theme = {
       shadows: {
         enabled: true,
         quality: 'high',
+      },
+    },
+    criticalEffects: {
+      enabled: true,
+      criticalSuccess: {
+        glow: {
+          color: '#ffd700', // Golden
+          intensity: 1.5,
+          duration: 1200,
+          pulseCount: 3,
+        },
+      },
+      criticalFailure: {
+        glow: {
+          color: '#8b4513', // Earthy brown
+          intensity: 0.9,
+          duration: 900,
+          pulseCount: 2,
+        },
       },
     },
   },
@@ -930,6 +998,25 @@ export const critterForestTheme: Theme = {
         quality: 'medium',
       },
     },
+    criticalEffects: {
+      enabled: true,
+      criticalSuccess: {
+        glow: {
+          color: '#ff69b4', // Hot pink (theme accent)
+          intensity: 1.8,
+          duration: 1500,
+          pulseCount: 4,
+        },
+      },
+      criticalFailure: {
+        glow: {
+          color: '#8b5a3c', // Brown (theme primary)
+          intensity: 1.0,
+          duration: 1000,
+          pulseCount: 2,
+        },
+      },
+    },
   },
 }
 
@@ -1138,6 +1225,25 @@ export const dungeonCastleTheme: Theme = {
         quality: 'high',
       },
     },
+    criticalEffects: {
+      enabled: true,
+      criticalSuccess: {
+        glow: {
+          color: '#ff8533', // Fiery orange-gold (torch fire)
+          intensity: 1.2,
+          duration: 1200,
+          pulseCount: 3,
+        },
+      },
+      criticalFailure: {
+        glow: {
+          color: '#8b0000', // Dark red (blood, danger)
+          intensity: 0.9,
+          duration: 1000,
+          pulseCount: 2,
+        },
+      },
+    },
   },
 }
 
@@ -1331,6 +1437,25 @@ export const neonCyberCityTheme: Theme = {
       shadows: {
         enabled: true,
         quality: 'medium',
+      },
+    },
+    criticalEffects: {
+      enabled: true,
+      criticalSuccess: {
+        glow: {
+          color: '#00ffff', // Bright cyan (system online, success)
+          intensity: 2.0,
+          duration: 1500,
+          pulseCount: 4,
+        },
+      },
+      criticalFailure: {
+        glow: {
+          color: '#ff00ff', // Magenta (error, system failure)
+          intensity: 1.5,
+          duration: 1200,
+          pulseCount: 3,
+        },
       },
     },
   },

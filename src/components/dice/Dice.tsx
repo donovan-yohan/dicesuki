@@ -1,4 +1,4 @@
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 
 import { useFrame } from '@react-three/fiber'
 import { ContactForcePayload, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
@@ -23,6 +23,8 @@ import {
 } from '../../config/physicsConfig'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { useCriticalDetection } from '../../hooks/useCriticalDetection'
+import { useDiceGlow } from '../../hooks/useDiceGlow'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
@@ -96,6 +98,25 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
     const pendingNotificationRef = useRef<number | null>(null)
     const lastShakeStateRef = useRef(false)
     const lastDragPositionRef = useRef<THREE.Vector3 | null>(null)
+
+    // Critical effects state
+    const [criticalSuccessTriggered, setCriticalSuccessTriggered] = useState(false)
+    const [criticalFailureTriggered, setCriticalFailureTriggered] = useState(false)
+
+    // Critical detection
+    useCriticalDetection({
+      diceType: shape,
+      faceValue,
+      isAtRest,
+      onCriticalSuccess: () => {
+        console.log(`[${id}] Critical success! (${shape} rolled ${faceValue})`)
+        setCriticalSuccessTriggered(true)
+      },
+      onCriticalFailure: () => {
+        console.log(`[${id}] Critical failure! (${shape} rolled ${faceValue})`)
+        setCriticalFailureTriggered(true)
+      },
+    })
 
     // Expose imperative handle
     useImperativeHandle(ref, () => ({
@@ -416,6 +437,28 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       }
       return mat
     }, [color, shape, currentTheme.dice.materials, currentTheme.visualEffects])
+
+    // Determine which glow config to use
+    const activeGlowConfig = criticalSuccessTriggered
+      ? currentTheme.visualEffects.criticalEffects?.criticalSuccess?.glow ?? null
+      : criticalFailureTriggered
+      ? currentTheme.visualEffects.criticalEffects?.criticalFailure?.glow ?? null
+      : null
+
+    // Apply glow effect for criticals
+    useDiceGlow({
+      material,
+      glowConfig: activeGlowConfig,
+      trigger: criticalSuccessTriggered || criticalFailureTriggered,
+    })
+
+    // Reset critical triggers when dice starts moving
+    useEffect(() => {
+      if (!isAtRest) {
+        setCriticalSuccessTriggered(false)
+        setCriticalFailureTriggered(false)
+      }
+    }, [isAtRest])
 
     // Calculate half-extents for D6 collider
     const halfSize = size / 2
