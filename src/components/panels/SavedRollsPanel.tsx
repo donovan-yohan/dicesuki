@@ -10,9 +10,11 @@ import { BottomSheet } from './BottomSheet'
 import { SavedRollCard } from './saved-rolls/SavedRollCard'
 import { RollBuilder } from './saved-rolls/RollBuilder'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
+import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { SavedRoll } from '../../types/savedRolls'
 import { executeSavedRoll } from '../../lib/rollEngine'
 import { useDiceStore } from '../../store/useDiceStore'
+import { useTheme } from '../../contexts/ThemeContext'
 
 interface SavedRollsPanelProps {
   isOpen: boolean
@@ -25,6 +27,8 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
   const [view, setView] = useState<'list' | 'builder'>('list')
   const [editingRoll, setEditingRoll] = useState<SavedRoll | null>(null)
 
+  const { currentTheme } = useTheme()
+
   const {
     savedRolls,
     addRoll,
@@ -36,6 +40,8 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
     searchRolls,
     getRollsByTag,
   } = useSavedRollsStore()
+
+  const { addDice, removeAllDice } = useDiceManagerStore()
 
   // Get filtered rolls
   const filteredRolls = (() => {
@@ -61,26 +67,42 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
     // Mark as used
     markRollAsUsed(roll.id)
 
-    // Execute the roll
+    // Clear existing dice
+    removeAllDice()
+
+    // Spawn dice for each entry in the roll
+    roll.dice.forEach((entry) => {
+      // Spawn the number of dice specified in quantity
+      for (let i = 0; i < entry.quantity; i++) {
+        addDice(entry.type, currentTheme.id)
+      }
+    })
+
+    // Execute the roll calculation
     const result = executeSavedRoll(roll)
 
     // Store the result in the dice store
-    // TODO: This needs to be updated to store the full breakdown
-    // For now, we'll just use the total
     const diceStore = useDiceStore.getState()
-    diceStore.startRoll(roll.dice.length)
+    const totalDiceCount = roll.dice.reduce((sum, entry) => sum + entry.quantity, 0)
+    diceStore.startRoll(totalDiceCount)
 
-    // Record each dice entry as a result
-    // This is a simplified version - will be enhanced later
-    result.diceResults.forEach((diceResult, idx) => {
-      diceStore.recordDiceResult(
-        `saved-${roll.id}-${idx}`,
-        diceResult.subtotal,
-        diceResult.diceType
-      )
+    // Record the result
+    // For now, we'll create individual dice results
+    let diceIndex = 0
+    result.diceResults.forEach((diceResult) => {
+      // Each diceResult has multiple individual rolls
+      diceResult.rolls.forEach((singleRoll) => {
+        if (singleRoll.wasKept) {
+          diceStore.recordDiceResult(
+            `saved-${roll.id}-${diceIndex++}`,
+            singleRoll.value,
+            diceResult.diceType
+          )
+        }
+      })
     })
 
-    // Close the panel after rolling
+    // Close the panel after spawning dice
     onClose()
   }
 
