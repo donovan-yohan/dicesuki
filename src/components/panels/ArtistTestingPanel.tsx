@@ -33,6 +33,7 @@ import {
   serializeMetadata,
   downloadMetadata,
 } from '../../lib/diceMetadataGenerator'
+import { DicePreviewScene } from './DicePreviewScene'
 
 interface ArtistTestingPanelProps {
   /** Callback when a dice asset is successfully loaded and ready for preview */
@@ -55,6 +56,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
   const [selectedDiceType, setSelectedDiceType] = useState<DiceShape>('d6')
   const [customName, setCustomName] = useState('')
   const [customArtist, setCustomArtist] = useState('')
+  const [previewAsset, setPreviewAsset] = useState<CustomDiceAsset | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const metadataInputRef = useRef<HTMLInputElement>(null)
@@ -155,12 +157,22 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       previewBlobUrl: blobUrl,
     }
 
+    // Set preview asset to show the preview scene
+    setPreviewAsset(asset)
+
     // Notify parent component
     onDiceLoaded?.(asset)
-
-    // TODO: Cleanup blob URL when preview is closed
-    // URL.revokeObjectURL(blobUrl)
   }, [uploadState.file, uploadState.metadata, onDiceLoaded])
+
+  /**
+   * Close preview and cleanup blob URL
+   */
+  const handleClosePreview = useCallback(() => {
+    if (previewAsset?.previewBlobUrl) {
+      URL.revokeObjectURL(previewAsset.previewBlobUrl)
+    }
+    setPreviewAsset(null)
+  }, [previewAsset])
 
   /**
    * Reset the upload state
@@ -212,7 +224,25 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       <section className="mb-6">
         <h3 className="text-lg font-semibold mb-3">1. Upload Dice Model (.glb)</h3>
 
-        <div className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-gray-400 transition-colors">
+        <div
+          className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-gray-400 transition-colors"
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onDragEnter={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            const file = e.dataTransfer.files[0]
+            if (file && file.name.toLowerCase().endsWith('.glb')) {
+              handleFileSelect(file)
+            }
+          }}
+        >
           <input
             ref={fileInputRef}
             type="file"
@@ -244,6 +274,18 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
               <p className="text-sm text-gray-400">
                 Size: {(uploadState.file.size / 1024 / 1024).toFixed(2)} MB
               </p>
+              <button
+                onClick={() => {
+                  setUploadState((prev) => ({
+                    ...prev,
+                    file: null,
+                    fileValidation: null,
+                  }))
+                }}
+                className="mt-2 text-sm text-red-400 hover:text-red-300 underline"
+              >
+                Remove file
+              </button>
             </div>
           )}
         </div>
@@ -384,6 +426,14 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
           <li>Join our Discord for artist support</li>
         </ul>
       </div>
+
+      {/* Preview Scene (fullscreen overlay) */}
+      {previewAsset && (
+        <DicePreviewScene
+          asset={previewAsset}
+          onClose={handleClosePreview}
+        />
+      )}
     </div>
   )
 }
