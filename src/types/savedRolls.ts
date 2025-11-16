@@ -3,8 +3,6 @@
  *
  * Comprehensive type definitions for the dice roll builder system.
  * Supports D&D 5e, Shadowrun, World of Darkness, and custom systems.
- *
- * Updated to support inventory die assignment.
  */
 
 import { DiceShape } from '../lib/geometries'
@@ -50,19 +48,6 @@ export interface DiceEntry {
   id: string
   type: DiceShape
   quantity: number        // How many dice to KEEP in final result
-
-  // === INVENTORY INTEGRATION ===
-  /**
-   * Maps slot index to inventory die ID
-   * Length should match `quantity`
-   * null = use default theme die for that slot
-   *
-   * Example: { 0: "die_123", 1: null, 2: "die_456" }
-   * Slot 0 uses die_123, slot 1 uses default, slot 2 uses die_456
-   */
-  assignedDice: Record<number, string | null>
-
-  // Modifiers
   perDieBonus: number     // Applied to each die individually (e.g., +1 in "d6+1")
 
   // Keep/Drop Mechanics
@@ -81,6 +66,9 @@ export interface DiceEntry {
 
   // Success Counting (alternative mode)
   countSuccesses?: SuccessCountingConfig
+
+  // Future: specific dice skin/texture to use
+  skinId?: string
 }
 
 /**
@@ -116,7 +104,6 @@ export interface SingleDieRoll {
   wasRerolled?: boolean
   explosions?: number[]   // Array of explosion values
   wasKept: boolean        // Was this die kept in the final result?
-  dieId?: string          // If from inventory, the ID of the die used
 }
 
 /**
