@@ -114,10 +114,10 @@ export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
     }))
   })),
 
-  getInUseDiceIds: () => {
-    const state = useDiceManagerStore.getState()
+  getInUseDiceIds: (): string[] => {
+    const state: DiceManagerStore = useDiceManagerStore.getState()
     return state.dice
-      .filter(d => d.inventoryDieId) // Only include dice linked to inventory
-      .map(d => d.inventoryDieId as string)
+      .filter((d: DiceInstance) => d.inventoryDieId) // Only include dice linked to inventory
+      .map((d: DiceInstance) => d.inventoryDieId as string)
   }
 }))

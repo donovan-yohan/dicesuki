@@ -35,16 +35,13 @@ export function initializeStarterDice() {
  * Use with caution - this will delete all existing dice!
  */
 export function resetToStarterDice() {
-  const { dice, removeDie, addDie } = useInventoryStore.getState()
+  const { reset, addDie } = useInventoryStore.getState()
 
   console.warn('🔥 Resetting inventory to starter dice (clearing all existing dice)')
 
-  // Remove all existing dice
-  dice.forEach(die => {
-    if (!die.isLocked) {
-      removeDie(die.id)
-    }
-  })
+  // Use reset() to clear ALL dice (including locked ones)
+  // This prevents duplicate starter dice on subsequent calls
+  reset()
 
   // Add starter dice
   STARTER_DICE.forEach(starterDie => {

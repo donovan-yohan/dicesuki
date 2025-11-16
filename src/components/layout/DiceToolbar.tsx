@@ -8,7 +8,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMemo } from 'react'
 import { buttonPressScale, shouldReduceMotion } from '../../animations/ui-transitions'
-import { useDiceManagerStore, DiceInstance } from '../../store/useDiceManagerStore'
+import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDragStore } from '../../store/useDragStore'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { useTheme } from '../../contexts/ThemeContext'

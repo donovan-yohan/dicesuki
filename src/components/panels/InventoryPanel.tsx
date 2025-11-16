@@ -77,9 +77,14 @@ export function InventoryPanel({ isOpen, onClose }: InventoryPanelProps) {
     return sorted
   }, [dice, activeTab, searchQuery, sortBy])
 
-  // Separate favorites
-  const favoriteDice = displayedDice.filter(d => d.isFavorite)
-  const otherDice = displayedDice.filter(d => !d.isFavorite)
+  // Separate favorites (only for 'all' tab)
+  const { favoriteDice, otherDice } = useMemo(() => {
+    if (activeTab !== 'all') return { favoriteDice: [], otherDice: [] }
+    return {
+      favoriteDice: displayedDice.filter(d => d.isFavorite),
+      otherDice: displayedDice.filter(d => !d.isFavorite)
+    }
+  }, [activeTab, displayedDice])
 
   // Group by set for 'sets' tab
   const diceBySet = useMemo(() => {

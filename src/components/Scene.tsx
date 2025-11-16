@@ -19,6 +19,17 @@ import { HistoryPanel, SettingsPanel, SavedRollsPanel, InventoryPanel } from './
 import { initializeStarterDice } from '../lib/initializeStarterDice'
 
 /**
+ * Shared styles for top-right corner buttons
+ */
+const TOP_RIGHT_BUTTON_STYLES = {
+  backgroundColor: 'rgba(31, 41, 55, 0.7)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+  border: '1px solid rgba(251, 146, 60, 0.2)'
+} as const
+
+/**
  * Component to dynamically update physics gravity based on device motion
  * Uses R3F's useFrame hook - runs every frame (~60fps) synchronized with Three.js rendering
  * Reads from gravityRef without triggering any React re-renders
@@ -360,7 +371,7 @@ function Scene() {
         )
       }
     }
-  }, [addDice, currentTheme.id]) // Dependencies to satisfy eslint
+  }, []) // Only run once on mount - ref guard prevents re-execution
 
   const handleRollClick = useCallback(() => {
     // Allow spam clicking - no canRoll check
@@ -626,11 +637,7 @@ function Scene() {
         onClick={() => setIsInventoryOpen(true)}
         className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
         style={{
-          backgroundColor: 'rgba(31, 41, 55, 0.7)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-          border: '1px solid rgba(251, 146, 60, 0.2)',
+          ...TOP_RIGHT_BUTTON_STYLES,
           opacity: isUIVisible ? 1 : 0,
           transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
         }}
@@ -654,11 +661,7 @@ function Scene() {
         onClick={() => setIsSavedRollsOpen(true)}
         className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
         style={{
-          backgroundColor: 'rgba(31, 41, 55, 0.7)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-          border: '1px solid rgba(251, 146, 60, 0.2)',
+          ...TOP_RIGHT_BUTTON_STYLES,
           opacity: isUIVisible ? 1 : 0,
           transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
         }}

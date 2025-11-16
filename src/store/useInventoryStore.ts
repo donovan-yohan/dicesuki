@@ -18,6 +18,7 @@ import {
 } from '../types/inventory'
 import { CraftingRecipe, CraftingResult } from '../types/crafting'
 import { DiceShape } from '../lib/geometries'
+import { getDieMax } from '../lib/diceHelpers'
 import { getDieSetById } from '../config/dieSets'
 import { STARTER_DICE } from '../config/starterDice'
 // CRAFTING_RECIPES imported for future use
@@ -277,7 +278,7 @@ export const useInventoryStore = create<InventoryStore>()(
             if (d.id !== dieId) return d
 
             // Get max value for this die type
-            const maxValue = parseInt(d.type.substring(1)) // e.g., 'd20' -> 20
+            const maxValue = getDieMax(d.type)
 
             const newStats: DieStats = {
               timesRolled: d.stats.timesRolled + 1,
@@ -506,10 +507,10 @@ export const useInventoryStore = create<InventoryStore>()(
             return false
           }
 
-          // If setId is required to match, check that all dice are from same set
+          // If setId is required to match, ensure enough dice are from the required set
           if (input.setId !== undefined) {
-            const sets = new Set(matchingDice.map(d => d.setId))
-            if (sets.size > 1 || !sets.has(input.setId)) {
+            const matchingSet = matchingDice.filter(d => d.setId === input.setId)
+            if (matchingSet.length < input.count) {
               return false
             }
           }
