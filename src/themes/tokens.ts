@@ -900,7 +900,7 @@ export const dungeonCastleTheme: Theme = {
 
   environment: {
     floor: {
-      color: '#3a3a3a', // Dark stone floor
+      color: '#2a2a2a', // Dark gray stone floor (old castle)
       material: {
         roughness: 0.9,
         metalness: 0.0,
@@ -908,7 +908,7 @@ export const dungeonCastleTheme: Theme = {
       receiveShadow: true,
     },
     walls: {
-      color: '#4a4a4a', // Dark stone walls
+      color: '#333333', // Dark gray stone walls (old castle)
       material: {
         roughness: 0.95,
         metalness: 0.0,
@@ -922,12 +922,12 @@ export const dungeonCastleTheme: Theme = {
     },
     lighting: {
       ambient: {
-        color: '#4d3319', // Dim warm torchlight
-        intensity: 0.8, // Slightly brighter ambient for visibility
+        color: '#999999', // Dim neutral gray light
+        intensity: 1, // Moderate ambient for visibility
       },
       directional: {
-        color: '#ff8c42', // Flickering torch orange
-        intensity: 1.0, // Slightly brighter directional light
+        color: '#ff8533', // Bright fire orange (torch accent)
+        intensity: 0, // Lower torch intensity - just for highlights
         position: [2, 5, 3],
       },
     },

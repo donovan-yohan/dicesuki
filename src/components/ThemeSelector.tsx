@@ -143,21 +143,6 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
                   )
                 })}
               </div>
-
-              {/* Development Mode Notice */}
-              <div
-                className="mt-6 p-3 rounded-md border"
-                style={{
-                  backgroundColor: 'rgba(251, 146, 60, 0.1)',
-                  borderColor: 'var(--color-accent)',
-                  borderRadius: 'var(--border-radius-md)',
-                }}
-              >
-                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                  <strong style={{ color: 'var(--color-accent)' }}>Dev Mode:</strong> All themes
-                  are free to preview. Purchases are simulated.
-                </p>
-              </div>
             </div>
           </div>
         </>

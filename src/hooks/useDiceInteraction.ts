@@ -11,6 +11,7 @@ import {
   MAX_THROW_SPEED,
   VELOCITY_HISTORY_SIZE,
 } from '../config/physicsConfig'
+import { useDragStore } from '../store/useDragStore'
 
 interface VelocityHistoryEntry {
   position: THREE.Vector3
@@ -25,7 +26,7 @@ interface DragState {
 
 interface DiceInteraction {
   isDragging: boolean
-  onPointerDown: (event: ThreeEvent<PointerEvent>, rigidBody: RapierRigidBody) => void
+  onPointerDown: (event: ThreeEvent<PointerEvent>, rigidBody: RapierRigidBody, diceId: string) => void
   getDragState: () => DragState
   cancelDrag: () => void
 }
@@ -35,12 +36,15 @@ interface DiceInteraction {
  *
  * Uses direct velocity manipulation for responsive dragging while maintaining
  * full physics interaction. On release, calculates throw velocity from drag motion.
+ * Supports drag-to-delete by checking for trash zone on release.
  */
 export function useDiceInteraction(): DiceInteraction {
   const { camera, gl, size } = useThree()
+  const setDraggedDiceId = useDragStore((state) => state.setDraggedDiceId)
+  const onDiceDelete = useDragStore((state) => state.onDiceDelete)
 
   const [isDragging, setIsDragging] = useState(false)
-  
+
   // Refs for state that updates every frame (avoid re-renders)
   const isDraggingRef = useRef(false)
   const targetPositionRef = useRef<THREE.Vector3 | null>(null)
@@ -49,7 +53,8 @@ export function useDiceInteraction(): DiceInteraction {
   const currentPointerIdRef = useRef<number | null>(null)
   const capturedElementRef = useRef<HTMLElement | null>(null)
   const rigidBodyRef = useRef<RapierRigidBody | null>(null)
-  
+  const currentDiceIdRef = useRef<string | null>(null)
+
   // Velocity tracking for throw calculation
   const velocityHistoryRef = useRef<VelocityHistoryEntry[]>([])
   
@@ -122,11 +127,15 @@ export function useDiceInteraction(): DiceInteraction {
   /**
    * Handle pointer down on dice mesh
    */
-  const onPointerDown = useCallback((event: ThreeEvent<PointerEvent>, rigidBody: RapierRigidBody) => {
+  const onPointerDown = useCallback((event: ThreeEvent<PointerEvent>, rigidBody: RapierRigidBody, diceId: string) => {
     event.stopPropagation()
-    
+
     currentPointerIdRef.current = event.pointerId
     rigidBodyRef.current = rigidBody
+    currentDiceIdRef.current = diceId
+
+    // Update drag store
+    setDraggedDiceId(diceId)
 
     // Capture pointer for continuous tracking
     if (event.nativeEvent.target instanceof HTMLElement) {
@@ -160,7 +169,7 @@ export function useDiceInteraction(): DiceInteraction {
 
     // Wake up the rigid body
     rigidBody.wakeUp()
-  }, [getPointerWorldPosition])
+  }, [getPointerWorldPosition, setDraggedDiceId])
 
   /**
    * Handle pointer move (global listener for continuous tracking)
@@ -202,14 +211,58 @@ export function useDiceInteraction(): DiceInteraction {
   }, [getPointerWorldPosition])
 
   /**
+   * Check if pointer is over the trash drop zone
+   */
+  const isOverTrashZone = useCallback((clientX: number, clientY: number): boolean => {
+    const trashZone = document.getElementById('trash-drop-zone')
+    if (!trashZone) return false
+
+    const rect = trashZone.getBoundingClientRect()
+    return (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    )
+  }, [])
+
+  /**
    * Clear drag state and release pointer capture
    */
-  const endDrag = useCallback(() => {
+  const endDrag = useCallback((pointerEvent?: PointerEvent) => {
     if (!isDraggingRef.current) return
 
-    // Calculate throw velocity before clearing state
-    const throwVel = calculateThrowVelocity()
-    throwVelocityRef.current = throwVel
+    // Check if released over trash zone
+    const diceId = currentDiceIdRef.current
+    if (pointerEvent && diceId && isOverTrashZone(pointerEvent.clientX, pointerEvent.clientY)) {
+      // Delete the dice instead of throwing
+      if (onDiceDelete) {
+        onDiceDelete(diceId)
+      }
+    } else {
+      // Calculate throw velocity before clearing state
+      const throwVel = calculateThrowVelocity()
+      throwVelocityRef.current = throwVel
+
+      // Apply throw velocity to rigid body
+      if (throwVel && rigidBodyRef.current) {
+        rigidBodyRef.current.setLinvel({
+          x: throwVel.x,
+          y: throwVel.y,
+          z: throwVel.z
+        }, true)
+
+        // Scale down accumulated angular velocity to match drag feel
+        // (torque impulses were applied every frame during drag, so velocity is high)
+        const currentAngVel = rigidBodyRef.current.angvel()
+        const dampingFactor = 0.75 // Reduce to ~75% of accumulated spin
+        rigidBodyRef.current.setAngvel({
+          x: currentAngVel.x * dampingFactor,
+          y: currentAngVel.y * dampingFactor,
+          z: currentAngVel.z * dampingFactor
+        }, true)
+      }
+    }
 
     // Release pointer capture
     if (capturedElementRef.current && currentPointerIdRef.current !== null) {
@@ -220,24 +273,8 @@ export function useDiceInteraction(): DiceInteraction {
       }
     }
 
-    // Apply throw velocity to rigid body
-    if (throwVel && rigidBodyRef.current) {
-      rigidBodyRef.current.setLinvel({
-        x: throwVel.x,
-        y: throwVel.y,
-        z: throwVel.z
-      }, true)
-      
-      // Scale down accumulated angular velocity to match drag feel
-      // (torque impulses were applied every frame during drag, so velocity is high)
-      const currentAngVel = rigidBodyRef.current.angvel()
-      const dampingFactor = 0.75 // Reduce to ~75% of accumulated spin
-      rigidBodyRef.current.setAngvel({
-        x: currentAngVel.x * dampingFactor,
-        y: currentAngVel.y * dampingFactor,
-        z: currentAngVel.z * dampingFactor
-      }, true)
-    }
+    // Clear drag store
+    setDraggedDiceId(null)
 
     // Clear refs
     capturedElementRef.current = null
@@ -246,17 +283,18 @@ export function useDiceInteraction(): DiceInteraction {
     dragOffsetRef.current = null
     currentPointerIdRef.current = null
     rigidBodyRef.current = null
+    currentDiceIdRef.current = null
     velocityHistoryRef.current = []
 
     setIsDragging(false)
-  }, [calculateThrowVelocity])
+  }, [calculateThrowVelocity, isOverTrashZone, onDiceDelete, setDraggedDiceId])
 
   /**
    * Handle pointer up (global listener)
    */
   const onPointerUp = useCallback((event: PointerEvent) => {
     if (!isDraggingRef.current || event.pointerId !== currentPointerIdRef.current) return
-    endDrag()
+    endDrag(event)
   }, [endDrag])
 
   /**
@@ -266,7 +304,7 @@ export function useDiceInteraction(): DiceInteraction {
     if (!isDraggingRef.current || event.pointerId !== currentPointerIdRef.current) return
     // Don't apply throw velocity on cancel
     throwVelocityRef.current = null
-    endDrag()
+    endDrag(event)
   }, [endDrag])
 
   /**
@@ -274,7 +312,7 @@ export function useDiceInteraction(): DiceInteraction {
    */
   const onLostPointerCapture = useCallback((event: PointerEvent) => {
     if (!isDraggingRef.current || event.pointerId !== currentPointerIdRef.current) return
-    endDrag()
+    endDrag(event)
   }, [endDrag])
 
   /**

@@ -1,20 +1,20 @@
-import { useRef, useCallback, useState, useEffect } from 'react'
-import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { Box } from '@react-three/drei'
-import { Physics, RigidBody } from '@react-three/rapier'
-import { useRapier } from '@react-three/rapier'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Physics, RigidBody, useRapier } from '@react-three/rapier'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { GRAVITY } from '../config/physicsConfig'
-import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
-import { Dice, DiceHandle } from './dice/Dice'
-import { BottomNav, CenterRollButton, CornerIcon, UIToggleMini } from './layout'
-import { DiceManagerPanel, HistoryPanel, SettingsPanel } from './panels'
-import { useDiceRoll } from '../hooks/useDiceRoll'
-import { useDiceStore } from '../store/useDiceStore'
-import { useDiceManagerStore } from '../store/useDiceManagerStore'
-import { useUIStore } from '../store/useUIStore'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
 import { useTheme } from '../contexts/ThemeContext'
+import { useDiceRoll } from '../hooks/useDiceRoll'
+import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
+import { useDiceManagerStore } from '../store/useDiceManagerStore'
+import { useDiceStore } from '../store/useDiceStore'
+import { useDragStore } from '../store/useDragStore'
+import { useUIStore } from '../store/useUIStore'
+import { Dice, DiceHandle } from './dice/Dice'
+import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
+import { HistoryPanel, SettingsPanel } from './panels'
 
 /**
  * Component to dynamically update physics gravity based on device motion
@@ -120,33 +120,37 @@ function ThemedLighting() {
           <pointLight
             position={[0, 3, wallPositions.top - 1.5]}
             color="#ff8c42"
-            intensity={8.0}
+            intensity={16.0}
             distance={15}
             decay={1.5}
+            castShadow
           />
           {/* South wall torch */}
           <pointLight
             position={[0, 3, wallPositions.bottom + 1.5]}
             color="#ff8c42"
-            intensity={8.0}
+            intensity={16.0}
             distance={15}
             decay={1.5}
+            castShadow
           />
           {/* East wall torch */}
           <pointLight
             position={[wallPositions.right - 1.5, 3, 0]}
             color="#ff8c42"
-            intensity={8.0}
+            intensity={16.0}
             distance={15}
             decay={1.5}
+            castShadow
           />
           {/* West wall torch */}
           <pointLight
             position={[wallPositions.left + 1.5, 3, 0]}
             color="#ff8c42"
-            intensity={8.0}
+            intensity={16.0}
             distance={15}
             decay={1.5}
+            castShadow
           />
         </>
       )}
@@ -304,6 +308,10 @@ function Scene() {
   const dice = useDiceManagerStore((state) => state.dice)
   const addDice = useDiceManagerStore((state) => state.addDice)
   const removeDice = useDiceManagerStore((state) => state.removeDice)
+  const removeAllDice = useDiceManagerStore((state) => state.removeAllDice)
+
+  // Subscribe to drag store
+  const setOnDiceDelete = useDragStore((state) => state.setOnDiceDelete)
 
   // UI state
   const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
@@ -366,6 +374,12 @@ function Scene() {
     }
   }, [removeDice])
 
+  // Register delete callback with drag store
+  useEffect(() => {
+    setOnDiceDelete(handleRemoveDice)
+    return () => setOnDiceDelete(undefined)
+  }, [setOnDiceDelete, handleRemoveDice])
+
   return (
     <>
       <Canvas
@@ -388,107 +402,107 @@ function Scene() {
           left: 0
         }}
       >
-      {/* Camera already configured via Canvas props */}
+        {/* Camera already configured via Canvas props */}
 
-      {/* Themed Background */}
-      <ThemedBackground />
+        {/* Themed Background */}
+        <ThemedBackground />
 
-      {/* Themed Lighting */}
-      <ThemedLighting />
+        {/* Themed Lighting */}
+        <ThemedLighting />
 
-      {/* Physics world - gravity updated via PhysicsController, not props */}
-      <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
-        <PhysicsController gravityRef={gravityRef} />
+        {/* Physics world - gravity updated via PhysicsController, not props */}
+        <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
+          <PhysicsController gravityRef={gravityRef} />
 
-        {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
-        <ViewportBoundaries />
+          {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
+          <ViewportBoundaries />
 
-        {/* Render all dice from store */}
-        {dice.map((die) => (
-          <Dice
-            key={die.id}
-            id={die.id}
-            shape={die.type}
-            ref={(el) => {
-              if (el) {
-                diceRefs.current.set(die.id, el)
-              } else {
-                diceRefs.current.delete(die.id)
-              }
-            }}
-            position={die.position}
-            rotation={die.rotation}
-            size={0.67}
-            color={die.color}
-            onRest={handleDiceRest}
-          />
-        ))}
-      </Physics>
+          {/* Render all dice from store */}
+          {dice.map((die) => (
+            <Dice
+              key={die.id}
+              id={die.id}
+              shape={die.type}
+              ref={(el) => {
+                if (el) {
+                  diceRefs.current.set(die.id, el)
+                } else {
+                  diceRefs.current.delete(die.id)
+                }
+              }}
+              position={die.position}
+              rotation={die.rotation}
+              size={0.67}
+              color={die.color}
+              onRest={handleDiceRest}
+            />
+          ))}
+        </Physics>
 
-      {/* Performance monitoring */}
-      <PerformanceOverlay />
-    </Canvas>
+        {/* Performance monitoring */}
+        <PerformanceOverlay />
+      </Canvas>
 
-    {/* Result Display - subscribes to store */}
-    <ResultDisplay />
+      {/* Result Display - subscribes to store */}
+      <ResultDisplay />
 
-    {/* NEW LAYOUT SYSTEM */}
-    {/* Bottom Navigation Bar */}
-    <BottomNav
-      isVisible={isUIVisible}
-      onToggleUI={toggleUIVisibility}
-      onOpenDiceManager={() => setIsDiceManagerOpen(true)}
-      onOpenHistory={() => setIsHistoryOpen(true)}
-      onToggleMotion={handleToggleMotion} // Request permission when enabling
-      isMobile={isMobile}
-      motionModeActive={motionMode}
-    />
+      {/* NEW LAYOUT SYSTEM */}
+      {/* Bottom Navigation Bar */}
+      <BottomNav
+        isVisible={isUIVisible}
+        onToggleUI={toggleUIVisibility}
+        onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onToggleMotion={handleToggleMotion} // Request permission when enabling
+        isMobile={isMobile}
+        motionModeActive={motionMode}
+        diceManagerOpen={isDiceManagerOpen}
+      />
 
-    {/* Center Roll Button - elevated above nav */}
-    <CenterRollButton onClick={handleRollClick} isRolling={false} />
+      {/* Center Roll Button - elevated above nav */}
+      <CenterRollButton onClick={handleRollClick} isRolling={false} />
 
-    {/* Top-Left Corner: Settings */}
-    <CornerIcon
-      position="top-left"
-      onClick={() => setIsSettingsOpen(true)}
-      label="Settings"
-      isVisible={isUIVisible}
-    >
-      ⚙️
-    </CornerIcon>
+      {/* Top-Left Corner: Settings */}
+      <CornerIcon
+        position="top-left"
+        onClick={() => setIsSettingsOpen(true)}
+        label="Settings"
+        isVisible={isUIVisible}
+      >
+        ⚙️
+      </CornerIcon>
 
-    {/* Top-Right Corner: Profile/Room (placeholder) */}
-    <CornerIcon
-      position="top-right"
-      onClick={() => console.log('Profile clicked')}
-      label="Profile"
-      isVisible={isUIVisible}
-    >
-      👤
-    </CornerIcon>
+      {/* Top-Right Corner: Profile/Room (placeholder) */}
+      <CornerIcon
+        position="top-right"
+        onClick={() => console.log('Profile clicked')}
+        label="Profile"
+        isVisible={isUIVisible}
+      >
+        👤
+      </CornerIcon>
 
-    {/* Mini UI Toggle - shows when UI hidden */}
-    <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
+      {/* Mini UI Toggle - shows when UI hidden */}
+      <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
 
-    {/* THEMED PANELS */}
-    <DiceManagerPanel
-      isOpen={isDiceManagerOpen}
-      onClose={() => setIsDiceManagerOpen(false)}
-      onAddDice={handleAddDice}
-      onRemoveDice={handleRemoveDice}
-      dice={dice}
-    />
+      {/* DICE TOOLBAR - Compact slide-out dice management */}
+      <DiceToolbar
+        isOpen={isDiceManagerOpen}
+        onAddDice={handleAddDice}
+        onClearAll={removeAllDice}
+      />
 
-    <HistoryPanel
-      isOpen={isHistoryOpen}
-      onClose={() => setIsHistoryOpen(false)}
-    />
+      {/* THEMED PANELS */}
+      <HistoryPanel
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+      />
 
-    <SettingsPanel
-      isOpen={isSettingsOpen}
-      onClose={() => setIsSettingsOpen(false)}
-    />
-  </>
+      <SettingsPanel
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
+    </>
   )
 }
 
@@ -500,6 +514,7 @@ function ResultDisplay() {
   const currentRoll = useDiceStore((state) => state.currentRoll)
   const expectedDiceCount = useDiceStore((state) => state.expectedDiceCount)
   const lastResult = useDiceStore((state) => state.lastResult)
+  const dice = useDiceManagerStore((state) => state.dice)
 
   // Show current roll if in progress, otherwise show last completed roll
   const isRolling = currentRoll.length > 0 && currentRoll.length < expectedDiceCount
@@ -511,8 +526,10 @@ function ResultDisplay() {
   const displayDice = currentRoll.length > 0 ? currentRoll : lastResult?.dice || []
   const displaySum = displayDice.reduce((acc, d) => acc + d.value, 0)
 
-  // Calculate how many dice are still pending
-  const pendingCount = isRolling ? expectedDiceCount - currentRoll.length : 0
+  // Calculate pending dice - find which dice haven't reported yet
+  const pendingDice = isRolling
+    ? dice.filter(die => !currentRoll.some(r => r.id === die.id))
+    : []
 
   return (
     <div className="absolute top-4 left-1/2 -translate-x-1/2 md:top-20 md:left-auto md:right-4 md:translate-x-0 text-white text-center z-20 flex flex-col items-center gap-3">
@@ -522,17 +539,23 @@ function ResultDisplay() {
       </div>
 
       {/* Individual dice values */}
-      <div className="flex gap-2 justify-center flex-wrap">
+      <div className="flex gap-3 justify-center flex-wrap">
         {displayDice.map((die, idx) => (
-          <span key={idx} className="text-2xl font-bold bg-gray-700 px-3 py-1 rounded">
-            {die.value}
-          </span>
+          <div key={idx} className="flex flex-col items-center gap-1">
+            <span className="text-[10px] text-gray-400 uppercase font-semibold">{die.type}</span>
+            <div className="bg-gray-700 px-4 py-2 rounded min-w-[48px] flex items-center justify-center">
+              <span className="text-2xl font-bold">{die.value}</span>
+            </div>
+          </div>
         ))}
-        {/* Show ? for pending dice */}
-        {Array.from({ length: pendingCount }).map((_, idx) => (
-          <span key={`pending-${idx}`} className="text-2xl font-bold bg-gray-600 px-3 py-1 rounded animate-pulse">
-            ?
-          </span>
+        {/* Show pending dice */}
+        {pendingDice.map((die) => (
+          <div key={`pending-${die.id}`} className="flex flex-col items-center gap-1 animate-pulse">
+            <span className="text-[10px] text-gray-400 uppercase font-semibold">{die.type}</span>
+            <div className="bg-gray-600 px-4 py-2 rounded min-w-[48px] flex items-center justify-center">
+              <span className="text-2xl font-bold">?</span>
+            </div>
+          </div>
         ))}
       </div>
 

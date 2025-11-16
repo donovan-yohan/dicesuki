@@ -25,6 +25,7 @@ interface BottomNavProps {
   onToggleMotion?: () => void // Optional - mobile only
   isMobile: boolean
   motionModeActive?: boolean
+  diceManagerOpen?: boolean
 }
 
 export function BottomNav({
@@ -35,6 +36,7 @@ export function BottomNav({
   onToggleMotion,
   isMobile,
   motionModeActive = false,
+  diceManagerOpen = false,
 }: BottomNavProps) {
   const { getIcon } = useThemedAsset()
   const reduceMotion = shouldReduceMotion()
@@ -70,6 +72,7 @@ export function BottomNav({
           onClick={onOpenDiceManager}
           label="Manage Dice"
           icon={getIcon('dice') || 'DICE'}
+          active={diceManagerOpen}
         />
       </div>
 

@@ -107,7 +107,9 @@ afterEach(() => {
 - **Component Tests**: UI components, rendering, interaction
 - **Integration Tests**: Component + hook integration
 - **Target**: >80% code coverage
-- **Current**: 73 tests passing (24 tests for haptic feedback), 100% pass rate
+- **Current**: 97 tests passing, 3 failing (haptic throttle tests), 16 skipped
+  - Test files: 7 passing, 1 failing (useHapticFeedback.test.ts)
+  - Note: Haptic throttle tests need investigation and fixing
 
 ---
 
@@ -621,11 +623,14 @@ The project has been upgraded to React 19 and the latest React Three Fiber ecosy
 src/
 ├── components/        # React components
 │   ├── dice/         # Dice-specific components
-│   ├── panels/       # UI panels (Settings, etc.)
+│   ├── icons/        # Icon components (DiceIcon, DiceIconWithNumber)
+│   ├── layout/       # Layout components (BottomNav, DiceToolbar, etc.)
+│   ├── panels/       # UI panels (Settings, ThemeSelector, etc.)
 │   └── *.tsx         # UI components
 ├── config/           # Configuration files
 │   └── physicsConfig.ts  # All physics constants
 ├── contexts/         # React contexts
+│   └── ThemeContext.tsx  # Theme management and provider
 ├── hooks/            # Custom React hooks
 │   ├── useHapticFeedback.ts  # Haptic feedback hook
 │   └── *.ts          # Other hooks
@@ -634,6 +639,11 @@ src/
 │   ├── haptics.ts    # Haptic utilities
 │   └── *.ts          # Other utilities
 ├── store/            # Zustand stores
+│   ├── useDiceManagerStore.ts  # Dice state management
+│   └── useUIStore.ts           # UI preferences (haptics, etc.)
+├── themes/           # Theme system
+│   ├── tokens.ts     # Theme definitions (5 themes)
+│   └── registry.ts   # Theme registry and utilities
 └── test/             # Test setup and helpers
 ```
 
@@ -729,6 +739,22 @@ import type { D6Props, D6Handle } from './types'
 4. Add new patterns discovered
 5. Remove obsolete information
 6. Update "Last Updated" date
+
+---
+
+## Recent Updates
+
+### 2025-11-16: UI Enhancements & Theme Integration
+- **DiceToolbar**: Integrated with theme system for dynamic colors
+  - Dice buttons now use `currentTheme.tokens.colors.accent` and `currentTheme.tokens.colors.surface`
+  - Hover effects use `currentTheme.tokens.colors.dice.highlight`
+  - Implemented dual trash button functionality: click to clear all, drag to delete individual dice
+- **Theme System**: All themes now owned by default for development/testing
+  - Added one-time migration in ThemeProvider to grant access to all themes
+- **Dungeon Theme**: Updated environment colors for authentic castle aesthetic
+  - Floor: `#2a2a2a` (dark gray stone)
+  - Walls: `#333333` (dark gray stone)
+  - Lighting: Neutral gray ambient (`#999999`) with minimal directional light
 
 ---
 
