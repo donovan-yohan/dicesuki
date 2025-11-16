@@ -63,6 +63,7 @@ body,
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #000000; /* Default black background for Canvas to render on */
 }
 
 /* Prevent default touch behaviors on Canvas to allow pointer events through */

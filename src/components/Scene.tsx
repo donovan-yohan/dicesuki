@@ -49,12 +49,50 @@ function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<
 }
 
 /**
+ * Themed background component
+ * Sets the Three.js scene background color from theme
+ */
+function ThemedBackground() {
+  const { scene } = useThree()
+  const { currentTheme } = useTheme()
+  const bgColor = currentTheme.environment.background.color
+
+  useEffect(() => {
+    console.log(`[ThemedBackground] Setting scene background to: ${bgColor} for theme: ${currentTheme.id}`)
+    const color = new THREE.Color(bgColor)
+    scene.background = color
+    console.log(`[ThemedBackground] Scene background object:`, scene.background, 'R:', scene.background.r, 'G:', scene.background.g, 'B:', scene.background.b)
+  }, [scene, bgColor, currentTheme.id])
+
+  return null
+}
+
+/**
  * Themed lighting component
  * Uses theme's lighting configuration for ambient and directional lights
  */
 function ThemedLighting() {
   const { currentTheme } = useTheme()
   const lighting = currentTheme.environment.lighting
+  const { size } = useThree()
+
+  // Calculate wall positions for torch placement (for dungeon theme)
+  const isDungeonTheme = currentTheme.id === 'dungeon-castle'
+
+  // Calculate viewport bounds for torch positioning
+  const aspect = size.width / size.height
+  const distance = 15 // camera height
+  const vFOV = THREE.MathUtils.degToRad(40)
+  const height = 2 * Math.tan(vFOV / 2) * distance
+  const width = height * aspect
+  const margin = -0.05
+
+  const wallPositions = {
+    left: -(width / 2) * (1 + margin),
+    right: (width / 2) * (1 + margin),
+    top: (height / 2) * (1 + margin),
+    bottom: -(height / 2) * (1 + margin),
+  }
 
   return (
     <>
@@ -74,6 +112,44 @@ function ThemedLighting() {
         shadow-camera-top={10}
         shadow-camera-bottom={-10}
       />
+
+      {/* Torch lights on walls for dungeon theme */}
+      {isDungeonTheme && (
+        <>
+          {/* North wall torch */}
+          <pointLight
+            position={[0, 3, wallPositions.top - 1.5]}
+            color="#ff8c42"
+            intensity={8.0}
+            distance={15}
+            decay={1.5}
+          />
+          {/* South wall torch */}
+          <pointLight
+            position={[0, 3, wallPositions.bottom + 1.5]}
+            color="#ff8c42"
+            intensity={8.0}
+            distance={15}
+            decay={1.5}
+          />
+          {/* East wall torch */}
+          <pointLight
+            position={[wallPositions.right - 1.5, 3, 0]}
+            color="#ff8c42"
+            intensity={8.0}
+            distance={15}
+            decay={1.5}
+          />
+          {/* West wall torch */}
+          <pointLight
+            position={[wallPositions.left + 1.5, 3, 0]}
+            color="#ff8c42"
+            intensity={8.0}
+            distance={15}
+            decay={1.5}
+          />
+        </>
+      )}
     </>
   )
 }
@@ -260,10 +336,13 @@ function Scene() {
     onDiceRest(diceId, faceValue, diceType)
   }, [onDiceRest])
 
+  // Get current theme
+  const { currentTheme } = useTheme()
+
   const handleAddDice = useCallback((type: string) => {
     console.log('Adding dice:', type)
-    addDice(type as import('../lib/geometries').DiceShape)
-  }, [addDice])
+    addDice(type as import('../lib/geometries').DiceShape, currentTheme.id)
+  }, [addDice, currentTheme.id])
 
   const handleToggleMotion = useCallback(async () => {
     if (!motionMode) {
@@ -299,9 +378,20 @@ function Scene() {
         }}
         // Enable pointer events for touch and mouse
         // This ensures pointer events reach the mesh components
-        style={{ touchAction: 'none' }}
+        style={{
+          touchAction: 'none',
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          position: 'absolute',
+          top: 0,
+          left: 0
+        }}
       >
       {/* Camera already configured via Canvas props */}
+
+      {/* Themed Background */}
+      <ThemedBackground />
 
       {/* Themed Lighting */}
       <ThemedLighting />

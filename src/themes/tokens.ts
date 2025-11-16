@@ -879,20 +879,20 @@ export const dungeonCastleTheme: Theme = {
 
   dice: {
     defaultColors: {
-      d4: '#8b0000', // Brighter dark red (was too dark)
-      d6: '#708090', // Lighter slate gray (was too dark)
-      d8: '#cd5c5c', // Indian red (brighter)
-      d10: '#a9a9a9', // Lighter gray (was too dark)
-      d12: '#696969', // Dim gray (lightened)
-      d20: '#dc143c', // Crimson (brighter red)
+      d4: '#8b0000', // Dark red
+      d6: '#708090', // Slate gray
+      d8: '#696969', // Dim gray
+      d10: '#556b2f', // Dark olive green
+      d12: '#483d8b', // Dark slate blue
+      d20: '#8b4513', // Saddle brown
     },
     materials: {
-      roughness: 0.6, // Less rough for more reflection (was 0.8)
-      metalness: 0.4, // More metallic shine (was 0.3)
-      emissiveIntensity: 0.1, // Slight glow to help visibility
+      roughness: 0.8, // Rough stone-like surface
+      metalness: 0.3, // Slight metallic sheen
+      emissiveIntensity: 0.05, // Very subtle glow
     },
     numbering: {
-      color: '#ffffff', // Pure white for better contrast (was silver)
+      color: '#c0c0c0', // Silver
       style: 'engraved',
       depth: 0.1,
     },
@@ -900,17 +900,17 @@ export const dungeonCastleTheme: Theme = {
 
   environment: {
     floor: {
-      color: '#6a6a6a', // Much lighter gray
+      color: '#3a3a3a', // Dark stone floor
       material: {
-        roughness: 0.75,
-        metalness: 0.1,
+        roughness: 0.9,
+        metalness: 0.0,
       },
       receiveShadow: true,
     },
     walls: {
-      color: '#7a7a7a', // Much lighter gray
+      color: '#4a4a4a', // Dark stone walls
       material: {
-        roughness: 0.8,
+        roughness: 0.95,
         metalness: 0.0,
       },
       visible: true,
@@ -918,21 +918,21 @@ export const dungeonCastleTheme: Theme = {
     },
     ceiling: {
       visible: true,
-      color: '#4a4a4a',
+      // No color = transparent ceiling (physics barrier only, not visual)
     },
     lighting: {
       ambient: {
-        color: '#ffcc88', // Bright warm light
-        intensity: 1.2, // Very bright ambient
+        color: '#4d3319', // Dim warm torchlight
+        intensity: 0.8, // Slightly brighter ambient for visibility
       },
       directional: {
-        color: '#ffd699', // Very bright warm light
-        intensity: 1.5, // Maximum brightness
+        color: '#ff8c42', // Flickering torch orange
+        intensity: 1.0, // Slightly brighter directional light
         position: [2, 5, 3],
       },
     },
     background: {
-      color: '#3a3a3a', // Much lighter background
+      color: '#1a1a1a', // Very dark background
     },
   },
 }
