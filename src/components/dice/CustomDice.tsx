@@ -7,7 +7,7 @@
  */
 
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, ThreeEvent } from '@react-three/fiber'
 import { ContactForcePayload, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
 import * as THREE from 'three'
 import {
@@ -101,7 +101,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
       friction: 0.6,
     }
 
-    const colliderConfig = metadata?.colliderType || 'hull'
+    const colliderType = metadata?.colliderType || 'hull'
     const colliderArgs = metadata?.colliderArgs || {}
     const scale = metadata?.scale || 1.0
     const diceType = metadata?.diceType || 'd6'
@@ -421,7 +421,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
       <RigidBody
         ref={rigidBodyRef}
         position={position}
-        colliders={colliderConfig === 'hull' ? 'hull' : false}
+        colliders={colliderType === 'hull' ? 'hull' : false}
         type="dynamic"
         restitution={physicsProps.restitution}
         friction={physicsProps.friction}
@@ -430,7 +430,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
         onContactForce={handleContactForce}
       >
         {/* Use RoundCuboidCollider for roundCuboid type */}
-        {colliderConfig === 'roundCuboid' && colliderArgs.halfExtents && (
+        {colliderType === 'roundCuboid' && colliderArgs.halfExtents && (
           <RoundCuboidCollider
             args={[
               colliderArgs.halfExtents[0],
@@ -445,7 +445,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
         <primitive
           object={scene}
           scale={scale}
-          onPointerDown={(event: any) => {
+          onPointerDown={(event: ThreeEvent<PointerEvent>) => {
             if (rigidBodyRef.current) {
               onPointerDown(event, rigidBodyRef.current, id)
             }

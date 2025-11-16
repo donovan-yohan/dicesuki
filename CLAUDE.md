@@ -823,6 +823,20 @@ When testing saved rolls:
 
 ## Recent Updates
 
+### 2025-11-16: PR Review Fixes - Artist Testing Platform
+- **Code Quality Improvements**: Addressed all 10 Copilot PR review comments
+  - Fixed blob URL memory leaks in ArtistTestingPanel with proper ref-based cleanup
+  - Improved useGLTF hook safety with data URI fallback for null assets
+  - Added physics colliders (RigidBody + CuboidCollider) to preview scene floor and walls
+  - Renamed `colliderConfig` to `colliderType` for clarity and accuracy
+  - Enhanced type safety: `ThreeEvent<PointerEvent>` instead of `any` in CustomDice
+  - Fixed validation logic: scale/mass conditions now match error messages (0.1 minimum)
+  - Removed unused imports: DiceMetadata, ValidationResult, serializeMetadata
+- **Build Verification**: All TypeScript checks passing, production build successful
+  - No compilation errors, exit code 0
+  - Vercel deployment ready with proper dist/ output
+  - Only informational warnings (chunk size optimization suggestions)
+
 ### 2025-11-16: Inventory-Based Dice Limiting System
 - **Core Feature**: Implemented inventory-based dice spawning limits
   - Players can only spawn dice they own from inventory

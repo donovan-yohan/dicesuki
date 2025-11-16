@@ -144,7 +144,7 @@ export function validateMetadata(metadata: unknown): ValidationResult {
   // Scale validation
   if (typeof meta.scale !== 'number') {
     errors.push('scale must be a number')
-  } else if (meta.scale <= 0 || meta.scale > 10) {
+  } else if (meta.scale < 0.1 || meta.scale > 10) {
     errors.push('scale must be between 0.1 and 10')
   }
 
@@ -257,7 +257,7 @@ function validatePhysics(physics: unknown): string[] {
   // Mass
   if (typeof phys.mass !== 'number') {
     errors.push('physics.mass: must be a number')
-  } else if (phys.mass <= 0 || phys.mass > 100) {
+  } else if (phys.mass < 0.1 || phys.mass > 100) {
     errors.push('physics.mass: must be between 0.1 and 100')
   }
 

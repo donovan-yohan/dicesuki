@@ -41,7 +41,9 @@ function convertFaceNormals(metadataFaceNormals: FaceNormal[]): DiceFace[] {
 export function useCustomDiceLoader(asset: CustomDiceAsset | null) {
   // Load GLB model using React Three Fiber's useGLTF hook
   // This hook handles caching and automatic disposal
-  const gltf = useGLTF(asset?.modelUrl || '', true)
+  // Note: We must call useGLTF unconditionally (React hooks rule)
+  // When asset is null, we pass a dummy path that will be ignored
+  const gltf = useGLTF(asset?.modelUrl || 'data:text/plain,', true)
 
   // Convert metadata face normals to DiceFace format
   const faceNormals = useMemo(() => {

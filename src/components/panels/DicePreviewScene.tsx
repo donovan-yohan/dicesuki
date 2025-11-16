@@ -8,7 +8,7 @@
 import { useRef, useState, Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Environment } from '@react-three/drei'
-import { Physics } from '@react-three/rapier'
+import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier'
 import * as THREE from 'three'
 import { CustomDice } from '../dice/CustomDice'
 import { CustomDiceAsset } from '../../types/customDice'
@@ -105,32 +105,34 @@ export function DicePreviewScene({ asset, onClose }: DicePreviewSceneProps) {
           {/* Physics World */}
           <Physics gravity={[0, -9.81, 0]}>
             {/* Table/Floor */}
-            <mesh
-              receiveShadow
-              position={[0, -0.5, 0]}
-              rotation={[-Math.PI / 2, 0, 0]}
-            >
-              <planeGeometry args={[20, 20]} />
-              <meshStandardMaterial color="#2a2a2a" roughness={0.8} />
-            </mesh>
+            <RigidBody type="fixed" position={[0, -0.5, 0]}>
+              <mesh
+                receiveShadow
+                rotation={[-Math.PI / 2, 0, 0]}
+              >
+                <planeGeometry args={[20, 20]} />
+                <meshStandardMaterial color="#2a2a2a" roughness={0.8} />
+              </mesh>
+              <CuboidCollider args={[10, 0.1, 10]} />
+            </RigidBody>
 
-            {/* Walls (invisible boundaries) */}
+            {/* Walls (invisible boundaries with physics) */}
             {/* Front wall */}
-            <mesh position={[0, 2, -5]} visible={false}>
-              <boxGeometry args={[20, 10, 0.1]} />
-            </mesh>
+            <RigidBody type="fixed" position={[0, 2, -5]}>
+              <CuboidCollider args={[10, 5, 0.05]} />
+            </RigidBody>
             {/* Back wall */}
-            <mesh position={[0, 2, 5]} visible={false}>
-              <boxGeometry args={[20, 10, 0.1]} />
-            </mesh>
+            <RigidBody type="fixed" position={[0, 2, 5]}>
+              <CuboidCollider args={[10, 5, 0.05]} />
+            </RigidBody>
             {/* Left wall */}
-            <mesh position={[-5, 2, 0]} visible={false}>
-              <boxGeometry args={[0.1, 10, 20]} />
-            </mesh>
+            <RigidBody type="fixed" position={[-5, 2, 0]}>
+              <CuboidCollider args={[0.05, 5, 10]} />
+            </RigidBody>
             {/* Right wall */}
-            <mesh position={[5, 2, 0]} visible={false}>
-              <boxGeometry args={[0.1, 10, 20]} />
-            </mesh>
+            <RigidBody type="fixed" position={[5, 2, 0]}>
+              <CuboidCollider args={[0.05, 5, 10]} />
+            </RigidBody>
 
             {/* Custom Dice */}
             <CustomDice

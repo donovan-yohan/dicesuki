@@ -19,9 +19,7 @@ import { useState, useCallback, useRef } from 'react'
 import { DiceShape } from '../../lib/geometries'
 import {
   CustomDiceAsset,
-  DiceMetadata,
   UploadState,
-  ValidationResult,
 } from '../../types/customDice'
 import {
   validateGLBFile,
@@ -30,7 +28,6 @@ import {
 } from '../../lib/diceMetadataSchema'
 import {
   generateDefaultMetadata,
-  serializeMetadata,
   downloadMetadata,
 } from '../../lib/diceMetadataGenerator'
 import { DicePreviewScene } from './DicePreviewScene'
@@ -57,6 +54,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
   const [customName, setCustomName] = useState('')
   const [customArtist, setCustomArtist] = useState('')
   const [previewAsset, setPreviewAsset] = useState<CustomDiceAsset | null>(null)
+  const blobUrlRef = useRef<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const metadataInputRef = useRef<HTMLInputElement>(null)
@@ -146,8 +144,14 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       return
     }
 
+    // Revoke previous blob URL if it exists
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current)
+    }
+
     // Create blob URL for the uploaded GLB file
     const blobUrl = URL.createObjectURL(uploadState.file)
+    blobUrlRef.current = blobUrl
 
     // Create custom dice asset
     const asset: CustomDiceAsset = {
@@ -168,20 +172,21 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
    * Close preview and cleanup blob URL
    */
   const handleClosePreview = useCallback(() => {
-    if (previewAsset?.previewBlobUrl) {
-      URL.revokeObjectURL(previewAsset.previewBlobUrl)
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current)
+      blobUrlRef.current = null
     }
     setPreviewAsset(null)
-  }, [previewAsset])
+  }, [])
 
   /**
    * Reset the upload state
    */
   const handleReset = useCallback(() => {
-    // Revoke blob URLs to free memory
-    if (uploadState.file) {
-      const blobUrl = URL.createObjectURL(uploadState.file)
-      URL.revokeObjectURL(blobUrl)
+    // Revoke blob URL if it exists
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current)
+      blobUrlRef.current = null
     }
 
     setUploadState({
@@ -195,7 +200,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
 
     setCustomName('')
     setCustomArtist('')
-  }, [uploadState.file])
+  }, [])
 
   // Check if ready to preview
   const canPreview =
