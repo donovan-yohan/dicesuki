@@ -334,6 +334,8 @@ function Scene() {
     const impulse = roll(dice.length)
     if (impulse) {
       console.log(`Rolling ${dice.length} dice`)
+      console.log(`diceRefs.current size: ${diceRefs.current.size}`)
+      console.log(`dice array:`, dice.map(d => ({ id: d.id, type: d.type, groupId: d.rollGroupId })))
 
       // Check if dice count changed from saved roll - if so, clear bonuses
       const activeSavedRoll = useDiceStore.getState().activeSavedRoll
@@ -343,7 +345,8 @@ function Scene() {
       }
 
       // Apply impulse to ALL dice
-      diceRefs.current.forEach((diceHandle) => {
+      diceRefs.current.forEach((diceHandle, id) => {
+        console.log(`Applying impulse to dice: ${id}`)
         diceHandle.applyRollImpulse(impulse)
       })
 
@@ -605,12 +608,9 @@ function RollGroupDisplay({ group, dice }: { group: any; dice: any[] }) {
   const isRolling = group.currentRoll.length > 0 && group.currentRoll.length < group.expectedDiceCount
 
   return (
-    <div className="backdrop-blur-sm rounded-lg p-3 shadow-lg mb-2" style={{
-      backgroundColor: 'rgba(0, 0, 0, 0.85)',
-      border: '2px solid var(--color-border)',
-    }}>
+    <div className="flex flex-col items-center gap-2">
       {/* Group name and remove button */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center gap-2">
         <span className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
           {group.name}
         </span>
@@ -624,7 +624,7 @@ function RollGroupDisplay({ group, dice }: { group: any; dice: any[] }) {
       </div>
 
       {/* Grand total */}
-      <div className="flex flex-col items-center gap-1 mb-2">
+      <div className="flex flex-col items-center gap-1">
         <div className="text-5xl font-bold" style={{
           color: 'var(--color-accent)',
           textShadow: '0 0 15px rgba(251, 146, 60, 0.5)'
@@ -632,7 +632,9 @@ function RollGroupDisplay({ group, dice }: { group: any; dice: any[] }) {
           {isRolling ? '?' : grandTotal}
         </div>
         {!isRolling && group.flatBonus !== 0 && (
-          <div className="text-xs text-gray-300 bg-black bg-opacity-75 px-2 py-1 rounded">
+          <div className="text-xs text-gray-300 backdrop-blur-sm px-2 py-1 rounded" style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.75)'
+          }}>
             {diceSum + perDieBonusesTotal} + {group.flatBonus}
           </div>
         )}
@@ -645,7 +647,7 @@ function RollGroupDisplay({ group, dice }: { group: any; dice: any[] }) {
           return (
             <div key={idx} className="flex flex-col items-center gap-1">
               <span className="text-[8px] text-gray-400 uppercase font-semibold">{die.type}</span>
-              <div className="px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center" style={{
+              <div className="backdrop-blur-sm px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center" style={{
                 backgroundColor: 'rgba(0, 0, 0, 0.7)',
                 border: '1px solid rgba(251, 146, 60, 0.3)'
               }}>
@@ -663,7 +665,7 @@ function RollGroupDisplay({ group, dice }: { group: any; dice: any[] }) {
         {pendingDice.map((die) => (
           <div key={`pending-${die.id}`} className="flex flex-col items-center gap-1 animate-pulse">
             <span className="text-[8px] text-gray-400 uppercase font-semibold">{die.type}</span>
-            <div className="px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center" style={{
+            <div className="backdrop-blur-sm px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center" style={{
               backgroundColor: 'rgba(0, 0, 0, 0.5)',
               border: '1px solid rgba(251, 146, 60, 0.2)'
             }}>
@@ -695,7 +697,14 @@ function ResultDisplay() {
   if (!hasActiveGroups && !hasManualRoll) return null
 
   return (
-    <div className="absolute top-8 left-1/2 -translate-x-1/2 text-white z-20 flex flex-col items-center gap-2 pointer-events-none" style={{ maxWidth: '90vw' }}>
+    <div
+      className="absolute top-8 left-0 right-0 text-white z-20 flex items-start gap-4 overflow-x-auto pointer-events-none px-4"
+      style={{
+        maxHeight: '40vh',
+        scrollbarWidth: 'thin',
+        scrollbarColor: 'rgba(251, 146, 60, 0.5) transparent'
+      }}
+    >
       {/* Show all active roll groups */}
       {hasActiveGroups && activeRollGroups.map((group) => (
         <RollGroupDisplay key={group.id} group={group} dice={dice} />
