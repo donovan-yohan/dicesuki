@@ -28,10 +28,10 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const reduceMotion = shouldReduceMotion()
   const containerRef = useRef<HTMLDivElement>(null)
-  const y = useMotionValue(0)
+  const dragY = useMotionValue(0)
 
   // Transform opacity based on drag distance
-  const opacity = useTransform(y, [0, 300], [1, 0])
+  const dragOpacity = useTransform(dragY, [0, 300], [1, 0])
 
   const sheetVariants = {
     hidden: {
@@ -42,9 +42,8 @@ export function BottomSheet({
       y: 0,
       opacity: 1,
       transition: {
-        type: 'spring' as const,
-        damping: 30,
-        stiffness: 300,
+        duration: 0.3,
+        ease: 'easeOut',
       },
     },
     exit: {
@@ -52,6 +51,7 @@ export function BottomSheet({
       opacity: 0,
       transition: {
         duration: 0.2,
+        ease: 'easeIn',
       },
     },
   }
@@ -84,8 +84,8 @@ export function BottomSheet({
             }}
             variants={backdropVariants}
             initial="hidden"
-            animate={reduceMotion ? 'visible' : 'visible'}
-            exit={reduceMotion ? 'hidden' : 'exit'}
+            animate="visible"
+            exit="exit"
             onClick={onClose}
           />
 
@@ -98,13 +98,11 @@ export function BottomSheet({
               maxHeight: '90vh',
               backgroundColor: 'var(--color-surface)',
               boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
-              y,
-              opacity,
             }}
             variants={sheetVariants}
             initial="hidden"
-            animate={reduceMotion ? 'visible' : 'visible'}
-            exit={reduceMotion ? 'hidden' : 'exit'}
+            animate="visible"
+            exit="exit"
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.5 }}
