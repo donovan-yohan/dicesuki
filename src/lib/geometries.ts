@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import { POLYHEDRON_DETAIL_LEVEL } from '../config/physicsConfig'
+import { createToonMaterial } from './shaders/toonShader'
+import type { ToonShaderConfig } from '../themes/tokens'
 
 /**
  * Dice shape types
@@ -203,14 +205,29 @@ export function createD4Geometry(size: number = 1): THREE.TetrahedronGeometry {
  * @param roughness - Material roughness (0 = smooth, 1 = rough)
  * @param metalness - Material metalness (0 = non-metal, 1 = metallic)
  * @param emissiveIntensity - Optional glow effect
- * @returns Single material for all faces
+ * @param shaderStyle - Shader style ('realistic' | 'toon' | 'custom')
+ * @param toonConfig - Toon shader configuration (only used if shaderStyle === 'toon')
+ * @returns Material for dice (MeshStandardMaterial or ShaderMaterial)
  */
 export function createDiceMaterial(
   color: string = 'orange',
   roughness: number = 0.7,
   metalness: number = 0.1,
-  emissiveIntensity?: number
-): THREE.MeshStandardMaterial {
+  emissiveIntensity?: number,
+  shaderStyle: 'realistic' | 'toon' | 'custom' = 'realistic',
+  toonConfig?: ToonShaderConfig
+): THREE.Material {
+  // Toon shading (cel-shaded cartoon look)
+  if (shaderStyle === 'toon' && toonConfig) {
+    return createToonMaterial({
+      color,
+      levels: toonConfig.levels,
+      rimPower: 2.0,
+      rimColor: '#ffffff',
+    })
+  }
+
+  // Realistic PBR shading (default)
   const material = new THREE.MeshStandardMaterial({
     color: color,
     roughness: roughness,
@@ -232,7 +249,7 @@ export function createDiceMaterial(
  */
 export function createD6Material(
   color: string = 'orange'
-): THREE.MeshStandardMaterial {
+): THREE.Material {
   return createDiceMaterial(color)
 }
 

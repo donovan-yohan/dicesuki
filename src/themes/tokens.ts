@@ -158,6 +158,88 @@ export interface DiceCustomization {
 }
 
 // ============================================================================
+// Visual Effects Customization
+// ============================================================================
+
+export interface ToonShaderConfig {
+  levels: number // Number of color bands for cel shading (e.g., 3-5)
+  outlineThickness: number // Edge outline thickness (0 = none, 0.05 = thick)
+  outlineColor: string // Color of the outline
+}
+
+export interface PostProcessingEffects {
+  filmGrain?: {
+    intensity: number // 0-1, grain strength
+  }
+  bloom?: {
+    intensity: number // 0-2+, glow strength
+    threshold: number // 0-1, brightness threshold
+    radius: number // 0-1, glow spread
+  }
+  vignette?: {
+    darkness: number // 0-1, edge darkness
+    offset: number // 0-1, falloff distance
+  }
+  colorGrading?: {
+    temperature: number // -1 to 1, warmth (-1 = cool blue, 1 = warm orange)
+    tint: string // Color tint (e.g., '#ff8c42')
+    saturation: number // 0-2, color intensity (1 = normal)
+  }
+  depthOfField?: {
+    focusDistance: number // Distance to focal plane
+    focalLength: number // Camera focal length
+    bokehScale: number // Blur amount
+  }
+}
+
+export interface EnvironmentalElements {
+  grass?: {
+    density: number // Number of grass blades/patches
+    color: string // Grass color
+    height: number // Grass height
+  }
+  particles?: {
+    type: 'dust' | 'sparkles' | 'fireflies' | 'none'
+    count: number // Number of particles
+    color?: string // Particle color
+  }
+  props?: {
+    type: 'mushrooms' | 'rocks' | 'torches' | 'none'
+    count: number // Number of decorative props
+  }
+}
+
+export interface LightingEffects {
+  flickering?: {
+    enabled: boolean
+    lights: number[] // Indices of lights to flicker (0-3 for point lights)
+    frequency: number // 0-1, flicker speed
+    intensity: number // 0-1, flicker strength
+  }
+  shadows?: {
+    enabled: boolean
+    quality: 'low' | 'medium' | 'high'
+  }
+}
+
+export interface VisualEffectsConfig {
+  // Shader/Material System
+  shaderStyle: 'realistic' | 'toon' | 'custom'
+
+  // Toon shader configuration (only used if shaderStyle === 'toon')
+  toonShader?: ToonShaderConfig
+
+  // Post-processing effects
+  postProcessing: PostProcessingEffects
+
+  // Environmental elements
+  environment?: EnvironmentalElements
+
+  // Dynamic lighting effects
+  lightingEffects?: LightingEffects
+}
+
+// ============================================================================
 // Environment Customization (Dice Box)
 // ============================================================================
 
@@ -250,6 +332,9 @@ export interface Theme {
 
   // Environment customization (NEW)
   environment: EnvironmentCustomization
+
+  // Visual effects configuration (NEW)
+  visualEffects: VisualEffectsConfig
 }
 
 // ============================================================================
@@ -434,6 +519,19 @@ export const defaultTheme: Theme = {
       color: '#000000',
     },
   },
+
+  visualEffects: {
+    shaderStyle: 'realistic',
+    postProcessing: {
+      // Minimal effects for default theme - clean and simple
+    },
+    lightingEffects: {
+      shadows: {
+        enabled: true,
+        quality: 'medium',
+      },
+    },
+  },
 }
 
 // ============================================================================
@@ -599,6 +697,29 @@ export const fantasyTheme: Theme = {
         from: '#1a2814',
         to: '#4a7c2e',
         direction: 'vertical',
+      },
+    },
+  },
+
+  visualEffects: {
+    shaderStyle: 'realistic',
+    postProcessing: {
+      // Warm, mystical forest atmosphere
+      bloom: {
+        intensity: 0.5,
+        threshold: 0.8,
+        radius: 0.6,
+      },
+      colorGrading: {
+        temperature: 0.15, // Slightly warm
+        tint: '#ffd700', // Golden tint
+        saturation: 1.1, // Slightly saturated
+      },
+    },
+    lightingEffects: {
+      shadows: {
+        enabled: true,
+        quality: 'high',
       },
     },
   },
@@ -770,6 +891,46 @@ export const critterForestTheme: Theme = {
       },
     },
   },
+
+  visualEffects: {
+    shaderStyle: 'toon',
+    toonShader: {
+      levels: 4, // 4 color bands for cel shading
+      outlineThickness: 0.03,
+      outlineColor: '#2d3319', // Dark outline
+    },
+    postProcessing: {
+      // Magical, cheerful atmosphere
+      bloom: {
+        intensity: 1.2,
+        threshold: 0.5,
+        radius: 1.0,
+      },
+      colorGrading: {
+        temperature: 0.1, // Warm
+        tint: '#fffacd', // Soft yellow tint
+        saturation: 1.3, // Vibrant colors
+      },
+    },
+    environment: {
+      grass: {
+        density: 500,
+        color: '#7cb342',
+        height: 0.3,
+      },
+      particles: {
+        type: 'fireflies',
+        count: 50,
+        color: '#ffff99',
+      },
+    },
+    lightingEffects: {
+      shadows: {
+        enabled: true,
+        quality: 'medium',
+      },
+    },
+  },
 }
 
 // ============================================================================
@@ -933,6 +1094,49 @@ export const dungeonCastleTheme: Theme = {
     },
     background: {
       color: '#1a1a1a', // Very dark background
+    },
+  },
+
+  visualEffects: {
+    shaderStyle: 'realistic',
+    postProcessing: {
+      // Gritty, dark dungeon atmosphere
+      filmGrain: {
+        intensity: 0.4, // Strong grain for old-school feel
+      },
+      bloom: {
+        intensity: 0.8,
+        threshold: 0.75,
+        radius: 0.5,
+      },
+      vignette: {
+        darkness: 0.7, // Dark edges
+        offset: 0.3,
+      },
+      colorGrading: {
+        temperature: 0.25, // Warm orange from torches
+        tint: '#ff8c42',
+        saturation: 0.85, // Slightly desaturated
+      },
+    },
+    environment: {
+      particles: {
+        type: 'dust',
+        count: 100,
+        color: '#666666',
+      },
+    },
+    lightingEffects: {
+      flickering: {
+        enabled: true,
+        lights: [0, 1, 2, 3], // All 4 torch lights flicker
+        frequency: 0.05,
+        intensity: 0.3,
+      },
+      shadows: {
+        enabled: true,
+        quality: 'high',
+      },
     },
   },
 }
@@ -1100,6 +1304,33 @@ export const neonCyberCityTheme: Theme = {
         from: '#0d0221', // Dark purple
         to: '#240046', // Purple
         direction: 'vertical',
+      },
+    },
+  },
+
+  visualEffects: {
+    shaderStyle: 'realistic',
+    postProcessing: {
+      // Intense cyberpunk neon atmosphere
+      bloom: {
+        intensity: 2.0, // Heavy glow
+        threshold: 0.3,
+        radius: 1.2,
+      },
+      vignette: {
+        darkness: 0.5,
+        offset: 0.5,
+      },
+      colorGrading: {
+        temperature: -0.3, // Cool blue/purple
+        tint: '#9d4edd', // Purple tint
+        saturation: 1.4, // Highly saturated
+      },
+    },
+    lightingEffects: {
+      shadows: {
+        enabled: true,
+        quality: 'medium',
       },
     },
   },

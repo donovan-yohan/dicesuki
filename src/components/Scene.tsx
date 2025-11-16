@@ -13,6 +13,8 @@ import { useDiceStore } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useUIStore } from '../store/useUIStore'
 import { Dice, DiceHandle } from './dice/Dice'
+import { ThemedEffects } from './effects/ThemedEffects'
+import { ThemedEnvironment } from './environment/ThemedEnvironment'
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
 import { HistoryPanel, SettingsPanel } from './panels'
 
@@ -70,11 +72,17 @@ function ThemedBackground() {
 /**
  * Themed lighting component
  * Uses theme's lighting configuration for ambient and directional lights
+ * Supports flickering torch lights for dungeon theme
  */
 function ThemedLighting() {
   const { currentTheme } = useTheme()
   const lighting = currentTheme.environment.lighting
+  const lightingEffects = currentTheme.visualEffects.lightingEffects
   const { size } = useThree()
+
+  // Flickering torch lights state
+  const torchIntensitiesRef = useRef<number[]>([16.0, 16.0, 16.0, 16.0])
+  const flickerTimeRef = useRef(0)
 
   // Calculate wall positions for torch placement (for dungeon theme)
   const isDungeonTheme = currentTheme.id === 'dungeon-castle'
@@ -93,6 +101,28 @@ function ThemedLighting() {
     top: (height / 2) * (1 + margin),
     bottom: -(height / 2) * (1 + margin),
   }
+
+  // Animate torch flickering
+  useFrame((state) => {
+    if (!lightingEffects?.flickering?.enabled) return
+
+    flickerTimeRef.current += state.clock.getDelta()
+
+    const flickerConfig = lightingEffects.flickering
+    const baseIntensity = 16.0
+
+    flickerConfig.lights.forEach((lightIndex, i) => {
+      if (lightIndex < 4) {
+        // Apply Perlin-like noise for natural flicker
+        const noise = Math.sin(flickerTimeRef.current * 10 + i * 2.5) * 0.5 +
+                      Math.sin(flickerTimeRef.current * 25 + i * 1.3) * 0.25 +
+                      Math.sin(flickerTimeRef.current * 50 + i * 0.7) * 0.125
+
+        const flicker = noise * flickerConfig.intensity * flickerConfig.frequency * 10
+        torchIntensitiesRef.current[lightIndex] = baseIntensity + flicker
+      }
+    })
+  })
 
   return (
     <>
@@ -120,7 +150,7 @@ function ThemedLighting() {
           <pointLight
             position={[0, 3, wallPositions.top - 1.5]}
             color="#ff8c42"
-            intensity={16.0}
+            intensity={torchIntensitiesRef.current[0]}
             distance={15}
             decay={1.5}
             castShadow
@@ -129,7 +159,7 @@ function ThemedLighting() {
           <pointLight
             position={[0, 3, wallPositions.bottom + 1.5]}
             color="#ff8c42"
-            intensity={16.0}
+            intensity={torchIntensitiesRef.current[1]}
             distance={15}
             decay={1.5}
             castShadow
@@ -138,7 +168,7 @@ function ThemedLighting() {
           <pointLight
             position={[wallPositions.right - 1.5, 3, 0]}
             color="#ff8c42"
-            intensity={16.0}
+            intensity={torchIntensitiesRef.current[2]}
             distance={15}
             decay={1.5}
             castShadow
@@ -147,7 +177,7 @@ function ThemedLighting() {
           <pointLight
             position={[wallPositions.left + 1.5, 3, 0]}
             color="#ff8c42"
-            intensity={16.0}
+            intensity={torchIntensitiesRef.current[3]}
             distance={15}
             decay={1.5}
             castShadow
@@ -417,6 +447,9 @@ function Scene() {
           {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
           <ViewportBoundaries />
 
+          {/* Themed environmental elements (grass, particles, etc.) */}
+          <ThemedEnvironment />
+
           {/* Render all dice from store */}
           {dice.map((die) => (
             <Dice
@@ -441,6 +474,9 @@ function Scene() {
 
         {/* Performance monitoring */}
         <PerformanceOverlay />
+
+        {/* Themed post-processing effects */}
+        <ThemedEffects />
       </Canvas>
 
       {/* Result Display - subscribes to store */}

@@ -400,19 +400,22 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
 
     const material = useMemo(() => {
       const diceMaterials = currentTheme.dice.materials
+      const visualEffects = currentTheme.visualEffects
       const mat = createDiceMaterial(
         color,
         diceMaterials.roughness,
         diceMaterials.metalness,
-        diceMaterials.emissiveIntensity
+        diceMaterials.emissiveIntensity,
+        visualEffects.shaderStyle,
+        visualEffects.toonShader
       )
-      // D10 should use flat shading to show distinct kite-shaped faces
-      if (shape === 'd10') {
+      // D10 should use flat shading to show distinct kite-shaped faces (only for standard materials)
+      if (shape === 'd10' && mat instanceof THREE.MeshStandardMaterial) {
         mat.flatShading = true
         mat.needsUpdate = true
       }
       return mat
-    }, [color, shape, currentTheme.dice.materials])
+    }, [color, shape, currentTheme.dice.materials, currentTheme.visualEffects])
 
     // Calculate half-extents for D6 collider
     const halfSize = size / 2
