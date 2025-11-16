@@ -8,72 +8,60 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { buttonPressScale, shouldReduceMotion } from '../../animations/ui-transitions'
 import { useDragStore } from '../../store/useDragStore'
+import { useTheme } from '../../contexts/ThemeContext'
 
 interface DiceToolbarProps {
   isOpen: boolean
   onAddDice: (type: string) => void
+  onClearAll: () => void
 }
 
 const DICE_TYPES = [
-  { type: 'd4', label: 'D4', icon: '▲' },
-  { type: 'd6', label: 'D6', icon: '⬛' },
-  { type: 'd8', label: 'D8', icon: '◆' },
-  { type: 'd10', label: 'D10', icon: '🔟' },
-  { type: 'd12', label: 'D12', icon: '⬢' },
-  { type: 'd20', label: 'D20', icon: '◉' },
+  { type: 'd4', label: 'D4' },
+  { type: 'd6', label: 'D6' },
+  { type: 'd8', label: 'D8' },
+  { type: 'd10', label: 'D10' },
+  { type: 'd12', label: 'D12' },
+  { type: 'd20', label: 'D20' },
 ]
 
-export function DiceToolbar({ isOpen, onAddDice }: DiceToolbarProps) {
+export function DiceToolbar({ isOpen, onAddDice, onClearAll }: DiceToolbarProps) {
   const reduceMotion = shouldReduceMotion()
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed left-4 top-1/2 z-30 flex flex-col gap-2"
+          className="fixed left-4 z-30 flex flex-col gap-3"
           style={{
-            transform: 'translateY(-50%)',
+            bottom: '80px', // Position above bottom nav (56px nav + 24px gap)
           }}
-          initial={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
-          animate={!reduceMotion ? { x: 0, opacity: 1 } : { opacity: 1 }}
-          exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
         >
-          {/* Dice Type Buttons */}
-          <div
-            className="flex flex-col gap-2 p-2 rounded-2xl"
-            style={{
-              backgroundColor: 'rgba(31, 41, 55, 0.8)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              border: '1px solid rgba(251, 146, 60, 0.2)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-            }}
-          >
-            {DICE_TYPES.map(({ type, label, icon }) => (
-              <DiceButton
-                key={type}
-                onClick={() => onAddDice(type)}
-                icon={icon}
-                label={label}
-              />
-            ))}
-          </div>
+          {/* Dice Type Buttons - Staggered waterfall animation */}
+          {DICE_TYPES.map(({ type, label }, index) => (
+            <DiceButton
+              key={type}
+              onClick={() => onAddDice(type)}
+              label={label}
+              index={index}
+            />
+          ))}
 
           {/* Trash Button - Separated with some spacing */}
-          <div
-            className="p-2 rounded-2xl"
-            style={{
-              backgroundColor: 'rgba(31, 41, 55, 0.8)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-            }}
+          <motion.div
+            className="mt-2"
             id="trash-drop-zone"
+            initial={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
+            animate={!reduceMotion ? { x: 0, opacity: 1 } : { opacity: 1 }}
+            exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
+            transition={{
+              duration: 0.3,
+              delay: DICE_TYPES.length * 0.05, // Animate after all dice buttons
+              ease: 'easeOut',
+            }}
           >
-            <TrashButton />
-          </div>
+            <TrashButton onClearAll={onClearAll} />
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -86,30 +74,42 @@ export function DiceToolbar({ isOpen, onAddDice }: DiceToolbarProps) {
 
 interface DiceButtonProps {
   onClick: () => void
-  icon: string
   label: string
+  index: number
 }
 
-function DiceButton({ onClick, icon, label }: DiceButtonProps) {
+function DiceButton({ onClick, label, index }: DiceButtonProps) {
   const reduceMotion = shouldReduceMotion()
+  const { currentTheme } = useTheme()
+  const accentColor = currentTheme.tokens.colors.accent
+  const surfaceColor = currentTheme.tokens.colors.surface
 
   return (
     <motion.button
       onClick={onClick}
-      className="flex items-center justify-center rounded-xl transition-all"
+      className="flex items-center justify-center rounded-xl font-bold text-sm"
       style={{
         width: '48px',
         height: '48px',
-        backgroundColor: 'rgba(251, 146, 60, 0.15)',
-        border: '1px solid rgba(251, 146, 60, 0.3)',
-        color: 'var(--color-accent)',
-        fontSize: '24px',
+        backgroundColor: accentColor, // Theme accent color
+        border: 'none',
+        color: surfaceColor, // Theme surface for contrast
+      }}
+      // Staggered slide-in animation from left
+      initial={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
+      animate={!reduceMotion ? { x: 0, opacity: 1 } : { opacity: 1 }}
+      exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
+      transition={{
+        duration: 0.3,
+        delay: index * 0.05, // Stagger by 50ms per button
+        ease: 'easeOut',
       }}
       whileHover={
         !reduceMotion
           ? {
-              backgroundColor: 'rgba(251, 146, 60, 0.25)',
+              backgroundColor: currentTheme.tokens.colors.dice.highlight, // Theme dice highlight on hover
               scale: 1.1,
+              transition: { duration: 0.15 }, // Fast hover transition
             }
           : undefined
       }
@@ -117,7 +117,7 @@ function DiceButton({ onClick, icon, label }: DiceButtonProps) {
       aria-label={`Add ${label}`}
       title={`Add ${label}`}
     >
-      {icon}
+      {label}
     </motion.button>
   )
 }
@@ -126,20 +126,37 @@ function DiceButton({ onClick, icon, label }: DiceButtonProps) {
 // Trash Button Component
 // ============================================================================
 
-function TrashButton() {
+interface TrashButtonProps {
+  onClearAll: () => void
+}
+
+function TrashButton({ onClearAll }: TrashButtonProps) {
   const reduceMotion = shouldReduceMotion()
   const draggedDiceId = useDragStore((state) => state.draggedDiceId)
   const isDragging = draggedDiceId !== null
+  const { currentTheme } = useTheme()
+
+  // Use a red color for trash - fallback to a standard red if theme doesn't define it
+  const trashColor = '#ef4444' // red-500
+
+  const handleClick = () => {
+    // Only clear all if not currently dragging (click to clear all)
+    if (!isDragging) {
+      console.log('[TrashButton] Clearing all dice')
+      onClearAll()
+    }
+  }
 
   return (
-    <motion.div
-      className="flex items-center justify-center rounded-xl transition-all"
+    <motion.button
+      onClick={handleClick}
+      className="flex items-center justify-center rounded-xl transition-all cursor-pointer"
       style={{
         width: '48px',
         height: '48px',
-        backgroundColor: isDragging ? 'rgba(239, 68, 68, 0.35)' : 'rgba(239, 68, 68, 0.15)',
-        border: isDragging ? '2px dashed rgba(239, 68, 68, 0.8)' : '2px dashed rgba(239, 68, 68, 0.4)',
-        color: isDragging ? '#ff6b6b' : '#ef4444',
+        backgroundColor: isDragging ? `${trashColor}cc` : `${trashColor}99`, // Opacity variants
+        border: `2px dashed ${isDragging ? `${trashColor}` : `${trashColor}bb`}`,
+        color: currentTheme.tokens.colors.text.primary,
         fontSize: '24px',
       }}
       animate={
@@ -159,15 +176,15 @@ function TrashButton() {
       whileHover={
         !reduceMotion
           ? {
-              backgroundColor: 'rgba(239, 68, 68, 0.25)',
+              backgroundColor: `${trashColor}bb`, // Brighter on hover
               scale: 1.1,
             }
           : undefined
       }
-      aria-label="Delete dice (drag dice here)"
-      title="Drag dice here to delete"
+      aria-label={isDragging ? "Drop dice to delete" : "Click to clear all dice"}
+      title={isDragging ? "Drop dice here to delete" : "Click to clear all dice"}
     >
       🗑️
-    </motion.div>
+    </motion.button>
   )
 }

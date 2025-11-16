@@ -50,17 +50,19 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   })
 
   // Load owned themes from localStorage
+  // For now, all themes are owned by default for development/testing
   const [ownedThemes, setOwnedThemes] = useState<string[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEY_OWNED_THEMES)
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
-        return Array.isArray(parsed) ? parsed : ['default']
+        return Array.isArray(parsed) ? parsed : THEME_REGISTRY.map(t => t.id)
       } catch {
-        return ['default']
+        return THEME_REGISTRY.map(t => t.id)
       }
     }
-    return ['default']
+    // Default: own all themes
+    return THEME_REGISTRY.map(t => t.id)
   })
 
   // Apply CSS variables when theme changes
@@ -82,6 +84,17 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_OWNED_THEMES, JSON.stringify(ownedThemes))
   }, [ownedThemes])
+
+  // One-time migration: ensure all themes are owned
+  useEffect(() => {
+    const allThemeIds = THEME_REGISTRY.map(t => t.id)
+    const missingThemes = allThemeIds.filter(id => !ownedThemes.includes(id))
+
+    if (missingThemes.length > 0) {
+      console.log('[ThemeProvider] Granting access to all themes:', missingThemes)
+      setOwnedThemes(allThemeIds)
+    }
+  }, []) // Run once on mount
 
   /**
    * Change the current theme

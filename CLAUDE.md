@@ -732,5 +732,21 @@ import type { D6Props, D6Handle } from './types'
 
 ---
 
+## Recent Updates
+
+### 2025-11-16: UI Enhancements & Theme Integration
+- **DiceToolbar**: Integrated with theme system for dynamic colors
+  - Dice buttons now use `currentTheme.tokens.colors.accent` and `currentTheme.tokens.colors.surface`
+  - Hover effects use `currentTheme.tokens.colors.dice.highlight`
+  - Implemented dual trash button functionality: click to clear all, drag to delete individual dice
+- **Theme System**: All themes now owned by default for development/testing
+  - Added one-time migration in ThemeProvider to grant access to all themes
+- **Dungeon Theme**: Updated environment colors for authentic castle aesthetic
+  - Floor: `#2a2a2a` (dark gray stone)
+  - Walls: `#333333` (dark gray stone)
+  - Lighting: Neutral gray ambient (`#999999`) with minimal directional light
+
+---
+
 **Last Updated**: 2025-11-16
 **Maintained By**: Claude + Development Team
