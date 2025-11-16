@@ -62,14 +62,14 @@ export function BottomNav({
         <NavButton
           onClick={onToggleUI}
           label="Toggle UI"
-          icon={getIcon('uiToggle') || '👁️'}
+          icon={getIcon('uiToggle') || 'UI'}
         />
 
         {/* Button 2: Dice Manager */}
         <NavButton
           onClick={onOpenDiceManager}
           label="Manage Dice"
-          icon={getIcon('dice') || '🎲'}
+          icon={getIcon('dice') || 'DICE'}
         />
       </div>
 
@@ -85,7 +85,7 @@ export function BottomNav({
         <NavButton
           onClick={onOpenHistory}
           label="Roll History"
-          icon={getIcon('history') || '📜'}
+          icon={getIcon('history') || 'HIST'}
         />
 
         {/* Button 5: Motion Toggle */}
@@ -96,7 +96,7 @@ export function BottomNav({
               onToggleMotion()
             }}
             label={isMobile ? 'Motion Mode' : 'Device Motion'}
-            icon="📱"
+            icon="PHYS"
             active={motionModeActive}
           />
         )}
@@ -147,7 +147,7 @@ function NavButton({ onClick, label, icon, active = false }: NavButtonProps) {
       title={label}
     >
       {/* Icon - just use the icon directly (emojis already provided as fallback) */}
-      <div className="text-xl">
+      <div className="text-xs font-bold">
         {isImage ? <img src={icon} alt={label} className="w-5 h-5" /> : icon}
       </div>
     </motion.button>

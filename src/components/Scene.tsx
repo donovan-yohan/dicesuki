@@ -8,14 +8,14 @@ import { GRAVITY } from '../config/physicsConfig'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { Dice, DiceHandle } from './dice/Dice'
 import { BottomNav, CenterRollButton, CornerIcon, UIToggleMini, DiceToolbar } from './layout'
-import { HistoryPanel } from './panels'
-// import { SettingsPanel } from './panels' // TODO: Not yet implemented
+import { HistoryPanel, SettingsPanel } from './panels'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useUIStore } from '../store/useUIStore'
 import { useDragStore } from '../store/useDragStore'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
+import { useTheme } from '../contexts/ThemeContext'
 
 /**
  * Component to dynamically update physics gravity based on device motion
@@ -50,6 +50,112 @@ function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<
 }
 
 /**
+ * Themed background component
+ * Sets the Three.js scene background color from theme
+ */
+function ThemedBackground() {
+  const { scene } = useThree()
+  const { currentTheme } = useTheme()
+  const bgColor = currentTheme.environment.background.color
+
+  useEffect(() => {
+    console.log(`[ThemedBackground] Setting scene background to: ${bgColor} for theme: ${currentTheme.id}`)
+    const color = new THREE.Color(bgColor)
+    scene.background = color
+    console.log(`[ThemedBackground] Scene background object:`, scene.background, 'R:', scene.background.r, 'G:', scene.background.g, 'B:', scene.background.b)
+  }, [scene, bgColor, currentTheme.id])
+
+  return null
+}
+
+/**
+ * Themed lighting component
+ * Uses theme's lighting configuration for ambient and directional lights
+ */
+function ThemedLighting() {
+  const { currentTheme } = useTheme()
+  const lighting = currentTheme.environment.lighting
+  const { size } = useThree()
+
+  // Calculate wall positions for torch placement (for dungeon theme)
+  const isDungeonTheme = currentTheme.id === 'dungeon-castle'
+
+  // Calculate viewport bounds for torch positioning
+  const aspect = size.width / size.height
+  const distance = 15 // camera height
+  const vFOV = THREE.MathUtils.degToRad(40)
+  const height = 2 * Math.tan(vFOV / 2) * distance
+  const width = height * aspect
+  const margin = -0.05
+
+  const wallPositions = {
+    left: -(width / 2) * (1 + margin),
+    right: (width / 2) * (1 + margin),
+    top: (height / 2) * (1 + margin),
+    bottom: -(height / 2) * (1 + margin),
+  }
+
+  return (
+    <>
+      <ambientLight
+        color={lighting.ambient.color}
+        intensity={lighting.ambient.intensity}
+      />
+      <directionalLight
+        position={lighting.directional.position}
+        color={lighting.directional.color}
+        intensity={lighting.directional.intensity}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-left={-10}
+        shadow-camera-right={10}
+        shadow-camera-top={10}
+        shadow-camera-bottom={-10}
+      />
+
+      {/* Torch lights on walls for dungeon theme */}
+      {isDungeonTheme && (
+        <>
+          {/* North wall torch */}
+          <pointLight
+            position={[0, 3, wallPositions.top - 1.5]}
+            color="#ff8c42"
+            intensity={8.0}
+            distance={15}
+            decay={1.5}
+          />
+          {/* South wall torch */}
+          <pointLight
+            position={[0, 3, wallPositions.bottom + 1.5]}
+            color="#ff8c42"
+            intensity={8.0}
+            distance={15}
+            decay={1.5}
+          />
+          {/* East wall torch */}
+          <pointLight
+            position={[wallPositions.right - 1.5, 3, 0]}
+            color="#ff8c42"
+            intensity={8.0}
+            distance={15}
+            decay={1.5}
+          />
+          {/* West wall torch */}
+          <pointLight
+            position={[wallPositions.left + 1.5, 3, 0]}
+            color="#ff8c42"
+            intensity={8.0}
+            distance={15}
+            decay={1.5}
+          />
+        </>
+      )}
+    </>
+  )
+}
+
+/**
  * Viewport-aligned boundaries component
  * Calculates frustum dimensions and renders ground, walls, and ceiling
  * Updates automatically on window resize via useThree's size reactivity
@@ -58,6 +164,8 @@ function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<
  */
 function ViewportBoundaries() {
   const { camera, size } = useThree()
+  const { currentTheme } = useTheme()
+  const env = currentTheme.environment
 
   // Ensure camera FOV is set (default to 40 if not yet configured)
   const perspectiveCamera = camera as THREE.PerspectiveCamera
@@ -89,52 +197,86 @@ function ViewportBoundaries() {
   }
 
   const wallThickness = 0.3
-  const wallHeight = 6 // Match ceiling height to prevent dice escape
+  const wallHeight = env.walls.height || 6 // Use theme's wall height or default to 6
   const wallY = wallHeight / 2 // Center Y position for walls
 
   return (
     <>
       {/* Ground Plane - sized to viewport */}
       <RigidBody type="fixed" position={[0, -0.5, 0]}>
-        <Box args={[bounds.width, 1, bounds.height]} receiveShadow>
-          <meshStandardMaterial color="#444444" />
+        <Box
+          args={[bounds.width, 1, bounds.height]}
+          receiveShadow={env.floor.receiveShadow !== false}
+        >
+          <meshStandardMaterial
+            color={env.floor.color}
+            roughness={env.floor.material.roughness}
+            metalness={env.floor.material.metalness}
+          />
         </Box>
       </RigidBody>
 
-      {/* Top wall (positive Z) */}
-      <RigidBody type="fixed" position={[0, wallY, bounds.top]}>
-        <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
-        </Box>
-      </RigidBody>
+      {/* Walls - only render if visible */}
+      {env.walls.visible && (
+        <>
+          {/* Top wall (positive Z) */}
+          <RigidBody type="fixed" position={[0, wallY, bounds.top]}>
+            <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
 
-      {/* Bottom wall (negative Z) */}
-      <RigidBody type="fixed" position={[0, wallY, bounds.bottom]}>
-        <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
-        </Box>
-      </RigidBody>
+          {/* Bottom wall (negative Z) */}
+          <RigidBody type="fixed" position={[0, wallY, bounds.bottom]}>
+            <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
 
-      {/* Right wall (positive X) */}
-      <RigidBody type="fixed" position={[bounds.right, wallY, 0]}>
-        <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
-        </Box>
-      </RigidBody>
+          {/* Right wall (positive X) */}
+          <RigidBody type="fixed" position={[bounds.right, wallY, 0]}>
+            <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
 
-      {/* Left wall (negative X) */}
-      <RigidBody type="fixed" position={[bounds.left, wallY, 0]}>
-        <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
-        </Box>
-      </RigidBody>
+          {/* Left wall (negative X) */}
+          <RigidBody type="fixed" position={[bounds.left, wallY, 0]}>
+            <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
+        </>
+      )}
 
       {/* Ceiling - prevents dice from flying away when phone upside down */}
-      <RigidBody type="fixed" position={[0, 6, 0]}>
-        <Box args={[bounds.width, wallThickness, bounds.height]}>
-          <meshStandardMaterial transparent opacity={0} />
-        </Box>
-      </RigidBody>
+      {env.ceiling.visible && (
+        <RigidBody type="fixed" position={[0, 6, 0]}>
+          <Box args={[bounds.width, wallThickness, bounds.height]}>
+            <meshStandardMaterial
+              color={env.ceiling.color || '#1a1a1a'}
+              transparent
+              opacity={env.ceiling.color ? 1 : 0}
+            />
+          </Box>
+        </RigidBody>
+      )}
     </>
   )
 }
@@ -157,7 +299,7 @@ function Scene() {
   const { gravityRef } = useDeviceMotionRef()
   // Get requestPermission from state context
   const { requestPermission } = useDeviceMotionState()
-  const { canRoll, roll, onDiceRest } = useDiceRoll()
+  const { roll, onDiceRest } = useDiceRoll()
 
   // Subscribe to dice manager store
   const dice = useDiceManagerStore((state) => state.dice)
@@ -171,7 +313,7 @@ function Scene() {
   const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
   const [isDiceManagerOpen, setIsDiceManagerOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
-  // const [isSettingsOpen, setIsSettingsOpen] = useState(false) // TODO: Not yet implemented
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   // Detect if mobile
   const [isMobile, setIsMobile] = useState(false)
@@ -198,10 +340,13 @@ function Scene() {
     onDiceRest(diceId, faceValue, diceType)
   }, [onDiceRest])
 
+  // Get current theme
+  const { currentTheme } = useTheme()
+
   const handleAddDice = useCallback((type: string) => {
     console.log('Adding dice:', type)
-    addDice(type as import('../lib/geometries').DiceShape)
-  }, [addDice])
+    addDice(type as import('../lib/geometries').DiceShape, currentTheme.id)
+  }, [addDice, currentTheme.id])
 
   const handleToggleMotion = useCallback(async () => {
     if (!motionMode) {
@@ -243,23 +388,23 @@ function Scene() {
         }}
         // Enable pointer events for touch and mouse
         // This ensures pointer events reach the mesh components
-        style={{ touchAction: 'none' }}
+        style={{
+          touchAction: 'none',
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          position: 'absolute',
+          top: 0,
+          left: 0
+        }}
       >
       {/* Camera already configured via Canvas props */}
 
-      {/* Lighting - optimized for top-down view */}
-      <ambientLight intensity={0.6} />
-      <directionalLight
-        position={[5, 15, 5]}
-        intensity={1.2}
-        castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-10}
-      />
+      {/* Themed Background */}
+      <ThemedBackground />
+
+      {/* Themed Lighting */}
+      <ThemedLighting />
 
       {/* Physics world - gravity updated via PhysicsController, not props */}
       <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
@@ -315,7 +460,7 @@ function Scene() {
     {/* Top-Left Corner: Settings */}
     <CornerIcon
       position="top-left"
-      onClick={() => {}} // TODO: Settings panel not yet implemented
+      onClick={() => setIsSettingsOpen(true)}
       label="Settings"
       isVisible={isUIVisible}
     >
@@ -347,11 +492,10 @@ function Scene() {
       onClose={() => setIsHistoryOpen(false)}
     />
 
-    {/* TODO: Settings panel not yet implemented */}
-    {/* <SettingsPanel
+    <SettingsPanel
       isOpen={isSettingsOpen}
       onClose={() => setIsSettingsOpen(false)}
-    /> */}
+    />
   </>
   )
 }

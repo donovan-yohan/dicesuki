@@ -151,7 +151,7 @@ describe.skip('useDiceInteraction', () => {
         result.current.onPointerDown(downEvent, mockRigidBody, 'test-dice-1')
       })
 
-      const initialPos = result.current.getDragState().targetPosition?.clone()
+      // const initialPos = result.current.getDragState().targetPosition?.clone() // Unused, removed
 
       act(() => {
         const moveEvent = new PointerEvent('pointermove', {

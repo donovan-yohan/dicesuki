@@ -7,10 +7,8 @@
 
 import { motion } from 'framer-motion'
 import {
-  buttonHoverScale,
   buttonPressScale,
   rollButtonDisabledVariants,
-  rollButtonReadyVariants,
   rollButtonRollingVariants,
   shouldReduceMotion,
 } from '../../animations/ui-transitions'
@@ -29,13 +27,6 @@ export function CenterRollButton({
 }: CenterRollButtonProps) {
   const { getIcon, hasAsset } = useThemedAsset()
   const rollIcon = getIcon('roll')
-
-  // Determine which animation state to show
-  const getAnimationState = () => {
-    if (disabled) return 'disabled'
-    if (isRolling) return 'spinning'
-    return 'pulse'
-  }
 
   const reduceMotion = shouldReduceMotion()
 
@@ -71,7 +62,6 @@ export function CenterRollButton({
       }
       initial="idle"
       animate={disabled ? 'disabled' : isRolling && !reduceMotion ? 'spinning' : 'idle'}
-      whileHover={!disabled && !reduceMotion ? buttonHoverScale : undefined}
       whileTap={!disabled && !reduceMotion ? buttonPressScale : undefined}
       // Accessibility
       aria-label={isRolling ? 'Rolling dice' : disabled ? 'Cannot roll' : 'Roll dice'}
@@ -80,7 +70,7 @@ export function CenterRollButton({
       {/* Icon or Text */}
       {hasAsset(rollIcon) ? (
         <img
-          src={rollIcon}
+          src={rollIcon || undefined}
           alt="Roll"
           className="w-8 h-8"
           style={{

@@ -252,16 +252,14 @@ export function useDiceInteraction(): DiceInteraction {
           z: throwVel.z
         }, true)
 
-        // Add some random spin for realism
-        const randomSpin = new THREE.Vector3(
-          (Math.random() - 0.5) * 4,
-          (Math.random() - 0.5) * 4,
-          (Math.random() - 0.5) * 4
-        )
+        // Scale down accumulated angular velocity to match drag feel
+        // (torque impulses were applied every frame during drag, so velocity is high)
+        const currentAngVel = rigidBodyRef.current.angvel()
+        const dampingFactor = 0.75 // Reduce to ~75% of accumulated spin
         rigidBodyRef.current.setAngvel({
-          x: randomSpin.x,
-          y: randomSpin.y,
-          z: randomSpin.z
+          x: currentAngVel.x * dampingFactor,
+          y: currentAngVel.y * dampingFactor,
+          z: currentAngVel.z * dampingFactor
         }, true)
       }
     }

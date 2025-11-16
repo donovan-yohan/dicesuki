@@ -5,48 +5,40 @@
  * Shows owned themes and purchaseable themes.
  */
 
-import { useState } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 
-export function ThemeSelector() {
+interface ThemeSelectorProps {
+  isOpen: boolean
+  onClose: () => void
+}
+
+export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
   const { currentTheme, setTheme, availableThemes, ownedThemes, purchaseTheme } = useTheme()
-  const [isOpen, setIsOpen] = useState(false)
 
   const handleThemeSelect = async (themeId: string) => {
     // Check if user owns the theme
     if (ownedThemes.includes(themeId)) {
       setTheme(themeId)
-      setIsOpen(false)
+      onClose()
     } else {
       // Need to purchase first
       const success = await purchaseTheme(themeId)
       if (success) {
         setTheme(themeId)
-        setIsOpen(false)
+        onClose()
       }
     }
   }
 
+  if (!isOpen) return null
+
   return (
     <>
-      {/* Theme Button - Top center for testing */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-20 left-1/2 -translate-x-1/2 z-30 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg shadow-lg transition-all"
-        style={{
-          backgroundColor: 'var(--color-primary)',
-          color: 'var(--color-text-primary)',
-        }}
-        title="Change theme"
-      >
-        🎨 Theme: {currentTheme.name}
-      </button>
-
       {/* Theme Panel */}
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setIsOpen(false)} />
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => onClose()} />
 
           {/* Panel Content */}
           <div
@@ -66,7 +58,7 @@ export function ThemeSelector() {
                   Select Theme
                 </h2>
                 <button
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => onClose()}
                   className="text-gray-400 hover:text-white text-2xl leading-none"
                   style={{ color: 'var(--color-text-muted)' }}
                 >
