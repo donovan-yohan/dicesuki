@@ -8,7 +8,8 @@
 import { useState } from 'react'
 import { BottomSheet } from './BottomSheet'
 import { SavedRollCard } from './saved-rolls/SavedRollCard'
-import { useSavedRollsStore, createNewRoll, saveCurrentRoll } from '../../store/useSavedRollsStore'
+import { RollBuilder } from './saved-rolls/RollBuilder'
+import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { SavedRoll } from '../../types/savedRolls'
 import { executeSavedRoll } from '../../lib/rollEngine'
 import { useDiceStore } from '../../store/useDiceStore'
@@ -22,15 +23,15 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [view, setView] = useState<'list' | 'builder'>('list')
+  const [editingRoll, setEditingRoll] = useState<SavedRoll | null>(null)
 
   const {
     savedRolls,
-    currentlyEditing,
+    addRoll,
+    updateRoll,
     deleteRoll,
     toggleFavorite,
     markRollAsUsed,
-    startEditing,
-    stopEditing,
     getAllTags,
     searchRolls,
     getRollsByTag,
@@ -84,7 +85,7 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
   }
 
   function handleEdit(roll: SavedRoll) {
-    startEditing(roll)
+    setEditingRoll(roll)
     setView('builder')
   }
 
@@ -95,17 +96,28 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
   }
 
   function handleCreateNew() {
-    createNewRoll()
+    setEditingRoll(null)
     setView('builder')
   }
 
-  function handleSaveBuilder() {
-    saveCurrentRoll()
+  function handleSaveRoll(rollData: Omit<SavedRoll, 'id' | 'createdAt'>) {
+    if (editingRoll) {
+      // Update existing roll
+      updateRoll(editingRoll.id, rollData)
+    } else {
+      // Create new roll
+      addRoll({
+        ...rollData,
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+      })
+    }
+    setEditingRoll(null)
     setView('list')
   }
 
   function handleCancelBuilder() {
-    stopEditing()
+    setEditingRoll(null)
     setView('list')
   }
 
@@ -244,48 +256,12 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
           )}
         </>
       ) : (
-        // Builder View - Placeholder for now
-        <div>
-          <div className="mb-4">
-            <p
-              className="text-sm"
-              style={{ color: 'var(--color-text-secondary)' }}
-            >
-              Roll Builder UI coming soon...
-            </p>
-            {currentlyEditing && (
-              <p
-                className="text-sm mt-2"
-                style={{ color: 'var(--color-text-primary)' }}
-              >
-                Editing: {currentlyEditing.name}
-              </p>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={handleSaveBuilder}
-              className="flex-1 py-2 px-4 rounded-lg font-semibold"
-              style={{
-                backgroundColor: 'var(--color-accent)',
-                color: '#ffffff',
-              }}
-            >
-              Save
-            </button>
-            <button
-              onClick={handleCancelBuilder}
-              className="flex-1 py-2 px-4 rounded-lg font-semibold"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                color: 'var(--color-text-secondary)',
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        // Builder View
+        <RollBuilder
+          initialRoll={editingRoll || undefined}
+          onSave={handleSaveRoll}
+          onCancel={handleCancelBuilder}
+        />
       )}
     </BottomSheet>
   )
