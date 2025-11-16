@@ -13,10 +13,12 @@ import { useDiceStore } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useUIStore } from '../store/useUIStore'
 import { Dice, DiceHandle } from './dice/Dice'
+import { CriticalScreenFlash } from './effects/CriticalScreenFlash'
 import { ThemedEffects } from './effects/ThemedEffects'
 import { ThemedEnvironment } from './environment/ThemedEnvironment'
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
 import { HistoryPanel, SettingsPanel, SavedRollsPanel } from './panels'
+import { useCriticalFlashStore } from '../store/useCriticalFlashStore'
 
 /**
  * Component to dynamically update physics gravity based on device motion
@@ -336,6 +338,10 @@ function Scene() {
 
   // Subscribe to dice manager store
   const dice = useDiceManagerStore((state) => state.dice)
+
+  // Subscribe to critical flash store
+  const flashConfig = useCriticalFlashStore((state) => state.flashConfig)
+  const flashTrigger = useCriticalFlashStore((state) => state.trigger)
   const addDice = useDiceManagerStore((state) => state.addDice)
   const removeDice = useDiceManagerStore((state) => state.removeDice)
   const removeAllDice = useDiceManagerStore((state) => state.removeAllDice)
@@ -627,6 +633,14 @@ function Scene() {
       isOpen={isSettingsOpen}
       onClose={() => setIsSettingsOpen(false)}
     />
+
+    {/* Critical screen flash overlay */}
+    {flashConfig && (
+      <CriticalScreenFlash
+        config={flashConfig}
+        trigger={flashTrigger > 0}
+      />
+    )}
   </>
   )
 }

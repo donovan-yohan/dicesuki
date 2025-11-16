@@ -233,14 +233,34 @@ export interface CriticalGlowEffect {
   pulseCount?: number // Number of pulses (default: 1)
 }
 
+export interface CriticalParticleBurst {
+  enabled: boolean
+  count: number // Number of particles to spawn
+  color: string // Particle color
+  size: number // Particle size (0.05 - 0.3)
+  speed: number // Initial velocity (1-10)
+  lifetime: number // milliseconds
+  gravity?: boolean // Whether particles fall with gravity
+}
+
+export interface CriticalScreenFlash {
+  enabled: boolean
+  color: string // Flash color
+  intensity: number // 0-1, opacity of flash
+  duration: number // milliseconds
+  fadeOut?: boolean // Fade out vs instant disappear (default: true)
+}
+
 export interface CriticalSuccessEffects {
   glow?: CriticalGlowEffect
-  // Future: particles, sounds, animations, etc.
+  particles?: CriticalParticleBurst
+  screenFlash?: CriticalScreenFlash
 }
 
 export interface CriticalFailureEffects {
   glow?: CriticalGlowEffect
-  // Future: particles, sounds, animations, etc.
+  particles?: CriticalParticleBurst
+  screenFlash?: CriticalScreenFlash
 }
 
 export interface CriticalEffectsConfig {
@@ -570,6 +590,22 @@ export const defaultTheme: Theme = {
           duration: 1000,
           pulseCount: 2,
         },
+        particles: {
+          enabled: true,
+          count: 30,
+          color: '#ffd700',
+          size: 0.1,
+          speed: 4,
+          lifetime: 800,
+          gravity: false,
+        },
+        screenFlash: {
+          enabled: true,
+          color: '#ffd700',
+          intensity: 0.2,
+          duration: 400,
+          fadeOut: true,
+        },
       },
       criticalFailure: {
         glow: {
@@ -577,6 +613,22 @@ export const defaultTheme: Theme = {
           intensity: 0.8,
           duration: 800,
           pulseCount: 1,
+        },
+        particles: {
+          enabled: true,
+          count: 20,
+          color: '#ff0000',
+          size: 0.08,
+          speed: 3,
+          lifetime: 600,
+          gravity: true,
+        },
+        screenFlash: {
+          enabled: true,
+          color: '#8b0000',
+          intensity: 0.15,
+          duration: 300,
+          fadeOut: true,
         },
       },
     },
@@ -780,6 +832,22 @@ export const fantasyTheme: Theme = {
           duration: 1200,
           pulseCount: 3,
         },
+        particles: {
+          enabled: true,
+          count: 40,
+          color: '#ffd700',
+          size: 0.12,
+          speed: 5,
+          lifetime: 1000,
+          gravity: false,
+        },
+        screenFlash: {
+          enabled: true,
+          color: '#d4af37',
+          intensity: 0.25,
+          duration: 500,
+          fadeOut: true,
+        },
       },
       criticalFailure: {
         glow: {
@@ -787,6 +855,22 @@ export const fantasyTheme: Theme = {
           intensity: 0.9,
           duration: 900,
           pulseCount: 2,
+        },
+        particles: {
+          enabled: true,
+          count: 25,
+          color: '#654321',
+          size: 0.1,
+          speed: 3.5,
+          lifetime: 700,
+          gravity: true,
+        },
+        screenFlash: {
+          enabled: true,
+          color: '#5d3a1a',
+          intensity: 0.18,
+          duration: 350,
+          fadeOut: true,
         },
       },
     },
@@ -1007,6 +1091,22 @@ export const critterForestTheme: Theme = {
           duration: 1500,
           pulseCount: 4,
         },
+        particles: {
+          enabled: true,
+          count: 50,
+          color: '#ffb6c1',
+          size: 0.15,
+          speed: 6,
+          lifetime: 1200,
+          gravity: false,
+        },
+        screenFlash: {
+          enabled: true,
+          color: '#ff1493',
+          intensity: 0.3,
+          duration: 600,
+          fadeOut: true,
+        },
       },
       criticalFailure: {
         glow: {
@@ -1014,6 +1114,22 @@ export const critterForestTheme: Theme = {
           intensity: 1.0,
           duration: 1000,
           pulseCount: 2,
+        },
+        particles: {
+          enabled: true,
+          count: 30,
+          color: '#8b5a3c',
+          size: 0.1,
+          speed: 4,
+          lifetime: 800,
+          gravity: true,
+        },
+        screenFlash: {
+          enabled: true,
+          color: '#654321',
+          intensity: 0.2,
+          duration: 400,
+          fadeOut: true,
         },
       },
     },
@@ -1234,6 +1350,22 @@ export const dungeonCastleTheme: Theme = {
           duration: 1200,
           pulseCount: 3,
         },
+        particles: {
+          enabled: true,
+          count: 35,
+          color: '#ff6600',
+          size: 0.12,
+          speed: 4.5,
+          lifetime: 900,
+          gravity: false,
+        },
+        screenFlash: {
+          enabled: true,
+          color: '#ff8533',
+          intensity: 0.22,
+          duration: 450,
+          fadeOut: true,
+        },
       },
       criticalFailure: {
         glow: {
@@ -1241,6 +1373,22 @@ export const dungeonCastleTheme: Theme = {
           intensity: 0.9,
           duration: 1000,
           pulseCount: 2,
+        },
+        particles: {
+          enabled: true,
+          count: 28,
+          color: '#8b0000',
+          size: 0.09,
+          speed: 3,
+          lifetime: 700,
+          gravity: true,
+        },
+        screenFlash: {
+          enabled: true,
+          color: '#660000',
+          intensity: 0.18,
+          duration: 380,
+          fadeOut: true,
         },
       },
     },
@@ -1448,6 +1596,22 @@ export const neonCyberCityTheme: Theme = {
           duration: 1500,
           pulseCount: 4,
         },
+        particles: {
+          enabled: true,
+          count: 60,
+          color: '#00ffff',
+          size: 0.18,
+          speed: 7,
+          lifetime: 1400,
+          gravity: false,
+        },
+        screenFlash: {
+          enabled: true,
+          color: '#00ffff',
+          intensity: 0.35,
+          duration: 650,
+          fadeOut: true,
+        },
       },
       criticalFailure: {
         glow: {
@@ -1455,6 +1619,22 @@ export const neonCyberCityTheme: Theme = {
           intensity: 1.5,
           duration: 1200,
           pulseCount: 3,
+        },
+        particles: {
+          enabled: true,
+          count: 45,
+          color: '#ff00ff',
+          size: 0.15,
+          speed: 5.5,
+          lifetime: 1100,
+          gravity: false,
+        },
+        screenFlash: {
+          enabled: true,
+          color: '#ff00ff',
+          intensity: 0.28,
+          duration: 550,
+          fadeOut: true,
         },
       },
     },

@@ -28,6 +28,7 @@ import { useDiceGlow } from '../../hooks/useDiceGlow'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
+import { CriticalParticles } from '../effects/CriticalParticles'
 import {
   DiceShape,
   createD12Geometry,
@@ -38,6 +39,7 @@ import {
   createD10Geometry,
   createDiceMaterial,
 } from '../../lib/geometries'
+import { useCriticalFlashStore } from '../../store/useCriticalFlashStore'
 import { useUIStore } from '../../store/useUIStore'
 
 interface DiceProps {
@@ -102,6 +104,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
     // Critical effects state
     const [criticalSuccessTriggered, setCriticalSuccessTriggered] = useState(false)
     const [criticalFailureTriggered, setCriticalFailureTriggered] = useState(false)
+    const triggerFlash = useCriticalFlashStore((state) => state.triggerFlash)
 
     // Critical detection
     useCriticalDetection({
@@ -111,10 +114,22 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       onCriticalSuccess: () => {
         console.log(`[${id}] Critical success! (${shape} rolled ${faceValue})`)
         setCriticalSuccessTriggered(true)
+
+        // Trigger screen flash if configured
+        const flashConfig = currentTheme.visualEffects.criticalEffects?.criticalSuccess?.screenFlash
+        if (flashConfig?.enabled) {
+          triggerFlash(flashConfig)
+        }
       },
       onCriticalFailure: () => {
         console.log(`[${id}] Critical failure! (${shape} rolled ${faceValue})`)
         setCriticalFailureTriggered(true)
+
+        // Trigger screen flash if configured
+        const flashConfig = currentTheme.visualEffects.criticalEffects?.criticalFailure?.screenFlash
+        if (flashConfig?.enabled) {
+          triggerFlash(flashConfig)
+        }
       },
     })
 
@@ -452,6 +467,22 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       trigger: criticalSuccessTriggered || criticalFailureTriggered,
     })
 
+    // Determine which particle config to use
+    const activeParticleConfig = criticalSuccessTriggered
+      ? currentTheme.visualEffects.criticalEffects?.criticalSuccess?.particles ?? null
+      : criticalFailureTriggered
+      ? currentTheme.visualEffects.criticalEffects?.criticalFailure?.particles ?? null
+      : null
+
+    // Track dice position for particles
+    const dicePositionRef = useRef(new THREE.Vector3(...position))
+    useFrame(() => {
+      if (rigidBodyRef.current) {
+        const pos = rigidBodyRef.current.translation()
+        dicePositionRef.current.set(pos.x, pos.y, pos.z)
+      }
+    })
+
     // Reset critical triggers when dice starts moving
     useEffect(() => {
       if (!isAtRest) {
@@ -539,35 +570,46 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
     )
 
     return (
-      <RigidBody
-        ref={rigidBodyRef}
-        position={position}
-        colliders={shape === 'd6' ? false : 'hull'}
-        type="dynamic"
-        restitution={DICE_RESTITUTION}
-        friction={DICE_FRICTION}
-        canSleep={false}
-        onContactForce={handleContactForce}
-      >
-        {/* Use RoundCuboid for D6 to add chamfered edges */}
-        {shape === 'd6' && (
-          <RoundCuboidCollider
-            args={[halfSize, halfSize, halfSize, EDGE_CHAMFER_RADIUS]}
+      <>
+        <RigidBody
+          ref={rigidBodyRef}
+          position={position}
+          colliders={shape === 'd6' ? false : 'hull'}
+          type="dynamic"
+          restitution={DICE_RESTITUTION}
+          friction={DICE_FRICTION}
+          canSleep={false}
+          onContactForce={handleContactForce}
+        >
+          {/* Use RoundCuboid for D6 to add chamfered edges */}
+          {shape === 'd6' && (
+            <RoundCuboidCollider
+              args={[halfSize, halfSize, halfSize, EDGE_CHAMFER_RADIUS]}
+            />
+          )}
+
+          <mesh
+            geometry={geometry}
+            material={material}
+            castShadow
+            receiveShadow
+            onPointerDown={(event) => {
+              if (rigidBodyRef.current) {
+                onPointerDown(event, rigidBodyRef.current, id)
+              }
+            }}
+          />
+        </RigidBody>
+
+        {/* Critical particle burst effect */}
+        {activeParticleConfig && (
+          <CriticalParticles
+            config={activeParticleConfig}
+            position={dicePositionRef.current}
+            trigger={criticalSuccessTriggered || criticalFailureTriggered}
           />
         )}
-
-        <mesh
-          geometry={geometry}
-          material={material}
-          castShadow
-          receiveShadow
-          onPointerDown={(event) => {
-            if (rigidBodyRef.current) {
-              onPointerDown(event, rigidBodyRef.current, id)
-            }
-          }}
-        />
-      </RigidBody>
+      </>
     )
   },
 )
