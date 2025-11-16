@@ -14,7 +14,7 @@ export interface DiceInstance {
 
 interface DiceManagerStore {
   dice: DiceInstance[]
-  addDice: (type: DiceShape, themeId?: string, rollGroupId?: string, rollGroupName?: string) => string
+  addDice: (type: DiceShape, themeId?: string, id?: string, rollGroupId?: string, rollGroupName?: string) => string // Returns dice ID
   removeDice: (id: string) => void
   removeAllDice: () => void
   removeRollGroup: (groupId: string) => void
@@ -68,20 +68,20 @@ function getColorForType(type: DiceShape, themeId: string = 'default'): string {
 export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
   // Start with one D6 - color will be updated when theme loads
   dice: [{
-    id: 'dice-0',
+    id: crypto.randomUUID(),
     type: 'd6',
     position: [0, 5, 0],
     rotation: [0, 0, 0],
     color: getColorForType('d6', 'default')
   }],
 
-  addDice: (type, themeId = 'default', rollGroupId?: string, rollGroupName?: string) => {
-    const id = `dice-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  addDice: (type, themeId = 'default', id, rollGroupId, rollGroupName) => {
+    const diceId = id || crypto.randomUUID() // Use provided ID or generate new one
     set((state) => ({
       dice: [
         ...state.dice,
         {
-          id,
+          id: diceId,
           type,
           position: getRandomSpawnPosition(),
           rotation: getRandomRotation(),
@@ -91,7 +91,7 @@ export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
         }
       ]
     }))
-    return id
+    return diceId
   },
 
   removeDice: (id) => set((state) => ({
