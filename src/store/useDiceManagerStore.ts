@@ -8,13 +8,16 @@ export interface DiceInstance {
   position: [number, number, number]
   rotation: [number, number, number]
   color: string
+  rollGroupId?: string  // Links dice to a saved roll group
+  rollGroupName?: string // Display name for the group
 }
 
 interface DiceManagerStore {
   dice: DiceInstance[]
-  addDice: (type: DiceShape, themeId?: string) => void
+  addDice: (type: DiceShape, themeId?: string, rollGroupId?: string, rollGroupName?: string) => string
   removeDice: (id: string) => void
   removeAllDice: () => void
+  removeRollGroup: (groupId: string) => void
   updateDicePosition: (id: string, position: [number, number, number]) => void
   updateDiceColors: (themeId: string) => void
 }
@@ -72,24 +75,34 @@ export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
     color: getColorForType('d6', 'default')
   }],
 
-  addDice: (type, themeId = 'default') => set((state) => ({
-    dice: [
-      ...state.dice,
-      {
-        id: `dice-${Date.now()}`,
-        type,
-        position: getRandomSpawnPosition(),
-        rotation: getRandomRotation(),
-        color: getColorForType(type, themeId)
-      }
-    ]
-  })),
+  addDice: (type, themeId = 'default', rollGroupId?: string, rollGroupName?: string) => {
+    const id = `dice-${Date.now()}-${Math.random().toString(36).substring(7)}`
+    set((state) => ({
+      dice: [
+        ...state.dice,
+        {
+          id,
+          type,
+          position: getRandomSpawnPosition(),
+          rotation: getRandomRotation(),
+          color: getColorForType(type, themeId),
+          rollGroupId,
+          rollGroupName
+        }
+      ]
+    }))
+    return id
+  },
 
   removeDice: (id) => set((state) => ({
     dice: state.dice.filter(d => d.id !== id)
   })),
 
   removeAllDice: () => set({ dice: [] }),
+
+  removeRollGroup: (groupId) => set((state) => ({
+    dice: state.dice.filter(d => d.rollGroupId !== groupId)
+  })),
 
   updateDicePosition: (id, position) => set((state) => ({
     dice: state.dice.map(d =>

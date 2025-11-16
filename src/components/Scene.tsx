@@ -333,31 +333,69 @@ function Scene() {
     // Allow spam clicking - no canRoll check
     const impulse = roll(dice.length)
     if (impulse) {
-      console.log(`Rolling ${dice.length} dice, refs map has ${diceRefs.current.size} entries`)
-      console.log('Dice IDs:', dice.map(d => d.id))
-      console.log('Ref keys:', Array.from(diceRefs.current.keys()))
+      console.log(`Rolling ${dice.length} dice`)
 
       // Check if dice count changed from saved roll - if so, clear bonuses
       const activeSavedRoll = useDiceStore.getState().activeSavedRoll
       if (activeSavedRoll && dice.length !== activeSavedRoll.expectedDiceCount) {
-        console.log(`Dice count changed (${dice.length} vs ${activeSavedRoll.expectedDiceCount}), clearing saved roll bonuses`)
+        console.log(`Dice count changed, clearing saved roll bonuses`)
         useDiceStore.getState().clearActiveSavedRoll()
       }
 
-      // Apply impulse to ALL dice in their current positions
-      // This allows spam clicking to shake up dice
-      diceRefs.current.forEach((diceHandle, id) => {
-        console.log(`Applying impulse to dice ${id}`)
+      // Apply impulse to ALL dice
+      diceRefs.current.forEach((diceHandle) => {
         diceHandle.applyRollImpulse(impulse)
       })
+
+      // Reset all roll groups to expect new results
+      const diceStore = useDiceStore.getState()
+      const groupedDice = new Map<string, { name: string; count: number; flatBonus: number; perDieBonuses: Map<string, number> }>()
+
+      // Count dice by group
+      dice.forEach((die) => {
+        if (die.rollGroupId && die.rollGroupName) {
+          const existing = groupedDice.get(die.rollGroupId)
+          if (existing) {
+            existing.count++
+          } else {
+            // Find the existing group to get flatBonus and perDieBonuses
+            const existingGroup = diceStore.activeRollGroups.find(g => g.id === die.rollGroupId)
+            groupedDice.set(die.rollGroupId, {
+              name: die.rollGroupName,
+              count: 1,
+              flatBonus: existingGroup?.flatBonus || 0,
+              perDieBonuses: existingGroup?.perDieBonuses || new Map()
+            })
+          }
+        }
+      })
+
+      // Restart each group's roll tracking
+      groupedDice.forEach((groupInfo, groupId) => {
+        diceStore.startRollGroup(groupId, groupInfo.name, groupInfo.count, groupInfo.flatBonus, groupInfo.perDieBonuses)
+      })
+
+      // Also reset manual dice if any
+      const manualDiceCount = dice.filter(d => !d.rollGroupId).length
+      if (manualDiceCount > 0) {
+        diceStore.startRoll(manualDiceCount)
+      }
     }
-  }, [roll, dice.length])
+  }, [roll, dice])
 
   const handleDiceRest = useCallback(
     (id: string, faceValue: number, diceType: string) => {
-      onDiceRest(id, faceValue, diceType)
+      // Find the dice instance to get its rollGroupId
+      const diceInstance = dice.find(d => d.id === id)
+      if (diceInstance?.rollGroupId) {
+        // Report to the correct roll group
+        useDiceStore.getState().recordDiceResult(id, faceValue, diceType, diceInstance.rollGroupId)
+      } else {
+        // Manual dice - use existing onDiceRest
+        onDiceRest(id, faceValue, diceType)
+      }
     },
-    [onDiceRest]
+    [onDiceRest, dice]
   )
 
   // Get current theme
@@ -541,123 +579,228 @@ function Scene() {
 }
 
 /**
- * Result display component
- * Shows current roll with dynamic updates as dice settle
+ * Individual roll group display component
+ * Shows one group with detailed per-die bonus breakdown
  */
-function ResultDisplay() {
-  const currentRoll = useDiceStore((state) => state.currentRoll)
-  const expectedDiceCount = useDiceStore((state) => state.expectedDiceCount)
-  const lastResult = useDiceStore((state) => state.lastResult)
-  const activeSavedRoll = useDiceStore((state) => state.activeSavedRoll)
-  const dice = useDiceManagerStore((state) => state.dice)
+function RollGroupDisplay({ group, dice }: { group: any; dice: any[] }) {
+  const removeDice = useDiceManagerStore((state) => state.removeRollGroup)
+  const removeGroup = useDiceStore((state) => state.removeRollGroup)
 
-  // Track previous sum to trigger animation only on change
-  // IMPORTANT: Must be declared before any conditional returns (Rules of Hooks)
-  const prevSumRef = useRef<number | null>(null)
-  const [shouldAnimate, setShouldAnimate] = useState(false)
+  const handleRemove = useCallback(() => {
+    removeGroup(group.id)
+    removeDice(group.id)
+  }, [group.id, removeGroup, removeDice])
 
-  // Show current roll if in progress, otherwise show last completed roll
-  const isRolling = currentRoll.length > 0 && currentRoll.length < expectedDiceCount
-  const hasRoll = currentRoll.length > 0 || lastResult !== null
+  // Calculate totals
+  const diceSum = group.currentRoll.reduce((acc: number, d: any) => acc + d.value, 0)
+  const perDieBonusesTotal = group.currentRoll.reduce((acc: number, d: any) => {
+    const bonus = group.perDieBonuses.get(d.id) || 0
+    return acc + bonus
+  }, 0)
+  const grandTotal = diceSum + perDieBonusesTotal + group.flatBonus
 
-  // Show currentRoll only if we have actual dice in it, otherwise show lastResult
-  const displayDice = currentRoll.length > 0 ? currentRoll : lastResult?.dice || []
-  
-  // Calculate dice sum (raw values)
-  const diceSum = displayDice.reduce((acc, d) => acc + d.value, 0)
-  
-  // Calculate per-die bonuses total
-  const perDieBonusesTotal = activeSavedRoll 
-    ? displayDice.reduce((acc, d) => {
-        const bonus = activeSavedRoll.perDieBonuses.get(d.id) || 0
-        return acc + bonus
-      }, 0)
-    : 0
-  
-  // Calculate grand total (dice + per-die bonuses + flat bonus)
-  const flatBonus = activeSavedRoll?.flatBonus || 0
-  const grandTotal = diceSum + perDieBonusesTotal + flatBonus
-
-  // Calculate pending dice - find which dice haven't reported yet
-  const pendingDice = isRolling
-    ? dice.filter(die => !currentRoll.some(r => r.id === die.id))
-    : []
-
-  // Trigger bounce animation only when sum changes
-  // IMPORTANT: This hook must always be called, even if we don't render anything
-  useEffect(() => {
-    if (hasRoll && prevSumRef.current !== null && prevSumRef.current !== grandTotal) {
-      setShouldAnimate(true)
-      // Reset animation after it completes
-      const timer = setTimeout(() => setShouldAnimate(false), 500)
-      return () => clearTimeout(timer)
-    }
-    prevSumRef.current = grandTotal
-  }, [grandTotal, hasRoll])
-
-  // Early return AFTER all hooks have been called
-  if (!hasRoll) return null
+  // Find pending dice for this group
+  const groupDice = dice.filter(d => d.rollGroupId === group.id)
+  const pendingDice = groupDice.filter(die => !group.currentRoll.some((r: any) => r.id === die.id))
+  const isRolling = group.currentRoll.length > 0 && group.currentRoll.length < group.expectedDiceCount
 
   return (
-    <div className="absolute top-8 left-1/2 -translate-x-1/2 text-white text-center z-20 flex flex-col items-center gap-4 pointer-events-none">
-      {/* Grand Total at Top - Large with bounce animation */}
-      <div className={`flex flex-col items-center gap-1 transition-transform ${shouldAnimate ? 'animate-bounce' : ''}`}>
-        <div 
-          className="text-7xl font-bold"
-          style={{ 
-            color: 'var(--color-accent)',
-            textShadow: '0 0 20px rgba(251, 146, 60, 0.5), 0 4px 8px rgba(0, 0, 0, 0.8)'
-          }}
+    <div className="backdrop-blur-sm rounded-lg p-3 shadow-lg mb-2" style={{
+      backgroundColor: 'rgba(0, 0, 0, 0.85)',
+      border: '2px solid var(--color-border)',
+    }}>
+      {/* Group name and remove button */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+          {group.name}
+        </span>
+        <button
+          onClick={handleRemove}
+          className="text-sm px-2 py-0.5 rounded transition-all pointer-events-auto hover:bg-red-600"
+          style={{ color: 'var(--color-error)' }}
         >
+          ×
+        </button>
+      </div>
+
+      {/* Grand total */}
+      <div className="flex flex-col items-center gap-1 mb-2">
+        <div className="text-5xl font-bold" style={{
+          color: 'var(--color-accent)',
+          textShadow: '0 0 15px rgba(251, 146, 60, 0.5)'
+        }}>
           {isRolling ? '?' : grandTotal}
         </div>
-        
-        {/* Breakdown label if there's a flat bonus */}
-        {!isRolling && flatBonus !== 0 && (
-          <div className="text-sm text-gray-300 bg-black bg-opacity-75 px-3 py-1 rounded">
-            {diceSum + perDieBonusesTotal} + {flatBonus}
+        {!isRolling && group.flatBonus !== 0 && (
+          <div className="text-xs text-gray-300 bg-black bg-opacity-75 px-2 py-1 rounded">
+            {diceSum + perDieBonusesTotal} + {group.flatBonus}
           </div>
         )}
       </div>
 
-      {/* Individual dice values */}
-      <div className="flex gap-3 justify-center flex-wrap max-w-lg">
-        {displayDice.map((die, idx) => {
-          const perDieBonus = activeSavedRoll?.perDieBonuses.get(die.id) || 0
+      {/* Individual dice */}
+      <div className="flex gap-2 justify-center flex-wrap">
+        {group.currentRoll.map((die: any, idx: number) => {
+          const perDieBonus = group.perDieBonuses.get(die.id) || 0
           return (
             <div key={idx} className="flex flex-col items-center gap-1">
-              <span className="text-[10px] text-gray-400 uppercase font-semibold">{die.type}</span>
-              <div 
-                className="px-4 py-2 rounded min-w-[48px] flex items-center justify-center"
-                style={{
-                  backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                  border: '1px solid rgba(251, 146, 60, 0.3)'
-                }}
-              >
-                <span className="text-2xl font-bold">{die.value}</span>
+              <span className="text-[8px] text-gray-400 uppercase font-semibold">{die.type}</span>
+              <div className="px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center" style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                border: '1px solid rgba(251, 146, 60, 0.3)'
+              }}>
+                <span className="text-lg font-bold">{die.value}</span>
               </div>
-              {/* Per-die bonus label */}
               {perDieBonus !== 0 && (
-                <div className="text-xs text-orange-300">
+                <div className="text-[10px] text-orange-300">
                   +{perDieBonus}
                 </div>
               )}
             </div>
           )
         })}
-        
-        {/* Show pending dice */}
+        {/* Pending dice */}
         {pendingDice.map((die) => (
           <div key={`pending-${die.id}`} className="flex flex-col items-center gap-1 animate-pulse">
-            <span className="text-[10px] text-gray-400 uppercase font-semibold">{die.type}</span>
-            <div 
-              className="px-4 py-2 rounded min-w-[48px] flex items-center justify-center"
-              style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(251, 146, 60, 0.2)'
-              }}
-            >
-              <span className="text-2xl font-bold">?</span>
+            <span className="text-[8px] text-gray-400 uppercase font-semibold">{die.type}</span>
+            <div className="px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center" style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(251, 146, 60, 0.2)'
+            }}>
+              <span className="text-lg font-bold">?</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Result display component
+ * Shows multiple roll groups and manual dice
+ */
+function ResultDisplay() {
+  const activeRollGroups = useDiceStore((state) => state.activeRollGroups)
+  const currentRoll = useDiceStore((state) => state.currentRoll)
+  const expectedDiceCount = useDiceStore((state) => state.expectedDiceCount)
+  const lastResult = useDiceStore((state) => state.lastResult)
+  const activeSavedRoll = useDiceStore((state) => state.activeSavedRoll)
+  const dice = useDiceManagerStore((state) => state.dice)
+
+  const hasActiveGroups = activeRollGroups.length > 0
+  const hasManualRoll = currentRoll.length > 0 || lastResult !== null
+
+  // Don't show anything if no dice and no results
+  if (!hasActiveGroups && !hasManualRoll) return null
+
+  return (
+    <div className="absolute top-8 left-1/2 -translate-x-1/2 text-white z-20 flex flex-col items-center gap-2 pointer-events-none" style={{ maxWidth: '90vw' }}>
+      {/* Show all active roll groups */}
+      {hasActiveGroups && activeRollGroups.map((group) => (
+        <RollGroupDisplay key={group.id} group={group} dice={dice} />
+      ))}
+
+      {/* Show manual dice (backward compatibility) */}
+      {hasManualRoll && <ManualDiceDisplay
+        currentRoll={currentRoll}
+        expectedDiceCount={expectedDiceCount}
+        lastResult={lastResult}
+        activeSavedRoll={activeSavedRoll}
+        dice={dice}
+      />}
+    </div>
+  )
+}
+
+/**
+ * Manual dice display (backward compatibility)
+ * Shows the original single-roll UI for manually added dice
+ */
+function ManualDiceDisplay({ currentRoll, expectedDiceCount, lastResult, activeSavedRoll, dice }: {
+  currentRoll: any[];
+  expectedDiceCount: number;
+  lastResult: any;
+  activeSavedRoll: any;
+  dice: any[];
+}) {
+  const prevSumRef = useRef<number | null>(null)
+  const [shouldAnimate, setShouldAnimate] = useState(false)
+
+  const isRolling = currentRoll.length > 0 && currentRoll.length < expectedDiceCount
+  const displayDice = currentRoll.length > 0 ? currentRoll : lastResult?.dice || []
+
+  const diceSum = displayDice.reduce((acc: number, d: any) => acc + d.value, 0)
+  const perDieBonusesTotal = activeSavedRoll
+    ? displayDice.reduce((acc: number, d: any) => {
+        const bonus = activeSavedRoll.perDieBonuses.get(d.id) || 0
+        return acc + bonus
+      }, 0)
+    : 0
+
+  const flatBonus = activeSavedRoll?.flatBonus || 0
+  const grandTotal = diceSum + perDieBonusesTotal + flatBonus
+
+  const pendingDice = isRolling
+    ? dice.filter(die => !die.rollGroupId && !currentRoll.some((r: any) => r.id === die.id))
+    : []
+
+  useEffect(() => {
+    if (prevSumRef.current !== null && prevSumRef.current !== grandTotal) {
+      setShouldAnimate(true)
+      const timer = setTimeout(() => setShouldAnimate(false), 500)
+      return () => clearTimeout(timer)
+    }
+    prevSumRef.current = grandTotal
+  }, [grandTotal])
+
+  return (
+    <div className="backdrop-blur-sm rounded-lg p-3 shadow-lg" style={{
+      backgroundColor: 'rgba(0, 0, 0, 0.85)',
+      border: '2px solid var(--color-border)',
+    }}>
+      <div className={`flex flex-col items-center gap-1 mb-2 transition-transform ${shouldAnimate ? 'animate-bounce' : ''}`}>
+        <div className="text-5xl font-bold" style={{
+          color: 'var(--color-accent)',
+          textShadow: '0 0 15px rgba(251, 146, 60, 0.5)'
+        }}>
+          {isRolling ? '?' : grandTotal}
+        </div>
+        {!isRolling && flatBonus !== 0 && (
+          <div className="text-xs text-gray-300 bg-black bg-opacity-75 px-2 py-1 rounded">
+            {diceSum + perDieBonusesTotal} + {flatBonus}
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-2 justify-center flex-wrap">
+        {displayDice.map((die: any, idx: number) => {
+          const perDieBonus = activeSavedRoll?.perDieBonuses.get(die.id) || 0
+          return (
+            <div key={idx} className="flex flex-col items-center gap-1">
+              <span className="text-[8px] text-gray-400 uppercase font-semibold">{die.type}</span>
+              <div className="px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center" style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                border: '1px solid rgba(251, 146, 60, 0.3)'
+              }}>
+                <span className="text-lg font-bold">{die.value}</span>
+              </div>
+              {perDieBonus !== 0 && (
+                <div className="text-[10px] text-orange-300">
+                  +{perDieBonus}
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {pendingDice.map((die: any) => (
+          <div key={`pending-${die.id}`} className="flex flex-col items-center gap-1 animate-pulse">
+            <span className="text-[8px] text-gray-400 uppercase font-semibold">{die.type}</span>
+            <div className="px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center" style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(251, 146, 60, 0.2)'
+            }}>
+              <span className="text-lg font-bold">?</span>
             </div>
           </div>
         ))}

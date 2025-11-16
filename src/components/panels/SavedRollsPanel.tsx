@@ -40,7 +40,7 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
     getRollsByTag,
   } = useSavedRollsStore()
 
-  const { addDice, removeAllDice } = useDiceManagerStore()
+  const { addDice } = useDiceManagerStore()
 
   // Get filtered rolls
   const filteredRolls = (() => {
@@ -66,30 +66,31 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
     // Mark as used
     markRollAsUsed(roll.id)
 
-    // Clear existing dice
-    removeAllDice()
+    // Create unique roll group ID
+    const groupId = `roll-${roll.id}-${Date.now()}`
+
+    // DON'T clear existing dice - allow multiple active rolls
 
     // Build per-die bonus map (dice ID -> bonus)
     const perDieBonuses = new Map<string, number>()
     let totalDiceCount = 0
-    
-    // Spawn dice for each entry in the roll
-    // This uses the same flow as the dice manager, ensuring proper physics integration
+
+    // Spawn dice for each entry in the roll, tagged with group ID
     roll.dice.forEach((entry) => {
       // Spawn the number of dice specified in quantity
       for (let i = 0; i < entry.quantity; i++) {
-        const diceId = addDice(entry.type, currentTheme.id)
+        const diceId = addDice(entry.type, currentTheme.id, groupId, roll.name)
         totalDiceCount++
-        
-        // Track per-die bonus
+
+        // Track per-die bonus for this group
         if (entry.perDieBonus !== 0) {
           perDieBonuses.set(diceId, entry.perDieBonus)
         }
       }
     })
 
-    // Set the active saved roll in the dice store for result display
-    useDiceStore.getState().setActiveSavedRoll(roll.flatBonus, perDieBonuses, totalDiceCount)
+    // Initialize roll group in the dice store with per-die bonuses
+    useDiceStore.getState().startRollGroup(groupId, roll.name, totalDiceCount, roll.flatBonus, perDieBonuses)
 
     // Close the panel after spawning dice
     // The actual rolling will happen when the user clicks the roll button
