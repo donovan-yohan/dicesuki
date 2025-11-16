@@ -18,9 +18,10 @@ import {
 } from '../types/inventory'
 import { CraftingRecipe, CraftingResult } from '../types/crafting'
 import { DiceShape } from '../lib/geometries'
-import { DIE_SETS, getDieSetById } from '../config/dieSets'
+import { getDieSetById } from '../config/dieSets'
 import { STARTER_DICE } from '../config/starterDice'
-import { CRAFTING_RECIPES } from '../config/craftingRecipes'
+// CRAFTING_RECIPES imported for future use
+// import { CRAFTING_RECIPES } from '../config/craftingRecipes'
 
 // ============================================================================
 // Store Interface
@@ -224,7 +225,7 @@ export const useInventoryStore = create<InventoryStore>()(
         }
 
         // Unassign from all rolls
-        die.assignedToRolls.forEach(rollId => {
+        die.assignedToRolls.forEach(() => {
           // Remove assignments
           Object.keys(state.assignments).forEach(key => {
             if (state.assignments[key] === dieId) {
@@ -553,8 +554,8 @@ export const useInventoryStore = create<InventoryStore>()(
             : recipe.output.setId
 
         // Get set configuration for output
-        const set = getDieSetById(outputSetId)
-        const variant = set?.rarityVariants[recipe.output.rarity]
+        const dieSet = getDieSetById(outputSetId)
+        const variant = dieSet?.rarityVariants[recipe.output.rarity]
 
         if (!variant) {
           return {
@@ -566,7 +567,7 @@ export const useInventoryStore = create<InventoryStore>()(
 
         // Spend currency
         if (recipe.coinCost) {
-          set(state => ({
+          set((state: InventoryStore) => ({
             currency: {
               ...state.currency,
               coins: state.currency.coins - (recipe.coinCost || 0)
@@ -575,8 +576,8 @@ export const useInventoryStore = create<InventoryStore>()(
         }
 
         // Remove input dice
-        set(state => ({
-          dice: state.dice.filter(d => !inputDiceIds.includes(d.id))
+        set((state: InventoryStore) => ({
+          dice: state.dice.filter((d: InventoryDie) => !inputDiceIds.includes(d.id))
         }))
 
         // Create new die
