@@ -8,13 +8,16 @@ export interface DiceInstance {
   position: [number, number, number]
   rotation: [number, number, number]
   color: string
+  rollGroupId?: string  // Links dice to a saved roll group
+  rollGroupName?: string // Display name for the group
 }
 
 interface DiceManagerStore {
   dice: DiceInstance[]
-  addDice: (type: DiceShape, themeId?: string) => void
+  addDice: (type: DiceShape, themeId?: string, id?: string, rollGroupId?: string, rollGroupName?: string) => string // Returns dice ID
   removeDice: (id: string) => void
   removeAllDice: () => void
+  removeRollGroup: (groupId: string) => void
   updateDicePosition: (id: string, position: [number, number, number]) => void
   updateDiceColors: (themeId: string) => void
 }
@@ -65,31 +68,41 @@ function getColorForType(type: DiceShape, themeId: string = 'default'): string {
 export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
   // Start with one D6 - color will be updated when theme loads
   dice: [{
-    id: 'dice-0',
+    id: crypto.randomUUID(),
     type: 'd6',
     position: [0, 5, 0],
     rotation: [0, 0, 0],
     color: getColorForType('d6', 'default')
   }],
 
-  addDice: (type, themeId = 'default') => set((state) => ({
-    dice: [
-      ...state.dice,
-      {
-        id: `dice-${Date.now()}`,
-        type,
-        position: getRandomSpawnPosition(),
-        rotation: getRandomRotation(),
-        color: getColorForType(type, themeId)
-      }
-    ]
-  })),
+  addDice: (type, themeId = 'default', id, rollGroupId, rollGroupName) => {
+    const diceId = id || crypto.randomUUID() // Use provided ID or generate new one
+    set((state) => ({
+      dice: [
+        ...state.dice,
+        {
+          id: diceId,
+          type,
+          position: getRandomSpawnPosition(),
+          rotation: getRandomRotation(),
+          color: getColorForType(type, themeId),
+          rollGroupId,
+          rollGroupName
+        }
+      ]
+    }))
+    return diceId
+  },
 
   removeDice: (id) => set((state) => ({
     dice: state.dice.filter(d => d.id !== id)
   })),
 
   removeAllDice: () => set({ dice: [] }),
+
+  removeRollGroup: (groupId) => set((state) => ({
+    dice: state.dice.filter(d => d.rollGroupId !== groupId)
+  })),
 
   updateDicePosition: (id, position) => set((state) => ({
     dice: state.dice.map(d =>
