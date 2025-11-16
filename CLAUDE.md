@@ -107,7 +107,9 @@ afterEach(() => {
 - **Component Tests**: UI components, rendering, interaction
 - **Integration Tests**: Component + hook integration
 - **Target**: >80% code coverage
-- **Current**: 73 tests passing (24 tests for haptic feedback), 100% pass rate
+- **Current**: 97 tests passing, 3 failing (haptic throttle tests), 16 skipped
+  - Test files: 7 passing, 1 failing (useHapticFeedback.test.ts)
+  - Note: Haptic throttle tests need investigation and fixing
 
 ---
 
@@ -621,11 +623,14 @@ The project has been upgraded to React 19 and the latest React Three Fiber ecosy
 src/
 ├── components/        # React components
 │   ├── dice/         # Dice-specific components
-│   ├── panels/       # UI panels (Settings, etc.)
+│   ├── icons/        # Icon components (DiceIcon, DiceIconWithNumber)
+│   ├── layout/       # Layout components (BottomNav, DiceToolbar, etc.)
+│   ├── panels/       # UI panels (Settings, ThemeSelector, etc.)
 │   └── *.tsx         # UI components
 ├── config/           # Configuration files
 │   └── physicsConfig.ts  # All physics constants
 ├── contexts/         # React contexts
+│   └── ThemeContext.tsx  # Theme management and provider
 ├── hooks/            # Custom React hooks
 │   ├── useHapticFeedback.ts  # Haptic feedback hook
 │   └── *.ts          # Other hooks
@@ -634,6 +639,11 @@ src/
 │   ├── haptics.ts    # Haptic utilities
 │   └── *.ts          # Other utilities
 ├── store/            # Zustand stores
+│   ├── useDiceManagerStore.ts  # Dice state management
+│   └── useUIStore.ts           # UI preferences (haptics, etc.)
+├── themes/           # Theme system
+│   ├── tokens.ts     # Theme definitions (5 themes)
+│   └── registry.ts   # Theme registry and utilities
 └── test/             # Test setup and helpers
 ```
 
