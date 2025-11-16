@@ -119,6 +119,104 @@ export interface ThemeSounds {
 }
 
 // ============================================================================
+// Dice Customization
+// ============================================================================
+
+export interface DiceCustomization {
+  // Default colors for each die type
+  defaultColors: {
+    d4: string
+    d6: string
+    d8: string
+    d10: string
+    d12: string
+    d20: string
+  }
+
+  // Material properties for dice appearance
+  materials: {
+    roughness: number // 0 = smooth/glossy, 1 = rough/matte
+    metalness: number // 0 = non-metal, 1 = metallic
+    emissiveIntensity?: number // Optional glow effect
+    opacity?: number // For translucent dice
+  }
+
+  // Numbering/pips appearance
+  numbering: {
+    color: string
+    style: 'engraved' | 'painted' | 'inlaid' | 'embossed'
+    depth?: number // For engraved/embossed styles
+  }
+
+  // Optional texture map URLs for advanced customization
+  textures?: {
+    diffuse?: string // Base color/pattern texture
+    normal?: string // Surface detail (bumps, scratches)
+    roughness?: string // Roughness map
+    metalness?: string // Metallic map
+  }
+}
+
+// ============================================================================
+// Environment Customization (Dice Box)
+// ============================================================================
+
+export interface EnvironmentCustomization {
+  // Floor configuration
+  floor: {
+    color: string
+    texture?: string // URL to texture image (wood, felt, stone, etc.)
+    material: {
+      roughness: number
+      metalness: number
+    }
+    receiveShadow?: boolean
+  }
+
+  // Wall configuration
+  walls: {
+    color: string
+    texture?: string // URL to texture image
+    material: {
+      roughness: number
+      metalness: number
+    }
+    visible: boolean // Option to hide walls for open environment
+    height?: number // Wall height (default: 6)
+  }
+
+  // Ceiling configuration
+  ceiling: {
+    visible: boolean // Usually invisible unless specific theme needs it
+    color?: string
+  }
+
+  // Lighting setup
+  lighting: {
+    ambient: {
+      color: string
+      intensity: number
+    }
+    directional: {
+      color: string
+      intensity: number
+      position: [number, number, number] // [x, y, z]
+    }
+  }
+
+  // Background/skybox
+  background: {
+    color: string
+    texture?: string // Skybox or background image
+    gradient?: {
+      from: string
+      to: string
+      direction: 'vertical' | 'horizontal' | 'radial'
+    }
+  }
+}
+
+// ============================================================================
 // Complete Theme Definition
 // ============================================================================
 
@@ -129,6 +227,7 @@ export interface Theme {
   description: string
   price: number // Price in cents (0 = free/default)
   preview?: string // Preview image URL
+  category?: 'fantasy' | 'modern' | 'sci-fi' | 'retro' | 'minimal' | 'nature'
 
   // Design tokens
   tokens: {
@@ -145,6 +244,39 @@ export interface Theme {
     icons: ThemeIcons
     sounds?: ThemeSounds
   }
+
+  // Dice customization (NEW)
+  dice: DiceCustomization
+
+  // Environment customization (NEW)
+  environment: EnvironmentCustomization
+}
+
+// ============================================================================
+// User Customization Layer
+// ============================================================================
+
+/**
+ * Allows users to override specific aspects of a theme
+ * This enables mix-and-match customization while using a base theme
+ */
+export interface UserCustomization {
+  activeThemeId: string
+
+  overrides: {
+    // Override specific dice properties
+    dice?: Partial<DiceCustomization>
+
+    // Override environment properties
+    environment?: Partial<EnvironmentCustomization>
+
+    // Override UI tokens
+    ui?: {
+      colors?: Partial<ThemeColors>
+      typography?: Partial<ThemeTypography>
+      effects?: Partial<ThemeEffects>
+    }
+  }
 }
 
 // ============================================================================
@@ -156,6 +288,7 @@ export const defaultTheme: Theme = {
   name: 'Classic Dice',
   description: 'Clean, modern interface with timeless design',
   price: 0,
+  category: 'modern',
 
   tokens: {
     colors: {
@@ -244,6 +377,63 @@ export const defaultTheme: Theme = {
       uiToggle: null, // Future: '/icons/default/eye.svg'
     },
   },
+
+  dice: {
+    defaultColors: {
+      d4: '#ef4444', // red-500
+      d6: '#3b82f6', // blue-500
+      d8: '#10b981', // green-500
+      d10: '#f59e0b', // amber-500
+      d12: '#8b5cf6', // violet-500
+      d20: '#ec4899', // pink-500
+    },
+    materials: {
+      roughness: 0.3,
+      metalness: 0.1,
+    },
+    numbering: {
+      color: '#ffffff',
+      style: 'engraved',
+      depth: 0.05,
+    },
+  },
+
+  environment: {
+    floor: {
+      color: '#444444',
+      material: {
+        roughness: 0.8,
+        metalness: 0.0,
+      },
+      receiveShadow: true,
+    },
+    walls: {
+      color: '#ffffff',
+      material: {
+        roughness: 0.9,
+        metalness: 0.0,
+      },
+      visible: true,
+      height: 6,
+    },
+    ceiling: {
+      visible: true,
+    },
+    lighting: {
+      ambient: {
+        color: '#ffffff',
+        intensity: 0.6,
+      },
+      directional: {
+        color: '#ffffff',
+        intensity: 0.8,
+        position: [5, 10, 5],
+      },
+    },
+    background: {
+      color: '#000000',
+    },
+  },
 }
 
 // ============================================================================
@@ -255,6 +445,7 @@ export const fantasyTheme: Theme = {
   name: 'Fantasy Earth',
   description: 'Mystical forest realm with magical creatures and enchanted elements',
   price: 299, // $2.99
+  category: 'fantasy',
 
   tokens: {
     colors: {
@@ -347,6 +538,569 @@ export const fantasyTheme: Theme = {
       uiOpen: null, // Future: '/themes/fantasy-earth/sounds/page-turn.mp3'
       uiClose: null, // Future: '/themes/fantasy-earth/sounds/page-close.mp3'
       buttonClick: null, // Future: '/themes/fantasy-earth/sounds/stone-click.mp3'
+    },
+  },
+
+  dice: {
+    defaultColors: {
+      d4: '#8b4513', // Earthy brown
+      d6: '#4a7c2e', // Moss green
+      d8: '#d2691e', // Chocolate
+      d10: '#2e8b57', // Sea green
+      d12: '#8b7355', // Burlywood
+      d20: '#ffd700', // Gold
+    },
+    materials: {
+      roughness: 0.7,
+      metalness: 0.0,
+    },
+    numbering: {
+      color: '#ffd700', // Gold numbers
+      style: 'inlaid',
+      depth: 0.08,
+    },
+  },
+
+  environment: {
+    floor: {
+      color: '#2d5016', // Forest green floor
+      material: {
+        roughness: 0.9,
+        metalness: 0.0,
+      },
+      receiveShadow: true,
+    },
+    walls: {
+      color: '#4a7c2e', // Moss green walls
+      material: {
+        roughness: 0.95,
+        metalness: 0.0,
+      },
+      visible: true,
+      height: 6,
+    },
+    ceiling: {
+      visible: false, // Open to sky
+    },
+    lighting: {
+      ambient: {
+        color: '#f5e6d3', // Warm parchment light
+        intensity: 0.5,
+      },
+      directional: {
+        color: '#ffd700', // Golden sunlight
+        intensity: 0.7,
+        position: [3, 8, 4],
+      },
+    },
+    background: {
+      color: '#1a2814',
+      gradient: {
+        from: '#1a2814',
+        to: '#4a7c2e',
+        direction: 'vertical',
+      },
+    },
+  },
+}
+
+// ============================================================================
+// Critter Forest Theme - Fantasy Cute
+// ============================================================================
+
+export const critterForestTheme: Theme = {
+  id: 'critter-forest',
+  name: 'Critter Forest',
+  description: 'Adorable woodland creatures in a whimsical mushroom grove',
+  price: 399, // $3.99
+  category: 'fantasy',
+
+  tokens: {
+    colors: {
+      primary: '#8b5a3c', // Warm brown
+      secondary: '#a67c52', // Light brown
+      accent: '#ff69b4', // Hot pink (cute!)
+      background: '#4a7c59', // Forest green
+      surface: '#8b5a3c',
+      text: {
+        primary: '#ffffff',
+        secondary: '#ffe4e1', // Misty rose
+        muted: '#d4a574', // Tan
+      },
+      dice: {
+        highlight: '#ff69b4',
+        shadow: '#2d3319',
+      },
+    },
+
+    typography: {
+      fontFamily: {
+        primary: '"Comic Neue", "Quicksand", "Segoe UI", sans-serif',
+        mono: '"Courier Prime", "Courier New", monospace',
+      },
+      fontSize: {
+        xs: '0.75rem',
+        sm: '0.875rem',
+        base: '1rem',
+        lg: '1.125rem',
+        xl: '1.25rem',
+        '2xl': '1.5rem',
+        '3xl': '1.875rem',
+      },
+      fontWeight: {
+        normal: '400',
+        medium: '500',
+        semibold: '600',
+        bold: '700',
+      },
+    },
+
+    spacing: {
+      unit: '0.25rem',
+    },
+
+    effects: {
+      borderRadius: {
+        sm: '0.5rem', // Rounder for cute aesthetic
+        md: '0.75rem',
+        lg: '1rem',
+        full: '9999px',
+      },
+      shadows: {
+        sm: '0 2px 4px 0 rgba(139, 90, 60, 0.2)',
+        md: '0 4px 8px -1px rgba(139, 90, 60, 0.3), 0 2px 4px -1px rgba(139, 90, 60, 0.2)',
+        lg: '0 10px 20px -3px rgba(139, 90, 60, 0.4), 0 4px 8px -2px rgba(139, 90, 60, 0.3)',
+      },
+      gradients: {
+        primary: 'linear-gradient(135deg, #ff69b4 0%, #ff1493 100%)',
+        secondary: 'linear-gradient(135deg, #ffd700 0%, #ff69b4 100%)',
+      },
+    },
+  },
+
+  assets: {
+    ui: {
+      navbar: {
+        background: null, // Future: mushroom cap pattern
+        pattern: null, // Future: tiny flower pattern
+      },
+      buttons: {
+        primary: null, // Future: acorn button
+        secondary: null, // Future: leaf button
+      },
+    },
+    backgrounds: {
+      main: null, // Future: forest clearing with mushrooms
+      dice: null,
+    },
+    icons: {
+      roll: null, // Future: magic wand with sparkles
+      dice: null, // Future: dice with cute face
+      history: null, // Future: tiny book
+      settings: null, // Future: flower
+      profile: null, // Future: cute critter face
+      uiToggle: null, // Future: blinking eye
+    },
+    sounds: {
+      roll: null, // Future: cheerful chime
+      uiOpen: null, // Future: pop sound
+      uiClose: null, // Future: boop sound
+      buttonClick: null, // Future: soft click
+    },
+  },
+
+  dice: {
+    defaultColors: {
+      d4: '#ffb6c1', // Light pink
+      d6: '#87ceeb', // Sky blue
+      d8: '#98fb98', // Pale green
+      d10: '#dda0dd', // Plum
+      d12: '#f0e68c', // Khaki
+      d20: '#ff69b4', // Hot pink
+    },
+    materials: {
+      roughness: 0.4,
+      metalness: 0.0,
+      emissiveIntensity: 0.1, // Slight glow for magical feel
+    },
+    numbering: {
+      color: '#ffffff',
+      style: 'painted',
+    },
+  },
+
+  environment: {
+    floor: {
+      color: '#7cb342', // Grass green
+      material: {
+        roughness: 0.95,
+        metalness: 0.0,
+      },
+      receiveShadow: true,
+    },
+    walls: {
+      color: '#d4a574', // Tan (tree bark color)
+      material: {
+        roughness: 0.9,
+        metalness: 0.0,
+      },
+      visible: true,
+      height: 6,
+    },
+    ceiling: {
+      visible: false, // Open to sky
+    },
+    lighting: {
+      ambient: {
+        color: '#fffacd', // Lemon chiffon (warm sunlight)
+        intensity: 0.7,
+      },
+      directional: {
+        color: '#fff8dc', // Cornsilk (soft sunlight)
+        intensity: 0.6,
+        position: [4, 10, 3],
+      },
+    },
+    background: {
+      color: '#87ceeb',
+      gradient: {
+        from: '#87ceeb', // Sky blue
+        to: '#7cb342', // Grass green
+        direction: 'vertical',
+      },
+    },
+  },
+}
+
+// ============================================================================
+// Dungeon Castle Theme - Old School Diablo/DND
+// ============================================================================
+
+export const dungeonCastleTheme: Theme = {
+  id: 'dungeon-castle',
+  name: 'Dungeon Castle',
+  description: 'Dark stone halls echoing with ancient magic and danger',
+  price: 399, // $3.99
+  category: 'fantasy',
+
+  tokens: {
+    colors: {
+      primary: '#1a1a1a', // Deep black
+      secondary: '#2d2d2d', // Dark gray
+      accent: '#8b0000', // Dark red
+      background: '#0a0a0a', // Almost black
+      surface: '#1a1a1a',
+      text: {
+        primary: '#c0c0c0', // Silver
+        secondary: '#8b8b8b', // Gray
+        muted: '#696969', // Dim gray
+      },
+      dice: {
+        highlight: '#8b0000',
+        shadow: '#000000',
+      },
+    },
+
+    typography: {
+      fontFamily: {
+        primary: '"Uncial Antiqua", "MedievalSharp", Georgia, serif',
+        mono: '"Courier New", monospace',
+      },
+      fontSize: {
+        xs: '0.75rem',
+        sm: '0.875rem',
+        base: '1rem',
+        lg: '1.125rem',
+        xl: '1.25rem',
+        '2xl': '1.5rem',
+        '3xl': '1.875rem',
+      },
+      fontWeight: {
+        normal: '400',
+        medium: '500',
+        semibold: '600',
+        bold: '700',
+      },
+    },
+
+    spacing: {
+      unit: '0.25rem',
+    },
+
+    effects: {
+      borderRadius: {
+        sm: '0.0rem', // Sharp corners for dungeon aesthetic
+        md: '0.125rem',
+        lg: '0.25rem',
+        full: '9999px',
+      },
+      shadows: {
+        sm: '0 2px 4px 0 rgba(139, 0, 0, 0.5)',
+        md: '0 4px 8px -1px rgba(139, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.8)',
+        lg: '0 10px 20px -3px rgba(139, 0, 0, 0.7), 0 4px 8px -2px rgba(0, 0, 0, 0.9)',
+      },
+      gradients: {
+        primary: 'linear-gradient(135deg, #1a1a1a 0%, #000000 100%)',
+        secondary: 'linear-gradient(135deg, #8b0000 0%, #4b0000 100%)',
+      },
+    },
+  },
+
+  assets: {
+    ui: {
+      navbar: {
+        background: null, // Future: stone texture
+        pattern: null, // Future: cracks/runes
+      },
+      buttons: {
+        primary: null, // Future: iron plate
+        secondary: null, // Future: worn stone
+      },
+    },
+    backgrounds: {
+      main: null, // Future: dungeon corridor
+      dice: null,
+    },
+    icons: {
+      roll: null, // Future: crossed swords
+      dice: null, // Future: skull dice
+      history: null, // Future: ancient tome
+      settings: null, // Future: iron gear
+      profile: null, // Future: helmet
+      uiToggle: null, // Future: torch
+    },
+    sounds: {
+      roll: null, // Future: stone grinding
+      uiOpen: null, // Future: heavy door creak
+      uiClose: null, // Future: door slam
+      buttonClick: null, // Future: metal clank
+    },
+  },
+
+  dice: {
+    defaultColors: {
+      d4: '#8b0000', // Dark red
+      d6: '#708090', // Slate gray
+      d8: '#696969', // Dim gray
+      d10: '#556b2f', // Dark olive green
+      d12: '#483d8b', // Dark slate blue
+      d20: '#8b4513', // Saddle brown
+    },
+    materials: {
+      roughness: 0.8, // Rough stone-like surface
+      metalness: 0.3, // Slight metallic sheen
+      emissiveIntensity: 0.05, // Very subtle glow
+    },
+    numbering: {
+      color: '#c0c0c0', // Silver
+      style: 'engraved',
+      depth: 0.1,
+    },
+  },
+
+  environment: {
+    floor: {
+      color: '#2a2a2a', // Dark gray stone floor (old castle)
+      material: {
+        roughness: 0.9,
+        metalness: 0.0,
+      },
+      receiveShadow: true,
+    },
+    walls: {
+      color: '#333333', // Dark gray stone walls (old castle)
+      material: {
+        roughness: 0.95,
+        metalness: 0.0,
+      },
+      visible: true,
+      height: 6,
+    },
+    ceiling: {
+      visible: true,
+      // No color = transparent ceiling (physics barrier only, not visual)
+    },
+    lighting: {
+      ambient: {
+        color: '#999999', // Dim neutral gray light
+        intensity: 1, // Moderate ambient for visibility
+      },
+      directional: {
+        color: '#ff8533', // Bright fire orange (torch accent)
+        intensity: 0, // Lower torch intensity - just for highlights
+        position: [2, 5, 3],
+      },
+    },
+    background: {
+      color: '#1a1a1a', // Very dark background
+    },
+  },
+}
+
+// ============================================================================
+// Neon Cyber City Theme - Pixel Art Neon
+// ============================================================================
+
+export const neonCyberCityTheme: Theme = {
+  id: 'neon-cyber-city',
+  name: 'Neon Cyber City',
+  description: 'Retro-futuristic pixel art cityscape with vibrant neon lights',
+  price: 499, // $4.99
+  category: 'sci-fi',
+
+  tokens: {
+    colors: {
+      primary: '#1a0033', // Deep purple
+      secondary: '#2d1b69', // Dark purple
+      accent: '#00ffff', // Cyan
+      background: '#0d0221', // Very dark purple
+      surface: '#1a0033',
+      text: {
+        primary: '#00ffff', // Cyan
+        secondary: '#ff00ff', // Magenta
+        muted: '#9d4edd', // Purple
+      },
+      dice: {
+        highlight: '#00ffff',
+        shadow: '#ff00ff',
+      },
+    },
+
+    typography: {
+      fontFamily: {
+        primary: '"VT323", "Press Start 2P", "Courier New", monospace',
+        mono: '"VT323", "Courier New", monospace',
+      },
+      fontSize: {
+        xs: '0.75rem',
+        sm: '0.875rem',
+        base: '1rem',
+        lg: '1.125rem',
+        xl: '1.25rem',
+        '2xl': '1.5rem',
+        '3xl': '1.875rem',
+      },
+      fontWeight: {
+        normal: '400',
+        medium: '400', // Pixel fonts don't vary much
+        semibold: '400',
+        bold: '400',
+      },
+    },
+
+    spacing: {
+      unit: '0.25rem',
+    },
+
+    effects: {
+      borderRadius: {
+        sm: '0.0rem', // Pixel-perfect sharp edges
+        md: '0.0rem',
+        lg: '0.0rem',
+        full: '0.0rem', // Even "round" elements are pixelated
+      },
+      shadows: {
+        sm: '0 0 4px 0 rgba(0, 255, 255, 0.5)',
+        md: '0 0 8px 2px rgba(0, 255, 255, 0.6), 0 0 12px 4px rgba(255, 0, 255, 0.4)',
+        lg: '0 0 16px 4px rgba(0, 255, 255, 0.7), 0 0 24px 8px rgba(255, 0, 255, 0.5)',
+      },
+      gradients: {
+        primary: 'linear-gradient(135deg, #00ffff 0%, #ff00ff 100%)',
+        secondary: 'linear-gradient(135deg, #ff00ff 0%, #ff1493 100%)',
+      },
+    },
+  },
+
+  assets: {
+    ui: {
+      navbar: {
+        background: null, // Future: pixelated grid pattern
+        pattern: null, // Future: scanlines
+      },
+      buttons: {
+        primary: null, // Future: pixel button with glow
+        secondary: null, // Future: hologram effect
+      },
+    },
+    backgrounds: {
+      main: null, // Future: pixel cityscape
+      dice: null,
+    },
+    icons: {
+      roll: null, // Future: 8-bit dice icon
+      dice: null, // Future: pixel cube
+      history: null, // Future: pixel list
+      settings: null, // Future: pixel gear
+      profile: null, // Future: pixel avatar
+      uiToggle: null, // Future: pixel eye
+    },
+    sounds: {
+      roll: null, // Future: 8-bit blip
+      uiOpen: null, // Future: power up sound
+      uiClose: null, // Future: power down sound
+      buttonClick: null, // Future: beep
+    },
+  },
+
+  dice: {
+    defaultColors: {
+      d4: '#00ffff', // Cyan
+      d6: '#ff00ff', // Magenta
+      d8: '#00ff00', // Lime green
+      d10: '#ffff00', // Yellow
+      d12: '#ff1493', // Deep pink
+      d20: '#00ffff', // Cyan
+    },
+    materials: {
+      roughness: 0.1, // Very glossy/shiny
+      metalness: 0.5,
+      emissiveIntensity: 0.5, // Strong glow
+    },
+    numbering: {
+      color: '#000000', // Black for contrast
+      style: 'embossed',
+    },
+  },
+
+  environment: {
+    floor: {
+      color: '#1a0033', // Dark purple
+      material: {
+        roughness: 0.2, // Shiny floor (like wet pavement)
+        metalness: 0.3,
+      },
+      receiveShadow: true,
+    },
+    walls: {
+      color: '#2d1b69', // Purple walls
+      material: {
+        roughness: 0.3,
+        metalness: 0.2,
+      },
+      visible: true,
+      height: 6,
+    },
+    ceiling: {
+      visible: false, // Open to night sky
+    },
+    lighting: {
+      ambient: {
+        color: '#00ffff', // Cyan ambient
+        intensity: 0.4,
+      },
+      directional: {
+        color: '#ff00ff', // Magenta key light
+        intensity: 0.8,
+        position: [6, 8, 4],
+      },
+    },
+    background: {
+      color: '#0d0221',
+      gradient: {
+        from: '#0d0221', // Dark purple
+        to: '#240046', // Purple
+        direction: 'vertical',
+      },
     },
   },
 }

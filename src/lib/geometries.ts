@@ -200,16 +200,30 @@ export function createD4Geometry(size: number = 1): THREE.TetrahedronGeometry {
  * Numbers are displayed only in the UI after face detection.
  *
  * @param color - Dice body color
+ * @param roughness - Material roughness (0 = smooth, 1 = rough)
+ * @param metalness - Material metalness (0 = non-metal, 1 = metallic)
+ * @param emissiveIntensity - Optional glow effect
  * @returns Single material for all faces
  */
 export function createDiceMaterial(
-  color: string = 'orange'
+  color: string = 'orange',
+  roughness: number = 0.7,
+  metalness: number = 0.1,
+  emissiveIntensity?: number
 ): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshStandardMaterial({
     color: color,
-    roughness: 0.7,
-    metalness: 0.1
+    roughness: roughness,
+    metalness: metalness
   })
+
+  // Add emissive glow if specified
+  if (emissiveIntensity !== undefined && emissiveIntensity > 0) {
+    material.emissive = new THREE.Color(color)
+    material.emissiveIntensity = emissiveIntensity
+  }
+
+  return material
 }
 
 /**

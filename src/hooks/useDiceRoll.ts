@@ -8,7 +8,6 @@ import {
 } from '../config/physicsConfig'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
-import { useUIStore } from '../store/useUIStore'
 
 export interface DiceRollState {
   canRoll: boolean

@@ -1,20 +1,20 @@
-import { useRef, useCallback, useState, useEffect } from 'react'
-import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { Box } from '@react-three/drei'
-import { Physics, RigidBody } from '@react-three/rapier'
-import { useRapier } from '@react-three/rapier'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Physics, RigidBody, useRapier } from '@react-three/rapier'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { GRAVITY } from '../config/physicsConfig'
-import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
-import { Dice, DiceHandle } from './dice/Dice'
-import { BottomNav, CenterRollButton, CornerIcon, UIToggleMini } from './layout'
-import { DiceManagerPanel, HistoryPanel, SavedRollsPanel } from './panels'
-// import { SettingsPanel } from './panels' // TODO: Not yet implemented
-import { useDiceRoll } from '../hooks/useDiceRoll'
-import { useDiceStore } from '../store/useDiceStore'
-import { useDiceManagerStore } from '../store/useDiceManagerStore'
-import { useUIStore } from '../store/useUIStore'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
+import { useTheme } from '../contexts/ThemeContext'
+import { useDiceRoll } from '../hooks/useDiceRoll'
+import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
+import { useDiceManagerStore } from '../store/useDiceManagerStore'
+import { useDiceStore } from '../store/useDiceStore'
+import { useDragStore } from '../store/useDragStore'
+import { useUIStore } from '../store/useUIStore'
+import { Dice, DiceHandle } from './dice/Dice'
+import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
+import { HistoryPanel, SettingsPanel, SavedRollsPanel } from './panels'
 
 /**
  * Component to dynamically update physics gravity based on device motion
@@ -100,38 +100,38 @@ function ViewportBoundaries() {
         </Box>
       </RigidBody>
 
-      {/* Top wall (positive Z) */}
-      <RigidBody type="fixed" position={[0, wallY, bounds.top]}>
-        <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
+      {/* Left Wall */}
+      <RigidBody type="fixed" position={[bounds.left - wallThickness / 2, wallY, 0]}>
+        <Box args={[wallThickness, wallHeight, bounds.height]}>
+          <meshStandardMaterial color="#333333" transparent opacity={0} />
         </Box>
       </RigidBody>
 
-      {/* Bottom wall (negative Z) */}
-      <RigidBody type="fixed" position={[0, wallY, bounds.bottom]}>
-        <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
+      {/* Right Wall */}
+      <RigidBody type="fixed" position={[bounds.right + wallThickness / 2, wallY, 0]}>
+        <Box args={[wallThickness, wallHeight, bounds.height]}>
+          <meshStandardMaterial color="#333333" transparent opacity={0} />
         </Box>
       </RigidBody>
 
-      {/* Right wall (positive X) */}
-      <RigidBody type="fixed" position={[bounds.right, wallY, 0]}>
-        <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
+      {/* Front Wall */}
+      <RigidBody type="fixed" position={[0, wallY, bounds.bottom - wallThickness / 2]}>
+        <Box args={[bounds.width, wallHeight, wallThickness]}>
+          <meshStandardMaterial color="#333333" transparent opacity={0} />
         </Box>
       </RigidBody>
 
-      {/* Left wall (negative X) */}
-      <RigidBody type="fixed" position={[bounds.left, wallY, 0]}>
-        <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.8} metalness={0.2} />
+      {/* Back Wall */}
+      <RigidBody type="fixed" position={[0, wallY, bounds.top + wallThickness / 2]}>
+        <Box args={[bounds.width, wallHeight, wallThickness]}>
+          <meshStandardMaterial color="#333333" transparent opacity={0} />
         </Box>
       </RigidBody>
 
-      {/* Ceiling - prevents dice from flying away when phone upside down */}
-      <RigidBody type="fixed" position={[0, 6, 0]}>
-        <Box args={[bounds.width, wallThickness, bounds.height]}>
-          <meshStandardMaterial transparent opacity={0} />
+      {/* Ceiling - invisible but prevents dice from flying away */}
+      <RigidBody type="fixed" position={[0, wallHeight, 0]}>
+        <Box args={[bounds.width, 0.1, bounds.height]}>
+          <meshStandardMaterial color="#333333" transparent opacity={0} />
         </Box>
       </RigidBody>
     </>
@@ -156,19 +156,25 @@ function Scene() {
   const { gravityRef } = useDeviceMotionRef()
   // Get requestPermission from state context
   const { requestPermission } = useDeviceMotionState()
-  const { canRoll, roll, onDiceRest } = useDiceRoll()
+  const { roll, onDiceRest } = useDiceRoll()
 
   // Subscribe to dice manager store
   const dice = useDiceManagerStore((state) => state.dice)
   const addDice = useDiceManagerStore((state) => state.addDice)
   const removeDice = useDiceManagerStore((state) => state.removeDice)
 
+  // Get the active theme
+  const { theme } = useTheme()
+
+  // Subscribe to drag store
+  const setOnDiceDelete = useDragStore((state) => state.setOnDiceDelete)
+
   // UI state
   const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
   const [isDiceManagerOpen, setIsDiceManagerOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isSavedRollsOpen, setIsSavedRollsOpen] = useState(false)
-  // const [isSettingsOpen, setIsSettingsOpen] = useState(false) // TODO: Not yet implemented
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   // Detect if mobile
   const [isMobile, setIsMobile] = useState(false)
@@ -186,19 +192,24 @@ function Scene() {
       // Apply impulse to ALL dice in their current positions
       // This allows spam clicking to shake up dice
       diceRefs.current.forEach((diceHandle) => {
-        diceHandle.applyRollImpulse(impulse)
+        diceHandle.applyImpulse(impulse)
       })
     }
   }, [roll, dice.length])
 
-  const handleDiceRest = useCallback((diceId: string, faceValue: number, diceType: string) => {
-    onDiceRest(diceId, faceValue, diceType)
-  }, [onDiceRest])
+  const handleDiceRest = useCallback(
+    (id: string, faceValue: number, diceType: string) => {
+      onDiceRest(id, faceValue, diceType)
+    },
+    [onDiceRest]
+  )
 
-  const handleAddDice = useCallback((type: string) => {
-    console.log('Adding dice:', type)
-    addDice(type as import('../lib/geometries').DiceShape)
-  }, [addDice])
+  const handleAddDice = useCallback(
+    (type: string) => {
+      addDice(type as any)
+    },
+    [addDice]
+  )
 
   const handleToggleMotion = useCallback(async () => {
     if (!motionMode) {
@@ -221,6 +232,11 @@ function Scene() {
       useDiceStore.getState().reset()
     }
   }, [removeDice])
+
+  // Set up the onDiceDelete callback for drag-to-delete
+  useEffect(() => {
+    setOnDiceDelete(handleRemoveDice)
+  }, [handleRemoveDice, setOnDiceDelete])
 
   return (
     <>
@@ -306,7 +322,7 @@ function Scene() {
     {/* Top-Left Corner: Settings */}
     <CornerIcon
       position="top-left"
-      onClick={() => {}} // TODO: Settings panel not yet implemented
+      onClick={() => setIsSettingsOpen(true)}
       label="Settings"
       isVisible={isUIVisible}
     >
@@ -326,15 +342,15 @@ function Scene() {
     {/* Mini UI Toggle - shows when UI hidden */}
     <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
 
-    {/* THEMED PANELS */}
-    <DiceManagerPanel
+    {/* DICE TOOLBAR - Compact slide-out dice management */}
+    <DiceToolbar
       isOpen={isDiceManagerOpen}
       onClose={() => setIsDiceManagerOpen(false)}
       onAddDice={handleAddDice}
-      onRemoveDice={handleRemoveDice}
       dice={dice}
     />
 
+    {/* THEMED PANELS */}
     <HistoryPanel
       isOpen={isHistoryOpen}
       onClose={() => setIsHistoryOpen(false)}
@@ -345,11 +361,10 @@ function Scene() {
       onClose={() => setIsSavedRollsOpen(false)}
     />
 
-    {/* TODO: Settings panel not yet implemented */}
-    {/* <SettingsPanel
+    <SettingsPanel
       isOpen={isSettingsOpen}
       onClose={() => setIsSettingsOpen(false)}
-    /> */}
+    />
   </>
   )
 }
@@ -362,53 +377,66 @@ function ResultDisplay() {
   const currentRoll = useDiceStore((state) => state.currentRoll)
   const expectedDiceCount = useDiceStore((state) => state.expectedDiceCount)
   const lastResult = useDiceStore((state) => state.lastResult)
+  const dice = useDiceManagerStore((state) => state.dice)
 
-  // Show current roll if in progress, otherwise show last completed roll
-  const isRolling = currentRoll.length > 0 && currentRoll.length < expectedDiceCount
-  const hasRoll = currentRoll.length > 0 || lastResult !== null
+  // Don't show anything if there are no dice
+  if (dice.length === 0) return null
 
-  if (!hasRoll) return null
-
-  // Show currentRoll only if we have actual dice in it, otherwise show lastResult
-  const displayDice = currentRoll.length > 0 ? currentRoll : lastResult?.dice || []
-  const displaySum = displayDice.reduce((acc, d) => acc + d.value, 0)
-
-  // Calculate how many dice are still pending
-  const pendingCount = isRolling ? expectedDiceCount - currentRoll.length : 0
-
-  return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 md:top-20 md:left-auto md:right-4 md:translate-x-0 text-white text-center z-20 flex flex-col items-center gap-3">
-      {/* Label with background for readability */}
-      <div className="text-sm text-gray-300 bg-black bg-opacity-75 px-3 py-1 rounded">
-        {isRolling ? 'Rolling...' : 'You rolled:'}
-      </div>
-
-      {/* Individual dice values */}
-      <div className="flex gap-2 justify-center flex-wrap">
-        {displayDice.map((die, idx) => (
-          <span key={idx} className="text-2xl font-bold bg-gray-700 px-3 py-1 rounded">
-            {die.value}
-          </span>
-        ))}
-        {/* Show ? for pending dice */}
-        {Array.from({ length: pendingCount }).map((_, idx) => (
-          <span key={`pending-${idx}`} className="text-2xl font-bold bg-gray-600 px-3 py-1 rounded animate-pulse">
-            ?
-          </span>
-        ))}
-      </div>
-
-      {/* Sum */}
-      {displayDice.length > 1 && (
-        <div className="bg-black bg-opacity-75 px-4 py-2 rounded">
-          <div className="text-xs text-gray-400">Sum</div>
-          <div className="text-3xl font-bold text-orange-400">
-            {isRolling ? `${displaySum} + ?` : displaySum}
+  // Show last result if available
+  if (lastResult && lastResult.dice.length > 0) {
+    return (
+      <div
+        className="fixed top-24 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none"
+        style={{
+          textShadow: '0 2px 8px rgba(0, 0, 0, 0.5)'
+        }}
+      >
+        <div className="text-center">
+          <div
+            className="text-7xl font-bold mb-2 animate-bounce"
+            style={{
+              color: 'var(--color-accent)',
+              textShadow: '0 0 20px var(--color-accent-glow)'
+            }}
+          >
+            {lastResult.sum}
+          </div>
+          <div className="flex gap-2 justify-center flex-wrap">
+            {lastResult.dice.map((die, idx) => (
+              <span
+                key={`${die.id}-${idx}`}
+                className="text-lg"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                {die.type.toUpperCase()}: {die.value}
+              </span>
+            ))}
           </div>
         </div>
-      )}
-    </div>
-  )
+      </div>
+    )
+  }
+
+  // Show rolling state if dice are in motion
+  if (currentRoll.length > 0 && currentRoll.length < expectedDiceCount) {
+    return (
+      <div
+        className="fixed top-24 left-1/2 transform -translate-x-1/2 z-10 pointer-events-none"
+        style={{
+          textShadow: '0 2px 8px rgba(0, 0, 0, 0.5)'
+        }}
+      >
+        <div
+          className="text-3xl"
+          style={{ color: 'var(--color-text-secondary)' }}
+        >
+          Rolling... ({currentRoll.length}/{expectedDiceCount})
+        </div>
+      </div>
+    )
+  }
+
+  return null
 }
 
 export default Scene

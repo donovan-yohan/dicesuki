@@ -9,7 +9,6 @@ import { motion } from 'framer-motion'
 import { useThemedAsset } from '../../hooks/useThemedAsset'
 import {
   miniToggleVariants,
-  buttonHoverScale,
   buttonPressScale,
   shouldReduceMotion,
 } from '../../animations/ui-transitions'

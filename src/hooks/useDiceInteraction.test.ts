@@ -81,7 +81,7 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const mockEvent = createMockPointerEvent(100, 100)
-        result.current.onPointerDown(mockEvent, mockRigidBody)
+        result.current.onPointerDown(mockEvent, mockRigidBody, 'test-dice-1')
       })
 
       expect(result.current.isDragging).toBe(true)
@@ -94,7 +94,7 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const downEvent = createMockPointerEvent(100, 100, 1)
-        result.current.onPointerDown(downEvent, mockRigidBody)
+        result.current.onPointerDown(downEvent, mockRigidBody, 'test-dice-1')
       })
 
       expect(result.current.isDragging).toBe(true)
@@ -114,7 +114,7 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const event1 = createMockPointerEvent(100, 100, 1)
-        result.current.onPointerDown(event1, mockRigidBody)
+        result.current.onPointerDown(event1, mockRigidBody, 'test-dice-1')
       })
 
       expect(result.current.isDragging).toBe(true)
@@ -135,7 +135,7 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const downEvent = createMockPointerEvent(100, 100)
-        result.current.onPointerDown(downEvent, mockRigidBody)
+        result.current.onPointerDown(downEvent, mockRigidBody, 'test-dice-1')
       })
 
       const state = result.current.getDragState()
@@ -148,10 +148,10 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const downEvent = createMockPointerEvent(100, 100, 1)
-        result.current.onPointerDown(downEvent, mockRigidBody)
+        result.current.onPointerDown(downEvent, mockRigidBody, 'test-dice-1')
       })
 
-      const initialPos = result.current.getDragState().targetPosition?.clone()
+      // const initialPos = result.current.getDragState().targetPosition?.clone() // Unused, removed
 
       act(() => {
         const moveEvent = new PointerEvent('pointermove', {
@@ -176,7 +176,7 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const downEvent = createMockPointerEvent(100, 100, 1)
-        result.current.onPointerDown(downEvent, mockRigidBody)
+        result.current.onPointerDown(downEvent, mockRigidBody, 'test-dice-1')
       })
 
       // Simulate drag movement over time
@@ -214,7 +214,7 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const downEvent = createMockPointerEvent(100, 100, 1)
-        result.current.onPointerDown(downEvent, slowRigidBody)
+        result.current.onPointerDown(downEvent, slowRigidBody, 'test-dice-1')
       })
 
       // Very slow movement
@@ -251,7 +251,7 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const downEvent = createMockPointerEvent(100, 100, 1)
-        result.current.onPointerDown(downEvent, rigidBody)
+        result.current.onPointerDown(downEvent, rigidBody, 'test-dice-1')
       })
 
       // Fast horizontal movement
@@ -297,7 +297,7 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const downEvent = createMockPointerEvent(100, 100, 1)
-        result.current.onPointerDown(downEvent, rigidBody)
+        result.current.onPointerDown(downEvent, rigidBody, 'test-dice-1')
       })
 
       // Fast movement
@@ -338,7 +338,7 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const downEvent = createMockPointerEvent(100, 100, 1)
-        result.current.onPointerDown(downEvent, rigidBody)
+        result.current.onPointerDown(downEvent, rigidBody, 'test-dice-1')
       })
 
       act(() => {
@@ -357,7 +357,7 @@ describe.skip('useDiceInteraction', () => {
       downEvent.nativeEvent.target.releasePointerCapture = releasePointerCapture
 
       act(() => {
-        result.current.onPointerDown(downEvent, mockRigidBody)
+        result.current.onPointerDown(downEvent, mockRigidBody, 'test-dice-1')
       })
 
       act(() => {
@@ -414,7 +414,7 @@ describe.skip('useDiceInteraction', () => {
 
       act(() => {
         const downEvent = createMockPointerEvent(100, 100, 1)
-        result.current.onPointerDown(downEvent, mockRigidBody)
+        result.current.onPointerDown(downEvent, mockRigidBody, 'test-dice-1')
       })
 
       expect(result.current.getDragState().isDragging).toBe(true)
