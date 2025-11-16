@@ -5,9 +5,8 @@
  * Similar to FlyoutPanel but slides up from bottom.
  */
 
-import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion'
+import { motion, AnimatePresence, PanInfo } from 'framer-motion'
 import { ReactNode, useRef } from 'react'
-import { shouldReduceMotion } from '../../animations/ui-transitions'
 
 interface BottomSheetProps {
   isOpen: boolean
@@ -26,12 +25,7 @@ export function BottomSheet({
   children,
   showHandle = true,
 }: BottomSheetProps) {
-  const reduceMotion = shouldReduceMotion()
   const containerRef = useRef<HTMLDivElement>(null)
-  const dragY = useMotionValue(0)
-
-  // Transform opacity based on drag distance
-  const dragOpacity = useTransform(dragY, [0, 300], [1, 0])
 
   const sheetVariants = {
     hidden: {
@@ -43,7 +37,7 @@ export function BottomSheet({
       opacity: 1,
       transition: {
         duration: 0.3,
-        ease: 'easeOut',
+        ease: [0.4, 0, 0.2, 1] as const, // easeOut cubic bezier
       },
     },
     exit: {
@@ -51,7 +45,7 @@ export function BottomSheet({
       opacity: 0,
       transition: {
         duration: 0.2,
-        ease: 'easeIn',
+        ease: [0.4, 0, 1, 1] as const, // easeIn cubic bezier
       },
     },
   }
