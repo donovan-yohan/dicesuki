@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { GRAVITY } from '../config/physicsConfig'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
+import { useTheme } from '../contexts/ThemeContext'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
@@ -48,6 +49,116 @@ function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<
 }
 
 /**
+ * Themed background component
+ * Sets the Three.js scene background color from theme
+ */
+function ThemedBackground() {
+  const { scene } = useThree()
+  const { currentTheme } = useTheme()
+  const bgColor = currentTheme.environment.background.color
+
+  useEffect(() => {
+    console.log(`[ThemedBackground] Setting scene background to: ${bgColor} for theme: ${currentTheme.id}`)
+    const color = new THREE.Color(bgColor)
+    scene.background = color
+    console.log(`[ThemedBackground] Scene background object:`, scene.background, 'R:', scene.background.r, 'G:', scene.background.g, 'B:', scene.background.b)
+  }, [scene, bgColor, currentTheme.id])
+
+  return null
+}
+
+/**
+ * Themed lighting component
+ * Uses theme's lighting configuration for ambient and directional lights
+ */
+function ThemedLighting() {
+  const { currentTheme } = useTheme()
+  const lighting = currentTheme.environment.lighting
+  const { size } = useThree()
+
+  // Calculate wall positions for torch placement (for dungeon theme)
+  const isDungeonTheme = currentTheme.id === 'dungeon-castle'
+
+  // Calculate viewport bounds for torch positioning
+  const aspect = size.width / size.height
+  const distance = 15 // camera height
+  const vFOV = THREE.MathUtils.degToRad(40)
+  const height = 2 * Math.tan(vFOV / 2) * distance
+  const width = height * aspect
+  const margin = -0.05
+
+  const wallPositions = {
+    left: -(width / 2) * (1 + margin),
+    right: (width / 2) * (1 + margin),
+    top: (height / 2) * (1 + margin),
+    bottom: -(height / 2) * (1 + margin),
+  }
+
+  return (
+    <>
+      <ambientLight
+        color={lighting.ambient.color}
+        intensity={lighting.ambient.intensity}
+      />
+      <directionalLight
+        position={lighting.directional.position}
+        color={lighting.directional.color}
+        intensity={lighting.directional.intensity}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-left={-10}
+        shadow-camera-right={10}
+        shadow-camera-top={10}
+        shadow-camera-bottom={-10}
+      />
+
+      {/* Torch lights on walls for dungeon theme */}
+      {isDungeonTheme && (
+        <>
+          {/* North wall torch */}
+          <pointLight
+            position={[0, 3, wallPositions.top - 1.5]}
+            color="#ff8c42"
+            intensity={16.0}
+            distance={15}
+            decay={1.5}
+            castShadow
+          />
+          {/* South wall torch */}
+          <pointLight
+            position={[0, 3, wallPositions.bottom + 1.5]}
+            color="#ff8c42"
+            intensity={16.0}
+            distance={15}
+            decay={1.5}
+            castShadow
+          />
+          {/* East wall torch */}
+          <pointLight
+            position={[wallPositions.right - 1.5, 3, 0]}
+            color="#ff8c42"
+            intensity={16.0}
+            distance={15}
+            decay={1.5}
+            castShadow
+          />
+          {/* West wall torch */}
+          <pointLight
+            position={[wallPositions.left + 1.5, 3, 0]}
+            color="#ff8c42"
+            intensity={16.0}
+            distance={15}
+            decay={1.5}
+            castShadow
+          />
+        </>
+      )}
+    </>
+  )
+}
+
+/**
  * Viewport-aligned boundaries component
  * Calculates frustum dimensions and renders ground, walls, and ceiling
  * Updates automatically on window resize via useThree's size reactivity
@@ -56,6 +167,8 @@ function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<
  */
 function ViewportBoundaries() {
   const { camera, size } = useThree()
+  const { currentTheme } = useTheme()
+  const env = currentTheme.environment
 
   // Ensure camera FOV is set (default to 40 if not yet configured)
   const perspectiveCamera = camera as THREE.PerspectiveCamera
@@ -87,52 +200,86 @@ function ViewportBoundaries() {
   }
 
   const wallThickness = 0.3
-  const wallHeight = 6 // Match ceiling height to prevent dice escape
+  const wallHeight = env.walls.height || 6 // Use theme's wall height or default to 6
   const wallY = wallHeight / 2 // Center Y position for walls
 
   return (
     <>
       {/* Ground Plane - sized to viewport */}
       <RigidBody type="fixed" position={[0, -0.5, 0]}>
-        <Box args={[bounds.width, 1, bounds.height]} receiveShadow>
-          <meshStandardMaterial color="#444444" />
+        <Box
+          args={[bounds.width, 1, bounds.height]}
+          receiveShadow={env.floor.receiveShadow !== false}
+        >
+          <meshStandardMaterial
+            color={env.floor.color}
+            roughness={env.floor.material.roughness}
+            metalness={env.floor.material.metalness}
+          />
         </Box>
       </RigidBody>
 
-      {/* Left Wall */}
-      <RigidBody type="fixed" position={[bounds.left - wallThickness / 2, wallY, 0]}>
-        <Box args={[wallThickness, wallHeight, bounds.height]}>
-          <meshStandardMaterial color="#333333" transparent opacity={0} />
-        </Box>
-      </RigidBody>
+      {/* Walls - only render if visible */}
+      {env.walls.visible && (
+        <>
+          {/* Top wall (positive Z) */}
+          <RigidBody type="fixed" position={[0, wallY, bounds.top]}>
+            <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
 
-      {/* Right Wall */}
-      <RigidBody type="fixed" position={[bounds.right + wallThickness / 2, wallY, 0]}>
-        <Box args={[wallThickness, wallHeight, bounds.height]}>
-          <meshStandardMaterial color="#333333" transparent opacity={0} />
-        </Box>
-      </RigidBody>
+          {/* Bottom wall (negative Z) */}
+          <RigidBody type="fixed" position={[0, wallY, bounds.bottom]}>
+            <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
 
-      {/* Front Wall */}
-      <RigidBody type="fixed" position={[0, wallY, bounds.bottom - wallThickness / 2]}>
-        <Box args={[bounds.width, wallHeight, wallThickness]}>
-          <meshStandardMaterial color="#333333" transparent opacity={0} />
-        </Box>
-      </RigidBody>
+          {/* Right wall (positive X) */}
+          <RigidBody type="fixed" position={[bounds.right, wallY, 0]}>
+            <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
 
-      {/* Back Wall */}
-      <RigidBody type="fixed" position={[0, wallY, bounds.top + wallThickness / 2]}>
-        <Box args={[bounds.width, wallHeight, wallThickness]}>
-          <meshStandardMaterial color="#333333" transparent opacity={0} />
-        </Box>
-      </RigidBody>
+          {/* Left wall (negative X) */}
+          <RigidBody type="fixed" position={[bounds.left, wallY, 0]}>
+            <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
+              <meshStandardMaterial
+                color={env.walls.color}
+                roughness={env.walls.material.roughness}
+                metalness={env.walls.material.metalness}
+              />
+            </Box>
+          </RigidBody>
+        </>
+      )}
 
-      {/* Ceiling - invisible but prevents dice from flying away */}
-      <RigidBody type="fixed" position={[0, wallHeight, 0]}>
-        <Box args={[bounds.width, 0.1, bounds.height]}>
-          <meshStandardMaterial color="#333333" transparent opacity={0} />
-        </Box>
-      </RigidBody>
+      {/* Ceiling - prevents dice from flying away when phone upside down */}
+      {env.ceiling.visible && (
+        <RigidBody type="fixed" position={[0, 6, 0]}>
+          <Box args={[bounds.width, wallThickness, bounds.height]}>
+            <meshStandardMaterial
+              color={env.ceiling.color || '#1a1a1a'}
+              transparent
+              opacity={env.ceiling.color ? 1 : 0}
+            />
+          </Box>
+        </RigidBody>
+      )}
     </>
   )
 }
@@ -250,19 +397,11 @@ function Scene() {
       >
       {/* Camera already configured via Canvas props */}
 
-      {/* Lighting - optimized for top-down view */}
-      <ambientLight intensity={0.6} />
-      <directionalLight
-        position={[5, 15, 5]}
-        intensity={1.2}
-        castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-10}
-      />
+      {/* Themed background */}
+      <ThemedBackground />
+
+      {/* Themed lighting from theme config */}
+      <ThemedLighting />
 
       {/* Physics world - gravity updated via PhysicsController, not props */}
       <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
