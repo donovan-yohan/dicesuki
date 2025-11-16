@@ -11,10 +11,23 @@ import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
+import { useInventoryStore } from '../store/useInventoryStore'
 import { useUIStore } from '../store/useUIStore'
 import { Dice, DiceHandle } from './dice/Dice'
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
-import { HistoryPanel, SettingsPanel, SavedRollsPanel } from './panels'
+import { HistoryPanel, SettingsPanel, SavedRollsPanel, InventoryPanel } from './panels'
+import { initializeStarterDice } from '../lib/initializeStarterDice'
+
+/**
+ * Shared styles for top-right corner buttons
+ */
+const TOP_RIGHT_BUTTON_STYLES = {
+  backgroundColor: 'rgba(31, 41, 55, 0.7)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+  border: '1px solid rgba(251, 146, 60, 0.2)'
+} as const
 
 /**
  * Component to dynamically update physics gravity based on device motion
@@ -315,9 +328,11 @@ function Scene() {
 
   // UI state
   const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
+  const { currentTheme } = useTheme()
   const [isDiceManagerOpen, setIsDiceManagerOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isSavedRollsOpen, setIsSavedRollsOpen] = useState(false)
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   // Detect if mobile
@@ -328,6 +343,35 @@ function Scene() {
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
+
+  // Initialize starter dice on first load
+  useEffect(() => {
+    initializeStarterDice()
+  }, [])
+
+  // Spawn initial d20 from inventory on first load
+  const hasSpawnedInitialDie = useRef(false)
+  useEffect(() => {
+    // Only spawn once, ever
+    if (!hasSpawnedInitialDie.current) {
+      hasSpawnedInitialDie.current = true
+
+      // Get first d20 from inventory
+      const inventoryDice = useInventoryStore.getState().getDiceByType('d20')
+      if (inventoryDice.length > 0) {
+        const firstD20 = inventoryDice[0]
+        console.log(`Spawning initial d20 from inventory: ${firstD20.name}`)
+        addDice(
+          'd20',
+          currentTheme.id,
+          undefined, // auto-generate dice instance ID
+          undefined, // no roll group
+          undefined, // no roll group name
+          firstD20.id // link to inventory die
+        )
+      }
+    }
+  }, []) // Only run once on mount - ref guard prevents re-execution
 
   const handleRollClick = useCallback(() => {
     // Allow spam clicking - no canRoll check
@@ -401,9 +445,6 @@ function Scene() {
     [onDiceRest, dice]
   )
 
-  // Get current theme
-  const { currentTheme } = useTheme()
-
   const handleAddDice = useCallback(
     (type: string) => {
       console.log('Adding dice:', type)
@@ -415,7 +456,34 @@ function Scene() {
       const groupedDice = dice.filter(d => d.rollGroupId)
       groupedDice.forEach(d => removeDice(d.id))
 
-      addDice(type as import('../lib/geometries').DiceShape, currentTheme.id)
+      // Get all dice of this type from inventory
+      const inventoryDice = useInventoryStore.getState().getDiceByType(type as import('../lib/geometries').DiceShape)
+
+      if (inventoryDice.length === 0) {
+        console.warn(`No dice of type ${type} found in inventory`)
+        return // Don't spawn dice if player doesn't own any
+      }
+
+      // Get dice that are currently in use
+      const inUseDiceIds = useDiceManagerStore.getState().getInUseDiceIds()
+
+      // Find first available die (owned but not in use)
+      const availableDie = inventoryDice.find(die => !inUseDiceIds.includes(die.id))
+
+      if (!availableDie) {
+        console.warn(`All ${type} dice are already in use (${inventoryDice.length} owned, ${inUseDiceIds.filter(id => inventoryDice.some(d => d.id === id)).length} in use)`)
+        return // Don't spawn if all dice of this type are in use
+      }
+
+      console.log(`Using inventory die: ${availableDie.name} (${availableDie.appearance.baseColor})`)
+      addDice(
+        type as import('../lib/geometries').DiceShape,
+        currentTheme.id,
+        undefined, // auto-generate dice instance ID
+        undefined, // no roll group
+        undefined, // no roll group name
+        availableDie.id // link to inventory die
+      )
     },
     [addDice, currentTheme.id, dice, removeDice]
   )
@@ -556,15 +624,53 @@ function Scene() {
       ⚙️
     </CornerIcon>
 
-    {/* Top-Right Corner: My Dice Rolls */}
-    <CornerIcon
-      position="top-right"
-      onClick={() => setIsSavedRollsOpen(true)}
-      label="My Dice Rolls"
-      isVisible={isUIVisible}
+    {/* Top-Right (Upper): Inventory */}
+    <div
+      className="fixed z-40"
+      style={{
+        top: '16px',
+        right: '16px',
+        pointerEvents: isUIVisible ? 'auto' : 'none'
+      }}
     >
-      📋
-    </CornerIcon>
+      <button
+        onClick={() => setIsInventoryOpen(true)}
+        className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
+        style={{
+          ...TOP_RIGHT_BUTTON_STYLES,
+          opacity: isUIVisible ? 1 : 0,
+          transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
+        }}
+        aria-label="Inventory"
+        title="Dice Collection"
+      >
+        💎
+      </button>
+    </div>
+
+    {/* Top-Right (Lower): My Dice Rolls */}
+    <div
+      className="fixed z-40"
+      style={{
+        top: '80px',
+        right: '16px',
+        pointerEvents: isUIVisible ? 'auto' : 'none'
+      }}
+    >
+      <button
+        onClick={() => setIsSavedRollsOpen(true)}
+        className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
+        style={{
+          ...TOP_RIGHT_BUTTON_STYLES,
+          opacity: isUIVisible ? 1 : 0,
+          transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
+        }}
+        aria-label="My Dice Rolls"
+        title="Saved Rolls"
+      >
+        📋
+      </button>
+    </div>
 
     {/* Mini UI Toggle - shows when UI hidden */}
     <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
@@ -585,6 +691,11 @@ function Scene() {
     <SavedRollsPanel
       isOpen={isSavedRollsOpen}
       onClose={() => setIsSavedRollsOpen(false)}
+    />
+
+    <InventoryPanel
+      isOpen={isInventoryOpen}
+      onClose={() => setIsInventoryOpen(false)}
     />
 
     <SettingsPanel

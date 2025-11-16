@@ -6,9 +6,13 @@
  */
 
 import { motion, AnimatePresence } from 'framer-motion'
+import { useMemo } from 'react'
 import { buttonPressScale, shouldReduceMotion } from '../../animations/ui-transitions'
+import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDragStore } from '../../store/useDragStore'
+import { useInventoryStore } from '../../store/useInventoryStore'
 import { useTheme } from '../../contexts/ThemeContext'
+import { DiceShape } from '../../lib/geometries'
 
 interface DiceToolbarProps {
   isOpen: boolean
@@ -16,7 +20,7 @@ interface DiceToolbarProps {
   onClearAll: () => void
 }
 
-const DICE_TYPES = [
+const ALL_DICE_TYPES: Array<{ type: DiceShape; label: string }> = [
   { type: 'd4', label: 'D4' },
   { type: 'd6', label: 'D6' },
   { type: 'd8', label: 'D8' },
@@ -27,6 +31,41 @@ const DICE_TYPES = [
 
 export function DiceToolbar({ isOpen, onAddDice, onClearAll }: DiceToolbarProps) {
   const reduceMotion = shouldReduceMotion()
+  const { dice: inventoryDice } = useInventoryStore()
+  const diceOnTable = useDiceManagerStore(state => state.dice)
+
+  // Get available dice types (owned - in use)
+  const availableDiceTypes = useMemo(() => {
+    // Count owned dice by type
+    const ownedCounts = new Map<DiceShape, number>()
+    inventoryDice.forEach(die => {
+      const currentCount = ownedCounts.get(die.type) || 0
+      ownedCounts.set(die.type, currentCount + 1)
+    })
+
+    // Count in-use dice by type
+    const inUseCounts = new Map<DiceShape, number>()
+    diceOnTable.forEach(tableDie => {
+      if (tableDie.inventoryDieId) {
+        const currentCount = inUseCounts.get(tableDie.type) || 0
+        inUseCounts.set(tableDie.type, currentCount + 1)
+      }
+    })
+
+    // Calculate available counts - show all owned types even if 0 available
+    return ALL_DICE_TYPES
+      .filter(({ type }) => ownedCounts.has(type))
+      .map(({ type, label }) => {
+        const owned = ownedCounts.get(type) || 0
+        const inUse = inUseCounts.get(type) || 0
+        return {
+          type,
+          label,
+          available: owned - inUse,
+          total: owned
+        }
+      })
+  }, [inventoryDice, diceOnTable])
 
   return (
     <AnimatePresence>
@@ -37,13 +76,15 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAll }: DiceToolbarProps)
             bottom: '80px', // Position above bottom nav (56px nav + 24px gap)
           }}
         >
-          {/* Dice Type Buttons - Staggered waterfall animation */}
-          {DICE_TYPES.map(({ type, label }, index) => (
+          {/* Dice Type Buttons - Show all owned types, disable if none available */}
+          {availableDiceTypes.map(({ type, label, available }, index) => (
             <DiceButton
               key={type}
               onClick={() => onAddDice(type)}
               label={label}
+              count={available}
               index={index}
+              disabled={available === 0}
             />
           ))}
 
@@ -56,7 +97,7 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAll }: DiceToolbarProps)
             exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
             transition={{
               duration: 0.3,
-              delay: DICE_TYPES.length * 0.05, // Animate after all dice buttons
+              delay: availableDiceTypes.length * 0.05, // Animate after all dice buttons
               ease: 'easeOut',
             }}
           >
@@ -75,10 +116,12 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAll }: DiceToolbarProps)
 interface DiceButtonProps {
   onClick: () => void
   label: string
+  count: number
   index: number
+  disabled?: boolean
 }
 
-function DiceButton({ onClick, label, index }: DiceButtonProps) {
+function DiceButton({ onClick, label, count, index, disabled = false }: DiceButtonProps) {
   const reduceMotion = shouldReduceMotion()
   const { currentTheme } = useTheme()
   const accentColor = currentTheme.tokens.colors.accent
@@ -86,14 +129,17 @@ function DiceButton({ onClick, label, index }: DiceButtonProps) {
 
   return (
     <motion.button
-      onClick={onClick}
-      className="flex items-center justify-center rounded-xl font-bold text-sm"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className="flex flex-col items-center justify-center rounded-xl font-bold text-sm relative"
       style={{
         width: '48px',
         height: '48px',
-        backgroundColor: accentColor, // Theme accent color
+        backgroundColor: disabled ? `${accentColor}40` : accentColor, // Reduced opacity when disabled
         border: 'none',
-        color: surfaceColor, // Theme surface for contrast
+        color: disabled ? `${surfaceColor}60` : surfaceColor, // Reduced opacity when disabled
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
       }}
       // Staggered slide-in animation from left
       initial={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
@@ -105,7 +151,7 @@ function DiceButton({ onClick, label, index }: DiceButtonProps) {
         ease: 'easeOut',
       }}
       whileHover={
-        !reduceMotion
+        !reduceMotion && !disabled
           ? {
               backgroundColor: currentTheme.tokens.colors.dice.highlight, // Theme dice highlight on hover
               scale: 1.1,
@@ -113,11 +159,25 @@ function DiceButton({ onClick, label, index }: DiceButtonProps) {
             }
           : undefined
       }
-      whileTap={!reduceMotion ? buttonPressScale : undefined}
-      aria-label={`Add ${label}`}
-      title={`Add ${label}`}
+      whileTap={!reduceMotion && !disabled ? buttonPressScale : undefined}
+      aria-label={disabled ? `No ${label} available` : `Add ${label} (${count} available)`}
+      title={disabled ? `No ${label} available` : `Add ${label} (${count} available)`}
     >
-      {label}
+      <span>{label}</span>
+      {/* Count badge */}
+      <span
+        className="absolute top-0 right-0 flex items-center justify-center text-xs font-bold rounded-full"
+        style={{
+          width: '18px',
+          height: '18px',
+          backgroundColor: surfaceColor,
+          color: accentColor,
+          border: `2px solid ${accentColor}`,
+          transform: 'translate(25%, -25%)'
+        }}
+      >
+        {count}
+      </span>
     </motion.button>
   )
 }

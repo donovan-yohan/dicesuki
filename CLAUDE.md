@@ -823,6 +823,36 @@ When testing saved rolls:
 
 ## Recent Updates
 
+### 2025-11-16: Inventory-Based Dice Limiting System
+- **Core Feature**: Implemented inventory-based dice spawning limits
+  - Players can only spawn dice they own from inventory
+  - Each spawned die links to specific inventory die via `inventoryDieId`
+  - Real-time availability tracking (owned - in use)
+  - Prevents over-spawning beyond owned quantity
+
+- **Starter Dice Configuration** (src/config/starterDice.ts)
+  - Updated distribution: 6d4, 6d6, 4d8, 2d10, 2d12, 1d20 (21 total)
+  - All starter dice locked (`isLocked: true`) to prevent deletion/crafting
+  - Guarantees players always have minimum dice collection
+
+- **DiceToolbar UI** (src/components/layout/DiceToolbar.tsx)
+  - Shows available count badges (owned - in use)
+  - Buttons disable when count reaches 0 (50% opacity, cursor: not-allowed)
+  - No hover/tap animations when disabled
+  - Tooltip updates: "No {TYPE} available" when disabled
+
+- **DiceManagerStore** (src/store/useDiceManagerStore.ts)
+  - Added `inventoryDieId` field to `DiceInstance` interface
+  - Added `getInUseDiceIds()` function for tracking
+  - Removed default hardcoded d6 on load
+  - Table starts empty, populated from inventory
+
+- **Scene Initialization** (src/components/Scene.tsx)
+  - Auto-spawns 1 d20 from inventory on first load
+  - Uses ref-based guard (`hasSpawnedInitialDie`) to prevent double-spawn
+  - `handleAddDice` validates availability before spawning
+  - Console warnings when attempting to spawn unavailable dice
+
 ### 2025-11-16: Saved Rolls Bonus System
 - **Formula Display**: Fixed double-plus bug (`6d6 + +4` → `6d6 + 4`)
   - Updated `formatSavedRoll()` to properly handle positive/negative operators
