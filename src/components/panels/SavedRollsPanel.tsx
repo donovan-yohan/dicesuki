@@ -79,7 +79,7 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
     roll.dice.forEach((entry) => {
       // Spawn the number of dice specified in quantity
       for (let i = 0; i < entry.quantity; i++) {
-        const diceId = addDice(entry.type, currentTheme.id, groupId, roll.name)
+        const diceId = addDice(entry.type, currentTheme.id, undefined, groupId, roll.name)
         totalDiceCount++
 
         // Track per-die bonus for this group
