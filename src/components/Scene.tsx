@@ -143,7 +143,7 @@ function ThemedLighting() {
             intensity={16.0}
             distance={15}
             decay={1.5}
-            castShadow={!isMobile}
+
           />
           {/* South wall torch */}
           <pointLight
@@ -152,7 +152,7 @@ function ThemedLighting() {
             intensity={16.0}
             distance={15}
             decay={1.5}
-            castShadow={!isMobile}
+
           />
           {/* East wall torch */}
           <pointLight
@@ -161,7 +161,7 @@ function ThemedLighting() {
             intensity={16.0}
             distance={15}
             decay={1.5}
-            castShadow={!isMobile}
+
           />
           {/* West wall torch */}
           <pointLight
@@ -170,7 +170,7 @@ function ThemedLighting() {
             intensity={16.0}
             distance={15}
             decay={1.5}
-            castShadow={!isMobile}
+
           />
         </>
       )}

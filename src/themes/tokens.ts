@@ -927,7 +927,7 @@ export const dungeonCastleTheme: Theme = {
       },
       directional: {
         color: '#ff8533', // Bright fire orange (torch accent)
-        intensity: 0, // Lower torch intensity - just for highlights
+        intensity: 0.33, // Lower torch intensity - just for highlights
         position: [2, 5, 3],
       },
     },

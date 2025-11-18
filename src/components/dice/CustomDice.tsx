@@ -8,7 +8,7 @@
 
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 import { useFrame, ThreeEvent } from '@react-three/fiber'
-import { ContactForcePayload, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
+import { BallCollider, ContactForcePayload, CuboidCollider, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
 import * as THREE from 'three'
 import {
   MAX_DICE_VELOCITY,
@@ -429,7 +429,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
         canSleep={false}
         onContactForce={handleContactForce}
       >
-        {/* Use RoundCuboidCollider for roundCuboid type */}
+        {/* Render appropriate collider based on metadata type */}
         {colliderType === 'roundCuboid' && colliderArgs.halfExtents && (
           <RoundCuboidCollider
             args={[
@@ -439,6 +439,18 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
               colliderArgs.borderRadius || 0.08,
             ]}
           />
+        )}
+        {colliderType === 'cuboid' && colliderArgs.halfExtents && (
+          <CuboidCollider
+            args={[
+              colliderArgs.halfExtents[0],
+              colliderArgs.halfExtents[1],
+              colliderArgs.halfExtents[2],
+            ]}
+          />
+        )}
+        {colliderType === 'ball' && colliderArgs.radius && (
+          <BallCollider args={[colliderArgs.radius]} />
         )}
 
         {/* Render the loaded GLB scene */}

@@ -55,7 +55,6 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
   const [customName, setCustomName] = useState('')
   const [customArtist, setCustomArtist] = useState('')
   const [addedToInventory, setAddedToInventory] = useState(false)
-  const blobUrlRef = useRef<string | null>(null)
 
   const addDie = useInventoryStore(state => state.addDie)
 
