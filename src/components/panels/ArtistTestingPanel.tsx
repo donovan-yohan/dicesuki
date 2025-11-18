@@ -16,6 +16,8 @@
  */
 
 import { useState, useCallback, useRef } from 'react'
+import { useInventoryStore } from '../../store/useInventoryStore'
+import { saveCustomDiceModel } from '../../lib/customDiceDB'
 import { DiceShape } from '../../lib/geometries'
 import {
   CustomDiceAsset,
@@ -30,7 +32,6 @@ import {
   generateDefaultMetadata,
   downloadMetadata,
 } from '../../lib/diceMetadataGenerator'
-import { DicePreviewScene } from './DicePreviewScene'
 
 interface ArtistTestingPanelProps {
   /** Callback when a dice asset is successfully loaded and ready for preview */
@@ -53,8 +54,10 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
   const [selectedDiceType, setSelectedDiceType] = useState<DiceShape>('d6')
   const [customName, setCustomName] = useState('')
   const [customArtist, setCustomArtist] = useState('')
-  const [previewAsset, setPreviewAsset] = useState<CustomDiceAsset | null>(null)
+  const [addedToInventory, setAddedToInventory] = useState(false)
   const blobUrlRef = useRef<string | null>(null)
+
+  const addDie = useInventoryStore(state => state.addDie)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const metadataInputRef = useRef<HTMLInputElement>(null)
@@ -137,57 +140,85 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
   }, [uploadState.metadata])
 
   /**
-   * Load preview with validated file and metadata
+   * Add dice to inventory with validated file and metadata
    */
-  const handleLoadPreview = useCallback(() => {
+  const handleAddToInventory = useCallback(async () => {
     if (!uploadState.file || !uploadState.metadata) {
       return
     }
 
-    // Revoke previous blob URL if it exists
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current)
-    }
-
     // Create blob URL for the uploaded GLB file
+    // Note: We don't revoke previous blob URLs here because they're stored in
+    // inventory dice and revoking them would break previously uploaded dice.
+    // Blob URLs will be regenerated from IndexedDB on page reload anyway.
     const blobUrl = URL.createObjectURL(uploadState.file)
-    blobUrlRef.current = blobUrl
 
     // Create custom dice asset
     const asset: CustomDiceAsset = {
-      id: `preview-${Date.now()}`,
+      id: `custom-${Date.now()}`,
       metadata: uploadState.metadata,
       modelUrl: blobUrl,
       previewBlobUrl: blobUrl,
     }
 
-    // Set preview asset to show the preview scene
-    setPreviewAsset(asset)
+    // Extract appearance from metadata (simplified - uses base colors)
+    const appearance = {
+      baseColor: '#8b5cf6', // Purple for custom dice
+      accentColor: '#ffffff',
+      material: 'plastic' as const,
+      roughness: 0.7,
+      metalness: 0.0,
+    }
+
+    // Add to inventory as dev/test custom dice
+    const newDie = addDie({
+      type: uploadState.metadata.diceType,
+      setId: 'custom-artist',
+      rarity: 'rare',
+      appearance,
+      vfx: {},
+      name: uploadState.metadata.name,
+      description: `Created by ${uploadState.metadata.artist}`,
+      isFavorite: false,
+      isLocked: false,
+      isDev: true, // Mark as dev/test dice
+      devNotes: `Test upload from artist panel - ${new Date().toLocaleString()}`,
+      source: 'event', // Artist submissions are special events
+      customAsset: {
+        modelUrl: blobUrl,
+        metadata: uploadState.metadata,
+      },
+    })
+
+    console.log('[ArtistTestingPanel] Added custom die to inventory:', newDie.id)
+
+    // Save GLB file to IndexedDB for persistence across page reloads
+    try {
+      console.log('[ArtistTestingPanel] Saving GLB file to IndexedDB...', {
+        diceId: newDie.id,
+        fileSize: uploadState.file.size,
+        fileType: uploadState.file.type
+      })
+      await saveCustomDiceModel(newDie.id, uploadState.file)
+      console.log('[ArtistTestingPanel] ✓ Successfully saved GLB file to IndexedDB for die:', newDie.id)
+    } catch (error) {
+      console.error('[ArtistTestingPanel] ✗ Failed to save GLB file to IndexedDB:', error)
+      alert('Warning: Custom die added to inventory but file could not be saved for persistence. It will not survive page reloads.')
+    }
+
+    // Show success feedback
+    setAddedToInventory(true)
 
     // Notify parent component
     onDiceLoaded?.(asset)
-  }, [uploadState.file, uploadState.metadata, onDiceLoaded])
-
-  /**
-   * Close preview and cleanup blob URL
-   */
-  const handleClosePreview = useCallback(() => {
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current)
-      blobUrlRef.current = null
-    }
-    setPreviewAsset(null)
-  }, [])
+  }, [uploadState.file, uploadState.metadata, onDiceLoaded, addDie])
 
   /**
    * Reset the upload state
    */
   const handleReset = useCallback(() => {
-    // Revoke blob URL if it exists
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current)
-      blobUrlRef.current = null
-    }
+    // Note: We don't revoke blob URLs here because they're stored in inventory
+    // and will be used to spawn dice. They'll be regenerated from IndexedDB on reload.
 
     setUploadState({
       file: null,
@@ -200,6 +231,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
 
     setCustomName('')
     setCustomArtist('')
+    setAddedToInventory(false)
   }, [])
 
   // Check if ready to preview
@@ -402,24 +434,40 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         )}
       </section>
 
-      {/* Step 4: Preview */}
+      {/* Step 4: Add to Inventory */}
       <section>
-        <div className="flex gap-3">
-          <button
-            onClick={handleLoadPreview}
-            disabled={!canPreview}
-            className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-bold text-lg transition-colors"
-          >
-            {canPreview ? '🎲 Load Preview' : 'Complete steps above to preview'}
-          </button>
+        {addedToInventory ? (
+          <div className="p-6 bg-green-900/30 border border-green-500 rounded-lg text-center">
+            <p className="text-xl font-bold text-green-400 mb-2">✓ Added to Inventory!</p>
+            <p className="text-sm text-gray-300 mb-4">
+              Your custom dice has been added to your inventory.
+              Check the Inventory panel to see it!
+            </p>
+            <button
+              onClick={handleReset}
+              className="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg font-medium transition-colors"
+            >
+              Add Another Die
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-3">
+            <button
+              onClick={handleAddToInventory}
+              disabled={!canPreview}
+              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-bold text-lg transition-colors"
+            >
+              {canPreview ? '✨ Add to Inventory' : 'Complete steps above to add'}
+            </button>
 
-          <button
-            onClick={handleReset}
-            className="bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg font-medium transition-colors"
-          >
-            Reset
-          </button>
-        </div>
+            <button
+              onClick={handleReset}
+              className="bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg font-medium transition-colors"
+            >
+              Reset
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Help Text */}
@@ -431,14 +479,6 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
           <li>Join our Discord for artist support</li>
         </ul>
       </div>
-
-      {/* Preview Scene (fullscreen overlay) */}
-      {previewAsset && (
-        <DicePreviewScene
-          asset={previewAsset}
-          onClose={handleClosePreview}
-        />
-      )}
     </div>
   )
 }

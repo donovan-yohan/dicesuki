@@ -3,10 +3,12 @@ import Scene from './components/Scene'
 import { checkDeviceCompatibility } from './lib/deviceDetection'
 import { DeviceMotionProvider } from './contexts/DeviceMotionContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { useInventoryStore } from './store/useInventoryStore'
 
 function App() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const regenerateCustomDiceBlobUrls = useInventoryStore(state => state.regenerateCustomDiceBlobUrls)
 
   useEffect(() => {
     const checkDevice = async () => {
@@ -19,6 +21,11 @@ function App() {
 
     checkDevice()
   }, [])
+
+  // Regenerate blob URLs for custom dice on app load
+  useEffect(() => {
+    regenerateCustomDiceBlobUrls()
+  }, [regenerateCustomDiceBlobUrls])
 
   // Loading state
   if (isCompatible === null) {

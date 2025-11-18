@@ -1,4 +1,4 @@
-import { Box } from '@react-three/drei'
+import { Box, Environment } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Physics, RigidBody, useRapier } from '@react-three/rapier'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -8,15 +8,16 @@ import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMoti
 import { useTheme } from '../contexts/ThemeContext'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
+import { initializeStarterDice } from '../lib/initializeStarterDice'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useInventoryStore } from '../store/useInventoryStore'
 import { useUIStore } from '../store/useUIStore'
+import { CustomDice } from './dice/CustomDice'
 import { Dice, DiceHandle } from './dice/Dice'
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
-import { HistoryPanel, SettingsPanel, SavedRollsPanel, InventoryPanel } from './panels'
-import { initializeStarterDice } from '../lib/initializeStarterDice'
+import { HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
 
 /**
  * Shared styles for top-right corner buttons
@@ -89,6 +90,9 @@ function ThemedLighting() {
   const lighting = currentTheme.environment.lighting
   const { size } = useThree()
 
+  // Mobile detection for performance optimization
+  const isMobile = size.width < 768
+
   // Calculate wall positions for torch placement (for dungeon theme)
   const isDungeonTheme = currentTheme.id === 'dungeon-castle'
 
@@ -107,6 +111,9 @@ function ThemedLighting() {
     bottom: -(height / 2) * (1 + margin),
   }
 
+  // Performance optimization: lower shadow quality on mobile
+  const shadowMapSize = isMobile ? 512 : 2048
+
   return (
     <>
       <ambientLight
@@ -118,8 +125,8 @@ function ThemedLighting() {
         color={lighting.directional.color}
         intensity={lighting.directional.intensity}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={shadowMapSize}
+        shadow-mapSize-height={shadowMapSize}
         shadow-camera-left={-10}
         shadow-camera-right={10}
         shadow-camera-top={10}
@@ -129,14 +136,14 @@ function ThemedLighting() {
       {/* Torch lights on walls for dungeon theme */}
       {isDungeonTheme && (
         <>
-          {/* North wall torch */}
+          {/* North wall torch - no shadows on mobile for performance */}
           <pointLight
             position={[0, 3, wallPositions.top - 1.5]}
             color="#ff8c42"
             intensity={16.0}
             distance={15}
             decay={1.5}
-            castShadow
+            castShadow={!isMobile}
           />
           {/* South wall torch */}
           <pointLight
@@ -145,7 +152,7 @@ function ThemedLighting() {
             intensity={16.0}
             distance={15}
             decay={1.5}
-            castShadow
+            castShadow={!isMobile}
           />
           {/* East wall torch */}
           <pointLight
@@ -154,7 +161,7 @@ function ThemedLighting() {
             intensity={16.0}
             distance={15}
             decay={1.5}
-            castShadow
+            castShadow={!isMobile}
           />
           {/* West wall torch */}
           <pointLight
@@ -163,10 +170,13 @@ function ThemedLighting() {
             intensity={16.0}
             distance={15}
             decay={1.5}
-            castShadow
+            castShadow={!isMobile}
           />
         </>
       )}
+
+      {/* HDR Environment lighting with city preset */}
+      <Environment preset="night" />
     </>
   )
 }
@@ -562,147 +572,182 @@ function Scene() {
         {/* Themed Lighting */}
         <ThemedLighting />
 
-      {/* Physics world - gravity updated via PhysicsController, not props */}
-      <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
-        <PhysicsController gravityRef={gravityRef} />
+        {/* Physics world - gravity updated via PhysicsController, not props */}
+        <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
+          <PhysicsController gravityRef={gravityRef} />
 
-        {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
-        <ViewportBoundaries />
+          {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
+          <ViewportBoundaries />
 
-        {/* Render all dice from store */}
-        {dice.map((die) => (
-          <Dice
-            key={die.id}
-            id={die.id}
-            shape={die.type}
-            ref={(el) => {
-              if (el) {
-                diceRefs.current.set(die.id, el)
-              } else {
-                diceRefs.current.delete(die.id)
+          {/* Render all dice from store */}
+          {dice.map((die) => {
+            // Get inventory die to check for custom asset
+            const inventoryDie = die.inventoryDieId
+              ? useInventoryStore.getState().dice.find(d => d.id === die.inventoryDieId)
+              : null
+
+            // Render CustomDice if inventory die has customAsset, otherwise standard Dice
+            if (inventoryDie?.customAsset) {
+              const customAsset = {
+                id: inventoryDie.id,
+                metadata: inventoryDie.customAsset.metadata,
+                modelUrl: inventoryDie.customAsset.modelUrl,
               }
-            }}
-            position={die.position}
-            rotation={die.rotation}
-            size={0.67}
-            color={die.color}
-            onRest={handleDiceRest}
-          />
-        ))}
-      </Physics>
 
-      {/* Performance monitoring */}
-      <PerformanceOverlay />
-    </Canvas>
+              return (
+                <CustomDice
+                  key={die.id}
+                  id={die.id}
+                  asset={customAsset}
+                  ref={(el) => {
+                    if (el) {
+                      diceRefs.current.set(die.id, el)
+                    } else {
+                      diceRefs.current.delete(die.id)
+                    }
+                  }}
+                  position={die.position}
+                  onRest={handleDiceRest}
+                />
+              )
+            }
 
-    {/* Result Display - subscribes to store */}
-    <ResultDisplay />
+            // Standard dice rendering
+            return (
+              <Dice
+                key={die.id}
+                id={die.id}
+                shape={die.type}
+                ref={(el) => {
+                  if (el) {
+                    diceRefs.current.set(die.id, el)
+                  } else {
+                    diceRefs.current.delete(die.id)
+                  }
+                }}
+                position={die.position}
+                rotation={die.rotation}
+                size={0.67}
+                color={die.color}
+                onRest={handleDiceRest}
+              />
+            )
+          })}
+        </Physics>
 
-    {/* NEW LAYOUT SYSTEM */}
-    {/* Bottom Navigation Bar */}
-    <BottomNav
-      isVisible={isUIVisible}
-      onToggleUI={toggleUIVisibility}
-      onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
-      onOpenHistory={() => setIsHistoryOpen(true)}
-      onToggleMotion={handleToggleMotion} // Request permission when enabling
-      isMobile={isMobile}
-      motionModeActive={motionMode}
-      diceManagerOpen={isDiceManagerOpen}
-    />
+        {/* Performance monitoring */}
+        <PerformanceOverlay />
+      </Canvas>
 
-    {/* Center Roll Button - elevated above nav */}
-    <CenterRollButton onClick={handleRollClick} isRolling={false} />
+      {/* Result Display - subscribes to store */}
+      <ResultDisplay />
 
-    {/* Top-Left Corner: Settings */}
-    <CornerIcon
-      position="top-left"
-      onClick={() => setIsSettingsOpen(true)}
-      label="Settings"
-      isVisible={isUIVisible}
-    >
-      ⚙️
-    </CornerIcon>
+      {/* NEW LAYOUT SYSTEM */}
+      {/* Bottom Navigation Bar */}
+      <BottomNav
+        isVisible={isUIVisible}
+        onToggleUI={toggleUIVisibility}
+        onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onToggleMotion={handleToggleMotion} // Request permission when enabling
+        isMobile={isMobile}
+        motionModeActive={motionMode}
+        diceManagerOpen={isDiceManagerOpen}
+      />
 
-    {/* Top-Right (Upper): Inventory */}
-    <div
-      className="fixed z-40"
-      style={{
-        top: '16px',
-        right: '16px',
-        pointerEvents: isUIVisible ? 'auto' : 'none'
-      }}
-    >
-      <button
-        onClick={() => setIsInventoryOpen(true)}
-        className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
-        style={{
-          ...TOP_RIGHT_BUTTON_STYLES,
-          opacity: isUIVisible ? 1 : 0,
-          transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
-        }}
-        aria-label="Inventory"
-        title="Dice Collection"
+      {/* Center Roll Button - elevated above nav */}
+      <CenterRollButton onClick={handleRollClick} isRolling={false} />
+
+      {/* Top-Left Corner: Settings */}
+      <CornerIcon
+        position="top-left"
+        onClick={() => setIsSettingsOpen(true)}
+        label="Settings"
+        isVisible={isUIVisible}
       >
-        💎
-      </button>
-    </div>
+        ⚙️
+      </CornerIcon>
 
-    {/* Top-Right (Lower): My Dice Rolls */}
-    <div
-      className="fixed z-40"
-      style={{
-        top: '80px',
-        right: '16px',
-        pointerEvents: isUIVisible ? 'auto' : 'none'
-      }}
-    >
-      <button
-        onClick={() => setIsSavedRollsOpen(true)}
-        className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
+      {/* Top-Right (Upper): Inventory */}
+      <div
+        className="fixed z-40"
         style={{
-          ...TOP_RIGHT_BUTTON_STYLES,
-          opacity: isUIVisible ? 1 : 0,
-          transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
+          top: '16px',
+          right: '16px',
+          pointerEvents: isUIVisible ? 'auto' : 'none'
         }}
-        aria-label="My Dice Rolls"
-        title="Saved Rolls"
       >
-        📋
-      </button>
-    </div>
+        <button
+          onClick={() => setIsInventoryOpen(true)}
+          className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
+          style={{
+            ...TOP_RIGHT_BUTTON_STYLES,
+            opacity: isUIVisible ? 1 : 0,
+            transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
+          }}
+          aria-label="Inventory"
+          title="Dice Collection"
+        >
+          💎
+        </button>
+      </div>
 
-    {/* Mini UI Toggle - shows when UI hidden */}
-    <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
+      {/* Top-Right (Lower): My Dice Rolls */}
+      <div
+        className="fixed z-40"
+        style={{
+          top: '80px',
+          right: '16px',
+          pointerEvents: isUIVisible ? 'auto' : 'none'
+        }}
+      >
+        <button
+          onClick={() => setIsSavedRollsOpen(true)}
+          className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
+          style={{
+            ...TOP_RIGHT_BUTTON_STYLES,
+            opacity: isUIVisible ? 1 : 0,
+            transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
+          }}
+          aria-label="My Dice Rolls"
+          title="Saved Rolls"
+        >
+          📋
+        </button>
+      </div>
 
-    {/* DICE TOOLBAR - Compact slide-out dice management */}
-    <DiceToolbar
-      isOpen={isDiceManagerOpen}
-      onAddDice={handleAddDice}
-      onClearAll={handleClearAll}
-    />
+      {/* Mini UI Toggle - shows when UI hidden */}
+      <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
 
-    {/* THEMED PANELS */}
-    <HistoryPanel
-      isOpen={isHistoryOpen}
-      onClose={() => setIsHistoryOpen(false)}
-    />
+      {/* DICE TOOLBAR - Compact slide-out dice management */}
+      <DiceToolbar
+        isOpen={isDiceManagerOpen}
+        onAddDice={handleAddDice}
+        onClearAll={handleClearAll}
+      />
 
-    <SavedRollsPanel
-      isOpen={isSavedRollsOpen}
-      onClose={() => setIsSavedRollsOpen(false)}
-    />
+      {/* THEMED PANELS */}
+      <HistoryPanel
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+      />
 
-    <InventoryPanel
-      isOpen={isInventoryOpen}
-      onClose={() => setIsInventoryOpen(false)}
-    />
+      <SavedRollsPanel
+        isOpen={isSavedRollsOpen}
+        onClose={() => setIsSavedRollsOpen(false)}
+      />
 
-    <SettingsPanel
-      isOpen={isSettingsOpen}
-      onClose={() => setIsSettingsOpen(false)}
-    />
-  </>
+      <InventoryPanel
+        isOpen={isInventoryOpen}
+        onClose={() => setIsInventoryOpen(false)}
+        onSpawnDie={handleAddDice}
+      />
+
+      <SettingsPanel
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
+    </>
   )
 }
 
@@ -850,11 +895,11 @@ function ResultDisplay() {
  * Shows the original single-roll UI for manually added dice
  */
 function ManualDiceDisplay({ currentRoll, expectedDiceCount, lastResult, activeSavedRoll, dice }: {
-  currentRoll: any[];
-  expectedDiceCount: number;
-  lastResult: any;
-  activeSavedRoll: any;
-  dice: any[];
+  currentRoll: any[]
+  expectedDiceCount: number
+  lastResult: any
+  activeSavedRoll: any
+  dice: any[]
 }) {
   const prevSumRef = useRef<number | null>(null)
   const [shouldAnimate, setShouldAnimate] = useState(false)
@@ -865,9 +910,9 @@ function ManualDiceDisplay({ currentRoll, expectedDiceCount, lastResult, activeS
   const diceSum = displayDice.reduce((acc: number, d: any) => acc + d.value, 0)
   const perDieBonusesTotal = activeSavedRoll
     ? displayDice.reduce((acc: number, d: any) => {
-        const bonus = activeSavedRoll.perDieBonuses.get(d.id) || 0
-        return acc + bonus
-      }, 0)
+      const bonus = activeSavedRoll.perDieBonuses.get(d.id) || 0
+      return acc + bonus
+    }, 0)
     : 0
 
   const flatBonus = activeSavedRoll?.flatBonus || 0

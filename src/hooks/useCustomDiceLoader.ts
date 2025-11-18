@@ -42,8 +42,11 @@ export function useCustomDiceLoader(asset: CustomDiceAsset | null) {
   // Load GLB model using React Three Fiber's useGLTF hook
   // This hook handles caching and automatic disposal
   // Note: We must call useGLTF unconditionally (React hooks rule)
-  // When asset is null, we pass a dummy path that will be ignored
-  const gltf = useGLTF(asset?.modelUrl || 'data:text/plain,', true)
+  // When asset is null, use a fallback data URI to satisfy hook requirements
+  // Blob URLs are regenerated on app load via regenerateCustomDiceBlobUrls()
+  const modelUrl = asset?.modelUrl || 'data:text/plain,'
+
+  const gltf = useGLTF(modelUrl, true)
 
   // Convert metadata face normals to DiceFace format
   const faceNormals = useMemo(() => {
@@ -59,7 +62,30 @@ export function useCustomDiceLoader(asset: CustomDiceAsset | null) {
   // Clone the scene to allow multiple instances
   const clonedScene = useMemo(() => {
     if (!scene) return null
-    return scene.clone(true)
+    const cloned = scene.clone(true)
+    
+    // Fix materials for proper lighting
+    cloned.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+        
+        // Ensure material receives lighting
+        if (mesh.material) {
+          const material = mesh.material as THREE.Material
+          material.needsUpdate = true
+          
+          // Leave materials as-is - rely on scene lighting instead
+          // Just ensure they can receive updates
+          if ((material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+            // Material is ready for lighting
+          }
+        }
+      }
+    })
+    
+    return cloned
   }, [scene])
 
   return {

@@ -173,8 +173,14 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
 
       {/* Artist Testing Panel - Fullscreen Modal */}
       {showArtistPanel && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80">
-          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80"
+          onClick={() => setShowArtistPanel(false)}
+        >
+          <div
+            className="w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <ArtistTestingPanel
               onClose={() => setShowArtistPanel(false)}
               onDiceLoaded={(asset) => {
