@@ -264,13 +264,48 @@ export const INFERNAL_OBSIDIAN_SET: DieSet = {
 /**
  * All available die sets in the game
  */
+// ============================================================================
+// Custom Artist Set (Special - User-Created Content)
+// ============================================================================
+
+export const CUSTOM_ARTIST_SET: DieSet = {
+  id: 'custom-artist',
+  name: 'Custom Artist Collection',
+  description: 'Unique dice created by talented artists in the community. Each die is a work of art.',
+
+  theme: {
+    colorPalette: ['#8b5cf6', '#a78bfa', '#c4b5fd'],
+    materialType: 'plastic',
+    visualStyle: 'fantasy'
+  },
+
+  rarityVariants: {
+    rare: {
+      appearance: {
+        baseColor: '#8b5cf6',      // Violet-600
+        accentColor: '#ffffff',     // White numbers
+        material: 'plastic',
+        roughness: 0.7,
+        metalness: 0.0
+      },
+      vfx: {
+        // Custom dice have simple effects
+      }
+    }
+  },
+
+  availability: 'always',
+  releaseDate: 0
+}
+
 export const DIE_SETS: DieSet[] = [
   ADVENTURER_STARTER_SET,
   LUCKY_BRONZE_SET,
   DRAGON_JADE_SET,
   CELESTIAL_GOLD_SET,
   VOID_CRYSTAL_SET,
-  INFERNAL_OBSIDIAN_SET
+  INFERNAL_OBSIDIAN_SET,
+  CUSTOM_ARTIST_SET
 ]
 
 /**

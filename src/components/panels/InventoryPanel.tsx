@@ -14,19 +14,29 @@ import { InventoryDie, DieRarity } from '../../types/inventory'
 interface InventoryPanelProps {
   isOpen: boolean
   onClose: () => void
+  onSpawnDie?: (dieType: string) => void
 }
 
 type TabType = 'all' | 'sets' | 'rarity' | 'favorites'
 type SortOption = 'name' | 'rarity' | 'set' | 'date'
 
-export function InventoryPanel({ isOpen, onClose }: InventoryPanelProps) {
+export function InventoryPanel({ isOpen, onClose, onSpawnDie }: InventoryPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortOption>('date')
   const [selectedDie, setSelectedDie] = useState<InventoryDie | null>(null)
 
   const { currentTheme } = useTheme()
-  const { dice } = useInventoryStore()
+  const { dice, getDevDice, removeAllDevDice } = useInventoryStore()
+  const devDice = getDevDice()
+  const hasDevDice = devDice.length > 0
+
+  // Handle remove all dev dice
+  const handleRemoveDevDice = async () => {
+    if (confirm(`Remove all ${devDice.length} dev/test dice?`)) {
+      await removeAllDevDice()
+    }
+  }
 
   // Filter and sort dice
   const displayedDice = useMemo(() => {
@@ -137,8 +147,22 @@ export function InventoryPanel({ isOpen, onClose }: InventoryPanelProps) {
           >
             Dice Collection
           </h2>
-          <div className="text-sm" style={{ color: currentTheme.tokens.colors.text.secondary }}>
-            {dice.length} {dice.length === 1 ? 'die' : 'dice'}
+          <div className="flex items-center gap-4">
+            {hasDevDice && (
+              <button
+                onClick={handleRemoveDevDice}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105"
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff'
+                }}
+              >
+                🧪 Remove Dev Dice ({devDice.length})
+              </button>
+            )}
+            <div className="text-sm" style={{ color: currentTheme.tokens.colors.text.secondary }}>
+              {dice.length} {dice.length === 1 ? 'die' : 'dice'}
+            </div>
           </div>
         </div>
 
@@ -361,6 +385,24 @@ export function InventoryPanel({ isOpen, onClose }: InventoryPanelProps) {
               <p>Acquired: {new Date(selectedDie.acquiredAt).toLocaleDateString()}</p>
               <p>ID: {selectedDie.id}</p>
             </div>
+
+            {/* Spawn button */}
+            {onSpawnDie && (
+              <button
+                onClick={() => {
+                  onSpawnDie(selectedDie.type)
+                  setSelectedDie(null)
+                  onClose()
+                }}
+                className="mt-4 w-full py-3 px-4 rounded-lg font-semibold transition-all hover:scale-105"
+                style={{
+                  backgroundColor: currentTheme.tokens.colors.accent,
+                  color: currentTheme.tokens.colors.text.primary
+                }}
+              >
+                🎲 Spawn to Table
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -389,8 +431,21 @@ function DieCardPlaceholder({ die, onClick, theme }: DieCardPlaceholderProps) {
         color: theme.tokens.colors.text.primary
       }}
     >
+      {/* Dev dice badge */}
+      {die.isDev && (
+        <div
+          className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-bold"
+          style={{
+            backgroundColor: '#dc2626',
+            color: '#ffffff'
+          }}
+        >
+          DEV
+        </div>
+      )}
+
       {/* Lock indicator */}
-      {die.isLocked && (
+      {die.isLocked && !die.isDev && (
         <div className="absolute top-2 right-2 text-xs">🔒</div>
       )}
 

@@ -104,6 +104,10 @@ export interface InventoryDie {
   isFavorite: boolean         // Star for quick access
   isLocked: boolean           // Prevent accidental deletion/crafting
 
+  // Dev/Testing Flags
+  isDev?: boolean             // Development/test dice (show badge, easy removal)
+  devNotes?: string           // Internal notes for dev dice
+
   // Metadata
   acquiredAt: number          // Timestamp
   source: AcquisitionSource
@@ -113,6 +117,12 @@ export interface InventoryDie {
 
   // Assignment tracking
   assignedToRolls: string[]   // SavedRoll IDs using this die
+
+  // Custom dice (for artist-created models)
+  customAsset?: {
+    modelUrl: string            // Blob URL or path to GLB file
+    metadata: any               // DiceMetadata from customDice types
+  }
 }
 
 // ============================================================================
