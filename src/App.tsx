@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Scene from './components/Scene'
+import DicePreview from './pages/DicePreview'
 import { checkDeviceCompatibility } from './lib/deviceDetection'
 import { DeviceMotionProvider } from './contexts/DeviceMotionContext'
 import { ThemeProvider } from './contexts/ThemeContext'
@@ -47,15 +49,28 @@ function App() {
     )
   }
 
-  // Main app
+  // Main app with routing
   return (
-    <ThemeProvider>
-      <DeviceMotionProvider>
-        <div className="w-full h-full">
-          <Scene />
-        </div>
-      </DeviceMotionProvider>
-    </ThemeProvider>
+    <BrowserRouter>
+      <ThemeProvider>
+        <DeviceMotionProvider>
+          <Routes>
+            {/* Main dice simulator app */}
+            <Route
+              path="/"
+              element={
+                <div className="w-full h-full">
+                  <Scene />
+                </div>
+              }
+            />
+
+            {/* Dice preview utility (dev tool) */}
+            <Route path="/preview" element={<DicePreview />} />
+          </Routes>
+        </DeviceMotionProvider>
+      </ThemeProvider>
+    </BrowserRouter>
   )
 }
 
