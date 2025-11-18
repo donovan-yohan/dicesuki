@@ -21,6 +21,7 @@ import { DiceShape } from '../lib/geometries'
 import { getDieMax } from '../lib/diceHelpers'
 import { getDieSetById } from '../config/dieSets'
 import { STARTER_DICE } from '../config/starterDice'
+import { createBlobUrlFromStorage, deleteCustomDiceModel } from '../lib/customDiceDB'
 // CRAFTING_RECIPES imported for future use
 // import { CRAFTING_RECIPES } from '../config/craftingRecipes'
 
@@ -117,6 +118,14 @@ interface InventoryStore {
 
   initializeStarterDice: () => void
   reset: () => void
+
+  // ============================================================================
+  // Custom Dice Persistence (IndexedDB)
+  // ============================================================================
+
+  regenerateCustomDiceBlobUrls: () => Promise<void>
+  getDevDice: () => InventoryDie[]
+  removeAllDevDice: () => Promise<void>
 }
 
 // ============================================================================
@@ -688,6 +697,89 @@ export const useInventoryStore = create<InventoryStore>()(
           },
           assignments: {}
         })
+      },
+
+      // ======================================================================
+      // Custom Dice Persistence
+      // ======================================================================
+
+      /**
+       * Regenerate blob URLs for custom dice from IndexedDB
+       * Call this on app initialization to restore custom dice after page reload
+       */
+      regenerateCustomDiceBlobUrls: async () => {
+        const state = get()
+        const customDice = state.dice.filter(die => die.customAsset)
+
+        console.log(`[InventoryStore] Regenerating blob URLs for ${customDice.length} custom dice`)
+
+        for (const die of customDice) {
+          if (!die.customAsset) continue
+
+          try {
+            // Create new blob URL from IndexedDB storage
+            const newBlobUrl = await createBlobUrlFromStorage(die.id)
+
+            if (newBlobUrl) {
+              // Update die with fresh blob URL
+              set(state => ({
+                dice: state.dice.map(d =>
+                  d.id === die.id
+                    ? {
+                        ...d,
+                        customAsset: {
+                          ...d.customAsset!,
+                          modelUrl: newBlobUrl
+                        }
+                      }
+                    : d
+                )
+              }))
+              console.log(`[InventoryStore] Regenerated blob URL for die: ${die.id}`)
+            } else {
+              console.warn(`[InventoryStore] No stored model found for die: ${die.id}`)
+            }
+          } catch (error) {
+            console.error(`[InventoryStore] Failed to regenerate blob URL for die ${die.id}:`, error)
+          }
+        }
+      },
+
+      /**
+       * Get all dev/test dice
+       */
+      getDevDice: () => {
+        return get().dice.filter(die => die.isDev === true)
+      },
+
+      /**
+       * Remove all dev/test dice from inventory
+       * Also cleans up IndexedDB storage for custom dice
+       */
+      removeAllDevDice: async () => {
+        const state = get()
+        const devDice = state.dice.filter(die => die.isDev === true)
+
+        console.log(`[InventoryStore] Removing ${devDice.length} dev dice`)
+
+        // Delete custom models from IndexedDB
+        for (const die of devDice) {
+          if (die.customAsset) {
+            try {
+              await deleteCustomDiceModel(die.id)
+              console.log(`[InventoryStore] Deleted custom model for dev die: ${die.id}`)
+            } catch (error) {
+              console.error(`[InventoryStore] Failed to delete custom model for die ${die.id}:`, error)
+            }
+          }
+        }
+
+        // Remove from state
+        set(state => ({
+          dice: state.dice.filter(die => !die.isDev)
+        }))
+
+        console.log(`[InventoryStore] Removed all dev dice`)
       }
     }),
 

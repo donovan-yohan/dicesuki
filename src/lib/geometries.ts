@@ -123,35 +123,43 @@ export const D20_FACE_NORMALS: DiceFace[] = [
  * Determines which face of a dice is facing up based on its rotation
  * @param quaternion - The rotation quaternion of the dice
  * @param shape - The dice shape
+ * @param customFaceNormals - Optional custom face normals for custom dice models
  * @returns The value of the face that is facing up
  */
 export function getDiceFaceValue(
   quaternion: THREE.Quaternion,
-  shape: DiceShape = 'd6'
+  shape: DiceShape = 'd6',
+  customFaceNormals?: DiceFace[]
 ): number {
-  // Select face normals based on shape
+  // Use custom face normals if provided, otherwise use defaults based on shape
   let faceNormals: DiceFace[]
-  switch (shape) {
-    case 'd4':
-      faceNormals = D4_FACE_NORMALS
-      break
-    case 'd6':
-      faceNormals = D6_FACE_NORMALS
-      break
-    case 'd8':
-      faceNormals = D8_FACE_NORMALS
-      break
-    case 'd10':
-      faceNormals = D10_FACE_NORMALS
-      break
-    case 'd12':
-      faceNormals = D12_FACE_NORMALS
-      break
-    case 'd20':
-      faceNormals = D20_FACE_NORMALS
-      break
-    default:
-      throw new Error(`Unknown shape: ${shape}`)
+
+  if (customFaceNormals) {
+    faceNormals = customFaceNormals
+  } else {
+    // Select default face normals based on shape
+    switch (shape) {
+      case 'd4':
+        faceNormals = D4_FACE_NORMALS
+        break
+      case 'd6':
+        faceNormals = D6_FACE_NORMALS
+        break
+      case 'd8':
+        faceNormals = D8_FACE_NORMALS
+        break
+      case 'd10':
+        faceNormals = D10_FACE_NORMALS
+        break
+      case 'd12':
+        faceNormals = D12_FACE_NORMALS
+        break
+      case 'd20':
+        faceNormals = D20_FACE_NORMALS
+        break
+      default:
+        throw new Error(`Unknown shape: ${shape}`)
+    }
   }
 
   // D4 dice work differently - the value is determined by the face touching the ground

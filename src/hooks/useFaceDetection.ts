@@ -1,10 +1,10 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import {
   ANGULAR_VELOCITY_THRESHOLD,
   REST_DURATION_MS,
 } from '../config/physicsConfig'
-import { DiceShape, getDiceFaceValue } from '../lib/geometries'
+import { DiceShape, DiceFace, getDiceFaceValue } from '../lib/geometries'
 
 interface FaceDetectionState {
   isAtRest: boolean
@@ -17,8 +17,14 @@ interface FaceDetectionState {
 /**
  * Hook to detect when a dice is at rest and read its face value
  *
+ * @param customFaceNormals - Optional custom face normals for custom dice models
+ *
  * Usage:
  * const { isAtRest, faceValue, updateMotion, readFaceValue, reset } = useFaceDetection()
+ *
+ * // For custom dice with custom face normals:
+ * const customNormals = [{ value: 1, normal: new THREE.Vector3(...) }, ...]
+ * const { isAtRest, faceValue, ... } = useFaceDetection(customNormals)
  *
  * // In physics loop:
  * updateMotion(rigidBody.linvel(), rigidBody.angvel())
@@ -28,13 +34,21 @@ interface FaceDetectionState {
  *   readFaceValue(rigidBody.rotation(), 'd6')
  * }
  */
-export function useFaceDetection(): FaceDetectionState {
+export function useFaceDetection(customFaceNormals?: DiceFace[]): FaceDetectionState {
   const [isAtRest, setIsAtRest] = useState(false)
   const [faceValue, setFaceValue] = useState<number | null>(null)
 
   const restStartTimeRef = useRef<number | null>(null)
   const lastVelocityRef = useRef<THREE.Vector3>(new THREE.Vector3())
   const lastAngularVelocityRef = useRef<THREE.Vector3>(new THREE.Vector3())
+
+  // Store custom face normals in a ref to avoid re-creating the readFaceValue callback
+  const customNormalsRef = useRef<DiceFace[] | undefined>(customFaceNormals)
+
+  // Update ref when custom normals change
+  useEffect(() => {
+    customNormalsRef.current = customFaceNormals
+  }, [customFaceNormals])
 
   /**
    * Update motion state and check if dice is at rest
@@ -75,6 +89,7 @@ export function useFaceDetection(): FaceDetectionState {
 
   /**
    * Read the face value when dice is at rest
+   * Uses custom face normals if provided, otherwise uses default normals for the shape
    */
   const readFaceValue = useCallback(
     (quaternion: THREE.Quaternion, shape: DiceShape) => {
@@ -82,7 +97,7 @@ export function useFaceDetection(): FaceDetectionState {
         return
       }
 
-      const value = getDiceFaceValue(quaternion, shape)
+      const value = getDiceFaceValue(quaternion, shape, customNormalsRef.current)
 
       setFaceValue(value)
     },
