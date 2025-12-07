@@ -84,7 +84,7 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
 
     // Production mode: create materials with face textures
     try {
-      return createFaceMaterialsArray(shape, (faceValue) => {
+      const materialsArray = createFaceMaterialsArray(shape, (faceValue) => {
         // Render face value to canvas texture
         const texture = renderDiceFaceToTexture(faceValue, color, faceRenderer, textureSize)
 
@@ -93,6 +93,7 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
           map: texture,
           roughness,
           metalness,
+          flatShading: true,
         })
 
         // Add emissive glow if specified
@@ -103,17 +104,33 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
 
         return material
       })
+
+      console.log(`[useDiceMaterials] Created ${materialsArray.length} materials for ${shape}`)
+      return materialsArray
     } catch (error) {
-      // If material mapping not implemented, fall back to debug materials
-      console.warn(`Material mapping not implemented for ${shape}, using debug mode`, error)
-      return createDebugMaterials(shape)
+      // If material mapping not implemented, fall back to single solid material
+      console.error(`[useDiceMaterials] Material mapping error for ${shape}:`, error)
+
+      // Return single solid color material for all shapes
+      const fallbackMaterial = new THREE.MeshStandardMaterial({
+        color,
+        roughness,
+        metalness,
+        flatShading: shape !== 'd6',
+      })
+
+      console.log(`[useDiceMaterials] Using solid color fallback for ${shape}`)
+      return fallbackMaterial
     }
   }, [shape, color, roughness, metalness, emissiveIntensity, faceRenderer, textureSize, debugMode])
 
   // Cleanup materials and textures on unmount or when dependencies change
   useEffect(() => {
     return () => {
-      materials.forEach((material) => {
+      // Handle both single material and material array
+      const materialArray = Array.isArray(materials) ? materials : [materials]
+
+      materialArray.forEach((material) => {
         if (material instanceof THREE.MeshStandardMaterial) {
           // Dispose texture if present
           if (material.map) {
@@ -127,7 +144,8 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
     }
   }, [materials])
 
-  return materials
+  // Always return array for consistency (Three.js accepts both)
+  return Array.isArray(materials) ? materials : [materials]
 }
 
 /**

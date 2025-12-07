@@ -81,13 +81,76 @@ export const FACE_MATERIAL_MAPS: Record<DiceShape, number[]> = {
     2,  // Face 6 (top,    +Y) → materials[2] (BoxGeometry top)
   ],
 
-  // TODO: These mappings need to be determined empirically through testing
-  // Use createDebugMaterials() to visually identify the correct mapping
-  d4: [],
-  d8: [],
-  d10: [],
+  // D4: 4 triangular faces (TetrahedronGeometry with detail=0)
+  // Simple 1:1 mapping - face value N → material index N-1
+  d4: [
+    -1, // Placeholder (no face value 0)
+    0,  // Face 1 → materials[0]
+    1,  // Face 2 → materials[1]
+    2,  // Face 3 → materials[2]
+    3,  // Face 4 → materials[3]
+  ],
+
+  // D8: 8 triangular faces (OctahedronGeometry with detail=0)
+  // Simple 1:1 mapping - face value N → material index N-1
+  d8: [
+    -1, // Placeholder (no face value 0)
+    0,  // Face 1 → materials[0]
+    1,  // Face 2 → materials[1]
+    2,  // Face 3 → materials[2]
+    3,  // Face 4 → materials[3]
+    4,  // Face 5 → materials[4]
+    5,  // Face 6 → materials[5]
+    6,  // Face 7 → materials[6]
+    7,  // Face 8 → materials[7]
+  ],
+
+  // D10: 10 kite-shaped faces (20 triangles total)
+  // Each face consists of 2 triangles
+  // Top triangles: indices 0-9, Bottom triangles: indices 10-19
+  // Face value 0-9 needs special handling (D10 uses 0-9, not 1-10)
+  d10: [
+    0,  // Face 0 → materials[0] (top triangle)
+    1,  // Face 1 → materials[1]
+    2,  // Face 2 → materials[2]
+    3,  // Face 3 → materials[3]
+    4,  // Face 4 → materials[4]
+    5,  // Face 5 → materials[5]
+    6,  // Face 6 → materials[6]
+    7,  // Face 7 → materials[7]
+    8,  // Face 8 → materials[8]
+    9,  // Face 9 → materials[9]
+  ],
+
+  // D12: 12 pentagonal faces (36 triangles total = 3 triangles per face)
+  // TODO: Complex triangulation, needs empirical testing
   d12: [],
-  d20: [],
+
+  // D20: 20 triangular faces (IcosahedronGeometry with detail=0)
+  // Simple 1:1 mapping - face value N → material index N-1
+  d20: [
+    -1, // Placeholder (no face value 0)
+    0,  // Face 1 → materials[0]
+    1,  // Face 2 → materials[1]
+    2,  // Face 3 → materials[2]
+    3,  // Face 4 → materials[3]
+    4,  // Face 5 → materials[4]
+    5,  // Face 6 → materials[5]
+    6,  // Face 7 → materials[6]
+    7,  // Face 8 → materials[7]
+    8,  // Face 9 → materials[8]
+    9,  // Face 10 → materials[9]
+    10, // Face 11 → materials[10]
+    11, // Face 12 → materials[11]
+    12, // Face 13 → materials[12]
+    13, // Face 14 → materials[13]
+    14, // Face 15 → materials[14]
+    15, // Face 16 → materials[15]
+    16, // Face 17 → materials[16]
+    17, // Face 18 → materials[17]
+    18, // Face 19 → materials[18]
+    19, // Face 20 → materials[19]
+  ],
 }
 
 /**
@@ -120,6 +183,10 @@ export function getFaceNormals(shape: DiceShape): DiceFace[] {
  * 2. Materials are placed in the correct index for Three.js rendering
  * 3. Face detection and visual rendering stay synchronized
  *
+ * Special handling for D10:
+ * - D10 has 10 face values (0-9) but 20 triangles (2 per kite face)
+ * - Both triangles of a kite get the same material
+ *
  * @param shape - Dice shape (d4, d6, d8, d10, d12, d20)
  * @param createMaterial - Function that creates a material for a given face value
  * @returns Array of materials in Three.js geometry order
@@ -151,11 +218,29 @@ export function createFaceMaterialsArray(
     )
   }
 
-  // Create materials array sized for geometry
+  // Special case: D10 has 20 triangles but only 10 face values
+  if (shape === 'd10') {
+    const materials: THREE.Material[] = new Array(20)
+
+    // Create materials for face values 0-9
+    for (let faceValue = 0; faceValue <= 9; faceValue++) {
+      const material = createMaterial(faceValue)
+
+      // Apply same material to both triangles of this kite face
+      // Top triangle: index = faceValue
+      // Bottom triangle: index = faceValue + 10
+      materials[faceValue] = material
+      materials[faceValue + 10] = material.clone() // Clone to avoid sharing
+    }
+
+    return materials
+  }
+
+  // Standard mapping for other dice types
   const materials: THREE.Material[] = new Array(faceNormals.length)
 
   // Fill materials array using mapping
-  // Loop through each face value (1-indexed)
+  // Loop through each face value (1-indexed for d4,d6,d8,d12,d20; 0-indexed handled above for d10)
   for (let faceValue = 1; faceValue <= faceNormals.length; faceValue++) {
     const materialIndex = mapping[faceValue]
 
@@ -178,41 +263,56 @@ export function createFaceMaterialsArray(
  * corresponds to which face value. Roll the dice in the preview page and
  * note which color appears when a specific value is detected.
  *
+ * For polyhedra (D4, D8, D20), this creates materials for each TRIANGLE,
+ * allowing you to see the geometry triangle order.
+ *
  * @param shape - Dice shape
- * @returns Array of colored materials with numbers
+ * @returns Array of colored materials
  *
  * @example
  * ```typescript
  * // In preview page:
  * const materials = createDebugMaterials('d20');
- * // Roll dice, note: "Red face up → detected value 1"
- * // Build mapping: face 1 → material index for red
+ * // Rotate dice, note: "material[0] = Red shows face value 5"
+ * // Build mapping: face 5 → material index 0
  * ```
  */
 export function createDebugMaterials(shape: DiceShape): THREE.Material[] {
   // High-contrast colors for easy visual identification
   const debugColors = [
-    '#FF0000', // Red
-    '#00FF00', // Green
-    '#0000FF', // Blue
-    '#FFFF00', // Yellow
-    '#FF00FF', // Magenta
-    '#00FFFF', // Cyan
-    '#FF8800', // Orange
-    '#88FF00', // Lime
-    '#0088FF', // Sky Blue
-    '#FF0088', // Hot Pink
-    '#8800FF', // Purple
-    '#00FF88', // Spring Green
-    '#FF8888', // Light Red
-    '#88FF88', // Light Green
-    '#8888FF', // Light Blue
-    '#FFFF88', // Light Yellow
-    '#FF88FF', // Light Magenta
-    '#88FFFF', // Light Cyan
-    '#888888', // Gray
-    '#FFFFFF', // White
+    '#FF0000', // 0: Red
+    '#00FF00', // 1: Green
+    '#0000FF', // 2: Blue
+    '#FFFF00', // 3: Yellow
+    '#FF00FF', // 4: Magenta
+    '#00FFFF', // 5: Cyan
+    '#FF8800', // 6: Orange
+    '#88FF00', // 7: Lime
+    '#0088FF', // 8: Sky Blue
+    '#FF0088', // 9: Hot Pink
+    '#8800FF', // 10: Purple
+    '#00FF88', // 11: Spring Green
+    '#FF8888', // 12: Light Red
+    '#88FF88', // 13: Light Green
+    '#8888FF', // 14: Light Blue
+    '#FFFF88', // 15: Light Yellow
+    '#FF88FF', // 16: Light Magenta
+    '#88FFFF', // 17: Light Cyan
+    '#888888', // 18: Gray
+    '#FFFFFF', // 19: White
   ]
+
+  // For D10, create 20 materials (2 per kite face)
+  if (shape === 'd10') {
+    return Array.from({ length: 20 }, (_, index) =>
+      new THREE.MeshStandardMaterial({
+        color: debugColors[index % debugColors.length],
+        roughness: 0.7,
+        metalness: 0.1,
+        flatShading: true,
+      })
+    )
+  }
 
   const faceNormals = getFaceNormals(shape)
 
@@ -221,6 +321,7 @@ export function createDebugMaterials(shape: DiceShape): THREE.Material[] {
       color: debugColors[index % debugColors.length],
       roughness: 0.7,
       metalness: 0.1,
+      flatShading: shape !== 'd6',
     })
   )
 }
@@ -252,7 +353,6 @@ export function validateFaceNormalRules(shape: DiceShape): {
   // Check each pair of opposite normals
   for (let i = 0; i < faceNormals.length; i++) {
     const face = faceNormals[i]
-    const oppositeNormal = face.normal.clone().negate()
 
     // Find the face with the opposite normal
     const oppositeFace = faceNormals.find((f) => {

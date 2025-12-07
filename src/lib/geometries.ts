@@ -95,28 +95,31 @@ export const D12_FACE_NORMALS: DiceFace[] = [
 /**
  * D20 (icosahedron) face normals in world space
  * Icosahedron: 20 triangular faces
+ *
+ * These normals are extracted directly from Three.js IcosahedronGeometry
+ * to ensure perfect alignment between physics detection and material rendering
  */
 export const D20_FACE_NORMALS: DiceFace[] = [
-  { value: 1, normal: new THREE.Vector3(0, -1, 0).normalize() },
-  { value: 2, normal: new THREE.Vector3(0.8944, -0.4472, 0).normalize() },
-  { value: 3, normal: new THREE.Vector3(0.2764, -0.4472, 0.8507).normalize() },
-  { value: 4, normal: new THREE.Vector3(-0.7236, -0.4472, 0.5257).normalize() },
-  { value: 5, normal: new THREE.Vector3(-0.7236, -0.4472, -0.5257).normalize() },
-  { value: 6, normal: new THREE.Vector3(0.2764, -0.4472, -0.8507).normalize() },
-  { value: 7, normal: new THREE.Vector3(0.7236, 0.4472, 0.5257).normalize() },
-  { value: 8, normal: new THREE.Vector3(-0.2764, 0.4472, 0.8507).normalize() },
-  { value: 9, normal: new THREE.Vector3(-0.8944, 0.4472, 0).normalize() },
-  { value: 10, normal: new THREE.Vector3(-0.2764, 0.4472, -0.8507).normalize() },
-  { value: 11, normal: new THREE.Vector3(0.7236, 0.4472, -0.5257).normalize() },
-  { value: 12, normal: new THREE.Vector3(0, 1, 0).normalize() },
-  { value: 13, normal: new THREE.Vector3(0.8507, 0, 0.5257).normalize() },
-  { value: 14, normal: new THREE.Vector3(0, 0, 1).normalize() },
-  { value: 15, normal: new THREE.Vector3(-0.8507, 0, 0.5257).normalize() },
-  { value: 16, normal: new THREE.Vector3(-0.8507, 0, -0.5257).normalize() },
-  { value: 17, normal: new THREE.Vector3(0, 0, -1).normalize() },
-  { value: 18, normal: new THREE.Vector3(0.8507, 0, -0.5257).normalize() },
-  { value: 19, normal: new THREE.Vector3(0.5257, 0.8507, 0).normalize() },
-  { value: 20, normal: new THREE.Vector3(-0.5257, 0.8507, 0).normalize() },
+  { value: 1, normal: new THREE.Vector3(-0.5774, 0.5774, 0.5774) },
+  { value: 2, normal: new THREE.Vector3(0.0000, 0.9342, 0.3568) },
+  { value: 3, normal: new THREE.Vector3(0.0000, 0.9342, -0.3568) },
+  { value: 4, normal: new THREE.Vector3(-0.5774, 0.5774, -0.5774) },
+  { value: 5, normal: new THREE.Vector3(-0.9342, 0.3568, 0.0000) },
+  { value: 6, normal: new THREE.Vector3(0.5774, 0.5774, 0.5774) },
+  { value: 7, normal: new THREE.Vector3(-0.3568, 0.0000, 0.9342) },
+  { value: 8, normal: new THREE.Vector3(-0.9342, -0.3568, 0.0000) },
+  { value: 9, normal: new THREE.Vector3(-0.3568, 0.0000, -0.9342) },
+  { value: 10, normal: new THREE.Vector3(0.5774, 0.5774, -0.5774) },
+  { value: 11, normal: new THREE.Vector3(0.5774, -0.5774, 0.5774) },
+  { value: 12, normal: new THREE.Vector3(0.0000, -0.9342, 0.3568) },
+  { value: 13, normal: new THREE.Vector3(0.0000, -0.9342, -0.3568) },
+  { value: 14, normal: new THREE.Vector3(0.5774, -0.5774, -0.5774) },
+  { value: 15, normal: new THREE.Vector3(0.9342, -0.3568, 0.0000) },
+  { value: 16, normal: new THREE.Vector3(0.3568, 0.0000, 0.9342) },
+  { value: 17, normal: new THREE.Vector3(-0.5774, -0.5774, 0.5774) },
+  { value: 18, normal: new THREE.Vector3(-0.5774, -0.5774, -0.5774) },
+  { value: 19, normal: new THREE.Vector3(0.3568, 0.0000, -0.9342) },
+  { value: 20, normal: new THREE.Vector3(0.9342, 0.3568, 0.0000) },
 ]
 
 /**

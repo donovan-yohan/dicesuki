@@ -120,7 +120,8 @@ export interface InventoryDie {
 
   // Custom dice (for artist-created models)
   customAsset?: {
-    modelUrl: string            // Blob URL or path to GLB file
+    modelUrl: string            // Blob URL for current session
+    assetId?: string            // IndexedDB key for persistence (optional for backwards compatibility)
     metadata: any               // DiceMetadata from customDice types
   }
 }

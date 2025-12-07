@@ -27,6 +27,8 @@ import {
   validateGLBFile,
   parseMetadataJSON,
   formatValidationResults,
+  analyzeGLBScale,
+  ScaleAnalysisResult,
 } from '../../lib/diceMetadataSchema'
 import {
   generateDefaultMetadata,
@@ -55,6 +57,9 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
   const [customName, setCustomName] = useState('')
   const [customArtist, setCustomArtist] = useState('')
   const [addedToInventory, setAddedToInventory] = useState(false)
+  const [scaleAnalysis, setScaleAnalysis] = useState<ScaleAnalysisResult | null>(null)
+  const [userScale, setUserScale] = useState<number>(1.0)
+  const [userDensity, setUserDensity] = useState<number>(0.3) // Default density (matches standard dice)
 
   const addDie = useInventoryStore(state => state.addDie)
 
@@ -71,8 +76,21 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       step: 'uploading',
     }))
 
+    // Reset scale state
+    setScaleAnalysis(null)
+    setUserScale(1.0)
+
     // Validate the GLB file
     const validation = await validateGLBFile(file)
+
+    if (validation.isValid) {
+      // Analyze scale after successful validation
+      const scaleResult = await analyzeGLBScale(file)
+      setScaleAnalysis(scaleResult)
+      if (scaleResult.success) {
+        setUserScale(scaleResult.recommendedScale)
+      }
+    }
 
     setUploadState((prev) => ({
       ...prev,
@@ -118,7 +136,9 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
     const metadata = generateDefaultMetadata(
       selectedDiceType,
       customName || undefined,
-      customArtist || undefined
+      customArtist || undefined,
+      userScale,
+      userDensity
     )
 
     setUploadState((prev) => ({
@@ -127,7 +147,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       metadataValidation: { isValid: true, errors: [], warnings: [] },
       step: 'ready',
     }))
-  }, [selectedDiceType, customName, customArtist])
+  }, [selectedDiceType, customName, customArtist, userScale, userDensity])
 
   /**
    * Download auto-generated metadata as JSON file
@@ -231,6 +251,9 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
     setCustomName('')
     setCustomArtist('')
     setAddedToInventory(false)
+    setScaleAnalysis(null)
+    setUserScale(1.0)
+    setUserDensity(0.3)
   }, [])
 
   // Check if ready to preview
@@ -300,7 +323,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                 Choose File
               </button>
               <p className="text-sm text-gray-500 mt-4">
-                Maximum file size: 10 MB (5 MB recommended)
+                Maximum file size: 20 MB (10 MB recommended)
               </p>
             </div>
           ) : (
@@ -357,9 +380,151 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         </div>
       </section>
 
-      {/* Step 3: Metadata */}
+      {/* Step 3: Scale Adjustment */}
+      {scaleAnalysis && uploadState.file && (
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold mb-3">3. Adjust Scale</h3>
+
+          <div className="bg-gray-800 rounded-lg p-4 space-y-4">
+            {/* Scale analysis info */}
+            <div className="text-sm text-gray-400 space-y-1">
+              <p>
+                Original size: {scaleAnalysis.originalSize[0].toFixed(2)} × {scaleAnalysis.originalSize[1].toFixed(2)} × {scaleAnalysis.originalSize[2].toFixed(2)} units
+              </p>
+              <p>
+                Recommended scale: <span className="text-green-400 font-medium">{scaleAnalysis.recommendedScale.toFixed(3)}</span>
+                {' '}(to fit 1 unit)
+              </p>
+            </div>
+
+            {/* Scale slider */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label htmlFor="scale-slider" className="text-sm font-medium">
+                  Scale Factor
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={userScale.toFixed(3)}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      if (!isNaN(val) && val > 0 && val <= 10) {
+                        setUserScale(val)
+                      }
+                    }}
+                    step="0.01"
+                    min="0.01"
+                    max="10"
+                    className="w-20 px-2 py-1 bg-gray-700 rounded border border-gray-600 text-sm text-right"
+                  />
+                  <button
+                    onClick={() => setUserScale(scaleAnalysis.recommendedScale)}
+                    className="text-xs text-blue-400 hover:text-blue-300 underline"
+                    title="Reset to recommended scale"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <input
+                id="scale-slider"
+                type="range"
+                value={userScale}
+                onChange={(e) => setUserScale(parseFloat(e.target.value))}
+                min="0.01"
+                max={Math.max(scaleAnalysis.recommendedScale * 3, 2)}
+                step="0.01"
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              />
+
+              {/* Preview of final size */}
+              <div className="text-sm text-gray-400">
+                Final size: {' '}
+                <span className="text-white font-medium">
+                  {(scaleAnalysis.originalSize[0] * userScale).toFixed(2)} × {(scaleAnalysis.originalSize[1] * userScale).toFixed(2)} × {(scaleAnalysis.originalSize[2] * userScale).toFixed(2)}
+                </span>
+                {' '}units
+              </div>
+
+              {/* Size comparison hint */}
+              {Math.abs(userScale - scaleAnalysis.recommendedScale) > 0.01 && (
+                <p className="text-xs text-yellow-400">
+                  ⚠ Custom scale differs from recommended ({scaleAnalysis.recommendedScale.toFixed(3)})
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Step 4: Physics Properties */}
+      {uploadState.file && (
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold mb-3">{scaleAnalysis ? '4' : '3'}. Physics Properties</h3>
+
+          <div className="bg-gray-800 rounded-lg p-4 space-y-4">
+            {/* Density slider */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label htmlFor="density-slider" className="text-sm font-medium">
+                  Density
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={userDensity.toFixed(2)}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      if (!isNaN(val) && val > 0 && val <= 5) {
+                        setUserDensity(val)
+                      }
+                    }}
+                    step="0.01"
+                    min="0.01"
+                    max="5"
+                    className="w-20 px-2 py-1 bg-gray-700 rounded border border-gray-600 text-sm text-right"
+                  />
+                  <button
+                    onClick={() => setUserDensity(0.3)}
+                    className="text-xs text-blue-400 hover:text-blue-300 underline"
+                    title="Reset to default density"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <input
+                id="density-slider"
+                type="range"
+                value={userDensity}
+                onChange={(e) => setUserDensity(parseFloat(e.target.value))}
+                min="0.01"
+                max="1"
+                step="0.01"
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              />
+
+              {/* Density behavior hints */}
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Light (spins easily)</span>
+                <span>Heavy (stable)</span>
+              </div>
+
+              {/* Density explanation */}
+              <p className="text-xs text-gray-400">
+                Lower density = more spin/tumble when dragging. Default: <span className="text-green-400">0.3</span> (matches standard dice)
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Step 5: Metadata */}
       <section className="mb-6">
-        <h3 className="text-lg font-semibold mb-3">3. Provide Metadata</h3>
+        <h3 className="text-lg font-semibold mb-3">{scaleAnalysis ? '5' : uploadState.file ? '4' : '3'}. Provide Metadata</h3>
 
         <div className="space-y-4">
           {/* Option A: Upload metadata JSON */}

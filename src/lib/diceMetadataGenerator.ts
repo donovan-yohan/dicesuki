@@ -29,12 +29,16 @@ import {
  * @param diceType - Type of dice (d4, d6, etc.)
  * @param name - Optional custom name for the dice
  * @param artist - Optional artist name
+ * @param scale - Optional scale factor (default: 1.0)
+ * @param density - Optional density value (default: from DEFAULT_PHYSICS, 0.3 matches standard dice)
  * @returns Complete metadata object with default values
  */
 export function generateDefaultMetadata(
   diceType: DiceShape,
   name?: string,
-  artist?: string
+  artist?: string,
+  scale?: number,
+  density?: number
 ): DiceMetadata {
   const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
 
@@ -44,15 +48,21 @@ export function generateDefaultMetadata(
   // Get default collider configuration
   const colliderConfig = DEFAULT_COLLIDERS[diceType]
 
+  // Get physics with optional density override
+  const physics = { ...DEFAULT_PHYSICS[diceType] }
+  if (density !== undefined) {
+    physics.density = density
+  }
+
   return {
     version: '1.0',
     diceType,
     name: name || `Custom ${diceType.toUpperCase()}`,
     artist: artist || 'Unknown Artist',
     created: today,
-    scale: 1.0,
+    scale: scale ?? 1.0,
     faceNormals,
-    physics: { ...DEFAULT_PHYSICS[diceType] },
+    physics,
     colliderType: colliderConfig.type,
     colliderArgs: { ...colliderConfig.args },
   }
@@ -280,8 +290,8 @@ export function createMetadataTemplate(diceType: DiceShape): string {
 
   // Physics properties
   "physics": {
-    // Mass of the dice (1.0 is standard)
-    "mass": ${template.physics.mass},
+    // Density of the dice (0.3 matches standard dice, lower = more spin/tumble)
+    "density": ${template.physics.density},
 
     // Bounciness: 0 = no bounce, 1 = perfect bounce
     "restitution": ${template.physics.restitution},
