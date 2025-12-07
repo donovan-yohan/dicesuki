@@ -947,28 +947,6 @@ export async function saveCustomDiceModel(diceId: string, fileData: ArrayBuffer 
 
 ## Recent Updates
 
-### 2025-11-18: Dice Preview - All Shapes Support
-- **Multi-Shape Support Added to /preview Route**
-  - Dice shape selector dropdown (d4, d6, d8, d10, d12, d20)
-  - Dynamic geometry rendering for all dice types
-  - Correct collider mapping per shape (hull for polyhedra, cuboid for d6)
-  - Shape-specific face normal metadata generation
-
-- **GLTF Export Functionality**
-  - Standalone download button (separate from "Save to Inventory")
-  - Downloads .glb files for use in Blender, Unity, etc.
-  - Filename format: `dice_{shape}_{renderer}_{timestamp}.glb`
-  - Maintains existing inventory save workflow
-
-- **Current Limitations**
-  - Material mapping only implemented for D6 (cube geometry)
-  - Non-D6 dice render as solid color (no numbers on faces yet)
-  - Debug mode available for all shapes to verify face detection
-  - Face detection works correctly for all shapes (verified in Face Detection panel)
-
-- **New Files**
-  - `src/lib/diceColliders.ts`: Collider configuration utility for all dice types
-
 ### 2025-11-17: Custom Dice Persistence Fixes
 - **IndexedDB Transaction Timing Bug Fixed**
   - Root cause: `await fileData.arrayBuffer()` called AFTER opening transaction
