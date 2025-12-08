@@ -794,7 +794,35 @@ export const useInventoryStore = create<InventoryStore>()(
     {
       name: 'daisu-player-inventory',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+
+      // SCHEMA VERSION
+      // Increment this when starter dice or inventory structure changes
+      // This will trigger the migrate function below
+      version: 2,
+
+      // Migration function - runs when stored version doesn't match current version
+      migrate: (persistedState, version) => {
+        // Keep migration logs in production - they're useful for debugging user issues
+        console.log(`[InventoryStore] Migrating from version ${version} to 2`)
+
+        // Version 1 -> 2: Reset inventory to get new devil d6 starter dice
+        if (version < 2) {
+          console.log('[InventoryStore] v1->v2: Resetting inventory for devil d6 starter dice')
+          // Return empty state - initializeStarterDice will populate fresh starter dice
+          return {
+            dice: [],
+            currency: {
+              coins: 0,
+              gems: 0,
+              standardTokens: 0,
+              premiumTokens: 0
+            },
+            assignments: {}
+          }
+        }
+
+        return persistedState as InventoryStore
+      },
 
       // Partial persistence (only save essential data)
       partialize: state => ({
