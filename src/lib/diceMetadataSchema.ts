@@ -6,6 +6,8 @@
  * contains valid values for all required fields.
  */
 
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import {
   DiceMetadata,
   FaceNormal,
@@ -14,6 +16,9 @@ import {
   FILE_SIZE_LIMITS,
 } from '../types/customDice'
 import { DiceShape } from './geometries'
+
+/** Target size for dice (1 unit = standard dice size) */
+const TARGET_DICE_SIZE = 1.0
 
 /**
  * Validate a GLB file
@@ -332,4 +337,107 @@ export function formatValidationResults(result: ValidationResult): string {
   }
 
   return parts.join('\n')
+}
+
+/**
+ * Result of scale analysis for a GLB model
+ */
+export interface ScaleAnalysisResult {
+  /** Recommended scale factor to achieve target size */
+  recommendedScale: number
+  /** Original bounding box dimensions [width, height, depth] */
+  originalSize: [number, number, number]
+  /** Maximum dimension of the original model */
+  maxDimension: number
+  /** Whether analysis succeeded */
+  success: boolean
+  /** Error message if analysis failed */
+  error?: string
+}
+
+/**
+ * Analyze a GLB file to calculate recommended scale
+ *
+ * Loads the GLB model, calculates its bounding box, and returns
+ * the scale factor needed to fit it to the target dice size.
+ *
+ * @param file - The GLB file to analyze
+ * @param targetSize - Target size for the dice (default: 1.0)
+ * @returns Scale analysis result with recommended scale factor
+ */
+export async function analyzeGLBScale(
+  file: File,
+  targetSize: number = TARGET_DICE_SIZE
+): Promise<ScaleAnalysisResult> {
+  return new Promise((resolve) => {
+    const loader = new GLTFLoader()
+    const url = URL.createObjectURL(file)
+
+    loader.load(
+      url,
+      (gltf) => {
+        // Clean up blob URL
+        URL.revokeObjectURL(url)
+
+        // Calculate bounding box
+        const box = new THREE.Box3().setFromObject(gltf.scene)
+        const size = new THREE.Vector3()
+        box.getSize(size)
+
+        const maxDimension = Math.max(size.x, size.y, size.z)
+
+        // Handle edge case of zero-size model
+        if (maxDimension === 0) {
+          resolve({
+            recommendedScale: 1.0,
+            originalSize: [0, 0, 0],
+            maxDimension: 0,
+            success: false,
+            error: 'Model has zero size - may be empty or corrupted',
+          })
+          return
+        }
+
+        const recommendedScale = targetSize / maxDimension
+
+        resolve({
+          recommendedScale,
+          originalSize: [size.x, size.y, size.z],
+          maxDimension,
+          success: true,
+        })
+      },
+      undefined, // onProgress (not needed)
+      (error) => {
+        // Clean up blob URL on error
+        URL.revokeObjectURL(url)
+
+        resolve({
+          recommendedScale: 1.0,
+          originalSize: [0, 0, 0],
+          maxDimension: 0,
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to load GLB file',
+        })
+      }
+    )
+  })
+}
+
+/**
+ * Calculate the final size of a model given a scale factor
+ *
+ * @param originalSize - Original dimensions [width, height, depth]
+ * @param scale - Scale factor to apply
+ * @returns Final dimensions [width, height, depth]
+ */
+export function calculateFinalSize(
+  originalSize: [number, number, number],
+  scale: number
+): [number, number, number] {
+  return [
+    originalSize[0] * scale,
+    originalSize[1] * scale,
+    originalSize[2] * scale,
+  ]
 }

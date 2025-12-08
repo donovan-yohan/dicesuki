@@ -18,20 +18,25 @@
 import { useState, useCallback, useRef } from 'react'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { saveCustomDiceModel } from '../../lib/customDiceDB'
+import { devLog } from '../../lib/debug'
 import { DiceShape } from '../../lib/geometries'
 import {
   CustomDiceAsset,
+  FaceNormal,
   UploadState,
 } from '../../types/customDice'
 import {
   validateGLBFile,
   parseMetadataJSON,
   formatValidationResults,
+  analyzeGLBScale,
+  ScaleAnalysisResult,
 } from '../../lib/diceMetadataSchema'
 import {
   generateDefaultMetadata,
   downloadMetadata,
 } from '../../lib/diceMetadataGenerator'
+import { FaceNormalMapper } from './FaceNormalMapper'
 
 interface ArtistTestingPanelProps {
   /** Callback when a dice asset is successfully loaded and ready for preview */
@@ -55,6 +60,12 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
   const [customName, setCustomName] = useState('')
   const [customArtist, setCustomArtist] = useState('')
   const [addedToInventory, setAddedToInventory] = useState(false)
+  const [scaleAnalysis, setScaleAnalysis] = useState<ScaleAnalysisResult | null>(null)
+  const [userScale, setUserScale] = useState<number>(1.0)
+  const [userDensity, setUserDensity] = useState<number>(0.3) // Default density (matches standard dice)
+  const [customFaceNormals, setCustomFaceNormals] = useState<FaceNormal[]>([])
+  const [showFaceMapper, setShowFaceMapper] = useState(false)
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null)
 
   const addDie = useInventoryStore(state => state.addDie)
 
@@ -71,8 +82,29 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       step: 'uploading',
     }))
 
+    // Reset scale state and face normals
+    setScaleAnalysis(null)
+    setUserScale(1.0)
+    setCustomFaceNormals([])
+    setShowFaceMapper(false)
+
     // Validate the GLB file
     const validation = await validateGLBFile(file)
+
+    if (validation.isValid) {
+      // Create blob URL for preview
+      const blobUrl = URL.createObjectURL(file)
+      setPreviewBlobUrl(blobUrl)
+
+      // Analyze scale after successful validation
+      const scaleResult = await analyzeGLBScale(file)
+      setScaleAnalysis(scaleResult)
+      if (scaleResult.success) {
+        setUserScale(scaleResult.recommendedScale)
+      }
+    } else {
+      setPreviewBlobUrl(null)
+    }
 
     setUploadState((prev) => ({
       ...prev,
@@ -118,8 +150,15 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
     const metadata = generateDefaultMetadata(
       selectedDiceType,
       customName || undefined,
-      customArtist || undefined
+      customArtist || undefined,
+      userScale,
+      userDensity
     )
+
+    // Override face normals if custom mappings were created
+    if (customFaceNormals.length > 0) {
+      metadata.faceNormals = [...customFaceNormals]
+    }
 
     setUploadState((prev) => ({
       ...prev,
@@ -127,7 +166,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       metadataValidation: { isValid: true, errors: [], warnings: [] },
       step: 'ready',
     }))
-  }, [selectedDiceType, customName, customArtist])
+  }, [selectedDiceType, customName, customArtist, userScale, userDensity, customFaceNormals])
 
   /**
    * Download auto-generated metadata as JSON file
@@ -189,19 +228,19 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       },
     })
 
-    console.log('[ArtistTestingPanel] Added custom die to inventory:', newDie.id)
+    devLog.log('[ArtistTestingPanel] Added custom die to inventory:', newDie.id)
 
     // Save GLB file to IndexedDB for persistence across page reloads
     try {
-      console.log('[ArtistTestingPanel] Saving GLB file to IndexedDB...', {
+      devLog.log('[ArtistTestingPanel] Saving GLB file to IndexedDB...', {
         diceId: newDie.id,
         fileSize: uploadState.file.size,
         fileType: uploadState.file.type
       })
       await saveCustomDiceModel(newDie.id, uploadState.file)
-      console.log('[ArtistTestingPanel] ✓ Successfully saved GLB file to IndexedDB for die:', newDie.id)
+      devLog.log('[ArtistTestingPanel] Successfully saved GLB file to IndexedDB for die:', newDie.id)
     } catch (error) {
-      console.error('[ArtistTestingPanel] ✗ Failed to save GLB file to IndexedDB:', error)
+      devLog.error('[ArtistTestingPanel] Failed to save GLB file to IndexedDB:', error)
       alert('Warning: Custom die added to inventory but file could not be saved for persistence. It will not survive page reloads.')
     }
 
@@ -231,6 +270,12 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
     setCustomName('')
     setCustomArtist('')
     setAddedToInventory(false)
+    setScaleAnalysis(null)
+    setUserScale(1.0)
+    setUserDensity(0.3)
+    setCustomFaceNormals([])
+    setShowFaceMapper(false)
+    setPreviewBlobUrl(null)
   }, [])
 
   // Check if ready to preview
@@ -300,7 +345,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                 Choose File
               </button>
               <p className="text-sm text-gray-500 mt-4">
-                Maximum file size: 10 MB (5 MB recommended)
+                Maximum file size: 20 MB (10 MB recommended)
               </p>
             </div>
           ) : (
@@ -357,9 +402,191 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         </div>
       </section>
 
-      {/* Step 3: Metadata */}
+      {/* Step 3: Scale Adjustment */}
+      {scaleAnalysis && uploadState.file && (
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold mb-3">3. Adjust Scale</h3>
+
+          <div className="bg-gray-800 rounded-lg p-4 space-y-4">
+            {/* Scale analysis info */}
+            <div className="text-sm text-gray-400 space-y-1">
+              <p>
+                Original size: {scaleAnalysis.originalSize[0].toFixed(2)} × {scaleAnalysis.originalSize[1].toFixed(2)} × {scaleAnalysis.originalSize[2].toFixed(2)} units
+              </p>
+              <p>
+                Recommended scale: <span className="text-green-400 font-medium">{scaleAnalysis.recommendedScale.toFixed(3)}</span>
+                {' '}(to fit 1 unit)
+              </p>
+            </div>
+
+            {/* Scale slider */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label htmlFor="scale-slider" className="text-sm font-medium">
+                  Scale Factor
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={userScale.toFixed(3)}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      if (!isNaN(val) && val > 0 && val <= 10) {
+                        setUserScale(val)
+                      }
+                    }}
+                    step="0.01"
+                    min="0.01"
+                    max="10"
+                    className="w-20 px-2 py-1 bg-gray-700 rounded border border-gray-600 text-sm text-right"
+                  />
+                  <button
+                    onClick={() => setUserScale(scaleAnalysis.recommendedScale)}
+                    className="text-xs text-blue-400 hover:text-blue-300 underline"
+                    title="Reset to recommended scale"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <input
+                id="scale-slider"
+                type="range"
+                value={userScale}
+                onChange={(e) => setUserScale(parseFloat(e.target.value))}
+                min="0.01"
+                max={Math.max(scaleAnalysis.recommendedScale * 3, 2)}
+                step="0.01"
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              />
+
+              {/* Preview of final size */}
+              <div className="text-sm text-gray-400">
+                Final size: {' '}
+                <span className="text-white font-medium">
+                  {(scaleAnalysis.originalSize[0] * userScale).toFixed(2)} × {(scaleAnalysis.originalSize[1] * userScale).toFixed(2)} × {(scaleAnalysis.originalSize[2] * userScale).toFixed(2)}
+                </span>
+                {' '}units
+              </div>
+
+              {/* Size comparison hint */}
+              {Math.abs(userScale - scaleAnalysis.recommendedScale) > 0.01 && (
+                <p className="text-xs text-yellow-400">
+                  ⚠ Custom scale differs from recommended ({scaleAnalysis.recommendedScale.toFixed(3)})
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Step 4: Physics Properties */}
+      {uploadState.file && (
+        <section className="mb-6">
+          <h3 className="text-lg font-semibold mb-3">{scaleAnalysis ? '4' : '3'}. Physics Properties</h3>
+
+          <div className="bg-gray-800 rounded-lg p-4 space-y-4">
+            {/* Density slider */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label htmlFor="density-slider" className="text-sm font-medium">
+                  Density
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={userDensity.toFixed(2)}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      if (!isNaN(val) && val > 0 && val <= 2) {
+                        setUserDensity(val)
+                      }
+                    }}
+                    step="0.01"
+                    min="0.01"
+                    max="2"
+                    className="w-20 px-2 py-1 bg-gray-700 rounded border border-gray-600 text-sm text-right"
+                  />
+                  <button
+                    onClick={() => setUserDensity(0.3)}
+                    className="text-xs text-blue-400 hover:text-blue-300 underline"
+                    title="Reset to default density"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <input
+                id="density-slider"
+                type="range"
+                value={userDensity}
+                onChange={(e) => setUserDensity(parseFloat(e.target.value))}
+                min="0.01"
+                max="2"
+                step="0.01"
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              />
+
+              {/* Density behavior hints */}
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Light (spins easily)</span>
+                <span>Heavy (stable)</span>
+              </div>
+
+              {/* Density explanation */}
+              <p className="text-xs text-gray-400">
+                Lower density = more spin/tumble when dragging. Default: <span className="text-green-400">0.3</span> (matches standard dice)
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Step 5: Face Mapping (Optional) */}
+      {uploadState.file && previewBlobUrl && (
+        <section className="mb-6">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-semibold">
+              {scaleAnalysis ? '5' : '4'}. Face Number Mapping
+              <span className="text-sm font-normal text-gray-400 ml-2">(Optional)</span>
+            </h3>
+            <button
+              onClick={() => setShowFaceMapper(!showFaceMapper)}
+              className="text-sm text-blue-400 hover:text-blue-300"
+            >
+              {showFaceMapper ? 'Hide' : 'Customize Faces'}
+            </button>
+          </div>
+
+          {!showFaceMapper ? (
+            <div className="bg-gray-800 rounded-lg p-4 text-sm text-gray-400">
+              <p>
+                By default, face normals use standard orientations for {selectedDiceType.toUpperCase()}.
+                Click "Customize Faces" if your model has non-standard face positions.
+              </p>
+              {customFaceNormals.length > 0 && (
+                <p className="mt-2 text-green-400">
+                  ✓ {customFaceNormals.length} custom face mappings configured
+                </p>
+              )}
+            </div>
+          ) : (
+            <FaceNormalMapper
+              modelUrl={previewBlobUrl}
+              diceType={selectedDiceType}
+              scale={userScale}
+              faceNormals={customFaceNormals}
+              onFaceNormalsChange={setCustomFaceNormals}
+            />
+          )}
+        </section>
+      )}
+
+      {/* Step 6: Metadata */}
       <section className="mb-6">
-        <h3 className="text-lg font-semibold mb-3">3. Provide Metadata</h3>
+        <h3 className="text-lg font-semibold mb-3">{scaleAnalysis ? '6' : uploadState.file ? '5' : '3'}. Provide Metadata</h3>
 
         <div className="space-y-4">
           {/* Option A: Upload metadata JSON */}

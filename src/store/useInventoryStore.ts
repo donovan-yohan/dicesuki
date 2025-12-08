@@ -717,8 +717,12 @@ export const useInventoryStore = create<InventoryStore>()(
           if (!die.customAsset) continue
 
           try {
+            // Use assetId if available (new format), otherwise fall back to modelUrl (old format)
+            const assetId = die.customAsset.assetId || die.customAsset.modelUrl
+            console.log(`[InventoryStore] Loading asset for die "${die.name}" from IndexedDB key: ${assetId}`)
+
             // Create new blob URL from IndexedDB storage
-            const newBlobUrl = await createBlobUrlFromStorage(die.id)
+            const newBlobUrl = await createBlobUrlFromStorage(assetId)
 
             if (newBlobUrl) {
               // Update die with fresh blob URL

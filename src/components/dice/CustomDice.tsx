@@ -6,32 +6,33 @@
  * procedurally generated geometry.
  */
 
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
-import { useFrame, ThreeEvent } from '@react-three/fiber'
+import { ThreeEvent, useFrame } from '@react-three/fiber'
 import { BallCollider, ContactForcePayload, CuboidCollider, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import {
-  MAX_DICE_VELOCITY,
-  HAPTIC_MIN_SPEED,
-  HAPTIC_MIN_VELOCITY_CHANGE,
+  DRAG_DISTANCE_BOOST,
+  DRAG_DISTANCE_THRESHOLD,
+  DRAG_FOLLOW_SPEED,
+  DRAG_ROLL_FACTOR,
+  DRAG_SPIN_FACTOR,
   HAPTIC_FORCE_DIRECTION_THRESHOLD,
-  HAPTIC_MIN_FORCE,
+  HAPTIC_HIGH_FORCE_BYPASS,
   HAPTIC_LIGHT_THRESHOLD,
   HAPTIC_MEDIUM_THRESHOLD,
-  HAPTIC_HIGH_FORCE_BYPASS,
-  DRAG_FOLLOW_SPEED,
-  DRAG_DISTANCE_THRESHOLD,
-  DRAG_DISTANCE_BOOST,
-  DRAG_SPIN_FACTOR,
-  DRAG_ROLL_FACTOR,
+  HAPTIC_MIN_FORCE,
+  HAPTIC_MIN_SPEED,
+  HAPTIC_MIN_VELOCITY_CHANGE,
+  MAX_DICE_VELOCITY,
 } from '../../config/physicsConfig'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
+import { useAnimationMixer } from '../../hooks/useAnimationMixer'
+import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
-import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
-import { CustomDiceAsset } from '../../types/customDice'
 import { useUIStore } from '../../store/useUIStore'
+import { CustomDiceAsset } from '../../types/customDice'
 import { DiceHandle } from './Dice'
 
 interface CustomDiceProps {
@@ -71,8 +72,8 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
     const rigidBodyRef = useRef<RapierRigidBody>(null)
     const initialPositionRef = useRef(position)
 
-    // Load the custom dice model and metadata
-    const { scene, faceNormals, metadata } = useCustomDiceLoader(asset)
+    // Load the custom dice model, metadata, and animations
+    const { scene, animations, faceNormals, metadata } = useCustomDiceLoader(asset)
 
     // Use face detection with custom normals
     const {
@@ -84,6 +85,25 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
     } = useFaceDetection(faceNormals)
 
     const { isDragging, onPointerDown, cancelDrag, getDragState } = useDiceInteraction()
+
+    // Animation state for triggering state-based animations
+    const animationState = useMemo(
+      () => ({
+        isAtRest,
+        isDragging,
+        hasImpact: false,
+      }),
+      [isAtRest, isDragging]
+    )
+
+    // Setup animation mixer for GLTF animations
+    const { triggerImpact } = useAnimationMixer(
+      scene,
+      animations,
+      metadata?.animations,
+      animationState
+    )
+
     const { isShakingRef } = useDeviceMotionRef()
     const { vibrateOnCollision } = useHapticFeedback()
     const motionMode = useUIStore((state) => state.motionMode)
@@ -96,7 +116,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
 
     // Get physics properties from metadata
     const physicsProps = metadata?.physics || {
-      mass: 1.0,
+      density: 0.3,
       restitution: 0.3,
       friction: 0.6,
     }
@@ -105,6 +125,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
     const colliderArgs = metadata?.colliderArgs || {}
     const scale = metadata?.scale || 1.0
     const diceType = metadata?.diceType || 'd6'
+
 
     // Expose imperative handle (same as standard Dice)
     useImperativeHandle(ref, () => ({
@@ -160,6 +181,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
       applyRollImpulse: (impulse: THREE.Vector3) => {
         if (!rigidBodyRef.current) return
 
+        rigidBodyRef.current.wakeUp()
         rigidBodyRef.current.applyImpulse(
           { x: impulse.x, y: impulse.y, z: impulse.z },
           true,
@@ -408,8 +430,13 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
         } else {
           vibrateOnCollision('strong')
         }
+
+        // Trigger impact animation on significant collisions
+        if (forceMagnitude >= HAPTIC_MEDIUM_THRESHOLD) {
+          triggerImpact()
+        }
       },
-      [vibrateOnCollision],
+      [vibrateOnCollision, triggerImpact],
     )
 
     // Don't render if scene isn't loaded yet
@@ -425,11 +452,12 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
         type="dynamic"
         restitution={physicsProps.restitution}
         friction={physicsProps.friction}
-        mass={physicsProps.mass}
+        density={physicsProps.density}
         canSleep={false}
         onContactForce={handleContactForce}
       >
         {/* Render appropriate collider based on metadata type */}
+        {/* Collider args are for 1-unit dice; visual scale brings model to ~1 unit */}
         {colliderType === 'roundCuboid' && colliderArgs.halfExtents && (
           <RoundCuboidCollider
             args={[

@@ -23,8 +23,8 @@ export interface FaceNormal {
  * Controls how the dice behaves in the physics simulation
  */
 export interface PhysicsProperties {
-  /** Mass of the dice (default: 1.0) */
-  mass: number
+  /** Density of the dice (default: 0.3, affects mass calculation) */
+  density: number
   /** Restitution/bounciness (0 = no bounce, 1 = perfect bounce, default: 0.3) */
   restitution: number
   /** Friction coefficient (0 = ice, 1+ = very grippy, default: 0.6) */
@@ -57,6 +57,49 @@ export interface ColliderConfig {
   type: ColliderType
   args: ColliderArgs
 }
+
+/**
+ * Animation loop mode
+ */
+export type AnimationLoopMode = 'once' | 'repeat' | 'pingpong'
+
+/**
+ * Animation configuration for custom dice
+ * Defines how embedded GLTF animations should be played
+ */
+export interface AnimationConfig {
+  /** Name of the animation clip (from GLTF) */
+  name: string
+
+  /** Whether to play automatically when dice is loaded (default: true for 'always' trigger) */
+  autoPlay?: boolean
+
+  /** Loop behavior (default: 'repeat') */
+  loop?: AnimationLoopMode
+
+  /** Playback speed multiplier (0.5 = half speed, 2 = double speed, default: 1.0) */
+  speed?: number
+
+  /** Fade in duration in seconds (default: 0) */
+  fadeInDuration?: number
+
+  /** Fade out duration in seconds (default: 0) */
+  fadeOutDuration?: number
+
+  /**
+   * When to trigger this animation:
+   * - 'always': Play continuously (idle animation)
+   * - 'rolling': Play while dice is in motion
+   * - 'idle': Play when dice is at rest
+   * - 'impact': Play on collision (one-shot)
+   */
+  triggerOn?: 'always' | 'rolling' | 'idle' | 'impact'
+}
+
+/**
+ * Rarity levels for dice (matches inventory system)
+ */
+export type DiceRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic'
 
 /**
  * Complete dice metadata specification
@@ -100,6 +143,51 @@ export interface DiceMetadata {
 
   /** Optional: License information */
   license?: string
+
+  /** Optional: Animation configurations for embedded GLTF animations */
+  animations?: AnimationConfig[]
+
+  // ============================================================================
+  // Inventory/Production Fields (for shipped dice)
+  // ============================================================================
+
+  /** Rarity tier for inventory system (default: 'common') */
+  rarity?: DiceRarity
+
+  /** Flavor text/description for the dice */
+  description?: string
+
+  /** Set ID this dice belongs to (derived from folder if not specified) */
+  setId?: string
+}
+
+/**
+ * Set metadata for a collection of dice
+ */
+export interface DiceSetMetadata {
+  /** Unique identifier for the set */
+  id: string
+
+  /** Display name for the set */
+  name: string
+
+  /** Artist or creator name */
+  artist: string
+
+  /** Description of the set */
+  description?: string
+
+  /** Release date (ISO 8601 format: YYYY-MM-DD) */
+  releaseDate: string
+
+  /** Tags for filtering/search */
+  tags?: string[]
+
+  /** Availability status */
+  availability: 'always' | 'limited' | 'seasonal' | 'retired'
+
+  /** End date for limited sets */
+  endDate?: string
 }
 
 /**
@@ -176,14 +264,19 @@ export const EXPECTED_FACE_COUNTS: Record<DiceShape, number> = {
 /**
  * Default physics properties by dice type
  * Used when auto-generating metadata
+ *
+ * Note: Density is set to 0.3 to match the auto-calculated mass of standard dice.
+ * Rapier calculates mass from density × collider volume.
+ * Lower density = lighter dice = more spin/tumble when dragging.
+ * Higher density = heavier dice = more stable, less reactive.
  */
 export const DEFAULT_PHYSICS: Record<DiceShape, PhysicsProperties> = {
-  d4: { mass: 1.0, restitution: 0.3, friction: 0.6 },
-  d6: { mass: 1.0, restitution: 0.3, friction: 0.6 },
-  d8: { mass: 1.0, restitution: 0.3, friction: 0.6 },
-  d10: { mass: 1.0, restitution: 0.3, friction: 0.6 },
-  d12: { mass: 1.0, restitution: 0.3, friction: 0.6 },
-  d20: { mass: 1.0, restitution: 0.3, friction: 0.6 },
+  d4: { density: 0.3, restitution: 0.3, friction: 0.6 },
+  d6: { density: 0.3, restitution: 0.3, friction: 0.6 },
+  d8: { density: 0.3, restitution: 0.3, friction: 0.6 },
+  d10: { density: 0.3, restitution: 0.3, friction: 0.6 },
+  d12: { density: 0.3, restitution: 0.3, friction: 0.6 },
+  d20: { density: 0.3, restitution: 0.3, friction: 0.6 },
 }
 
 /**
@@ -208,11 +301,11 @@ export const DEFAULT_COLLIDERS: Record<DiceShape, ColliderConfig> = {
  * File size limits
  */
 export const FILE_SIZE_LIMITS = {
-  /** Recommended maximum file size (5 MB) */
-  RECOMMENDED_MAX_SIZE: 5 * 1024 * 1024,
+  /** Recommended maximum file size (10 MB) */
+  RECOMMENDED_MAX_SIZE: 10 * 1024 * 1024,
 
-  /** Hard limit maximum file size (10 MB) */
-  HARD_MAX_SIZE: 10 * 1024 * 1024,
+  /** Hard limit maximum file size (20 MB) */
+  HARD_MAX_SIZE: 20 * 1024 * 1024,
 } as const
 
 /**

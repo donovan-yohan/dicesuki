@@ -8,6 +8,7 @@ import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMoti
 import { useTheme } from '../contexts/ThemeContext'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
+import { spawnDiceFromToolbar, spawnSpecificDie } from '../lib/diceSpawner'
 import { initializeStarterDice } from '../lib/initializeStarterDice'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useDiceStore } from '../store/useDiceStore'
@@ -399,8 +400,13 @@ function Scene() {
       }
 
       // Apply impulse to ALL dice
+      console.log('[Scene] diceRefs keys:', Array.from(diceRefs.current.keys()))
       diceRefs.current.forEach((diceHandle, id) => {
-        console.log(`Applying impulse to dice: ${id}`)
+        console.log(`[Scene] Applying impulse to dice: ${id}`)
+        if (!diceHandle) {
+          console.error(`[Scene] Dice handle is null for ${id}`)
+          return
+        }
         diceHandle.applyRollImpulse(impulse)
       })
 
@@ -456,46 +462,26 @@ function Scene() {
   )
 
   const handleAddDice = useCallback(
-    (type: string) => {
-      console.log('Adding dice:', type)
-      // Clear all saved rolls when manually adding dice
-      useDiceStore.getState().clearActiveSavedRoll()
-      useDiceStore.getState().clearAllGroups()
+    (type: string, specificInventoryDieId?: string) => {
+      const diceShape = type as import('../lib/geometries').DiceShape
 
-      // Remove all grouped dice, keep only manual dice
-      const groupedDice = dice.filter(d => d.rollGroupId)
-      groupedDice.forEach(d => removeDice(d.id))
+      if (specificInventoryDieId) {
+        // Spawning specific die from inventory panel
+        const result = spawnSpecificDie(specificInventoryDieId, diceShape, currentTheme.id)
 
-      // Get all dice of this type from inventory
-      const inventoryDice = useInventoryStore.getState().getDiceByType(type as import('../lib/geometries').DiceShape)
+        if (!result.success) {
+          console.warn(`[handleAddDice] Failed to spawn die: ${result.error}`)
+        }
+      } else {
+        // Spawning from toolbar
+        const result = spawnDiceFromToolbar(diceShape, currentTheme.id)
 
-      if (inventoryDice.length === 0) {
-        console.warn(`No dice of type ${type} found in inventory`)
-        return // Don't spawn dice if player doesn't own any
+        if (!result.success) {
+          console.warn(`[handleAddDice] Failed to spawn die: ${result.error}`)
+        }
       }
-
-      // Get dice that are currently in use
-      const inUseDiceIds = useDiceManagerStore.getState().getInUseDiceIds()
-
-      // Find first available die (owned but not in use)
-      const availableDie = inventoryDice.find(die => !inUseDiceIds.includes(die.id))
-
-      if (!availableDie) {
-        console.warn(`All ${type} dice are already in use (${inventoryDice.length} owned, ${inUseDiceIds.filter(id => inventoryDice.some(d => d.id === id)).length} in use)`)
-        return // Don't spawn if all dice of this type are in use
-      }
-
-      console.log(`Using inventory die: ${availableDie.name} (${availableDie.appearance.baseColor})`)
-      addDice(
-        type as import('../lib/geometries').DiceShape,
-        currentTheme.id,
-        undefined, // auto-generate dice instance ID
-        undefined, // no roll group
-        undefined, // no roll group name
-        availableDie.id // link to inventory die
-      )
     },
-    [addDice, currentTheme.id, dice, removeDice]
+    [currentTheme.id]
   )
 
   const handleToggleMotion = useCallback(async () => {
@@ -613,6 +599,19 @@ function Scene() {
             }
 
             // Standard dice rendering
+            // Use inventory die's appearance color if available, otherwise fallback to theme color
+            const diceColor = inventoryDie?.appearance?.baseColor || die.color
+
+            // Debug color selection
+            if (inventoryDie && inventoryDie.isDev) {
+              console.log(`[Scene Render] Dev die ${die.id}:`, {
+                inventoryDieId: inventoryDie.id,
+                baseColor: inventoryDie.appearance?.baseColor,
+                dieColor: die.color,
+                finalColor: diceColor
+              })
+            }
+
             return (
               <Dice
                 key={die.id}
@@ -628,7 +627,7 @@ function Scene() {
                 position={die.position}
                 rotation={die.rotation}
                 size={0.67}
-                color={die.color}
+                color={diceColor}
                 onRest={handleDiceRest}
               />
             )

@@ -14,7 +14,7 @@ import { InventoryDie, DieRarity } from '../../types/inventory'
 interface InventoryPanelProps {
   isOpen: boolean
   onClose: () => void
-  onSpawnDie?: (dieType: string) => void
+  onSpawnDie?: (dieType: string, inventoryDieId?: string) => void
 }
 
 type TabType = 'all' | 'sets' | 'rarity' | 'favorites'
@@ -390,7 +390,7 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie }: InventoryPanelPr
             {onSpawnDie && (
               <button
                 onClick={() => {
-                  onSpawnDie(selectedDie.type)
+                  onSpawnDie(selectedDie.type, selectedDie.id)
                   setSelectedDie(null)
                   onClose()
                 }}

@@ -38,6 +38,8 @@ import {
 } from '../../lib/geometries'
 import { useUIStore } from '../../store/useUIStore'
 
+type RendererType = 'simple' | 'styled' | 'bordered' | 'debug' | undefined
+
 interface DiceProps {
   id?: string
   shape: DiceShape
@@ -45,6 +47,7 @@ interface DiceProps {
   rotation?: [number, number, number]
   size?: number
   color?: string
+  rendererType?: RendererType
   onRest?: (id: string, faceValue: number, diceType: string) => void
 }
 

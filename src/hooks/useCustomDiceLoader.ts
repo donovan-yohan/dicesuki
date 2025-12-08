@@ -60,31 +60,26 @@ export function useCustomDiceLoader(asset: CustomDiceAsset | null) {
   const scene = gltf.scene
 
   // Clone the scene to allow multiple instances
+  // Note: Scale is applied in CustomDice component, not here
   const clonedScene = useMemo(() => {
     if (!scene) return null
     const cloned = scene.clone(true)
-    
+
     // Fix materials for proper lighting
     cloned.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh
         mesh.castShadow = true
         mesh.receiveShadow = true
-        
+
         // Ensure material receives lighting
         if (mesh.material) {
           const material = mesh.material as THREE.Material
           material.needsUpdate = true
-          
-          // Leave materials as-is - rely on scene lighting instead
-          // Just ensure they can receive updates
-          if ((material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
-            // Material is ready for lighting
-          }
         }
       }
     })
-    
+
     return cloned
   }, [scene])
 
@@ -92,6 +87,7 @@ export function useCustomDiceLoader(asset: CustomDiceAsset | null) {
     scene: clonedScene,
     materials: gltf.materials,
     nodes: gltf.nodes,
+    animations: gltf.animations || [],
     faceNormals,
     metadata: asset?.metadata,
     isLoading: !gltf.scene,
