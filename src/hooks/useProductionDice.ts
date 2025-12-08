@@ -15,6 +15,7 @@ import {
   getDiceRarity,
   getDiceDescription,
 } from '../lib/productionDiceRegistry'
+import { devLog } from '../lib/debug'
 import { useInventoryStore } from '../store/useInventoryStore'
 
 /**
@@ -92,7 +93,7 @@ export function useProductionDice() {
         (d) => d.customAsset?.assetId === productionDice.id
       )
       if (existingDie) {
-        console.log(`[useProductionDice] Dice ${productionDice.id} already in inventory`)
+        devLog.log(`[useProductionDice] Dice ${productionDice.id} already in inventory`)
         return existingDie
       }
 
@@ -124,7 +125,7 @@ export function useProductionDice() {
         },
       })
 
-      console.log(`[useProductionDice] Added ${productionDice.id} to inventory:`, newDie.id)
+      devLog.log(`[useProductionDice] Added ${productionDice.id} to inventory:`, newDie.id)
       return newDie
     },
     [addDie, inventory]
@@ -147,7 +148,7 @@ export function useProductionDice() {
     })
 
     if (added.length > 0) {
-      console.log(`[useProductionDice] Added ${added.length} production dice to inventory`)
+      devLog.log(`[useProductionDice] Added ${added.length} production dice to inventory`)
     }
 
     return added

@@ -93,7 +93,12 @@ function createStarterDie(
 
 /**
  * Devil D6 metadata from public/dice/devil-set/devil-d6/metadata.json
- * Hardcoded here for starter dice (avoids async loading at startup)
+ *
+ * SYNC WARNING: This is a copy of the metadata from public/dice/devil-set/devil-d6/metadata.json
+ * If the source file changes, this must be updated manually.
+ * Hardcoded here to avoid async loading at startup.
+ *
+ * TODO: Consider a build-time script to generate this from the source JSON
  */
 const DEVIL_D6_METADATA: DiceMetadata = {
   version: '1.0',

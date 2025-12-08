@@ -318,19 +318,11 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
             // Combine both torques
             const totalTorque = rollTorque.add(spinTorque)
 
-            const angVelBefore = rigidBodyRef.current.angvel()
-            console.log(`[Dice] Applying torque: (${totalTorque.x.toFixed(4)}, ${totalTorque.y.toFixed(4)}, ${totalTorque.z.toFixed(4)}), angVel before: (${angVelBefore.x.toFixed(4)}, ${angVelBefore.y.toFixed(4)}, ${angVelBefore.z.toFixed(4)})`)
-
             // Apply combined torque impulse (adds to existing angular velocity)
             rigidBodyRef.current.applyTorqueImpulse(
               { x: totalTorque.x, y: totalTorque.y, z: totalTorque.z },
               true,
             )
-
-            const angVelAfter = rigidBodyRef.current.angvel()
-            if (Math.random() < 0.1) {
-              console.log(`[Dice] angVel after: (${angVelAfter.x.toFixed(4)}, ${angVelAfter.y.toFixed(4)}, ${angVelAfter.z.toFixed(4)}), mass: ${rigidBodyRef.current.mass()}`)
-            }
           }
         }
 

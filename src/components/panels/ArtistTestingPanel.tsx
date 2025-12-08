@@ -18,6 +18,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { saveCustomDiceModel } from '../../lib/customDiceDB'
+import { devLog } from '../../lib/debug'
 import { DiceShape } from '../../lib/geometries'
 import {
   CustomDiceAsset,
@@ -227,19 +228,19 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       },
     })
 
-    console.log('[ArtistTestingPanel] Added custom die to inventory:', newDie.id)
+    devLog.log('[ArtistTestingPanel] Added custom die to inventory:', newDie.id)
 
     // Save GLB file to IndexedDB for persistence across page reloads
     try {
-      console.log('[ArtistTestingPanel] Saving GLB file to IndexedDB...', {
+      devLog.log('[ArtistTestingPanel] Saving GLB file to IndexedDB...', {
         diceId: newDie.id,
         fileSize: uploadState.file.size,
         fileType: uploadState.file.type
       })
       await saveCustomDiceModel(newDie.id, uploadState.file)
-      console.log('[ArtistTestingPanel] ✓ Successfully saved GLB file to IndexedDB for die:', newDie.id)
+      devLog.log('[ArtistTestingPanel] Successfully saved GLB file to IndexedDB for die:', newDie.id)
     } catch (error) {
-      console.error('[ArtistTestingPanel] ✗ Failed to save GLB file to IndexedDB:', error)
+      devLog.error('[ArtistTestingPanel] Failed to save GLB file to IndexedDB:', error)
       alert('Warning: Custom die added to inventory but file could not be saved for persistence. It will not survive page reloads.')
     }
 
@@ -498,13 +499,13 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                     value={userDensity.toFixed(2)}
                     onChange={(e) => {
                       const val = parseFloat(e.target.value)
-                      if (!isNaN(val) && val > 0 && val <= 5) {
+                      if (!isNaN(val) && val > 0 && val <= 2) {
                         setUserDensity(val)
                       }
                     }}
                     step="0.01"
                     min="0.01"
-                    max="5"
+                    max="2"
                     className="w-20 px-2 py-1 bg-gray-700 rounded border border-gray-600 text-sm text-right"
                   />
                   <button
@@ -523,7 +524,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                 value={userDensity}
                 onChange={(e) => setUserDensity(parseFloat(e.target.value))}
                 min="0.01"
-                max="1"
+                max="2"
                 step="0.01"
                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />

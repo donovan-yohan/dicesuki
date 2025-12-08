@@ -7,6 +7,7 @@
  */
 
 import { DiceMetadata, DiceSetMetadata, CustomDiceAsset, DiceRarity } from '../types/customDice'
+import { devLog } from './debug'
 
 // Base path for dice assets
 const DICE_BASE_PATH = '/dice'
@@ -189,7 +190,7 @@ export async function loadAllProductionDice(): Promise<LoadedProductionDice[]> {
     }
   }
 
-  console.log(`[ProductionDiceRegistry] Loaded ${loadedDice.length} production dice`)
+  devLog.log(`[ProductionDiceRegistry] Loaded ${loadedDice.length} production dice`)
   return loadedDice
 }
 
