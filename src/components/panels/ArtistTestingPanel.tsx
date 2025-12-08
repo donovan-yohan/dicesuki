@@ -21,6 +21,7 @@ import { saveCustomDiceModel } from '../../lib/customDiceDB'
 import { DiceShape } from '../../lib/geometries'
 import {
   CustomDiceAsset,
+  FaceNormal,
   UploadState,
 } from '../../types/customDice'
 import {
@@ -34,6 +35,7 @@ import {
   generateDefaultMetadata,
   downloadMetadata,
 } from '../../lib/diceMetadataGenerator'
+import { FaceNormalMapper } from './FaceNormalMapper'
 
 interface ArtistTestingPanelProps {
   /** Callback when a dice asset is successfully loaded and ready for preview */
@@ -60,6 +62,9 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
   const [scaleAnalysis, setScaleAnalysis] = useState<ScaleAnalysisResult | null>(null)
   const [userScale, setUserScale] = useState<number>(1.0)
   const [userDensity, setUserDensity] = useState<number>(0.3) // Default density (matches standard dice)
+  const [customFaceNormals, setCustomFaceNormals] = useState<FaceNormal[]>([])
+  const [showFaceMapper, setShowFaceMapper] = useState(false)
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null)
 
   const addDie = useInventoryStore(state => state.addDie)
 
@@ -76,20 +81,28 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       step: 'uploading',
     }))
 
-    // Reset scale state
+    // Reset scale state and face normals
     setScaleAnalysis(null)
     setUserScale(1.0)
+    setCustomFaceNormals([])
+    setShowFaceMapper(false)
 
     // Validate the GLB file
     const validation = await validateGLBFile(file)
 
     if (validation.isValid) {
+      // Create blob URL for preview
+      const blobUrl = URL.createObjectURL(file)
+      setPreviewBlobUrl(blobUrl)
+
       // Analyze scale after successful validation
       const scaleResult = await analyzeGLBScale(file)
       setScaleAnalysis(scaleResult)
       if (scaleResult.success) {
         setUserScale(scaleResult.recommendedScale)
       }
+    } else {
+      setPreviewBlobUrl(null)
     }
 
     setUploadState((prev) => ({
@@ -141,13 +154,18 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       userDensity
     )
 
+    // Override face normals if custom mappings were created
+    if (customFaceNormals.length > 0) {
+      metadata.faceNormals = [...customFaceNormals]
+    }
+
     setUploadState((prev) => ({
       ...prev,
       metadata,
       metadataValidation: { isValid: true, errors: [], warnings: [] },
       step: 'ready',
     }))
-  }, [selectedDiceType, customName, customArtist, userScale, userDensity])
+  }, [selectedDiceType, customName, customArtist, userScale, userDensity, customFaceNormals])
 
   /**
    * Download auto-generated metadata as JSON file
@@ -254,6 +272,9 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
     setScaleAnalysis(null)
     setUserScale(1.0)
     setUserDensity(0.3)
+    setCustomFaceNormals([])
+    setShowFaceMapper(false)
+    setPreviewBlobUrl(null)
   }, [])
 
   // Check if ready to preview
@@ -522,9 +543,49 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         </section>
       )}
 
-      {/* Step 5: Metadata */}
+      {/* Step 5: Face Mapping (Optional) */}
+      {uploadState.file && previewBlobUrl && (
+        <section className="mb-6">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-lg font-semibold">
+              {scaleAnalysis ? '5' : '4'}. Face Number Mapping
+              <span className="text-sm font-normal text-gray-400 ml-2">(Optional)</span>
+            </h3>
+            <button
+              onClick={() => setShowFaceMapper(!showFaceMapper)}
+              className="text-sm text-blue-400 hover:text-blue-300"
+            >
+              {showFaceMapper ? 'Hide' : 'Customize Faces'}
+            </button>
+          </div>
+
+          {!showFaceMapper ? (
+            <div className="bg-gray-800 rounded-lg p-4 text-sm text-gray-400">
+              <p>
+                By default, face normals use standard orientations for {selectedDiceType.toUpperCase()}.
+                Click "Customize Faces" if your model has non-standard face positions.
+              </p>
+              {customFaceNormals.length > 0 && (
+                <p className="mt-2 text-green-400">
+                  ✓ {customFaceNormals.length} custom face mappings configured
+                </p>
+              )}
+            </div>
+          ) : (
+            <FaceNormalMapper
+              modelUrl={previewBlobUrl}
+              diceType={selectedDiceType}
+              scale={userScale}
+              faceNormals={customFaceNormals}
+              onFaceNormalsChange={setCustomFaceNormals}
+            />
+          )}
+        </section>
+      )}
+
+      {/* Step 6: Metadata */}
       <section className="mb-6">
-        <h3 className="text-lg font-semibold mb-3">{scaleAnalysis ? '5' : uploadState.file ? '4' : '3'}. Provide Metadata</h3>
+        <h3 className="text-lg font-semibold mb-3">{scaleAnalysis ? '6' : uploadState.file ? '5' : '3'}. Provide Metadata</h3>
 
         <div className="space-y-4">
           {/* Option A: Upload metadata JSON */}

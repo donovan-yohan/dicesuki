@@ -8,7 +8,7 @@
 
 import { ThreeEvent, useFrame } from '@react-three/fiber'
 import { BallCollider, ContactForcePayload, CuboidCollider, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import {
   DRAG_DISTANCE_BOOST,
@@ -26,6 +26,7 @@ import {
   MAX_DICE_VELOCITY,
 } from '../../config/physicsConfig'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
+import { useAnimationMixer } from '../../hooks/useAnimationMixer'
 import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
@@ -71,8 +72,8 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
     const rigidBodyRef = useRef<RapierRigidBody>(null)
     const initialPositionRef = useRef(position)
 
-    // Load the custom dice model and metadata
-    const { scene, faceNormals, metadata } = useCustomDiceLoader(asset)
+    // Load the custom dice model, metadata, and animations
+    const { scene, animations, faceNormals, metadata } = useCustomDiceLoader(asset)
 
     // Use face detection with custom normals
     const {
@@ -84,6 +85,25 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
     } = useFaceDetection(faceNormals)
 
     const { isDragging, onPointerDown, cancelDrag, getDragState } = useDiceInteraction()
+
+    // Animation state for triggering state-based animations
+    const animationState = useMemo(
+      () => ({
+        isAtRest,
+        isDragging,
+        hasImpact: false,
+      }),
+      [isAtRest, isDragging]
+    )
+
+    // Setup animation mixer for GLTF animations
+    const { triggerImpact } = useAnimationMixer(
+      scene,
+      animations,
+      metadata?.animations,
+      animationState
+    )
+
     const { isShakingRef } = useDeviceMotionRef()
     const { vibrateOnCollision } = useHapticFeedback()
     const motionMode = useUIStore((state) => state.motionMode)
@@ -410,8 +430,13 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
         } else {
           vibrateOnCollision('strong')
         }
+
+        // Trigger impact animation on significant collisions
+        if (forceMagnitude >= HAPTIC_MEDIUM_THRESHOLD) {
+          triggerImpact()
+        }
       },
-      [vibrateOnCollision],
+      [vibrateOnCollision, triggerImpact],
     )
 
     // Don't render if scene isn't loaded yet

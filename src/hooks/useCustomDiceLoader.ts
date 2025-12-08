@@ -87,6 +87,7 @@ export function useCustomDiceLoader(asset: CustomDiceAsset | null) {
     scene: clonedScene,
     materials: gltf.materials,
     nodes: gltf.nodes,
+    animations: gltf.animations || [],
     faceNormals,
     metadata: asset?.metadata,
     isLoading: !gltf.scene,

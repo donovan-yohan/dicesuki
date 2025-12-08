@@ -59,6 +59,49 @@ export interface ColliderConfig {
 }
 
 /**
+ * Animation loop mode
+ */
+export type AnimationLoopMode = 'once' | 'repeat' | 'pingpong'
+
+/**
+ * Animation configuration for custom dice
+ * Defines how embedded GLTF animations should be played
+ */
+export interface AnimationConfig {
+  /** Name of the animation clip (from GLTF) */
+  name: string
+
+  /** Whether to play automatically when dice is loaded (default: true for 'always' trigger) */
+  autoPlay?: boolean
+
+  /** Loop behavior (default: 'repeat') */
+  loop?: AnimationLoopMode
+
+  /** Playback speed multiplier (0.5 = half speed, 2 = double speed, default: 1.0) */
+  speed?: number
+
+  /** Fade in duration in seconds (default: 0) */
+  fadeInDuration?: number
+
+  /** Fade out duration in seconds (default: 0) */
+  fadeOutDuration?: number
+
+  /**
+   * When to trigger this animation:
+   * - 'always': Play continuously (idle animation)
+   * - 'rolling': Play while dice is in motion
+   * - 'idle': Play when dice is at rest
+   * - 'impact': Play on collision (one-shot)
+   */
+  triggerOn?: 'always' | 'rolling' | 'idle' | 'impact'
+}
+
+/**
+ * Rarity levels for dice (matches inventory system)
+ */
+export type DiceRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic'
+
+/**
  * Complete dice metadata specification
  *
  * This is the primary configuration format for custom dice.
@@ -100,6 +143,51 @@ export interface DiceMetadata {
 
   /** Optional: License information */
   license?: string
+
+  /** Optional: Animation configurations for embedded GLTF animations */
+  animations?: AnimationConfig[]
+
+  // ============================================================================
+  // Inventory/Production Fields (for shipped dice)
+  // ============================================================================
+
+  /** Rarity tier for inventory system (default: 'common') */
+  rarity?: DiceRarity
+
+  /** Flavor text/description for the dice */
+  description?: string
+
+  /** Set ID this dice belongs to (derived from folder if not specified) */
+  setId?: string
+}
+
+/**
+ * Set metadata for a collection of dice
+ */
+export interface DiceSetMetadata {
+  /** Unique identifier for the set */
+  id: string
+
+  /** Display name for the set */
+  name: string
+
+  /** Artist or creator name */
+  artist: string
+
+  /** Description of the set */
+  description?: string
+
+  /** Release date (ISO 8601 format: YYYY-MM-DD) */
+  releaseDate: string
+
+  /** Tags for filtering/search */
+  tags?: string[]
+
+  /** Availability status */
+  availability: 'always' | 'limited' | 'seasonal' | 'retired'
+
+  /** End date for limited sets */
+  endDate?: string
 }
 
 /**
