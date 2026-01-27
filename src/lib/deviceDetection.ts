@@ -24,14 +24,40 @@ export async function checkDeviceCompatibility(): Promise<DeviceCheckResult> {
       fps: gpuTier.fps
     })
 
-    // Tier 0-1: Low-end devices (block)
-    // Tier 2-3: Mid-range to high-end (allow)
-    if (gpuTier.tier < 2) {
-      return {
-        compatible: false,
-        message: 'Your device GPU is not powerful enough for this application.',
-        tier: gpuTier.tier,
-        gpu: gpuTier.gpu
+    // Desktop devices: be lenient since detect-gpu may not recognize newer GPUs
+    // The library's benchmark database can be outdated for new GPUs (e.g., RTX 5090)
+    if (!gpuTier.isMobile) {
+      // Check if it looks like a dedicated/discrete GPU (not integrated)
+      const gpuName = gpuTier.gpu?.toLowerCase() || ''
+      const hasDedicatedGPU =
+        gpuName.includes('rtx') ||
+        gpuName.includes('gtx') ||
+        gpuName.includes('geforce') ||
+        gpuName.includes('radeon') ||
+        gpuName.includes('rx ') ||
+        gpuName.includes('arc ')  // Intel Arc
+
+      if (hasDedicatedGPU) {
+        console.log('Desktop with dedicated GPU detected, allowing regardless of tier')
+        // Skip tier check for desktop with dedicated GPU
+      } else if (gpuTier.tier < 1) {
+        // Only block desktop if tier 0 AND no dedicated GPU detected
+        return {
+          compatible: false,
+          message: 'Your device GPU is not powerful enough for this application.',
+          tier: gpuTier.tier,
+          gpu: gpuTier.gpu
+        }
+      }
+    } else {
+      // Mobile devices: stricter check (tier 2+)
+      if (gpuTier.tier < 2) {
+        return {
+          compatible: false,
+          message: 'Your device GPU is not powerful enough for this application.',
+          tier: gpuTier.tier,
+          gpu: gpuTier.gpu
+        }
       }
     }
 
