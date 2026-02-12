@@ -1,7 +1,7 @@
 import { Box, Environment } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Physics, RigidBody, useRapier } from '@react-three/rapier'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { GRAVITY } from '../config/physicsConfig'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
@@ -15,7 +15,6 @@ import { useDiceStore } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useInventoryStore } from '../store/useInventoryStore'
 import { useUIStore } from '../store/useUIStore'
-import { FaceDetectionDebugOverlay } from './debug/FaceDetectionDebugOverlay'
 import { CustomDice } from './dice/CustomDice'
 import { Dice, DiceHandle } from './dice/Dice'
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
@@ -339,7 +338,7 @@ function Scene() {
   const setOnDiceDelete = useDragStore((state) => state.setOnDiceDelete)
 
   // UI state
-  const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode, toggleDebugMode } = useUIStore()
+  const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
   const { currentTheme } = useTheme()
   const [isDiceManagerOpen, setIsDiceManagerOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
@@ -356,30 +355,6 @@ function Scene() {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // Debug mode keyboard shortcut (Ctrl+Shift+D)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
-        e.preventDefault()
-        toggleDebugMode()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [toggleDebugMode])
-
-  // Subscribe to settled dice for debug overlay
-  const settledDice = useDiceStore((state) => state.settledDice)
-
-  // Create dice debug info for overlay
-  const diceDebugInfo = useMemo(() => {
-    return dice.map((die) => ({
-      id: die.id,
-      faceValue: settledDice.get(die.id)?.value ?? null,
-      diceType: die.type || 'd6',
-      position: die.position as [number, number, number],
-    }))
-  }, [dice, settledDice])
 
   // Initialize starter dice on first load
   useEffect(() => {
@@ -705,8 +680,6 @@ function Scene() {
         onClose={() => setIsSettingsOpen(false)}
       />
 
-      {/* Debug overlay for face detection */}
-      <FaceDetectionDebugOverlay diceResults={diceDebugInfo} />
     </>
   )
 }
