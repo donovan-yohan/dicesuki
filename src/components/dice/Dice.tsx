@@ -49,6 +49,7 @@ interface DiceProps {
   color?: string
   rendererType?: RendererType
   onRest?: (id: string, faceValue: number, diceType: string) => void
+  onMoving?: (id: string) => void
 }
 
 export interface DiceHandle {
@@ -78,6 +79,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       size = 1,
       color = 'orange',
       onRest,
+      onMoving,
     },
     ref,
   ) => {
@@ -209,6 +211,15 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
         pendingNotificationRef.current = null
       }
     }, [isAtRest])
+
+    // Notify parent when dice starts moving (rest → moving transition)
+    const wasAtRestRef = useRef(false)
+    useEffect(() => {
+      if (wasAtRestRef.current && !isAtRest && onMoving) {
+        onMoving(id)
+      }
+      wasAtRestRef.current = isAtRest
+    }, [isAtRest, onMoving, id])
 
     // Handle drag state changes
     useEffect(() => {

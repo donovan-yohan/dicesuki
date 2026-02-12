@@ -8,17 +8,14 @@ export interface DiceInstance {
   position: [number, number, number]
   rotation: [number, number, number]
   color: string
-  rollGroupId?: string  // Links dice to a saved roll group
-  rollGroupName?: string // Display name for the group
   inventoryDieId?: string // Links to specific inventory die being used
 }
 
 interface DiceManagerStore {
   dice: DiceInstance[]
-  addDice: (type: DiceShape, themeId?: string, id?: string, rollGroupId?: string, rollGroupName?: string, inventoryDieId?: string) => string // Returns dice ID
+  addDice: (type: DiceShape, themeId?: string, id?: string, inventoryDieId?: string) => string // Returns dice ID
   removeDice: (id: string) => void
   removeAllDice: () => void
-  removeRollGroup: (groupId: string) => void
   updateDicePosition: (id: string, position: [number, number, number]) => void
   updateDiceColors: (themeId: string) => void
   getInUseDiceIds: () => string[] // Get all inventory dice IDs currently in use
@@ -71,7 +68,7 @@ export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
   // Start with empty table - players spawn dice from inventory
   dice: [],
 
-  addDice: (type, themeId = 'default', id, rollGroupId, rollGroupName, inventoryDieId) => {
+  addDice: (type, themeId = 'default', id, inventoryDieId) => {
     const diceId = id || crypto.randomUUID() // Use provided ID or generate new one
     set((state) => ({
       dice: [
@@ -82,8 +79,6 @@ export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
           position: getRandomSpawnPosition(),
           rotation: getRandomRotation(),
           color: getColorForType(type, themeId),
-          rollGroupId,
-          rollGroupName,
           inventoryDieId
         }
       ]
@@ -96,10 +91,6 @@ export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
   })),
 
   removeAllDice: () => set({ dice: [] }),
-
-  removeRollGroup: (groupId) => set((state) => ({
-    dice: state.dice.filter(d => d.rollGroupId !== groupId)
-  })),
 
   updateDicePosition: (id, position) => set((state) => ({
     dice: state.dice.map(d =>
