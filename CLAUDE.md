@@ -107,8 +107,8 @@ afterEach(() => {
 - **Component Tests**: UI components, rendering, interaction
 - **Integration Tests**: Component + hook integration
 - **Target**: >80% code coverage
-- **Current**: 97 tests passing, 3 failing (haptic throttle tests), 16 skipped
-  - Test files: 7 passing, 1 failing (useHapticFeedback.test.ts)
+- **Current**: 161 tests passing, 3 failing (haptic throttle tests), 16 skipped
+  - Test files: 12 passing, 1 failing (useHapticFeedback.test.ts), 1 skipped
   - Note: Haptic throttle tests need investigation and fixing
 
 ---
@@ -223,6 +223,8 @@ Before committing, ensure:
 - [ ] All tests pass (`npm test`)
 - [ ] No linting errors (`npm run lint` if configured)
 - [ ] Code builds successfully (`npm run build`)
+- [ ] **Cross-reference check**: When selectively staging files, verify committed files don't import/reference uncommitted files or APIs (use `git diff --cached` to review staged changes against unstaged modifications)
+- [ ] **Post-commit build verification**: After committing, run `npm run build` to confirm the committed state builds (not just the working tree)
 - [ ] No console errors in dev environment
 - [ ] Related documentation updated (if needed)
 - [ ] **CLAUDE.md reviewed and updated** (on feature completion or when asked to commit)

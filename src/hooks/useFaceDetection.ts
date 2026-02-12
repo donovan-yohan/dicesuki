@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import * as THREE from 'three'
 import {
   ANGULAR_VELOCITY_THRESHOLD,
@@ -17,26 +17,20 @@ interface FaceDetectionState {
 /**
  * Hook to detect when a dice is at rest and read its face value
  *
+ * Uses ref-based guards for isAtRest to prevent stale closure issues
+ * in useFrame callbacks (which run before React re-renders).
+ *
  * @param customFaceNormals - Optional custom face normals for custom dice models
- *
- * Usage:
- * const { isAtRest, faceValue, updateMotion, readFaceValue, reset } = useFaceDetection()
- *
- * // For custom dice with custom face normals:
- * const customNormals = [{ value: 1, normal: new THREE.Vector3(...) }, ...]
- * const { isAtRest, faceValue, ... } = useFaceDetection(customNormals)
- *
- * // In physics loop:
- * updateMotion(rigidBody.linvel(), rigidBody.angvel())
- *
- * // When dice comes to rest:
- * if (isAtRest) {
- *   readFaceValue(rigidBody.rotation(), 'd6')
- * }
  */
 export function useFaceDetection(customFaceNormals?: DiceFace[]): FaceDetectionState {
   const [isAtRest, setIsAtRest] = useState(false)
   const [faceValue, setFaceValue] = useState<number | null>(null)
+
+  // Ref-based guard for isAtRest — updated synchronously so useFrame
+  // closures always see the latest value, even before React re-renders.
+  // This prevents the stale closure bug where readFaceValue re-sets the
+  // old face value after reset() tries to clear it.
+  const isAtRestRef = useRef(false)
 
   const restStartTimeRef = useRef<number | null>(null)
   const lastVelocityRef = useRef<THREE.Vector3>(new THREE.Vector3())
@@ -44,11 +38,7 @@ export function useFaceDetection(customFaceNormals?: DiceFace[]): FaceDetectionS
 
   // Store custom face normals in a ref to avoid re-creating the readFaceValue callback
   const customNormalsRef = useRef<DiceFace[] | undefined>(customFaceNormals)
-
-  // Update ref when custom normals change
-  useEffect(() => {
-    customNormalsRef.current = customFaceNormals
-  }, [customFaceNormals])
+  customNormalsRef.current = customFaceNormals
 
   /**
    * Update motion state and check if dice is at rest
@@ -73,13 +63,15 @@ export function useFaceDetection(customFaceNormals?: DiceFace[]): FaceDetectionS
         } else {
           const restDuration = performance.now() - restStartTimeRef.current
           if (restDuration >= REST_DURATION_MS) {
+            isAtRestRef.current = true
             setIsAtRest(true)
           }
         }
       } else {
-        // Reset if motion detected
-        if (restStartTimeRef.current !== null || isAtRest) {
+        // Reset if motion detected — use ref for accurate check
+        if (restStartTimeRef.current !== null || isAtRestRef.current) {
           restStartTimeRef.current = null
+          isAtRestRef.current = false
           setIsAtRest(false)
         }
       }
@@ -89,25 +81,28 @@ export function useFaceDetection(customFaceNormals?: DiceFace[]): FaceDetectionS
 
   /**
    * Read the face value when dice is at rest
-   * Uses custom face normals if provided, otherwise uses default normals for the shape
+   * Uses ref-based isAtRest check to prevent stale closure reads
    */
   const readFaceValue = useCallback(
     (quaternion: THREE.Quaternion, shape: DiceShape) => {
-      if (!isAtRest) {
+      // Use ref for immediate check — prevents stale closure from
+      // reading face value after reset() was called but before React re-renders
+      if (!isAtRestRef.current) {
         return
       }
 
       const value = getDiceFaceValue(quaternion, shape, customNormalsRef.current)
-
       setFaceValue(value)
     },
-    [isAtRest],
+    [],
   )
 
   /**
    * Reset the detection state
+   * Updates ref synchronously so useFrame sees the change immediately
    */
   const reset = useCallback(() => {
+    isAtRestRef.current = false // Immediate — prevents stale useFrame reads
     setIsAtRest(false)
     setFaceValue(null)
     restStartTimeRef.current = null

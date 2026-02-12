@@ -149,6 +149,51 @@ describe('useFaceDetection', () => {
     })
   })
 
+  describe('stale closure protection', () => {
+    it('should not update face value when readFaceValue is called after reset', async () => {
+      const { result } = renderHook(() => useFaceDetection())
+
+      // Get to rest state with a known face value
+      act(() => {
+        const lowVelocity = new THREE.Vector3(0, 0, 0)
+        result.current.updateMotion(lowVelocity, lowVelocity)
+      })
+
+      act(() => {
+        vi.advanceTimersByTime(1000)
+      })
+
+      act(() => {
+        const lowVelocity = new THREE.Vector3(0, 0, 0)
+        result.current.updateMotion(lowVelocity, lowVelocity)
+      })
+
+      await waitFor(() => {
+        expect(result.current.isAtRest).toBe(true)
+      })
+
+      act(() => {
+        const quaternion = new THREE.Quaternion(0, 0, 0, 1)
+        result.current.readFaceValue(quaternion, 'd6')
+      })
+
+      expect(result.current.faceValue).toBe(6)
+
+      // Reset, then immediately call readFaceValue (simulates stale useFrame closure)
+      act(() => {
+        result.current.reset()
+        // This simulates what happens when useFrame runs with stale isAtRest=true
+        // before React re-renders after reset()
+        const quaternion = new THREE.Quaternion(0, 0, 0, 1)
+        result.current.readFaceValue(quaternion, 'd6')
+      })
+
+      // faceValue should be null (from reset), NOT 6 (from stale readFaceValue)
+      expect(result.current.faceValue).toBeNull()
+      expect(result.current.isAtRest).toBe(false)
+    })
+  })
+
   describe('reset', () => {
     it('should reset all state', async () => {
       const { result } = renderHook(() => useFaceDetection())
