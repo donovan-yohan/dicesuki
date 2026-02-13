@@ -38,22 +38,6 @@
  * }
  * ```
  *
- * ### From SavedRollsPanel (spawn with roll group)
- * ```ts
- * import { spawnDiceForRollGroup } from '../lib/diceSpawner'
- *
- * roll.dice.forEach(entry => {
- *   for (let i = 0; i < entry.quantity; i++) {
- *     const result = spawnDiceForRollGroup(
- *       entry.type,
- *       themeId,
- *       rollGroupId,
- *       rollName
- *     )
- *   }
- * })
- * ```
- *
  * ## Design Decisions
  *
  * - **Single Source of Truth**: All spawning logic centralized here
@@ -66,8 +50,6 @@
 import { DiceShape } from './geometries'
 import { useInventoryStore } from '../store/useInventoryStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
-import { useDiceStore } from '../store/useDiceStore'
-
 export interface SpawnDiceOptions {
   /**
    * Type of die to spawn (d4, d6, d8, etc.)
@@ -80,16 +62,6 @@ export interface SpawnDiceOptions {
    * If not provided, will find first available die of the specified type
    */
   inventoryDieId?: string
-
-  /**
-   * Optional: Roll group ID for saved roll spawning
-   */
-  rollGroupId?: string
-
-  /**
-   * Optional: Roll group name for saved roll spawning
-   */
-  rollGroupName?: string
 
   /**
    * Current theme ID for color assignment
@@ -122,8 +94,6 @@ export function spawnDiceFromInventory(options: SpawnDiceOptions): SpawnResult {
   const {
     type,
     inventoryDieId,
-    rollGroupId,
-    rollGroupName,
     themeId,
     clearExisting = false
   } = options
@@ -131,7 +101,6 @@ export function spawnDiceFromInventory(options: SpawnDiceOptions): SpawnResult {
   // Get store instances
   const inventoryStore = useInventoryStore.getState()
   const diceManagerStore = useDiceManagerStore.getState()
-  const diceStore = useDiceStore.getState()
 
   // Get dice currently in use
   const inUseDiceIds = diceManagerStore.getInUseDiceIds()
@@ -190,8 +159,6 @@ export function spawnDiceFromInventory(options: SpawnDiceOptions): SpawnResult {
   // Clear existing dice if requested
   if (clearExisting) {
     diceManagerStore.removeAllDice()
-    diceStore.clearActiveSavedRoll()
-    diceStore.clearAllGroups()
   }
 
   // Log spawning details
@@ -202,15 +169,11 @@ export function spawnDiceFromInventory(options: SpawnDiceOptions): SpawnResult {
   console.log(`  - Base Color: ${selectedInventoryDie.appearance.baseColor}`)
   console.log(`  - Set ID: ${selectedInventoryDie.setId}`)
   console.log(`  - Is Dev: ${selectedInventoryDie.isDev}`)
-  console.log(`  - Roll Group: ${rollGroupId || 'none'}`)
-
   // Spawn the die
   const diceInstanceId = diceManagerStore.addDice(
     type,
     themeId,
     undefined, // auto-generate dice instance ID
-    rollGroupId,
-    rollGroupName,
     selectedInventoryDie.id // link to inventory die
   )
 
@@ -223,20 +186,8 @@ export function spawnDiceFromInventory(options: SpawnDiceOptions): SpawnResult {
 
 /**
  * Spawn a die from the DiceToolbar
- * Clears saved rolls and grouped dice before spawning
  */
 export function spawnDiceFromToolbar(type: DiceShape, themeId: string): SpawnResult {
-  // Clear saved rolls and grouped dice
-  const diceStore = useDiceStore.getState()
-  diceStore.clearActiveSavedRoll()
-  diceStore.clearAllGroups()
-
-  // Remove all grouped dice
-  const diceManagerStore = useDiceManagerStore.getState()
-  const groupedDice = diceManagerStore.dice.filter(d => d.rollGroupId)
-  groupedDice.forEach(d => diceManagerStore.removeDice(d.id))
-
-  // Spawn first available die of this type
   return spawnDiceFromInventory({
     type,
     themeId,
@@ -261,21 +212,3 @@ export function spawnSpecificDie(
   })
 }
 
-/**
- * Spawn dice for a saved roll with roll group tracking
- * Used by SavedRollsPanel
- */
-export function spawnDiceForRollGroup(
-  type: DiceShape,
-  themeId: string,
-  rollGroupId: string,
-  rollGroupName: string
-): SpawnResult {
-  return spawnDiceFromInventory({
-    type,
-    themeId,
-    rollGroupId,
-    rollGroupName,
-    clearExisting: false
-  })
-}

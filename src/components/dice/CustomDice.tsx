@@ -47,6 +47,9 @@ interface CustomDiceProps {
 
   /** Callback when dice comes to rest with face value */
   onRest?: (id: string, faceValue: number, diceType: string) => void
+
+  /** Callback when dice starts moving (transitions from rest to moving) */
+  onMoving?: (id: string) => void
 }
 
 /**
@@ -66,6 +69,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
       id = 'custom-dice-0',
       position = [0, 5, 0],
       onRest,
+      onMoving,
     },
     ref,
   ) => {
@@ -230,6 +234,15 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
         pendingNotificationRef.current = null
       }
     }, [isAtRest])
+
+    // Notify parent when dice starts moving (rest → moving transition)
+    const wasAtRestRef = useRef(false)
+    useEffect(() => {
+      if (wasAtRestRef.current && !isAtRest && onMoving) {
+        onMoving(id)
+      }
+      wasAtRestRef.current = isAtRest
+    }, [isAtRest, onMoving, id])
 
     // Handle drag state changes
     useEffect(() => {

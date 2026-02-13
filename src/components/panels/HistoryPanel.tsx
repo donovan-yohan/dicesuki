@@ -6,7 +6,7 @@
  */
 
 import { FlyoutPanel } from './FlyoutPanel'
-import { useDiceStore, RollResult } from '../../store/useDiceStore'
+import { useDiceStore, RollSnapshot } from '../../store/useDiceStore'
 
 interface HistoryPanelProps {
   isOpen: boolean
@@ -76,7 +76,7 @@ export function HistoryPanel({ isOpen, onClose }: HistoryPanelProps) {
 // ============================================================================
 
 interface RollHistoryItemProps {
-  roll: RollResult
+  roll: RollSnapshot
   rollNumber: number
 }
 
@@ -133,7 +133,7 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
       <div className="space-y-1.5">
         {roll.dice.map((die, idx) => (
           <div
-            key={`${die.id}-${idx}`}
+            key={`${die.diceId}-${idx}`}
             className="flex items-center justify-between p-2 rounded"
             style={{
               backgroundColor: 'rgba(255, 255, 255, 0.05)',

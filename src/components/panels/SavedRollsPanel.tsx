@@ -11,7 +11,6 @@ import { SavedRollCard } from './saved-rolls/SavedRollCard'
 import { RollBuilder } from './saved-rolls/RollBuilder'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
-import { useDiceStore } from '../../store/useDiceStore'
 import { SavedRoll } from '../../types/savedRolls'
 import { useTheme } from '../../contexts/ThemeContext'
 
@@ -61,46 +60,18 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
 
   // Execute a saved roll
   function handleRoll(roll: SavedRoll) {
-    console.log('Executing saved roll:', roll.name)
-
-    // Mark as used
     markRollAsUsed(roll.id)
 
-    // Create unique roll group ID
-    const groupId = `roll-${roll.id}-${Date.now()}`
+    // Clear existing dice
+    useDiceManagerStore.getState().removeAllDice()
 
-    // Clear manual dice (dice without rollGroupId) when adding a saved roll
-    const manualDice = useDiceManagerStore.getState().dice.filter(d => !d.rollGroupId)
-    manualDice.forEach(d => useDiceManagerStore.getState().removeDice(d.id))
-
-    // Clear manual roll state
-    useDiceStore.getState().clearActiveSavedRoll()
-
-    // DON'T clear saved roll groups - allow multiple active saved rolls
-
-    // Build per-die bonus map (dice ID -> bonus)
-    const perDieBonuses = new Map<string, number>()
-    let totalDiceCount = 0
-
-    // Spawn dice for each entry in the roll, tagged with group ID
+    // Spawn dice for each entry
     roll.dice.forEach((entry) => {
-      // Spawn the number of dice specified in quantity
       for (let i = 0; i < entry.quantity; i++) {
-        const diceId = addDice(entry.type, currentTheme.id, undefined, groupId, roll.name)
-        totalDiceCount++
-
-        // Track per-die bonus for this group
-        if (entry.perDieBonus !== 0) {
-          perDieBonuses.set(diceId, entry.perDieBonus)
-        }
+        addDice(entry.type, currentTheme.id)
       }
     })
 
-    // Initialize roll group in the dice store with per-die bonuses
-    useDiceStore.getState().startRollGroup(groupId, roll.name, totalDiceCount, roll.flatBonus, perDieBonuses)
-
-    // Close the panel after spawning dice
-    // The actual rolling will happen when the user clicks the roll button
     onClose()
   }
 

@@ -2,314 +2,172 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 
 /**
- * Represents a single dice result in a roll
+ * Represents a single die that has settled with a face value
  */
-export interface DiceResult {
-  id: string
+export interface DieSettledState {
+  diceId: string
   value: number
-  type: string // 'd4', 'd6', 'd8', 'd12', 'd20'
+  type: string
+  settledAt: number
 }
 
 /**
- * Represents a complete roll with multiple dice
+ * Represents a snapshot of a completed roll cycle for history
  */
-export interface RollResult {
-  dice: DiceResult[]
+export interface RollSnapshot {
+  dice: DieSettledState[]
   sum: number
   timestamp: number
 }
 
 /**
- * Represents an active roll group (e.g., "Greatsword Attack", "Greatsword Damage")
- * Extends the saved roll tracking to support multiple simultaneous rolls
- */
-export interface RollGroup {
-  id: string
-  name: string
-  currentRoll: DiceResult[]
-  expectedDiceCount: number
-  flatBonus: number
-  perDieBonuses: Map<string, number> // dice ID -> per-die bonus
-  isComplete: boolean
-}
-
-/**
- * Zustand store for dice roll state
+ * Zustand store for per-die roll state tracking
  *
- * This store is kept OUTSIDE React's render cycle to prevent
- * Canvas/Physics re-renders when UI state changes.
+ * Each die independently reports when it starts moving (markDiceRolling)
+ * and when it settles (recordDieSettled). The UI sums all settled dice.
  *
- * The physics world (Canvas + Physics + D6) should never re-render
- * due to result updates. Only UI components that display results
- * should subscribe to this store.
+ * Roll cycles for history:
+ * - A "roll cycle" starts when rollingDice goes from empty to non-empty
+ * - All dice that enter rollingDice during the cycle accumulate in currentRollCycleDice
+ * - When rollingDice empties, a history snapshot is saved containing only those dice
  */
 interface DiceStore {
-  // Active roll groups (multiple simultaneous saved rolls)
-  activeRollGroups: RollGroup[]
+  settledDice: Map<string, DieSettledState>
+  rollingDice: Set<string>
+  currentRollCycleDice: Set<string>
+  rollHistory: RollSnapshot[]
 
-  // Manual dice (backward compatibility for non-grouped rolls)
-  currentRoll: DiceResult[]
-  expectedDiceCount: number
-
-  // Saved roll tracking (backward compatibility - deprecated in favor of roll groups)
-  activeSavedRoll: {
-    flatBonus: number
-    perDieBonuses: Map<string, number> // dice ID -> per-die bonus
-    expectedDiceCount: number // total number of dice in the saved roll
-  } | null
-
-  // Roll history
-  lastResult: RollResult | null
-  rollHistory: RollResult[]
-
-  // Roll group actions
-  startRollGroup: (groupId: string, groupName: string, diceCount: number, flatBonus: number, perDieBonuses: Map<string, number>) => void
-  recordDiceResultForGroup: (groupId: string, diceId: string, value: number, type: string) => void
-  removeRollGroup: (groupId: string) => void
-  clearAllGroups: () => void
-
-  // Manual dice actions (backward compatibility)
-  startRoll: (diceCount: number) => void
-  setActiveSavedRoll: (flatBonus: number, perDieBonuses: Map<string, number>, expectedDiceCount: number) => void
-  clearActiveSavedRoll: () => void
-  recordDiceResult: (id: string, value: number, type: string, groupId?: string) => void
-  completeRoll: () => void
-  reset: () => void
+  markDiceRolling: (diceIds: string[]) => void
+  recordDieSettled: (diceId: string, value: number, type: string) => void
+  removeDieState: (diceId: string) => void
+  clearAllDieStates: () => void
   clearHistory: () => void
+  reset: () => void
 }
-
-const MAX_ACTIVE_GROUPS = 5
 
 export const useDiceStore = create<DiceStore>()(
   persist(
-    (set, get) => ({
-      // State
-      activeRollGroups: [],
-      currentRoll: [],
-      expectedDiceCount: 0,
-      activeSavedRoll: null,
-      lastResult: null,
+    (set) => ({
+      settledDice: new Map(),
+      rollingDice: new Set(),
+      currentRollCycleDice: new Set(),
       rollHistory: [],
 
-      // Roll Group Actions
-      startRollGroup: (groupId: string, groupName: string, diceCount: number, flatBonus: number, perDieBonuses: Map<string, number>) => {
-        console.log('Store: Starting roll group:', groupName, 'with', diceCount, 'dice')
+      markDiceRolling: (diceIds: string[]) => {
         set((state) => {
-          // Check if group already exists - if so, reset it
-          const existingIndex = state.activeRollGroups.findIndex(g => g.id === groupId)
+          const newSettled = new Map(state.settledDice)
+          const wasEmpty = state.rollingDice.size === 0
+          const newRolling = new Set(state.rollingDice)
+          const newCycleDice = wasEmpty ? new Set<string>() : new Set(state.currentRollCycleDice)
 
-          if (existingIndex >= 0) {
-            // Reset existing group
-            const updated = [...state.activeRollGroups]
-            updated[existingIndex] = {
-              id: groupId,
-              name: groupName,
-              currentRoll: [],
-              expectedDiceCount: diceCount,
-              flatBonus,
-              perDieBonuses,
-              isComplete: false
-            }
-            return { activeRollGroups: updated }
-          } else {
-            // Check max groups limit
-            if (state.activeRollGroups.length >= MAX_ACTIVE_GROUPS) {
-              console.warn('Store: Max roll groups reached, removing oldest')
-              const updated = state.activeRollGroups.slice(1)
-              return {
-                activeRollGroups: [
-                  ...updated,
-                  {
-                    id: groupId,
-                    name: groupName,
-                    currentRoll: [],
-                    expectedDiceCount: diceCount,
-                    flatBonus,
-                    perDieBonuses,
-                    isComplete: false
-                  }
-                ]
+          for (const id of diceIds) {
+            newSettled.delete(id)
+            newRolling.add(id)
+            newCycleDice.add(id)
+          }
+
+          return {
+            settledDice: newSettled,
+            rollingDice: newRolling,
+            currentRollCycleDice: newCycleDice,
+          }
+        })
+      },
+
+      recordDieSettled: (diceId: string, value: number, type: string) => {
+        set((state) => {
+          const newSettled = new Map(state.settledDice)
+          newSettled.set(diceId, {
+            diceId,
+            value,
+            type,
+            settledAt: Date.now(),
+          })
+
+          const newRolling = new Set(state.rollingDice)
+          newRolling.delete(diceId)
+
+          // If all rolling dice have settled, save history snapshot
+          if (newRolling.size === 0 && state.currentRollCycleDice.size > 0) {
+            // Build snapshot from only the dice in the current cycle
+            const cycleDice: DieSettledState[] = []
+            for (const cycleId of state.currentRollCycleDice) {
+              const settled = newSettled.get(cycleId)
+              if (settled) {
+                cycleDice.push(settled)
               }
             }
 
-            // Add new group
-            return {
-              activeRollGroups: [
-                ...state.activeRollGroups,
-                {
-                  id: groupId,
-                  name: groupName,
-                  currentRoll: [],
-                  expectedDiceCount: diceCount,
-                  flatBonus,
-                  perDieBonuses,
-                  isComplete: false
-                }
-              ]
+            if (cycleDice.length > 0) {
+              const sum = cycleDice.reduce((acc, d) => acc + d.value, 0)
+              const snapshot: RollSnapshot = {
+                dice: cycleDice,
+                sum,
+                timestamp: Date.now(),
+              }
+
+              return {
+                settledDice: newSettled,
+                rollingDice: newRolling,
+                currentRollCycleDice: new Set<string>(),
+                rollHistory: [...state.rollHistory, snapshot],
+              }
             }
+          }
+
+          return {
+            settledDice: newSettled,
+            rollingDice: newRolling,
           }
         })
       },
 
-      recordDiceResultForGroup: (groupId: string, diceId: string, value: number, type: string) => {
-        console.log('Store: Recording dice result for group:', groupId, diceId, value, type)
+      removeDieState: (diceId: string) => {
         set((state) => {
-          const groupIndex = state.activeRollGroups.findIndex(g => g.id === groupId)
-          if (groupIndex < 0) {
-            console.warn('Store: Group not found:', groupId)
-            return state
+          const newSettled = new Map(state.settledDice)
+          newSettled.delete(diceId)
+
+          const newRolling = new Set(state.rollingDice)
+          newRolling.delete(diceId)
+
+          const newCycleDice = new Set(state.currentRollCycleDice)
+          newCycleDice.delete(diceId)
+
+          return {
+            settledDice: newSettled,
+            rollingDice: newRolling,
+            currentRollCycleDice: newCycleDice,
           }
-
-          const group = state.activeRollGroups[groupIndex]
-
-          // Check if dice already reported
-          if (group.currentRoll.some(d => d.id === diceId)) {
-            console.log('Store: Dice already reported for group, ignoring')
-            return state
-          }
-
-          const newRoll = [...group.currentRoll, { id: diceId, value, type }]
-          const isComplete = newRoll.length === group.expectedDiceCount
-
-          const updated = [...state.activeRollGroups]
-          updated[groupIndex] = {
-            ...group,
-            currentRoll: newRoll,
-            isComplete
-          }
-
-          console.log('Store: Group progress:', newRoll.length, '/', group.expectedDiceCount, 'complete:', isComplete)
-
-          return { activeRollGroups: updated }
         })
       },
 
-      removeRollGroup: (groupId: string) => {
-        console.log('Store: Removing roll group:', groupId)
-        set((state) => ({
-          activeRollGroups: state.activeRollGroups.filter(g => g.id !== groupId)
-        }))
-      },
-
-      clearAllGroups: () => {
-        console.log('Store: Clearing all roll groups')
-        set({ activeRollGroups: [] })
-      },
-
-      // Manual Dice Actions (Backward Compatibility)
-      startRoll: (diceCount: number) => {
-        console.log('Store: Starting manual roll with', diceCount, 'dice')
+      clearAllDieStates: () => {
         set({
-          currentRoll: [],
-          expectedDiceCount: diceCount
+          settledDice: new Map(),
+          rollingDice: new Set(),
+          currentRollCycleDice: new Set(),
         })
       },
 
-      setActiveSavedRoll: (flatBonus: number, perDieBonuses: Map<string, number>, expectedDiceCount: number) => {
+      clearHistory: () => {
+        set({ rollHistory: [] })
+      },
+
+      reset: () => {
         set({
-          activeSavedRoll: { flatBonus, perDieBonuses, expectedDiceCount }
+          settledDice: new Map(),
+          rollingDice: new Set(),
+          currentRollCycleDice: new Set(),
+          rollHistory: [],
         })
       },
-
-      clearActiveSavedRoll: () => {
-        set({ activeSavedRoll: null })
-      },
-
-      /**
-       * Record a single dice result
-       * Routes to roll group if groupId provided, otherwise handles as manual dice
-       */
-      recordDiceResult: (id: string, value: number, type: string, groupId?: string) => {
-        // If groupId provided, route to group method
-        if (groupId) {
-          get().recordDiceResultForGroup(groupId, id, value, type)
-          return
-        }
-
-        // Otherwise, handle as manual dice
-        console.log('Store: Recording manual dice result:', id, value, type)
-        set((state) => {
-          // Check if this dice already reported (prevent duplicates)
-          if (state.currentRoll.some(d => d.id === id)) {
-            console.log('Store: Dice', id, 'already reported, ignoring')
-            return state
-          }
-
-          const newRoll = [...state.currentRoll, { id, value, type }]
-
-          // Auto-complete if all dice have reported
-          if (newRoll.length === state.expectedDiceCount) {
-            console.log('Store: All manual dice reported, completing roll')
-            const sum = newRoll.reduce((acc, d) => acc + d.value, 0)
-            const rollResult: RollResult = {
-              dice: newRoll,
-              sum,
-              timestamp: Date.now()
-            }
-
-            return {
-              currentRoll: [],
-              expectedDiceCount: 0,
-              lastResult: rollResult,
-              rollHistory: [...state.rollHistory, rollResult]
-            }
-          }
-
-          return { currentRoll: newRoll }
-        })
-      },
-
-      completeRoll: () => {
-        const state = get()
-        if (state.currentRoll.length === 0) return
-
-        const sum = state.currentRoll.reduce((acc, d) => acc + d.value, 0)
-        const rollResult: RollResult = {
-          dice: state.currentRoll,
-          sum,
-          timestamp: Date.now()
-        }
-
-        set({
-          lastResult: rollResult,
-          rollHistory: [...state.rollHistory, rollResult]
-        })
-      },
-
-      reset: () => set({
-        activeRollGroups: [],
-        currentRoll: [],
-        expectedDiceCount: 0,
-        activeSavedRoll: null,
-        lastResult: null,
-        rollHistory: []
-      }),
-
-      clearHistory: () => set({
-        rollHistory: [],
-        lastResult: null
-      })
     }),
     {
       name: 'daisu-dice-rolls',
       storage: createJSONStorage(() => localStorage),
-      // Only persist active roll groups
       partialize: (state) => ({
-        activeRollGroups: state.activeRollGroups.map(group => ({
-          ...group,
-          // Convert Map to object for JSON serialization
-          perDieBonuses: Object.fromEntries(group.perDieBonuses)
-        }))
+        rollHistory: state.rollHistory,
       }),
-      // Rehydrate Maps from objects
-      onRehydrateStorage: () => (state) => {
-        if (state?.activeRollGroups) {
-          state.activeRollGroups = state.activeRollGroups.map((group: any) => ({
-            ...group,
-            perDieBonuses: new Map(Object.entries(group.perDieBonuses || {}))
-          }))
-        }
-      }
     }
   )
 )
