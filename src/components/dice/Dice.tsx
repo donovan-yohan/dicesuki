@@ -34,8 +34,11 @@ import {
   createD6Geometry,
   createD8Geometry,
   createD10Geometry,
-  createDiceMaterial,
 } from '../../lib/geometries'
+import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
+import { renderD4Classic } from '../../lib/faceRenderers/d4Renderer'
+import { renderStyledNumber } from '../../lib/textureRendering'
+import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useUIStore } from '../../store/useUIStore'
 
 type RendererType = 'simple' | 'styled' | 'bordered' | 'debug' | undefined
@@ -392,41 +395,44 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       }
     })
 
-    // Select geometry based on shape
+    // Select geometry based on shape and prepare for texturing
     const geometry = useMemo(() => {
+      let geo: THREE.BufferGeometry
       switch (shape) {
         case 'd4':
-          return createD4Geometry(size)
+          geo = createD4Geometry(size)
+          break
         case 'd6':
-          return createD6Geometry(size)
+          geo = createD6Geometry(size)
+          break
         case 'd8':
-          return createD8Geometry(size)
+          geo = createD8Geometry(size)
+          break
         case 'd10':
-          return createD10Geometry(size)
+          geo = createD10Geometry(size)
+          break
         case 'd12':
-          return createD12Geometry(size)
+          geo = createD12Geometry(size)
+          break
         case 'd20':
-          return createD20Geometry(size)
+          geo = createD20Geometry(size)
+          break
         default:
-          return createD6Geometry(size)
+          geo = createD6Geometry(size)
+          break
       }
+      return prepareGeometryForTexturing(geo, shape)
     }, [shape, size])
 
-    const material = useMemo(() => {
-      const diceMaterials = currentTheme.dice.materials
-      const mat = createDiceMaterial(
-        color,
-        diceMaterials.roughness,
-        diceMaterials.metalness,
-        diceMaterials.emissiveIntensity
-      )
-      // D10 should use flat shading to show distinct kite-shaped faces
-      if (shape === 'd10') {
-        mat.flatShading = true
-        mat.needsUpdate = true
-      }
-      return mat
-    }, [color, shape, currentTheme.dice.materials])
+    const diceMats = currentTheme.dice.materials
+    const materials = useDiceMaterials({
+      shape,
+      color,
+      roughness: diceMats.roughness,
+      metalness: diceMats.metalness,
+      emissiveIntensity: diceMats.emissiveIntensity,
+      faceRenderer: shape === 'd4' ? renderD4Classic : renderStyledNumber,
+    })
 
     // Calculate half-extents for D6 collider
     const halfSize = size / 2
@@ -526,7 +532,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
 
         <mesh
           geometry={geometry}
-          material={material}
+          material={materials}
           castShadow
           receiveShadow
           onPointerDown={(event) => {

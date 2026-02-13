@@ -93,7 +93,7 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
           map: texture,
           roughness,
           metalness,
-          flatShading: true,
+          flatShading: shape === 'd10',
         })
 
         // Add emissive glow if specified

@@ -17,12 +17,19 @@ export interface DiceFace {
 /**
  * D4 (tetrahedron) face normals in world space
  * Tetrahedron: 4 triangular faces
+ *
+ * Normals extracted from Three.js TetrahedronGeometry(1, 0) to ensure
+ * perfect alignment between face detection and material rendering.
+ * Values assigned sequentially by triangle order.
+ *
+ * s = 1/√3 ≈ 0.5774
  */
+const _s = 1 / Math.sqrt(3)
 export const D4_FACE_NORMALS: DiceFace[] = [
-  { value: 1, normal: new THREE.Vector3(0, -1, 0).normalize() },
-  { value: 2, normal: new THREE.Vector3(0.8165, 0.3333, 0.4714).normalize() },
-  { value: 3, normal: new THREE.Vector3(-0.8165, 0.3333, 0.4714).normalize() },
-  { value: 4, normal: new THREE.Vector3(0, 0.3333, -0.9428).normalize() },
+  { value: 1, normal: new THREE.Vector3(-_s, _s, _s) },   // Triangle 0
+  { value: 2, normal: new THREE.Vector3(_s, _s, -_s) },    // Triangle 1
+  { value: 3, normal: new THREE.Vector3(_s, -_s, _s) },    // Triangle 2
+  { value: 4, normal: new THREE.Vector3(-_s, -_s, -_s) },  // Triangle 3
 ]
 
 /**
@@ -42,54 +49,81 @@ export const D6_FACE_NORMALS: DiceFace[] = [
 /**
  * D8 (octahedron) face normals in world space
  * Octahedron: 8 triangular faces
+ *
+ * Normals extracted from Three.js OctahedronGeometry(1, 0) to ensure
+ * perfect alignment between face detection and material rendering.
+ * Values assigned so opposite faces sum to 9.
+ *
+ * Geometry normals are (±1,±1,±1)/√3.
+ * Opposite pairs: (0,5)→(1,8), (1,4)→(2,7), (2,7)→(3,6), (3,6)→(4,5)
  */
 export const D8_FACE_NORMALS: DiceFace[] = [
-  { value: 1, normal: new THREE.Vector3(0, -1, 0).normalize() },
-  { value: 2, normal: new THREE.Vector3(1, 0, 1).normalize() },
-  { value: 3, normal: new THREE.Vector3(-1, 0, 1).normalize() },
-  { value: 4, normal: new THREE.Vector3(-1, 0, -1).normalize() },
-  { value: 5, normal: new THREE.Vector3(1, 0, -1).normalize() },
-  { value: 6, normal: new THREE.Vector3(0, 1, 1).normalize() },
-  { value: 7, normal: new THREE.Vector3(0, 1, -1).normalize() },
-  { value: 8, normal: new THREE.Vector3(0, 1, 0).normalize() },
+  { value: 1, normal: new THREE.Vector3(_s, _s, _s) },     // Triangle 0
+  { value: 2, normal: new THREE.Vector3(_s, -_s, _s) },    // Triangle 1
+  { value: 3, normal: new THREE.Vector3(_s, -_s, -_s) },   // Triangle 2
+  { value: 4, normal: new THREE.Vector3(_s, _s, -_s) },    // Triangle 3
+  { value: 7, normal: new THREE.Vector3(-_s, _s, -_s) },   // Triangle 4 (opposite of 2)
+  { value: 8, normal: new THREE.Vector3(-_s, -_s, -_s) },  // Triangle 5 (opposite of 1)
+  { value: 5, normal: new THREE.Vector3(-_s, -_s, _s) },   // Triangle 6 (opposite of 4)
+  { value: 6, normal: new THREE.Vector3(-_s, _s, _s) },    // Triangle 7 (opposite of 3)
 ]
 
 /**
  * D10 (pentagonal trapezohedron) face normals in world space
- * Pentagonal trapezohedron: 10 faces, numbered 0-9 or 1-10
- * Using 0-9 numbering (common for D10)
+ * Pentagonal trapezohedron: 10 kite-shaped faces, numbered 0-9
+ *
+ * Normals computed from the midpoint of each kite's equatorial edge.
+ * Each kite face i consists of top triangle i and bottom triangle i+10
+ * in createD10Geometry. All normals lie in the xz-plane (y=0) because
+ * the d10 is symmetric about the equator.
+ *
+ * When the die lands on a face, it tilts so that face's xz-direction
+ * aligns with the detection axis.
  */
-export const D10_FACE_NORMALS: DiceFace[] = [
-  { value: 0, normal: new THREE.Vector3(0, -1, 0).normalize() },
-  { value: 1, normal: new THREE.Vector3(0.951, -0.309, 0).normalize() },
-  { value: 2, normal: new THREE.Vector3(0.588, -0.309, 0.749).normalize() },
-  { value: 3, normal: new THREE.Vector3(-0.588, -0.309, 0.749).normalize() },
-  { value: 4, normal: new THREE.Vector3(-0.951, -0.309, 0).normalize() },
-  { value: 5, normal: new THREE.Vector3(-0.588, -0.309, -0.749).normalize() },
-  { value: 6, normal: new THREE.Vector3(0.588, -0.309, -0.749).normalize() },
-  { value: 7, normal: new THREE.Vector3(0.951, 0.309, 0).normalize() },
-  { value: 8, normal: new THREE.Vector3(0, 0.309, 0.951).normalize() },
-  { value: 9, normal: new THREE.Vector3(0, 1, 0).normalize() },
-]
+export const D10_FACE_NORMALS: DiceFace[] = Array.from({ length: 10 }, (_, i) => {
+  // Midpoint angle between ring vertices i and i+1 (each at i*36°)
+  const angle = ((i + 0.5) * Math.PI * 2) / 10
+  return {
+    value: i,
+    normal: new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle)),
+  }
+})
 
 /**
  * D12 (dodecahedron) face normals in world space
- * Dodecahedron: 12 pentagonal faces
+ * Dodecahedron: 12 pentagonal faces (36 triangles, 3 per face)
+ *
+ * Normals extracted from Three.js DodecahedronGeometry(1, 0) to ensure
+ * perfect alignment between face detection and material rendering.
+ * Values assigned so opposite faces sum to 13.
+ *
+ * Dodecahedron normals use components 0, ±a, ±b where:
+ *   a = 1/√(1+φ²) ≈ 0.5257, b = φ/√(1+φ²) ≈ 0.8507, φ = (1+√5)/2
+ *
+ * Geometry face groups (3 consecutive triangles each):
+ *   Group 0: tris [0,1,2],   Group 1: tris [3,4,5],   etc.
+ *
+ * Opposite pairs → value sums to 13:
+ *   (group 0, group 8)→(1,12), (group 1, group 4)→(2,11),
+ *   (group 2, group 7)→(3,10), (group 3, group 9)→(4,9),
+ *   (group 5, group 11)→(5,8), (group 6, group 10)→(6,7)
  */
-const phi = (1 + Math.sqrt(5)) / 2 // Golden ratio
+const _phi = (1 + Math.sqrt(5)) / 2
+const _a = 1 / Math.sqrt(1 + _phi * _phi) // ≈ 0.5257
+const _b = _phi * _a                       // ≈ 0.8507
 export const D12_FACE_NORMALS: DiceFace[] = [
-  { value: 1, normal: new THREE.Vector3(0, -1, 0).normalize() },
-  { value: 2, normal: new THREE.Vector3(1, 1, 1).normalize() },
-  { value: 3, normal: new THREE.Vector3(-1, 1, 1).normalize() },
-  { value: 4, normal: new THREE.Vector3(-1, -1, 1).normalize() },
-  { value: 5, normal: new THREE.Vector3(1, -1, 1).normalize() },
-  { value: 6, normal: new THREE.Vector3(0, phi, 1/phi).normalize() },
-  { value: 7, normal: new THREE.Vector3(0, phi, -1/phi).normalize() },
-  { value: 8, normal: new THREE.Vector3(1, 1, -1).normalize() },
-  { value: 9, normal: new THREE.Vector3(-1, 1, -1).normalize() },
-  { value: 10, normal: new THREE.Vector3(-1, -1, -1).normalize() },
-  { value: 11, normal: new THREE.Vector3(1, -1, -1).normalize() },
-  { value: 12, normal: new THREE.Vector3(0, 1, 0).normalize() },
+  { value: 1,  normal: new THREE.Vector3(0, _b, _a) },     // Group 0
+  { value: 2,  normal: new THREE.Vector3(_b, _a, 0) },     // Group 1
+  { value: 3,  normal: new THREE.Vector3(_a, 0, -_b) },    // Group 2
+  { value: 4,  normal: new THREE.Vector3(-_a, 0, -_b) },   // Group 3
+  { value: 11, normal: new THREE.Vector3(-_b, -_a, 0) },   // Group 4 (opposite of 2)
+  { value: 5,  normal: new THREE.Vector3(0, _b, -_a) },    // Group 5
+  { value: 6,  normal: new THREE.Vector3(-_b, _a, 0) },    // Group 6
+  { value: 10, normal: new THREE.Vector3(-_a, 0, _b) },    // Group 7 (opposite of 3)
+  { value: 12, normal: new THREE.Vector3(0, -_b, -_a) },   // Group 8 (opposite of 1)
+  { value: 9,  normal: new THREE.Vector3(_a, 0, _b) },     // Group 9 (opposite of 4)
+  { value: 7,  normal: new THREE.Vector3(_b, -_a, 0) },    // Group 10 (opposite of 6)
+  { value: 8,  normal: new THREE.Vector3(0, -_b, _a) },    // Group 11 (opposite of 5)
 ]
 
 /**
@@ -97,29 +131,35 @@ export const D12_FACE_NORMALS: DiceFace[] = [
  * Icosahedron: 20 triangular faces
  *
  * These normals are extracted directly from Three.js IcosahedronGeometry
- * to ensure perfect alignment between physics detection and material rendering
+ * to ensure perfect alignment between physics detection and material rendering.
+ * Values assigned so opposite faces sum to 21.
+ *
+ * Opposite pairs (by triangle index):
+ *   (0,13)→(1,20), (1,12)→(2,19), (2,11)→(3,18), (3,10)→(4,17),
+ *   (4,14)→(5,16), (5,17)→(6,15), (6,18)→(7,14), (7,19)→(8,13),
+ *   (8,15)→(9,12), (9,16)→(10,11)
  */
 export const D20_FACE_NORMALS: DiceFace[] = [
-  { value: 1, normal: new THREE.Vector3(-0.5774, 0.5774, 0.5774) },
-  { value: 2, normal: new THREE.Vector3(0.0000, 0.9342, 0.3568) },
-  { value: 3, normal: new THREE.Vector3(0.0000, 0.9342, -0.3568) },
-  { value: 4, normal: new THREE.Vector3(-0.5774, 0.5774, -0.5774) },
-  { value: 5, normal: new THREE.Vector3(-0.9342, 0.3568, 0.0000) },
-  { value: 6, normal: new THREE.Vector3(0.5774, 0.5774, 0.5774) },
-  { value: 7, normal: new THREE.Vector3(-0.3568, 0.0000, 0.9342) },
-  { value: 8, normal: new THREE.Vector3(-0.9342, -0.3568, 0.0000) },
-  { value: 9, normal: new THREE.Vector3(-0.3568, 0.0000, -0.9342) },
-  { value: 10, normal: new THREE.Vector3(0.5774, 0.5774, -0.5774) },
-  { value: 11, normal: new THREE.Vector3(0.5774, -0.5774, 0.5774) },
-  { value: 12, normal: new THREE.Vector3(0.0000, -0.9342, 0.3568) },
-  { value: 13, normal: new THREE.Vector3(0.0000, -0.9342, -0.3568) },
-  { value: 14, normal: new THREE.Vector3(0.5774, -0.5774, -0.5774) },
-  { value: 15, normal: new THREE.Vector3(0.9342, -0.3568, 0.0000) },
-  { value: 16, normal: new THREE.Vector3(0.3568, 0.0000, 0.9342) },
-  { value: 17, normal: new THREE.Vector3(-0.5774, -0.5774, 0.5774) },
-  { value: 18, normal: new THREE.Vector3(-0.5774, -0.5774, -0.5774) },
-  { value: 19, normal: new THREE.Vector3(0.3568, 0.0000, -0.9342) },
-  { value: 20, normal: new THREE.Vector3(0.9342, 0.3568, 0.0000) },
+  { value: 1,  normal: new THREE.Vector3(-0.5774, 0.5774, 0.5774) },    // Triangle 0
+  { value: 2,  normal: new THREE.Vector3(0.0000, 0.9342, 0.3568) },     // Triangle 1
+  { value: 3,  normal: new THREE.Vector3(0.0000, 0.9342, -0.3568) },    // Triangle 2
+  { value: 4,  normal: new THREE.Vector3(-0.5774, 0.5774, -0.5774) },   // Triangle 3
+  { value: 5,  normal: new THREE.Vector3(-0.9342, 0.3568, 0.0000) },    // Triangle 4
+  { value: 6,  normal: new THREE.Vector3(0.5774, 0.5774, 0.5774) },     // Triangle 5
+  { value: 7,  normal: new THREE.Vector3(-0.3568, 0.0000, 0.9342) },    // Triangle 6
+  { value: 8,  normal: new THREE.Vector3(-0.9342, -0.3568, 0.0000) },   // Triangle 7
+  { value: 9,  normal: new THREE.Vector3(-0.3568, 0.0000, -0.9342) },   // Triangle 8
+  { value: 10, normal: new THREE.Vector3(0.5774, 0.5774, -0.5774) },    // Triangle 9
+  { value: 17, normal: new THREE.Vector3(0.5774, -0.5774, 0.5774) },    // Triangle 10 (opposite of 3→4)
+  { value: 18, normal: new THREE.Vector3(0.0000, -0.9342, 0.3568) },    // Triangle 11 (opposite of 2→3)
+  { value: 19, normal: new THREE.Vector3(0.0000, -0.9342, -0.3568) },   // Triangle 12 (opposite of 1→2)
+  { value: 20, normal: new THREE.Vector3(0.5774, -0.5774, -0.5774) },   // Triangle 13 (opposite of 0→1)
+  { value: 16, normal: new THREE.Vector3(0.9342, -0.3568, 0.0000) },    // Triangle 14 (opposite of 4→5)
+  { value: 12, normal: new THREE.Vector3(0.3568, 0.0000, 0.9342) },     // Triangle 15 (opposite of 8→9)
+  { value: 11, normal: new THREE.Vector3(-0.5774, -0.5774, 0.5774) },   // Triangle 16 (opposite of 9→10)
+  { value: 15, normal: new THREE.Vector3(-0.5774, -0.5774, -0.5774) },  // Triangle 17 (opposite of 5→6)
+  { value: 14, normal: new THREE.Vector3(0.3568, 0.0000, -0.9342) },    // Triangle 18 (opposite of 6→7)
+  { value: 13, normal: new THREE.Vector3(0.9342, 0.3568, 0.0000) },     // Triangle 19 (opposite of 7→8)
 ]
 
 /**

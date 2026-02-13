@@ -1,6 +1,27 @@
 import { describe, it, expect } from 'vitest'
-import { D6_FACE_NORMALS, getDiceFaceValue } from './geometries'
+import {
+  DiceShape,
+  D4_FACE_NORMALS,
+  D6_FACE_NORMALS,
+  D8_FACE_NORMALS,
+  D10_FACE_NORMALS,
+  D12_FACE_NORMALS,
+  D20_FACE_NORMALS,
+  getDiceFaceValue,
+} from './geometries'
 import * as THREE from 'three'
+
+/** All face normal arrays keyed by shape */
+const FACE_NORMALS_BY_SHAPE: Record<DiceShape, typeof D4_FACE_NORMALS> = {
+  d4: D4_FACE_NORMALS,
+  d6: D6_FACE_NORMALS,
+  d8: D8_FACE_NORMALS,
+  d10: D10_FACE_NORMALS,
+  d12: D12_FACE_NORMALS,
+  d20: D20_FACE_NORMALS,
+}
+
+const DICE_TYPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
 
 describe('D6 Geometry', () => {
   describe('D6_FACE_NORMALS', () => {
@@ -138,4 +159,69 @@ describe('D6 Geometry', () => {
       expect(result).toBeLessThanOrEqual(6)
     })
   })
+})
+
+/**
+ * getDiceFaceValue: comprehensive tests for ALL dice types and ALL orientations.
+ *
+ * For each dice shape, for each face, we create a quaternion that rotates
+ * the face normal to align with the detection axis:
+ *   - D4: face normal → (0, -1, 0) (down, since D4 reads the bottom face)
+ *   - All others: face normal → (0, 1, 0) (up)
+ *
+ * Then we verify getDiceFaceValue returns the correct value.
+ * Total: 4 + 6 + 8 + 10 + 12 + 20 = 60 orientation tests.
+ */
+describe('getDiceFaceValue - all dice types, all orientations', () => {
+  for (const shape of DICE_TYPES) {
+    const faceNormals = FACE_NORMALS_BY_SHAPE[shape]
+    const target = shape === 'd4'
+      ? new THREE.Vector3(0, -1, 0)
+      : new THREE.Vector3(0, 1, 0)
+
+    describe(`${shape} (${faceNormals.length} faces)`, () => {
+      for (const face of faceNormals) {
+        it(`detects face ${face.value} when aligned with ${shape === 'd4' ? 'down' : 'up'} vector`, () => {
+          // Create quaternion that rotates face.normal → target
+          const quaternion = new THREE.Quaternion()
+          quaternion.setFromUnitVectors(face.normal.clone().normalize(), target)
+
+          const detected = getDiceFaceValue(quaternion, shape)
+          expect(detected).toBe(face.value)
+        })
+      }
+    })
+  }
+})
+
+/**
+ * Face normal array validation for all dice types.
+ * Ensures all normals are unit-length and all values are unique.
+ */
+describe('Face normal arrays - structural validation', () => {
+  const expectedCounts: Record<DiceShape, number> = {
+    d4: 4, d6: 6, d8: 8, d10: 10, d12: 12, d20: 20,
+  }
+
+  for (const shape of DICE_TYPES) {
+    const faceNormals = FACE_NORMALS_BY_SHAPE[shape]
+
+    describe(shape, () => {
+      it(`has ${expectedCounts[shape]} face normals`, () => {
+        expect(faceNormals).toHaveLength(expectedCounts[shape])
+      })
+
+      it('all normals are unit-length', () => {
+        for (const face of faceNormals) {
+          // D20 uses rounded 4-decimal normal components, so allow 3-decimal precision
+          expect(face.normal.length()).toBeCloseTo(1.0, 3)
+        }
+      })
+
+      it('all face values are unique', () => {
+        const values = faceNormals.map((f) => f.value)
+        expect(new Set(values).size).toBe(values.length)
+      })
+    })
+  }
 })
