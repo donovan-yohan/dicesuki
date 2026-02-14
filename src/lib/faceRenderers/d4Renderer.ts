@@ -12,9 +12,9 @@
  *
  * ## UV Mapping Convention
  * Each face's 3 vertices are UV-mapped as:
- * - Vertex 0 (pos[face*3+0]) → UV (0.5, 0)   = top center of canvas
- * - Vertex 1 (pos[face*3+1]) → UV (0, 1)     = bottom-left of canvas
- * - Vertex 2 (pos[face*3+2]) → UV (1, 1)     = bottom-right of canvas
+ * - Vertex 0 (pos[face*3+0]) → UV (0.5, 1.0) = top center of canvas
+ * - Vertex 1 (pos[face*3+1]) → UV (0.0, 0.0) = bottom-left of canvas
+ * - Vertex 2 (pos[face*3+2]) → UV (1.0, 0.0) = bottom-right of canvas
  *
  * ## Geometry Analysis (TetrahedronGeometry(1, 0))
  *
@@ -76,7 +76,7 @@ export const renderD4Classic: FaceRenderer = (
   ctx.textBaseline = 'middle'
 
   // Position numbers near each vertex of the equilateral triangle
-  // UV coordinates: top=(0.5, 0), bottomLeft=(0, 1), bottomRight=(1, 1)
+  // UV coordinates: top=(0.5, 1.0), bottomLeft=(0.0, 0.0), bottomRight=(1.0, 0.0)
   // Push numbers inward from vertices for better visibility
   const inset = 0.22 // How far from vertex toward center (0=vertex, 1=center)
   const centerX = canvasSize / 2

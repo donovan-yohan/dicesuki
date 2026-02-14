@@ -4,14 +4,14 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 30000,
   use: {
-    baseURL: 'https://localhost:3000',
+    baseURL: 'http://localhost:3000',
     headless: true,
     screenshot: 'only-on-failure',
     ignoreHTTPSErrors: true,
   },
   webServer: {
     command: 'npm run dev:vite',
-    url: 'https://localhost:3000',
+    url: 'http://localhost:3000',
     reuseExistingServer: true,
     ignoreHTTPSErrors: true,
   },
