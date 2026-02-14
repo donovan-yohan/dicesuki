@@ -80,11 +80,18 @@ export const D8_FACE_NORMALS: DiceFace[] = [
  * When the die lands on a face, it tilts so that face's xz-direction
  * aligns with the detection axis.
  */
+/**
+ * D10 face value assignment for opposite-faces-sum-to-9 rule.
+ * Kite face i is opposite kite face i+5.
+ * Standard layout: evens (0,2,4,6,8) on one hemisphere, odds (9,7,5,3,1) on the other.
+ */
+const D10_KITE_VALUES = [0, 2, 4, 6, 8, 9, 7, 5, 3, 1] as const
+
 export const D10_FACE_NORMALS: DiceFace[] = Array.from({ length: 10 }, (_, i) => {
   // Midpoint angle between ring vertices i and i+1 (each at i*36°)
   const angle = ((i + 0.5) * Math.PI * 2) / 10
   return {
-    value: i,
+    value: D10_KITE_VALUES[i],
     normal: new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle)),
   }
 })

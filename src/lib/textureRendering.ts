@@ -115,7 +115,7 @@ export const renderSimpleNumber: FaceRenderer = (
 
   // Draw number
   ctx.fillStyle = 'white'
-  ctx.font = `bold ${canvasSize * 0.6}px Arial`
+  ctx.font = `bold ${canvasSize * 0.45}px Arial`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(faceValue.toString(), canvasSize / 2, canvasSize / 2)
@@ -140,7 +140,7 @@ export const renderStyledNumber: FaceRenderer = (
   ctx.fillRect(0, 0, canvasSize, canvasSize)
 
   // Setup text
-  const fontSize = canvasSize * 0.6
+  const fontSize = canvasSize * 0.45
   ctx.font = `bold ${fontSize}px Arial`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'

@@ -97,36 +97,105 @@ function prepareSimplePolyhedronGeometry(
 
 /**
  * Prepare d10 geometry (pentagonal trapezohedron).
- * 20 indexed triangles forming 10 kite faces.
- * Converts to non-indexed, adds groups, and sets per-triangle UVs.
+ * 20 indexed triangles forming 10 kite faces (2 triangles per kite).
+ * Converts to non-indexed, groups paired triangles, and sets projected UVs.
+ *
+ * After toNonIndexed(), triangle layout:
+ * - Triangles 0-9:   top triangles (apex → ring[i+1] → ring[i])
+ * - Triangles 10-19: bottom triangles (apex → ring[i] → ring[i+1])
+ * Kite face i = top triangle i + bottom triangle i+10
  */
 function prepareD10Geometry(
   geometry: THREE.BufferGeometry,
 ): THREE.BufferGeometry {
-  // Convert to non-indexed so each triangle gets independent UVs
   const geo = geometry.toNonIndexed()
-
-  // Recompute normals for the non-indexed geometry
   geo.computeVertexNormals()
 
   const posAttr = geo.getAttribute('position')
-  const triangleCount = posAttr.count / 3 // 20 triangles
+  const faceCount = 10
 
-  // Add one group per triangle (20 groups, 20 materials)
+  // Group both triangles of each kite to the same material index
+  // Top triangles are indices 0-9, bottom triangles are indices 10-19
   geo.clearGroups()
-  for (let i = 0; i < triangleCount; i++) {
-    geo.addGroup(i * 3, 3, i)
+  for (let i = 0; i < faceCount; i++) {
+    geo.addGroup(i * 3, 3, i)                  // Top triangle → material i
+    geo.addGroup((i + faceCount) * 3, 3, i)    // Bottom triangle → material i
   }
 
-  // Set UVs: each triangle gets its own full-canvas mapping
-  // Using equilateral triangle UVs for each triangle independently
+  // Generate projected UVs so both triangles of each kite share one texture
   const uvs = new Float32Array(posAttr.count * 2)
-  for (let i = 0; i < triangleCount; i++) {
-    const base = i * 6
-    uvs[base + 0] = 0.5; uvs[base + 1] = 1.0  // v0 = top
-    uvs[base + 2] = 0.0; uvs[base + 3] = 0.0  // v1 = bottom-left
-    uvs[base + 4] = 1.0; uvs[base + 5] = 0.0  // v2 = bottom-right
+
+  for (let face = 0; face < faceCount; face++) {
+    const topTriStart = face * 3
+    const bottomTriStart = (face + faceCount) * 3
+
+    // Gather all 6 vertices (3 from each triangle)
+    const vertices: THREE.Vector3[] = []
+    for (let i = 0; i < 3; i++) {
+      vertices.push(new THREE.Vector3().fromBufferAttribute(posAttr, topTriStart + i))
+    }
+    for (let i = 0; i < 3; i++) {
+      vertices.push(new THREE.Vector3().fromBufferAttribute(posAttr, bottomTriStart + i))
+    }
+
+    // Compute face normal from the top triangle
+    const edge1 = new THREE.Vector3().subVectors(vertices[1], vertices[0])
+    const edge2 = new THREE.Vector3().subVectors(vertices[2], vertices[0])
+    const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize()
+
+    // Create tangent/bitangent basis for 2D projection
+    const tangent = new THREE.Vector3()
+    if (Math.abs(normal.y) < 0.99) {
+      tangent.crossVectors(new THREE.Vector3(0, 1, 0), normal).normalize()
+    } else {
+      tangent.crossVectors(new THREE.Vector3(1, 0, 0), normal).normalize()
+    }
+    const bitangent = new THREE.Vector3().crossVectors(normal, tangent).normalize()
+
+    // Compute centroid of all 6 vertices
+    const centroid = new THREE.Vector3()
+    for (const v of vertices) centroid.add(v)
+    centroid.divideScalar(vertices.length)
+
+    // Project vertices onto 2D plane
+    const projected: { u: number; v: number }[] = []
+    let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity
+
+    for (const v of vertices) {
+      const d = v.clone().sub(centroid)
+      const pu = d.dot(tangent)
+      const pv = d.dot(bitangent)
+      projected.push({ u: pu, v: pv })
+      minU = Math.min(minU, pu)
+      maxU = Math.max(maxU, pu)
+      minV = Math.min(minV, pv)
+      maxV = Math.max(maxV, pv)
+    }
+
+    // Normalize to [0,1] centered at (0.5, 0.5)
+    const rangeU = maxU - minU
+    const rangeV = maxV - minV
+    const maxRange = Math.max(rangeU, rangeV)
+    const padding = 0.1
+    const scale = (1 - 2 * padding) / maxRange
+    const centerU = (minU + maxU) / 2
+    const centerV = (minV + maxV) / 2
+
+    // Apply UVs to top triangle vertices (indices 0-2 in projected)
+    for (let i = 0; i < 3; i++) {
+      const idx = (topTriStart + i) * 2
+      uvs[idx] = 0.5 + (projected[i].u - centerU) * scale
+      uvs[idx + 1] = 0.5 + (projected[i].v - centerV) * scale
+    }
+
+    // Apply UVs to bottom triangle vertices (indices 3-5 in projected)
+    for (let i = 0; i < 3; i++) {
+      const idx = (bottomTriStart + i) * 2
+      uvs[idx] = 0.5 + (projected[i + 3].u - centerU) * scale
+      uvs[idx + 1] = 0.5 + (projected[i + 3].v - centerV) * scale
+    }
   }
+
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
 
   return geo

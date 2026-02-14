@@ -73,8 +73,8 @@ describe('textureRendering', () => {
 
     it('scales font size relative to canvas size', () => {
       renderSimpleNumber(mockCtx, 1, 512, '#ff6b35')
-      // Font should be 60% of canvas size = 307.2
-      expect(mockCtx.font).toContain(`${512 * 0.6}`)
+      // Font should be 45% of canvas size = 230.4
+      expect(mockCtx.font).toContain(`${512 * 0.45}`)
     })
 
     it('handles multi-digit numbers', () => {
@@ -115,7 +115,7 @@ describe('textureRendering', () => {
 
     it('sets line width for outline', () => {
       renderStyledNumber(mockCtx, 5, 512, '#ff6b35')
-      const fontSize = 512 * 0.6
+      const fontSize = 512 * 0.45
       expect(mockCtx.lineWidth).toBeCloseTo(fontSize * 0.08, 1)
     })
   })

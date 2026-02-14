@@ -216,23 +216,25 @@ describe('Face Material Mapping', () => {
       }
     })
 
-    it('d10 structural mapping: each kite = top triangle V + bottom triangle V+10', () => {
-      // D10 uses structural mapping, not normal-based mapping.
-      // Each kite face V consists of top triangle V and bottom triangle V+10.
+    it('d10 structural mapping: each face value maps to a valid kite index (0-9)', () => {
+      // D10 has 10 kite faces, geometry groups pair 2 triangles per kite.
+      // Material index = kite index (0-9).
       const declaredMapping = FACE_MATERIAL_MAPS.d10
 
       for (let faceValue = 0; faceValue <= 9; faceValue++) {
-        const materialIndex = declaredMapping[faceValue]
-        // Material index should equal face value (0-indexed)
-        expect(materialIndex).toBe(faceValue)
-        // The paired bottom triangle is at materialIndex + 10
-        expect(materialIndex + 10).toBeLessThan(20)
+        const kiteIndex = declaredMapping[faceValue]
+        expect(kiteIndex).toBeGreaterThanOrEqual(0)
+        expect(kiteIndex).toBeLessThan(10)
       }
+
+      // All 10 kite indices should be used exactly once
+      const usedIndices = new Set(declaredMapping)
+      expect(usedIndices.size).toBe(10)
     })
   })
 
   describe('Face normal rules (opposite faces sum)', () => {
-    for (const shape of ['d6', 'd8', 'd12', 'd20'] as DiceShape[]) {
+    for (const shape of ['d6', 'd8', 'd10', 'd12', 'd20'] as DiceShape[]) {
       it(`${shape} opposite faces sum correctly`, () => {
         const result = validateFaceNormalRules(shape)
         expect(result.valid).toBe(true)

@@ -106,21 +106,22 @@ export const FACE_MATERIAL_MAPS: Record<DiceShape, number[]> = {
     5,  // Face 8 → materials[5] (triangle 5, opposite of 1)
   ],
 
-  // D10: 10 kite-shaped faces (20 triangles total)
-  // Each kite face i = top triangle i + bottom triangle i+10
-  // Face value 0-9 maps to kite index 0-9
-  // Material index = kite index (top triangle)
+  // D10: 10 kite-shaped faces (20 triangles total, 2 per kite)
+  // Geometry groups pair both triangles of each kite to material index = kite index (0-9)
+  // Values assigned so opposite kites (i, i+5) sum to 9:
+  //   Kite 0→0, 1→2, 2→4, 3→6, 4→8, 5→9, 6→7, 7→5, 8→3, 9→1
+  // Map: face value → kite index (material index)
   d10: [
-    0,  // Face 0 → materials[0] (top triangle 0, bottom triangle 10)
-    1,  // Face 1 → materials[1] (top triangle 1, bottom triangle 11)
-    2,  // Face 2 → materials[2] (top triangle 2, bottom triangle 12)
-    3,  // Face 3 → materials[3] (top triangle 3, bottom triangle 13)
-    4,  // Face 4 → materials[4] (top triangle 4, bottom triangle 14)
-    5,  // Face 5 → materials[5] (top triangle 5, bottom triangle 15)
-    6,  // Face 6 → materials[6] (top triangle 6, bottom triangle 16)
-    7,  // Face 7 → materials[7] (top triangle 7, bottom triangle 17)
-    8,  // Face 8 → materials[8] (top triangle 8, bottom triangle 18)
-    9,  // Face 9 → materials[9] (top triangle 9, bottom triangle 19)
+    0,  // Face 0 → kite 0 (materials[0])
+    9,  // Face 1 → kite 9 (materials[9])
+    1,  // Face 2 → kite 1 (materials[1])
+    8,  // Face 3 → kite 8 (materials[8])
+    2,  // Face 4 → kite 2 (materials[2])
+    7,  // Face 5 → kite 7 (materials[7])
+    3,  // Face 6 → kite 3 (materials[3])
+    6,  // Face 7 → kite 6 (materials[6])
+    4,  // Face 8 → kite 4 (materials[4])
+    5,  // Face 9 → kite 5 (materials[5])
   ],
 
   // D12: 12 pentagonal faces (36 triangles total = 3 triangles per face)
@@ -239,19 +240,14 @@ export function createFaceMaterialsArray(
     )
   }
 
-  // Special case: D10 has 20 triangles but only 10 face values
+  // Special case: D10 has 10 kite faces (2 triangles each, grouped in geometry)
+  // Geometry groups reference material indices 0-9 (one per kite)
   if (shape === 'd10') {
-    const materials: THREE.Material[] = new Array(20)
+    const materials: THREE.Material[] = new Array(10)
 
-    // Create materials for face values 0-9
     for (let faceValue = 0; faceValue <= 9; faceValue++) {
-      const material = createMaterial(faceValue)
-
-      // Apply same material to both triangles of this kite face
-      // Top triangle: index = faceValue
-      // Bottom triangle: index = faceValue + 10
-      materials[faceValue] = material
-      materials[faceValue + 10] = material.clone() // Clone to avoid sharing
+      const kiteIndex = mapping[faceValue]
+      materials[kiteIndex] = createMaterial(faceValue)
     }
 
     return materials
@@ -323,9 +319,9 @@ export function createDebugMaterials(shape: DiceShape): THREE.Material[] {
     '#FFFFFF', // 19: White
   ]
 
-  // For D10, create 20 materials (2 per kite face)
+  // For D10, create 10 materials (1 per kite face, geometry groups handle pairing)
   if (shape === 'd10') {
-    return Array.from({ length: 20 }, (_, index) =>
+    return Array.from({ length: 10 }, (_, index) =>
       new THREE.MeshStandardMaterial({
         color: debugColors[index % debugColors.length],
         roughness: 0.7,
@@ -364,12 +360,12 @@ export function validateFaceNormalRules(shape: DiceShape): {
   const errors: string[] = []
 
   // Only validate dice with opposite faces
-  if (shape !== 'd6' && shape !== 'd8' && shape !== 'd12' && shape !== 'd20') {
+  if (shape !== 'd6' && shape !== 'd8' && shape !== 'd10' && shape !== 'd12' && shape !== 'd20') {
     return { valid: true, errors: [] }
   }
 
   // Expected sum for opposite faces
-  const expectedSum = shape === 'd6' ? 7 : shape === 'd8' ? 9 : shape === 'd12' ? 13 : 21
+  const expectedSum = shape === 'd6' ? 7 : shape === 'd8' ? 9 : shape === 'd10' ? 9 : shape === 'd12' ? 13 : 21
 
   // Check each pair of opposite normals
   for (let i = 0; i < faceNormals.length; i++) {
