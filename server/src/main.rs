@@ -15,8 +15,9 @@ use tokio::sync::RwLock;
 static INSTANCE_ID: LazyLock<String> = LazyLock::new(|| nanoid::nanoid!(8));
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Request, State},
     http::StatusCode,
+    middleware::Next,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -28,6 +29,17 @@ use log::info;
 use room_manager::RoomManager;
 
 type SharedRoomManager = Arc<RwLock<RoomManager>>;
+
+/// Middleware that logs every incoming request and its response status.
+async fn log_requests(req: Request, next: Next) -> impl IntoResponse {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+    let upgrade_header = req.headers().get("upgrade").map(|v| v.to_str().unwrap_or("?").to_string());
+    info!("[{}] --> {} {} (upgrade: {:?})", *INSTANCE_ID, method, uri, upgrade_header);
+    let response = next.run(req).await;
+    info!("[{}] <-- {} {} => {}", *INSTANCE_ID, method, uri, response.status());
+    response
+}
 
 fn build_cors_layer() -> CorsLayer {
     match std::env::var("CORS_ORIGIN") {
@@ -92,13 +104,18 @@ async fn ws_upgrade(
     Path(room_id): Path<String>,
     ws: axum::extract::ws::WebSocketUpgrade,
 ) -> impl IntoResponse {
+    info!("[{}] WS upgrade handler entered for room: {}", *INSTANCE_ID, room_id);
     let mgr_read = mgr.read().await;
     match mgr_read.get_room(&room_id) {
         Some(room) => {
+            info!("[{}] Room {} found, upgrading WebSocket", *INSTANCE_ID, room_id);
             drop(mgr_read);
             ws.on_upgrade(move |socket| ws_handler::handle_ws_connection(socket, room))
         }
-        None => StatusCode::NOT_FOUND.into_response(),
+        None => {
+            info!("[{}] WS upgrade failed: room {} not found (total: {})", *INSTANCE_ID, room_id, mgr_read.room_count());
+            StatusCode::NOT_FOUND.into_response()
+        }
     }
 }
 
@@ -115,6 +132,7 @@ async fn main() {
         .route("/api/rooms/{room_id}", get(get_room_info))
         .route("/ws/{room_id}", get(ws_upgrade))
         .layer(build_cors_layer())
+        .layer(axum::middleware::from_fn(log_requests))
         .with_state(room_manager.clone());
 
     // Spawn stale room cleanup task (every 5 minutes)
