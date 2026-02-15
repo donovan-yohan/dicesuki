@@ -34,8 +34,22 @@ type SharedRoomManager = Arc<RwLock<RoomManager>>;
 async fn log_requests(req: Request, next: Next) -> impl IntoResponse {
     let method = req.method().clone();
     let uri = req.uri().clone();
+    let version = req.version();
     let upgrade_header = req.headers().get("upgrade").map(|v| v.to_str().unwrap_or("?").to_string());
-    info!("[{}] --> {} {} (upgrade: {:?})", *INSTANCE_ID, method, uri, upgrade_header);
+
+    // Log extra headers for WebSocket requests to diagnose proxy issues
+    if uri.path().starts_with("/ws/") {
+        let connection = req.headers().get("connection").map(|v| v.to_str().unwrap_or("?").to_string());
+        let ws_version = req.headers().get("sec-websocket-version").map(|v| v.to_str().unwrap_or("?").to_string());
+        let ws_key = req.headers().get("sec-websocket-key").is_some();
+        info!(
+            "[{}] --> {:?} {} {} (upgrade: {:?}, connection: {:?}, sec-ws-version: {:?}, sec-ws-key: {})",
+            *INSTANCE_ID, version, method, uri, upgrade_header, connection, ws_version, ws_key
+        );
+    } else {
+        info!("[{}] --> {:?} {} {} (upgrade: {:?})", *INSTANCE_ID, version, method, uri, upgrade_header);
+    }
+
     let response = next.run(req).await;
     info!("[{}] <-- {} {} => {}", *INSTANCE_ID, method, uri, response.status());
     response
@@ -99,22 +113,56 @@ async fn get_room_info(
     }
 }
 
+/// Fallback handler — logs requests that don't match any route.
+async fn fallback(req: Request) -> impl IntoResponse {
+    info!(
+        "[{}] FALLBACK (no route matched): {:?} {} {}",
+        *INSTANCE_ID,
+        req.version(),
+        req.method(),
+        req.uri()
+    );
+    StatusCode::NOT_FOUND
+}
+
 async fn ws_upgrade(
     State(mgr): State<SharedRoomManager>,
     Path(room_id): Path<String>,
-    ws: axum::extract::ws::WebSocketUpgrade,
+    ws: Option<axum::extract::ws::WebSocketUpgrade>,
 ) -> impl IntoResponse {
-    info!("[{}] WS upgrade handler entered for room: {}", *INSTANCE_ID, room_id);
-    let mgr_read = mgr.read().await;
-    match mgr_read.get_room(&room_id) {
-        Some(room) => {
-            info!("[{}] Room {} found, upgrading WebSocket", *INSTANCE_ID, room_id);
-            drop(mgr_read);
-            ws.on_upgrade(move |socket| ws_handler::handle_ws_connection(socket, room))
+    info!(
+        "[{}] WS handler entered for room: {} (extractor: {})",
+        *INSTANCE_ID,
+        room_id,
+        if ws.is_some() { "OK" } else { "FAILED" }
+    );
+
+    match ws {
+        Some(ws) => {
+            let mgr_read = mgr.read().await;
+            match mgr_read.get_room(&room_id) {
+                Some(room) => {
+                    info!("[{}] Room {} found, upgrading WebSocket", *INSTANCE_ID, room_id);
+                    drop(mgr_read);
+                    ws.on_upgrade(move |socket| ws_handler::handle_ws_connection(socket, room))
+                }
+                None => {
+                    info!(
+                        "[{}] WS upgrade failed: room {} not found (total: {})",
+                        *INSTANCE_ID,
+                        room_id,
+                        mgr_read.room_count()
+                    );
+                    StatusCode::NOT_FOUND.into_response()
+                }
+            }
         }
         None => {
-            info!("[{}] WS upgrade failed: room {} not found (total: {})", *INSTANCE_ID, room_id, mgr_read.room_count());
-            StatusCode::NOT_FOUND.into_response()
+            info!(
+                "[{}] WebSocket extractor FAILED for room: {} — upgrade headers missing or connection not upgradable",
+                *INSTANCE_ID, room_id
+            );
+            (StatusCode::BAD_REQUEST, "WebSocket upgrade required").into_response()
         }
     }
 }
@@ -131,6 +179,7 @@ async fn main() {
         .route("/api/rooms", post(create_room))
         .route("/api/rooms/{room_id}", get(get_room_info))
         .route("/ws/{room_id}", get(ws_upgrade))
+        .fallback(fallback)
         .layer(build_cors_layer())
         .layer(axum::middleware::from_fn(log_requests))
         .with_state(room_manager.clone());
@@ -166,25 +215,10 @@ async fn main() {
         .await
         .expect("Failed to bind — is the port already in use?");
 
-    // Use HTTP/1.1 only — axum::serve auto-negotiates HTTP/2 which breaks
-    // WebSocket upgrades behind reverse proxies (Render/Cloudflare).
-    // HTTP/1.1 with .with_upgrades() is required for WebSocket to work.
-    loop {
-        let (stream, _remote_addr) = listener.accept().await.expect("Failed to accept");
-        let app = app.clone();
-        tokio::spawn(async move {
-            let io = hyper_util::rt::TokioIo::new(stream);
-            let service = hyper::service::service_fn(move |req| {
-                use tower::ServiceExt;
-                app.clone().oneshot(req)
-            });
-            if let Err(err) = hyper::server::conn::http1::Builder::new()
-                .serve_connection(io, service)
-                .with_upgrades()
-                .await
-            {
-                log::error!("[{}] Connection error: {}", *INSTANCE_ID, err);
-            }
-        });
-    }
+    // Use axum::serve — the official/blessed path for WebSocket support.
+    // axum::serve auto-negotiates HTTP/1.1 vs HTTP/2 based on what the client sends.
+    // Render's proxy connects via HTTP/1.1, so WebSocket upgrades work correctly.
+    axum::serve(listener, app)
+        .await
+        .expect("Server exited unexpectedly");
 }
