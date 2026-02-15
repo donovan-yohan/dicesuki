@@ -117,11 +117,15 @@ async fn main() {
         }
     });
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8080);
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     info!("Dicesuki server listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr)
         .await
-        .expect("Failed to bind to port 8080 — is it already in use?");
+        .expect("Failed to bind — is the port already in use?");
     axum::serve(listener, app)
         .await
         .expect("Server exited unexpectedly");
