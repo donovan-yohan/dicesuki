@@ -34,8 +34,8 @@ type SharedRoomManager = Arc<RwLock<RoomManager>>;
 async fn log_requests(req: Request, next: Next) -> impl IntoResponse {
     let method = req.method().clone();
     let uri = req.uri().clone();
-    let has_upgrade = req.headers().get("upgrade").map(|v| v.to_str().unwrap_or("?").to_string());
-    info!("[{}] --> {} {} (upgrade: {:?})", *INSTANCE_ID, method, uri, has_upgrade);
+    let upgrade_header = req.headers().get("upgrade").map(|v| v.to_str().unwrap_or("?").to_string());
+    info!("[{}] --> {} {} (upgrade: {:?})", *INSTANCE_ID, method, uri, upgrade_header);
     let response = next.run(req).await;
     info!("[{}] <-- {} {} => {}", *INSTANCE_ID, method, uri, response.status());
     response
@@ -131,8 +131,8 @@ async fn main() {
         .route("/api/rooms", post(create_room))
         .route("/api/rooms/{room_id}", get(get_room_info))
         .route("/ws/{room_id}", get(ws_upgrade))
-        .layer(axum::middleware::from_fn(log_requests))
         .layer(build_cors_layer())
+        .layer(axum::middleware::from_fn(log_requests))
         .with_state(room_manager.clone());
 
     // Spawn stale room cleanup task (every 5 minutes)
