@@ -142,19 +142,32 @@ describe('Face Material Mapping', () => {
       }
     })
 
-    it('d10 face normals are 10 unique unit vectors in xz-plane', () => {
+    it('d10 face normals are 10 unique unit vectors with y-components', () => {
       const faceNormals = getFaceNormals('d10')
 
       expect(faceNormals.length).toBe(10)
 
       for (const fn of faceNormals) {
-        // y should be 0
-        expect(Math.abs(fn.normal.y)).toBeLessThan(0.001)
         // Should be unit length
         expect(fn.normal.length()).toBeCloseTo(1.0, 4)
       }
 
-      // All normals should be unique (min dot product < 0.95 for 36° spacing)
+      // Upper kites (0-4) should have positive y, lower kites (5-9) negative y
+      // Values: kites 0-4 get even values (0,2,4,6,8), kites 5-9 get odd-mapped values
+      // We verify by checking the normals have non-zero y
+      const upperNormals = faceNormals.filter(fn => [0, 2, 4, 6, 8].includes(fn.value))
+      const lowerNormals = faceNormals.filter(fn => [3, 1, 9, 7, 5].includes(fn.value))
+      expect(upperNormals.length).toBe(5)
+      expect(lowerNormals.length).toBe(5)
+
+      for (const fn of upperNormals) {
+        expect(fn.normal.y).toBeGreaterThan(0)
+      }
+      for (const fn of lowerNormals) {
+        expect(fn.normal.y).toBeLessThan(0)
+      }
+
+      // All normals should be unique (no two should be nearly identical)
       for (let i = 0; i < faceNormals.length; i++) {
         for (let j = i + 1; j < faceNormals.length; j++) {
           expect(faceNormals[i].normal.dot(faceNormals[j].normal)).toBeLessThan(0.95)
@@ -243,6 +256,19 @@ describe('Face Material Mapping', () => {
         }
       })
     }
+
+    it('d10 opposite-pair normals point in opposing directions (dot < -0.5)', () => {
+      const faceNormals = getFaceNormals('d10')
+      // Opposite pairs: values that sum to 9
+      const pairs = [[0, 9], [1, 8], [2, 7], [3, 6], [4, 5]]
+
+      for (const [a, b] of pairs) {
+        const normalA = faceNormals.find(fn => fn.value === a)!
+        const normalB = faceNormals.find(fn => fn.value === b)!
+        const dot = normalA.normal.dot(normalB.normal)
+        expect(dot).toBeLessThan(-0.5)
+      }
+    })
   })
 
   describe('getDiceFaceValue consistency for all dice types', () => {

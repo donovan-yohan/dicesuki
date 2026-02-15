@@ -108,20 +108,21 @@ export const FACE_MATERIAL_MAPS: Record<DiceShape, number[]> = {
 
   // D10: 10 kite-shaped faces (20 triangles total, 2 per kite)
   // Geometry groups pair both triangles of each kite to material index = kite index (0-9)
-  // Values assigned so opposite kites (i, i+5) sum to 9:
-  //   Kite 0→0, 1→2, 2→4, 3→6, 4→8, 5→9, 6→7, 7→5, 8→3, 9→1
+  // Upper kites (0-4) at top apex, lower kites (5-9) at bottom apex
+  // Values: Kite 0→0, 1→2, 2→4, 3→6, 4→8, 5→3, 6→1, 7→9, 8→7, 9→5
+  // Opposite pairs (sum to 9): (0,7), (1,8), (2,9), (3,5), (4,6)
   // Map: face value → kite index (material index)
   d10: [
     0,  // Face 0 → kite 0 (materials[0])
-    9,  // Face 1 → kite 9 (materials[9])
+    6,  // Face 1 → kite 6 (materials[6])
     1,  // Face 2 → kite 1 (materials[1])
-    8,  // Face 3 → kite 8 (materials[8])
+    5,  // Face 3 → kite 5 (materials[5])
     2,  // Face 4 → kite 2 (materials[2])
-    7,  // Face 5 → kite 7 (materials[7])
+    9,  // Face 5 → kite 9 (materials[9])
     3,  // Face 6 → kite 3 (materials[3])
-    6,  // Face 7 → kite 6 (materials[6])
+    8,  // Face 7 → kite 8 (materials[8])
     4,  // Face 8 → kite 4 (materials[4])
-    5,  // Face 9 → kite 5 (materials[5])
+    7,  // Face 9 → kite 7 (materials[7])
   ],
 
   // D12: 12 pentagonal faces (36 triangles total = 3 triangles per face)

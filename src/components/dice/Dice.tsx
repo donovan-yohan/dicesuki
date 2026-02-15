@@ -37,6 +37,7 @@ import {
 } from '../../lib/geometries'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 import { renderD4Classic } from '../../lib/faceRenderers/d4Renderer'
+import { renderD20Styled } from '../../lib/faceRenderers/d20Renderer'
 import { renderStyledNumber } from '../../lib/textureRendering'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useUIStore } from '../../store/useUIStore'
@@ -431,7 +432,9 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       roughness: diceMats.roughness,
       metalness: diceMats.metalness,
       emissiveIntensity: diceMats.emissiveIntensity,
-      faceRenderer: shape === 'd4' ? renderD4Classic : renderStyledNumber,
+      faceRenderer: shape === 'd4' ? renderD4Classic
+        : (shape === 'd8' || shape === 'd20') ? renderD20Styled
+        : renderStyledNumber,
     })
 
     // Calculate half-extents for D6 collider

@@ -72,29 +72,50 @@ export const D8_FACE_NORMALS: DiceFace[] = [
  * D10 (pentagonal trapezohedron) face normals in world space
  * Pentagonal trapezohedron: 10 kite-shaped faces, numbered 0-9
  *
- * Normals computed from the midpoint of each kite's equatorial edge.
- * Each kite face i consists of top triangle i and bottom triangle i+10
- * in createD10Geometry. All normals lie in the xz-plane (y=0) because
- * the d10 is symmetric about the equator.
+ * Normals computed dynamically from the actual geometry to ensure
+ * perfect alignment between face detection and material rendering.
  *
- * When the die lands on a face, it tilts so that face's xz-direction
- * aligns with the detection axis.
+ * With proper trapezohedron topology:
+ *   Upper kites (0-4): normals point outward + upward (positive y)
+ *   Lower kites (5-9): normals point outward + downward (negative y)
+ *
+ * Opposite pairs: (0,7), (1,8), (2,9), (3,5), (4,6) — each sums to 9.
+ *
+ * Face value assignment (D10_KITE_VALUES):
+ *   Upper kites (0-4): even values (0,2,4,6,8)
+ *   Lower kites (5-9): odd values (3,1,9,7,5)
+ *   Opposite pairs: kite 0↔7, 1↔8, 2↔9, 3↔5, 4↔6
  */
-/**
- * D10 face value assignment for opposite-faces-sum-to-9 rule.
- * Kite face i is opposite kite face i+5.
- * Standard layout: evens (0,2,4,6,8) on one hemisphere, odds (9,7,5,3,1) on the other.
- */
-const D10_KITE_VALUES = [0, 2, 4, 6, 8, 9, 7, 5, 3, 1] as const
+const D10_KITE_VALUES = [0, 2, 4, 6, 8, 3, 1, 9, 7, 5] as const
 
-export const D10_FACE_NORMALS: DiceFace[] = Array.from({ length: 10 }, (_, i) => {
-  // Midpoint angle between ring vertices i and i+1 (each at i*36°)
-  const angle = ((i + 0.5) * Math.PI * 2) / 10
-  return {
-    value: D10_KITE_VALUES[i],
-    normal: new THREE.Vector3(-Math.cos(angle), 0, -Math.sin(angle)),
+// Computed at module load from createD10Geometry — normals extracted from
+// the first triangle of each kite via cross product.
+export const D10_FACE_NORMALS: DiceFace[] = (() => {
+  const tempGeo = createD10Geometry(1)
+  const indexAttr = tempGeo.getIndex()!
+  const posAttr = tempGeo.getAttribute('position')
+
+  const normals: DiceFace[] = []
+  for (let k = 0; k < 10; k++) {
+    // Each kite = 2 triangles = 6 indices; first triangle starts at k * 6
+    const triStart = k * 6
+    const i0 = indexAttr.getX(triStart)
+    const i1 = indexAttr.getX(triStart + 1)
+    const i2 = indexAttr.getX(triStart + 2)
+
+    const v0 = new THREE.Vector3().fromBufferAttribute(posAttr, i0)
+    const v1 = new THREE.Vector3().fromBufferAttribute(posAttr, i1)
+    const v2 = new THREE.Vector3().fromBufferAttribute(posAttr, i2)
+
+    const edge1 = new THREE.Vector3().subVectors(v1, v0)
+    const edge2 = new THREE.Vector3().subVectors(v2, v0)
+    const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize()
+
+    normals.push({ value: D10_KITE_VALUES[k], normal })
   }
-})
+
+  return normals
+})()
 
 /**
  * D12 (dodecahedron) face normals in world space
@@ -346,17 +367,27 @@ export function createD10Geometry(size: number = 1): THREE.BufferGeometry {
   }
 
   // 20 triangular faces forming 10 kite-shaped faces
-  // Vertices wind counter-clockwise when viewed from outside
+  // Proper pentagonal trapezohedron topology:
+  //   5 upper kites (kites 0-4) meet at top apex (vertex 0)
+  //   5 lower kites (kites 5-9) meet at bottom apex (vertex 1)
+  // Each kite = 2 consecutive triangles spanning 3 ring vertices + 1 apex
+  // Ring vertices are indexed 2-11 (ring index r → vertex index r+2)
   const indices = new Uint16Array([
-    // Top 10 triangles (connecting top apex to middle ring)
-    // Winding: apex -> vertex(i) -> vertex(i+1) for outward normals
-    0, 3, 2,   0, 4, 3,   0, 5, 4,   0, 6, 5,   0, 7, 6,
-    0, 8, 7,   0, 9, 8,   0, 10, 9,  0, 11, 10, 0, 2, 11,
+    // Upper kites (top apex = vertex 0, kites 0-4)
+    // Kite k covers ring vertices {2k, 2k+1, 2k+2} (mod 10)
+    0, 3, 2,   0, 4, 3,     // Kite 0: ring {0,1,2}
+    0, 5, 4,   0, 6, 5,     // Kite 1: ring {2,3,4}
+    0, 7, 6,   0, 8, 7,     // Kite 2: ring {4,5,6}
+    0, 9, 8,   0, 10, 9,    // Kite 3: ring {6,7,8}
+    0, 11, 10, 0, 2, 11,    // Kite 4: ring {8,9,0}
 
-    // Bottom 10 triangles (connecting bottom apex to middle ring)
-    // Winding: apex -> vertex(i+1) -> vertex(i) for outward normals (reversed from top)
-    1, 2, 3,   1, 3, 4,   1, 4, 5,   1, 5, 6,   1, 6, 7,
-    1, 7, 8,   1, 8, 9,   1, 9, 10,  1, 10, 11, 1, 11, 2,
+    // Lower kites (bottom apex = vertex 1, kites 5-9)
+    // Kite k+5 covers ring vertices {2k+1, 2k+2, 2k+3} (mod 10)
+    1, 3, 4,   1, 4, 5,     // Kite 5: ring {1,2,3}
+    1, 5, 6,   1, 6, 7,     // Kite 6: ring {3,4,5}
+    1, 7, 8,   1, 8, 9,     // Kite 7: ring {5,6,7}
+    1, 9, 10,  1, 10, 11,   // Kite 8: ring {7,8,9}
+    1, 11, 2,  1, 2, 3,     // Kite 9: ring {9,0,1}
   ])
 
   const geometry = new THREE.BufferGeometry()

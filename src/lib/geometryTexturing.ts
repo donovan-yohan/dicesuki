@@ -98,12 +98,11 @@ function prepareSimplePolyhedronGeometry(
 /**
  * Prepare d10 geometry (pentagonal trapezohedron).
  * 20 indexed triangles forming 10 kite faces (2 triangles per kite).
- * Converts to non-indexed, groups paired triangles, and sets projected UVs.
+ * Converts to non-indexed, groups consecutive triangle pairs, and sets projected UVs.
  *
- * After toNonIndexed(), triangle layout:
- * - Triangles 0-9:   top triangles (apex → ring[i+1] → ring[i])
- * - Triangles 10-19: bottom triangles (apex → ring[i] → ring[i+1])
- * Kite face i = top triangle i + bottom triangle i+10
+ * After toNonIndexed(), triangle layout (consecutive pairs per kite):
+ *   Kite k: vertices [k*6 .. k*6+5] = 2 consecutive triangles
+ *   Kites 0-4: upper (top apex), Kites 5-9: lower (bottom apex)
  */
 function prepareD10Geometry(
   geometry: THREE.BufferGeometry,
@@ -114,31 +113,26 @@ function prepareD10Geometry(
   const posAttr = geo.getAttribute('position')
   const faceCount = 10
 
-  // Group both triangles of each kite to the same material index
-  // Top triangles are indices 0-9, bottom triangles are indices 10-19
+  // Each kite's 2 triangles are consecutive in the index buffer,
+  // so after toNonIndexed() they occupy 6 consecutive vertices
   geo.clearGroups()
-  for (let i = 0; i < faceCount; i++) {
-    geo.addGroup(i * 3, 3, i)                  // Top triangle → material i
-    geo.addGroup((i + faceCount) * 3, 3, i)    // Bottom triangle → material i
+  for (let k = 0; k < faceCount; k++) {
+    geo.addGroup(k * 6, 6, k) // 6 vertices = 2 triangles = 1 kite
   }
 
   // Generate projected UVs so both triangles of each kite share one texture
   const uvs = new Float32Array(posAttr.count * 2)
 
   for (let face = 0; face < faceCount; face++) {
-    const topTriStart = face * 3
-    const bottomTriStart = (face + faceCount) * 3
+    const startVertex = face * 6
 
-    // Gather all 6 vertices (3 from each triangle)
+    // Gather all 6 vertices for this kite
     const vertices: THREE.Vector3[] = []
-    for (let i = 0; i < 3; i++) {
-      vertices.push(new THREE.Vector3().fromBufferAttribute(posAttr, topTriStart + i))
-    }
-    for (let i = 0; i < 3; i++) {
-      vertices.push(new THREE.Vector3().fromBufferAttribute(posAttr, bottomTriStart + i))
+    for (let i = 0; i < 6; i++) {
+      vertices.push(new THREE.Vector3().fromBufferAttribute(posAttr, startVertex + i))
     }
 
-    // Compute face normal from the top triangle
+    // Compute face normal from the first triangle
     const edge1 = new THREE.Vector3().subVectors(vertices[1], vertices[0])
     const edge2 = new THREE.Vector3().subVectors(vertices[2], vertices[0])
     const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize()
@@ -181,18 +175,11 @@ function prepareD10Geometry(
     const centerU = (minU + maxU) / 2
     const centerV = (minV + maxV) / 2
 
-    // Apply UVs to top triangle vertices (indices 0-2 in projected)
-    for (let i = 0; i < 3; i++) {
-      const idx = (topTriStart + i) * 2
+    // Apply UVs to all 6 vertices
+    for (let i = 0; i < 6; i++) {
+      const idx = (startVertex + i) * 2
       uvs[idx] = 0.5 + (projected[i].u - centerU) * scale
       uvs[idx + 1] = 0.5 + (projected[i].v - centerV) * scale
-    }
-
-    // Apply UVs to bottom triangle vertices (indices 3-5 in projected)
-    for (let i = 0; i < 3; i++) {
-      const idx = (bottomTriStart + i) * 2
-      uvs[idx] = 0.5 + (projected[i + 3].u - centerU) * scale
-      uvs[idx + 1] = 0.5 + (projected[i + 3].v - centerV) * scale
     }
   }
 

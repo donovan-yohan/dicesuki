@@ -20,6 +20,7 @@ import {
 } from '../../lib/geometries'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { renderD4Classic } from '../../lib/faceRenderers/d4Renderer'
+import { renderD20Styled } from '../../lib/faceRenderers/d20Renderer'
 import { renderStyledNumber } from '../../lib/textureRendering'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 
@@ -94,7 +95,9 @@ export default function DiceFaceTestHarness() {
   const materials = useDiceMaterials({
     shape,
     color: '#ff6b35',
-    faceRenderer: shape === 'd4' ? renderD4Classic : renderStyledNumber,
+    faceRenderer: shape === 'd4' ? renderD4Classic
+      : (shape === 'd8' || shape === 'd20') ? renderD20Styled
+      : renderStyledNumber,
   })
 
   return (

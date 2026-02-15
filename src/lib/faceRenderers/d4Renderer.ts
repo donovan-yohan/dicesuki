@@ -70,7 +70,7 @@ export const renderD4Classic: FaceRenderer = (
   ctx.fillStyle = backgroundColor
   ctx.fillRect(0, 0, canvasSize, canvasSize)
 
-  const fontSize = canvasSize * 0.28
+  const fontSize = canvasSize * 0.32
   ctx.font = `bold ${fontSize}px Arial`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
@@ -78,7 +78,7 @@ export const renderD4Classic: FaceRenderer = (
   // Position numbers near each vertex of the equilateral triangle
   // UV coordinates: top=(0.5, 1.0), bottomLeft=(0.0, 0.0), bottomRight=(1.0, 0.0)
   // Push numbers inward from vertices for better visibility
-  const inset = 0.22 // How far from vertex toward center (0=vertex, 1=center)
+  const inset = 0.38 // How far from vertex toward center (0=vertex, 1=center)
   const centerX = canvasSize / 2
   const centerY = canvasSize * 2 / 3 // Triangle centroid is at 2/3 height
 
