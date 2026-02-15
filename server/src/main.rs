@@ -215,9 +215,8 @@ async fn main() {
         .await
         .expect("Failed to bind — is the port already in use?");
 
-    // Use axum::serve — the official/blessed path for WebSocket support.
-    // axum::serve auto-negotiates HTTP/1.1 vs HTTP/2 based on what the client sends.
-    // Render's proxy connects via HTTP/1.1, so WebSocket upgrades work correctly.
+    // axum::serve uses hyper's ALPN to auto-negotiate HTTP/1.1 vs HTTP/2.
+    // WebSocket upgrades themselves always use HTTP/1.1 with an Upgrade header, which hyper handles automatically.
     axum::serve(listener, app)
         .await
         .expect("Server exited unexpectedly");
