@@ -21,7 +21,6 @@ impl RoomManager {
         let room_id = nanoid::nanoid!(6);
         let room = Arc::new(RwLock::new(Room::new(room_id.clone())));
         self.rooms.insert(room_id.clone(), room.clone());
-        info!("Room created: {}", room_id);
         (room_id, room)
     }
 
