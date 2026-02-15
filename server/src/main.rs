@@ -113,22 +113,56 @@ async fn get_room_info(
     }
 }
 
+/// Fallback handler — logs requests that don't match any route.
+async fn fallback(req: Request) -> impl IntoResponse {
+    info!(
+        "[{}] FALLBACK (no route matched): {:?} {} {}",
+        *INSTANCE_ID,
+        req.version(),
+        req.method(),
+        req.uri()
+    );
+    StatusCode::NOT_FOUND
+}
+
 async fn ws_upgrade(
     State(mgr): State<SharedRoomManager>,
     Path(room_id): Path<String>,
-    ws: axum::extract::ws::WebSocketUpgrade,
+    ws: Option<axum::extract::ws::WebSocketUpgrade>,
 ) -> impl IntoResponse {
-    info!("[{}] WS upgrade handler entered for room: {}", *INSTANCE_ID, room_id);
-    let mgr_read = mgr.read().await;
-    match mgr_read.get_room(&room_id) {
-        Some(room) => {
-            info!("[{}] Room {} found, upgrading WebSocket", *INSTANCE_ID, room_id);
-            drop(mgr_read);
-            ws.on_upgrade(move |socket| ws_handler::handle_ws_connection(socket, room))
+    info!(
+        "[{}] WS handler entered for room: {} (extractor: {})",
+        *INSTANCE_ID,
+        room_id,
+        if ws.is_some() { "OK" } else { "FAILED" }
+    );
+
+    match ws {
+        Some(ws) => {
+            let mgr_read = mgr.read().await;
+            match mgr_read.get_room(&room_id) {
+                Some(room) => {
+                    info!("[{}] Room {} found, upgrading WebSocket", *INSTANCE_ID, room_id);
+                    drop(mgr_read);
+                    ws.on_upgrade(move |socket| ws_handler::handle_ws_connection(socket, room))
+                }
+                None => {
+                    info!(
+                        "[{}] WS upgrade failed: room {} not found (total: {})",
+                        *INSTANCE_ID,
+                        room_id,
+                        mgr_read.room_count()
+                    );
+                    StatusCode::NOT_FOUND.into_response()
+                }
+            }
         }
         None => {
-            info!("[{}] WS upgrade failed: room {} not found (total: {})", *INSTANCE_ID, room_id, mgr_read.room_count());
-            StatusCode::NOT_FOUND.into_response()
+            info!(
+                "[{}] WebSocket extractor FAILED for room: {} — upgrade headers missing or connection not upgradable",
+                *INSTANCE_ID, room_id
+            );
+            (StatusCode::BAD_REQUEST, "WebSocket upgrade required").into_response()
         }
     }
 }
@@ -145,6 +179,7 @@ async fn main() {
         .route("/api/rooms", post(create_room))
         .route("/api/rooms/{room_id}", get(get_room_info))
         .route("/ws/{room_id}", get(ws_upgrade))
+        .fallback(fallback)
         .layer(build_cors_layer())
         .layer(axum::middleware::from_fn(log_requests))
         .with_state(room_manager.clone());
@@ -180,25 +215,9 @@ async fn main() {
         .await
         .expect("Failed to bind — is the port already in use?");
 
-    // Use HTTP/1.1 only — axum::serve auto-negotiates HTTP/2 which breaks
-    // WebSocket upgrades behind reverse proxies (Render/Cloudflare).
-    // HTTP/1.1 with .with_upgrades() is required for WebSocket to work.
-    loop {
-        let (stream, _remote_addr) = listener.accept().await.expect("Failed to accept");
-        let app = app.clone();
-        tokio::spawn(async move {
-            let io = hyper_util::rt::TokioIo::new(stream);
-            let service = hyper::service::service_fn(move |req| {
-                use tower::ServiceExt;
-                app.clone().oneshot(req)
-            });
-            if let Err(err) = hyper::server::conn::http1::Builder::new()
-                .serve_connection(io, service)
-                .with_upgrades()
-                .await
-            {
-                log::error!("[{}] Connection error: {}", *INSTANCE_ID, err);
-            }
-        });
-    }
+    // axum::serve uses hyper's ALPN to auto-negotiate HTTP/1.1 vs HTTP/2.
+    // WebSocket upgrades themselves always use HTTP/1.1 with an Upgrade header, which hyper handles automatically.
+    axum::serve(listener, app)
+        .await
+        .expect("Server exited unexpectedly");
 }
