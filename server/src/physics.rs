@@ -8,7 +8,6 @@ pub const EDGE_CHAMFER_RADIUS: f32 = 0.08;
 pub const LINEAR_VELOCITY_THRESHOLD: f32 = 0.01;
 pub const ANGULAR_VELOCITY_THRESHOLD: f32 = 0.01;
 pub const REST_DURATION_MS: u64 = 500;
-pub const MAX_DICE_VELOCITY: f32 = 25.0;
 pub const ROLL_HORIZONTAL_MIN: f32 = 1.0;
 pub const ROLL_HORIZONTAL_MAX: f32 = 3.0;
 pub const ROLL_VERTICAL_MIN: f32 = 3.0;

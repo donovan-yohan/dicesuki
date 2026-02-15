@@ -179,7 +179,26 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("Failed to bind — is the port already in use?");
-    axum::serve(listener, app)
-        .await
-        .expect("Server exited unexpectedly");
+
+    // Use HTTP/1.1 only — axum::serve auto-negotiates HTTP/2 which breaks
+    // WebSocket upgrades behind reverse proxies (Render/Cloudflare).
+    // HTTP/1.1 with .with_upgrades() is required for WebSocket to work.
+    loop {
+        let (stream, _remote_addr) = listener.accept().await.expect("Failed to accept");
+        let app = app.clone();
+        tokio::spawn(async move {
+            let io = hyper_util::rt::TokioIo::new(stream);
+            let service = hyper::service::service_fn(move |req| {
+                use tower::ServiceExt;
+                app.clone().oneshot(req)
+            });
+            if let Err(err) = hyper::server::conn::http1::Builder::new()
+                .serve_connection(io, service)
+                .with_upgrades()
+                .await
+            {
+                log::error!("[{}] Connection error: {}", *INSTANCE_ID, err);
+            }
+        });
+    }
 }

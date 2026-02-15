@@ -320,6 +320,8 @@ dependencies = [
  "axum",
  "env_logger",
  "futures-util",
+ "hyper",
+ "hyper-util",
  "log",
  "nalgebra",
  "nanoid",

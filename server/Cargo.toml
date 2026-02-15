@@ -14,7 +14,9 @@ nanoid = "0.4"
 rand = "0.8"
 futures-util = "0.3"
 axum = { version = "0.7", features = ["ws"] }
-tower = "0.5"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["http1", "tokio"] }
+tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["cors"] }
 nalgebra = "0.33"
 log = "0.4"
