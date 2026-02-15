@@ -166,19 +166,31 @@ export function createDefaultSavedRoll(): SavedRoll {
 }
 
 /**
- * Format a dice entry as readable text (e.g., "2d6+1")
+ * Format a numeric bonus with a leading sign
+ * Returns "+N" for positive, "-N" for negative, or "" for zero
+ */
+export function formatBonus(bonus: number): string {
+  if (bonus > 0) return `+${bonus}`
+  if (bonus < 0) return `${bonus}`
+  return ''
+}
+
+/**
+ * Format a dice entry as readable text (e.g., "2d(6+1)")
+ * Per-die bonus wraps the die face: 2d(6+1) means "roll 2d6, add 1 to each"
  */
 export function formatDiceEntry(entry: DiceEntry): string {
   let text = ''
 
-  // Quantity and type
+  // Quantity and die type
   const rollCount = entry.rollCount || entry.quantity
-  text += `${rollCount}${entry.type}`
+  const dieMax = entry.type.replace('d', '') // e.g., "6" from "d6"
 
-  // Per-die bonus
   if (entry.perDieBonus !== 0) {
     const sign = entry.perDieBonus > 0 ? '+' : ''
-    text += `${sign}${entry.perDieBonus}`
+    text += `${rollCount}d(${dieMax}${sign}${entry.perDieBonus})`
+  } else {
+    text += `${rollCount}${entry.type}`
   }
 
   // Keep/drop

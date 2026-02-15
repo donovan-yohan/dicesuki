@@ -11,6 +11,8 @@ import { SavedRollCard } from './saved-rolls/SavedRollCard'
 import { RollBuilder } from './saved-rolls/RollBuilder'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
+import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
+import { spawnDiceFromToolbar } from '../../lib/diceSpawner'
 import { SavedRoll } from '../../types/savedRolls'
 import { useTheme } from '../../contexts/ThemeContext'
 
@@ -39,8 +41,6 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
     getRollsByTag,
   } = useSavedRollsStore()
 
-  const { addDice } = useDiceManagerStore()
-
   // Get filtered rolls
   const filteredRolls = (() => {
     if (searchQuery) {
@@ -62,15 +62,40 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
   function handleRoll(roll: SavedRoll) {
     markRollAsUsed(roll.id)
 
-    // Clear existing dice
+    // Clear existing dice and their states
+    useDiceStore.getState().clearAllDieStates()
     useDiceManagerStore.getState().removeAllDice()
 
-    // Spawn dice for each entry
+    // Spawn dice for each entry via inventory spawner
+    const perDieBonuses = new Map<string, number>()
+
+    let spawnFailures = 0
+
     roll.dice.forEach((entry) => {
       for (let i = 0; i < entry.quantity; i++) {
-        addDice(entry.type, currentTheme.id)
+        const result = spawnDiceFromToolbar(entry.type, currentTheme.id)
+        if (result.success && result.diceInstanceId) {
+          if (entry.perDieBonus !== 0) {
+            perDieBonuses.set(result.diceInstanceId, entry.perDieBonus)
+          }
+        } else {
+          spawnFailures++
+          console.warn(`[SavedRolls] Failed to spawn ${entry.type}: ${result.error}`)
+        }
       }
     })
+
+    if (spawnFailures > 0) {
+      console.warn(`[SavedRolls] ${spawnFailures} dice failed to spawn — check inventory`)
+    }
+
+    // Set active saved roll for bonus display
+    const activeSavedRoll: ActiveSavedRoll = {
+      name: roll.name,
+      flatBonus: roll.flatBonus,
+      perDieBonuses,
+    }
+    useDiceStore.getState().setActiveSavedRoll(activeSavedRoll)
 
     onClose()
   }

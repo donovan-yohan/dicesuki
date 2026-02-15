@@ -26,8 +26,12 @@ export function DiceEntryCard({ entry, onUpdate, onRemove }: DiceEntryCardProps)
 
   // Display formula for this entry
   const getFormula = () => {
-    const bonus = entry.perDieBonus !== 0 ? (entry.perDieBonus > 0 ? `+${entry.perDieBonus}` : entry.perDieBonus) : ''
-    return `${entry.quantity}${entry.type}${bonus}`
+    const dieMax = entry.type.replace('d', '')
+    if (entry.perDieBonus !== 0) {
+      const sign = entry.perDieBonus > 0 ? '+' : ''
+      return `${entry.quantity}d(${dieMax}${sign}${entry.perDieBonus})`
+    }
+    return `${entry.quantity}${entry.type}`
   }
 
   return (

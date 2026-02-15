@@ -21,6 +21,17 @@ export interface RollSnapshot {
 }
 
 /**
+ * Tracks the active saved roll context for bonus display.
+ * This is transient state (not persisted) — do not add to partialize.
+ * perDieBonuses uses Map which does not serialize to JSON.
+ */
+export interface ActiveSavedRoll {
+  name: string
+  flatBonus: number
+  perDieBonuses: Map<string, number> // dice instance ID → per-die bonus
+}
+
+/**
  * Zustand store for per-die roll state tracking
  *
  * Each die independently reports when it starts moving (markDiceRolling)
@@ -36,11 +47,14 @@ interface DiceStore {
   rollingDice: Set<string>
   currentRollCycleDice: Set<string>
   rollHistory: RollSnapshot[]
+  activeSavedRoll: ActiveSavedRoll | null
 
   markDiceRolling: (diceIds: string[]) => void
   recordDieSettled: (diceId: string, value: number, type: string) => void
   removeDieState: (diceId: string) => void
   clearAllDieStates: () => void
+  setActiveSavedRoll: (roll: ActiveSavedRoll) => void
+  clearActiveSavedRoll: () => void
   clearHistory: () => void
   reset: () => void
 }
@@ -52,6 +66,7 @@ export const useDiceStore = create<DiceStore>()(
       rollingDice: new Set(),
       currentRollCycleDice: new Set(),
       rollHistory: [],
+      activeSavedRoll: null,
 
       markDiceRolling: (diceIds: string[]) => {
         set((state) => {
@@ -149,6 +164,14 @@ export const useDiceStore = create<DiceStore>()(
         })
       },
 
+      setActiveSavedRoll: (roll: ActiveSavedRoll) => {
+        set({ activeSavedRoll: roll })
+      },
+
+      clearActiveSavedRoll: () => {
+        set({ activeSavedRoll: null })
+      },
+
       clearHistory: () => {
         set({ rollHistory: [] })
       },
@@ -159,6 +182,7 @@ export const useDiceStore = create<DiceStore>()(
           rollingDice: new Set(),
           currentRollCycleDice: new Set(),
           rollHistory: [],
+          activeSavedRoll: null,
         })
       },
     }),
