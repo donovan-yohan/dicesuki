@@ -34,8 +34,22 @@ type SharedRoomManager = Arc<RwLock<RoomManager>>;
 async fn log_requests(req: Request, next: Next) -> impl IntoResponse {
     let method = req.method().clone();
     let uri = req.uri().clone();
+    let version = req.version();
     let upgrade_header = req.headers().get("upgrade").map(|v| v.to_str().unwrap_or("?").to_string());
-    info!("[{}] --> {} {} (upgrade: {:?})", *INSTANCE_ID, method, uri, upgrade_header);
+
+    // Log extra headers for WebSocket requests to diagnose proxy issues
+    if uri.path().starts_with("/ws/") {
+        let connection = req.headers().get("connection").map(|v| v.to_str().unwrap_or("?").to_string());
+        let ws_version = req.headers().get("sec-websocket-version").map(|v| v.to_str().unwrap_or("?").to_string());
+        let ws_key = req.headers().get("sec-websocket-key").is_some();
+        info!(
+            "[{}] --> {:?} {} {} (upgrade: {:?}, connection: {:?}, sec-ws-version: {:?}, sec-ws-key: {})",
+            *INSTANCE_ID, version, method, uri, upgrade_header, connection, ws_version, ws_key
+        );
+    } else {
+        info!("[{}] --> {:?} {} {} (upgrade: {:?})", *INSTANCE_ID, version, method, uri, upgrade_header);
+    }
+
     let response = next.run(req).await;
     info!("[{}] <-- {} {} => {}", *INSTANCE_ID, method, uri, response.status());
     response
