@@ -422,3 +422,25 @@ export function createD20Geometry(size: number = 1): THREE.IcosahedronGeometry {
   // detail level adds subdivision for smoother, more rounded edges
   return new THREE.IcosahedronGeometry(size, POLYHEDRON_DETAIL_LEVEL)
 }
+
+/**
+ * Creates a dice geometry based on shape type.
+ * Unified factory function for use by components that need geometry
+ * without the full Dice component (e.g., MultiplayerDie).
+ */
+export function createDiceGeometry(shape: DiceShape, size: number = 1): THREE.BufferGeometry {
+  switch (shape) {
+    case 'd4':
+      return createD4Geometry(size)
+    case 'd6':
+      return createD6Geometry(size)
+    case 'd8':
+      return createD8Geometry(size)
+    case 'd10':
+      return createD10Geometry(size)
+    case 'd12':
+      return createD12Geometry(size)
+    case 'd20':
+      return createD20Geometry(size)
+  }
+}
