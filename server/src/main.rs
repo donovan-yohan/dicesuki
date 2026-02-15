@@ -8,12 +8,11 @@ mod room_manager;
 mod ws_handler;
 
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::RwLock;
-use once_cell::sync::Lazy;
 
 /// Unique instance ID generated at startup — used to detect multiple instances
-static INSTANCE_ID: Lazy<String> = Lazy::new(|| nanoid::nanoid!(8));
+static INSTANCE_ID: LazyLock<String> = LazyLock::new(|| nanoid::nanoid!(8));
 
 use axum::{
     extract::{Path, State},
@@ -46,12 +45,10 @@ fn build_cors_layer() -> CorsLayer {
     }
 }
 
-async fn health(State(mgr): State<SharedRoomManager>) -> impl IntoResponse {
-    let mgr = mgr.read().await;
+async fn health() -> impl IntoResponse {
     Json(serde_json::json!({
         "status": "ok",
         "instanceId": *INSTANCE_ID,
-        "roomCount": mgr.room_count(),
     }))
 }
 
