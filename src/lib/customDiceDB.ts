@@ -10,7 +10,7 @@
  * - Value: ArrayBuffer (GLB file data)
  */
 
-const DB_NAME = 'DaisuCustomDiceDB'
+const DB_NAME = 'DicesukiCustomDiceDB'
 const DB_VERSION = 1
 const STORE_NAME = 'customDiceModels'
 

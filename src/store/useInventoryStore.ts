@@ -792,7 +792,7 @@ export const useInventoryStore = create<InventoryStore>()(
     // ========================================================================
 
     {
-      name: 'daisu-player-inventory',
+      name: 'dicesuki-player-inventory',
       storage: createJSONStorage(() => localStorage),
 
       // SCHEMA VERSION

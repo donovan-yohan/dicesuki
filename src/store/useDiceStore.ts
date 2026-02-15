@@ -187,7 +187,7 @@ export const useDiceStore = create<DiceStore>()(
       },
     }),
     {
-      name: 'daisu-dice-rolls',
+      name: 'dicesuki-dice-rolls',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         rollHistory: state.rollHistory,

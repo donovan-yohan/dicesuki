@@ -7,6 +7,7 @@
 
 import { useState } from 'react'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
+import { useCreateRoom } from '../../hooks/useCreateRoom'
 import { ThemeSelector } from '../ThemeSelector'
 import { FlyoutPanel } from './FlyoutPanel'
 import { ArtistTestingPanel } from './ArtistTestingPanel'
@@ -20,6 +21,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showThemeSelector, setShowThemeSelector] = useState(false)
   const [showArtistPanel, setShowArtistPanel] = useState(false)
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
+  const { isCreating: isCreatingRoom, error: roomError, createRoom: handleCreateRoom, clearError: clearRoomError } = useCreateRoom()
 
   return (
     <>
@@ -30,6 +32,67 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         position="left"
         width="360px"
       >
+        {/* Multiplayer Section */}
+        <div className="mb-8">
+          <h3
+            className="text-sm font-semibold mb-3"
+            style={{ color: 'var(--color-text-secondary)' }}
+          >
+            Multiplayer
+          </h3>
+
+          <button
+            onClick={handleCreateRoom}
+            disabled={isCreatingRoom}
+            className="w-full flex items-center justify-between p-4 rounded-lg transition-all"
+            style={{
+              backgroundColor: 'rgba(139, 92, 246, 0.1)',
+              border: '1px solid rgba(139, 92, 246, 0.3)',
+              cursor: isCreatingRoom ? 'wait' : 'pointer',
+              opacity: isCreatingRoom ? 0.6 : 1,
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🎲</span>
+              <div className="text-left">
+                <div
+                  className="font-semibold text-sm"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  {isCreatingRoom ? 'Creating Room...' : 'Create Multiplayer Room'}
+                </div>
+                <div
+                  className="text-xs"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  Roll dice with friends in real-time
+                </div>
+              </div>
+            </div>
+            <span style={{ color: 'var(--color-accent)' }}>→</span>
+          </button>
+
+          {roomError && (
+            <div
+              className="mt-2 p-3 rounded-lg text-xs flex items-center justify-between"
+              style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
+              }}
+            >
+              <span>{roomError}</span>
+              <button
+                onClick={clearRoomError}
+                className="ml-2 opacity-60 hover:opacity-100"
+                style={{ color: '#fca5a5' }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Theme Section */}
         <div className="mb-8">
           <h3
