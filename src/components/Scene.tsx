@@ -8,6 +8,7 @@ import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMoti
 import { useTheme } from '../contexts/ThemeContext'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
+import { formatBonus } from '../lib/diceHelpers'
 import { spawnDiceFromToolbar, spawnSpecificDie } from '../lib/diceSpawner'
 import { initializeStarterDice } from '../lib/initializeStarterDice'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
@@ -414,6 +415,9 @@ function Scene() {
     (type: string, specificInventoryDieId?: string) => {
       const diceShape = type as import('../lib/geometries').DiceShape
 
+      // Clear active saved roll on manual dice changes
+      useDiceStore.getState().clearActiveSavedRoll()
+
       if (specificInventoryDieId) {
         // Spawning specific die from inventory panel
         const result = spawnSpecificDie(specificInventoryDieId, diceShape, currentTheme.id)
@@ -444,12 +448,16 @@ function Scene() {
   }, [motionMode, requestPermission, toggleMotionMode])
 
   const handleRemoveDice = useCallback((id: string) => {
-    useDiceStore.getState().removeDieState(id)
+    const store = useDiceStore.getState()
+    store.removeDieState(id)
+    store.clearActiveSavedRoll()
     removeDice(id)
   }, [removeDice])
 
   const handleClearAll = useCallback(() => {
-    useDiceStore.getState().clearAllDieStates()
+    const store = useDiceStore.getState()
+    store.clearAllDieStates()
+    store.clearActiveSavedRoll()
     removeAllDice()
   }, [removeAllDice])
 
@@ -685,35 +693,78 @@ function Scene() {
 }
 
 /**
+ * Shared chip container styles for dice result display
+ */
+const CHIP_STYLES = {
+  solid: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    border: '1px solid rgba(251, 146, 60, 0.3)',
+  },
+  muted: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    border: '1px solid rgba(251, 146, 60, 0.2)',
+  },
+} as const
+
+/**
+ * Reusable chip component for displaying individual die results, rolling state, or bonuses
+ */
+function DiceChip({ label, children, variant = 'solid', className = '' }: {
+  label: string
+  children: React.ReactNode
+  variant?: 'solid' | 'muted'
+  className?: string
+}) {
+  return (
+    <div className={`flex flex-col items-center gap-1 ${className}`}>
+      <span className="text-[8px] text-gray-400 uppercase font-semibold">{label}</span>
+      <div
+        className="backdrop-blur-sm px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center"
+        style={CHIP_STYLES[variant]}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/**
  * Unified result display component
  * Shows sum of all settled dice, individual dice chips, and "?" for rolling dice
  */
 function ResultDisplay() {
   const settledDice = useDiceStore((s) => s.settledDice)
   const rollingDice = useDiceStore((s) => s.rollingDice)
+  const activeSavedRoll = useDiceStore((s) => s.activeSavedRoll)
   const dice = useDiceManagerStore((s) => s.dice)
 
   const prevSumRef = useRef<number | null>(null)
   const [shouldAnimate, setShouldAnimate] = useState(false)
 
   const settledArray = Array.from(settledDice.values())
-  const sum = settledArray.reduce((acc, d) => acc + d.value, 0)
+  const rawSum = settledArray.reduce((acc, d) => acc + d.value, 0)
   const isAnyRolling = rollingDice.size > 0
   const hasSettled = settledArray.length > 0
 
+  // Calculate grand total with bonuses
+  const perDieBonusTotal = activeSavedRoll
+    ? settledArray.reduce((acc, d) => acc + (activeSavedRoll.perDieBonuses.get(d.diceId) ?? 0), 0)
+    : 0
+  const flatBonus = activeSavedRoll?.flatBonus ?? 0
+  const grandTotal = rawSum + perDieBonusTotal + flatBonus
+
   // Animate sum changes
   useEffect(() => {
-    if (prevSumRef.current !== null && prevSumRef.current !== sum) {
+    if (prevSumRef.current !== null && prevSumRef.current !== grandTotal) {
       setShouldAnimate(true)
       const timer = setTimeout(() => setShouldAnimate(false), 500)
       return () => clearTimeout(timer)
     }
-    prevSumRef.current = sum
-  }, [sum])
+    prevSumRef.current = grandTotal
+  }, [grandTotal])
 
   if (!hasSettled && !isAnyRolling) return null
 
-  // Build list of dice to display: settled ones show value, rolling ones show "?"
   const rollingDiceOnTable = dice.filter(d => rollingDice.has(d.id))
 
   return (
@@ -726,42 +777,55 @@ function ResultDisplay() {
       }}
     >
       <div className="flex flex-col items-center gap-2">
-        {/* Sum total */}
+        {/* Roll name (if saved roll active) */}
+        {activeSavedRoll && (
+          <div className="text-xs font-semibold uppercase tracking-wider" style={{
+            color: 'var(--color-text-secondary, rgba(255,255,255,0.6))',
+          }}>
+            {activeSavedRoll.name}
+          </div>
+        )}
+
+        {/* Grand total */}
         <div className={`flex flex-col items-center gap-1 transition-transform ${shouldAnimate ? 'animate-bounce' : ''}`}>
           <div className="text-5xl font-bold" style={{
             color: 'var(--color-accent)',
             textShadow: '0 0 15px rgba(251, 146, 60, 0.5)'
           }}>
-            {isAnyRolling ? '?' : sum}
+            {isAnyRolling ? '?' : grandTotal}
           </div>
         </div>
 
-        {/* Individual dice chips */}
+        {/* Individual dice chips + flat bonus */}
         <div className="flex gap-2 justify-center flex-wrap">
           {/* Settled dice */}
-          {settledArray.map((die) => (
-            <div key={die.diceId} className="flex flex-col items-center gap-1">
-              <span className="text-[8px] text-gray-400 uppercase font-semibold">{die.type}</span>
-              <div className="backdrop-blur-sm px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center" style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                border: '1px solid rgba(251, 146, 60, 0.3)'
-              }}>
+          {settledArray.map((die) => {
+            const bonusStr = formatBonus(activeSavedRoll?.perDieBonuses.get(die.diceId) ?? 0)
+            return (
+              <DiceChip key={die.diceId} label={die.type}>
                 <span className="text-lg font-bold">{die.value}</span>
-              </div>
-            </div>
-          ))}
+                {bonusStr && (
+                  <span className="text-sm font-semibold ml-0.5" style={{ color: 'var(--color-accent)' }}>
+                    {bonusStr}
+                  </span>
+                )}
+              </DiceChip>
+            )
+          })}
           {/* Rolling dice */}
           {rollingDiceOnTable.map((die) => (
-            <div key={`rolling-${die.id}`} className="flex flex-col items-center gap-1 animate-pulse">
-              <span className="text-[8px] text-gray-400 uppercase font-semibold">{die.type}</span>
-              <div className="backdrop-blur-sm px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center" style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(251, 146, 60, 0.2)'
-              }}>
-                <span className="text-lg font-bold">?</span>
-              </div>
-            </div>
+            <DiceChip key={`rolling-${die.id}`} label={die.type} variant="muted" className="animate-pulse">
+              <span className="text-lg font-bold">?</span>
+            </DiceChip>
           ))}
+          {/* Flat bonus chip */}
+          {activeSavedRoll && flatBonus !== 0 && !isAnyRolling && (
+            <DiceChip label="Bonus">
+              <span className="text-lg font-bold" style={{ color: 'var(--color-accent)' }}>
+                {formatBonus(flatBonus)}
+              </span>
+            </DiceChip>
+          )}
         </div>
       </div>
     </div>

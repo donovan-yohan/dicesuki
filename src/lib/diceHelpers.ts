@@ -166,6 +166,16 @@ export function createDefaultSavedRoll(): SavedRoll {
 }
 
 /**
+ * Format a numeric bonus with a leading sign
+ * Returns "+N" for positive, "-N" for negative, or "" for zero
+ */
+export function formatBonus(bonus: number): string {
+  if (bonus > 0) return `+${bonus}`
+  if (bonus < 0) return `${bonus}`
+  return ''
+}
+
+/**
  * Format a dice entry as readable text (e.g., "2d6+1")
  */
 export function formatDiceEntry(entry: DiceEntry): string {
