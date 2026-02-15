@@ -60,10 +60,6 @@ impl Room {
         self.players.len() >= MAX_PLAYERS
     }
 
-    pub fn is_dice_full(&self) -> bool {
-        self.dice.len() >= MAX_DICE
-    }
-
     pub fn is_empty(&self) -> bool {
         self.players.is_empty()
     }
@@ -102,51 +98,6 @@ impl Room {
         }
         self.touch();
         removed_dice_ids
-    }
-
-    /// Spawn dice for a player. Returns error if dice limit exceeded.
-    pub fn spawn_dice(&mut self, owner_id: &str, entries: Vec<(String, DiceType)>) -> Result<Vec<DiceState>, String> {
-        if self.dice.len() + entries.len() > MAX_DICE {
-            return Err("DICE_LIMIT".to_string());
-        }
-        if !self.players.contains_key(owner_id) {
-            return Err("PLAYER_NOT_FOUND".to_string());
-        }
-
-        let mut spawned = Vec::new();
-        for (id, dice_type) in entries {
-            let position = [0.0, 2.0, 0.0]; // Will be set by physics in Plan 02
-            let rotation = [0.0, 0.0, 0.0, 1.0];
-            let die = ServerDie {
-                id: id.clone(),
-                owner_id: owner_id.to_string(),
-                dice_type,
-                position,
-                rotation,
-                is_rolling: false,
-                face_value: None,
-                body_handle: None,
-                rest_start_tick: None,
-            };
-            spawned.push(DiceState {
-                id: id.clone(),
-                owner_id: owner_id.to_string(),
-                dice_type,
-                position,
-                rotation,
-            });
-            self.dice.insert(id, die);
-        }
-
-        // Track dice IDs on the player
-        if let Some(player) = self.players.get_mut(owner_id) {
-            for d in &spawned {
-                player.dice_ids.push(d.id.clone());
-            }
-        }
-
-        self.touch();
-        Ok(spawned)
     }
 
     /// Remove specific dice. Returns IDs that were actually removed.
@@ -382,6 +333,59 @@ impl Room {
                 rotation: d.rotation,
             }).collect(),
         }
+    }
+}
+
+#[cfg(test)]
+impl Room {
+    /// Check if dice limit is reached (test-only helper)
+    pub fn is_dice_full(&self) -> bool {
+        self.dice.len() >= MAX_DICE
+    }
+
+    /// Spawn dice without physics bodies (test-only helper).
+    /// Production code uses `spawn_dice_with_physics()` instead.
+    pub fn spawn_dice(&mut self, owner_id: &str, entries: Vec<(String, DiceType)>) -> Result<Vec<DiceState>, String> {
+        if self.dice.len() + entries.len() > MAX_DICE {
+            return Err("DICE_LIMIT".to_string());
+        }
+        if !self.players.contains_key(owner_id) {
+            return Err("PLAYER_NOT_FOUND".to_string());
+        }
+
+        let mut spawned = Vec::new();
+        for (id, dice_type) in entries {
+            let position = [0.0, 2.0, 0.0];
+            let rotation = [0.0, 0.0, 0.0, 1.0];
+            let die = ServerDie {
+                id: id.clone(),
+                owner_id: owner_id.to_string(),
+                dice_type,
+                position,
+                rotation,
+                is_rolling: false,
+                face_value: None,
+                body_handle: None,
+                rest_start_tick: None,
+            };
+            spawned.push(DiceState {
+                id: id.clone(),
+                owner_id: owner_id.to_string(),
+                dice_type,
+                position,
+                rotation,
+            });
+            self.dice.insert(id, die);
+        }
+
+        if let Some(player) = self.players.get_mut(owner_id) {
+            for d in &spawned {
+                player.dice_ids.push(d.id.clone());
+            }
+        }
+
+        self.touch();
+        Ok(spawned)
     }
 }
 

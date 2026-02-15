@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub enum ClientMessage {
     Join {
         #[serde(rename = "roomId")]
-        room_id: String,
+        _room_id: String,
         #[serde(rename = "displayName")]
         display_name: String,
         color: String,
@@ -148,8 +148,8 @@ mod tests {
         let json = r##"{"type":"join","roomId":"abc123","displayName":"Gandalf","color":"#8B5CF6"}"##;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ClientMessage::Join { room_id, display_name, color } => {
-                assert_eq!(room_id, "abc123");
+            ClientMessage::Join { _room_id, display_name, color } => {
+                assert_eq!(_room_id, "abc123");
                 assert_eq!(display_name, "Gandalf");
                 assert_eq!(color, "#8B5CF6");
             }
