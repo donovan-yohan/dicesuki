@@ -161,11 +161,14 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                         dice_ids,
                     });
 
-                    // Start simulation loop if not already running
-                    if room_guard.is_simulating && !room_guard.is_sim_running {
+                    // Start simulation loop if not already running (atomic check-and-set under lock)
+                    let should_start = room_guard.is_simulating && !room_guard.is_sim_running;
+                    if should_start {
                         room_guard.is_sim_running = true;
-                        let sim_room = room.clone();
-                        drop(room_guard); // Release lock before spawning task
+                    }
+                    let sim_room = room.clone();
+                    drop(room_guard); // Release lock before spawning task
+                    if should_start {
                         start_simulation_loop(sim_room);
                     }
                 }

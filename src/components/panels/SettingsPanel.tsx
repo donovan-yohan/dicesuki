@@ -21,7 +21,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showThemeSelector, setShowThemeSelector] = useState(false)
   const [showArtistPanel, setShowArtistPanel] = useState(false)
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
-  const { isCreating: isCreatingRoom, createRoom: handleCreateRoom } = useCreateRoom()
+  const { isCreating: isCreatingRoom, error: roomError, createRoom: handleCreateRoom, clearError: clearRoomError } = useCreateRoom()
 
   return (
     <>
@@ -71,6 +71,26 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             </div>
             <span style={{ color: 'var(--color-accent)' }}>→</span>
           </button>
+
+          {roomError && (
+            <div
+              className="mt-2 p-3 rounded-lg text-xs flex items-center justify-between"
+              style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#fca5a5',
+              }}
+            >
+              <span>{roomError}</span>
+              <button
+                onClick={clearRoomError}
+                className="ml-2 opacity-60 hover:opacity-100"
+                style={{ color: '#fca5a5' }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Theme Section */}

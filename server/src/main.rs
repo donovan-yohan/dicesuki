@@ -18,12 +18,29 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use axum::http::{HeaderValue, Method};
 use tower_http::cors::CorsLayer;
 use log::info;
 
 use room_manager::RoomManager;
 
 type SharedRoomManager = Arc<RwLock<RoomManager>>;
+
+fn build_cors_layer() -> CorsLayer {
+    match std::env::var("CORS_ORIGIN") {
+        Ok(origin) => {
+            info!("CORS restricted to: {}", origin);
+            CorsLayer::new()
+                .allow_origin(origin.parse::<HeaderValue>().expect("Invalid CORS_ORIGIN"))
+                .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+                .allow_headers(tower_http::cors::Any)
+        }
+        Err(_) => {
+            info!("CORS_ORIGIN not set, allowing all origins (dev mode)");
+            CorsLayer::permissive()
+        }
+    }
+}
 
 async fn health() -> &'static str {
     r#"{"status":"ok"}"#
@@ -88,7 +105,7 @@ async fn main() {
         .route("/api/rooms", post(create_room))
         .route("/api/rooms/{room_id}", get(get_room_info))
         .route("/ws/{room_id}", get(ws_upgrade))
-        .layer(CorsLayer::permissive())
+        .layer(build_cors_layer())
         .with_state(room_manager.clone());
 
     // Spawn stale room cleanup task (every 5 minutes)
@@ -102,6 +119,10 @@ async fn main() {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     info!("Dicesuki server listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .expect("Failed to bind to port 8080 — is it already in use?");
+    axum::serve(listener, app)
+        .await
+        .expect("Server exited unexpectedly");
 }

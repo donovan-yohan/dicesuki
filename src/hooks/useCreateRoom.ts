@@ -4,7 +4,9 @@ import { getHttpServerUrl } from '../lib/multiplayerServer'
 
 interface UseCreateRoomResult {
   isCreating: boolean
+  error: string | null
   createRoom: () => Promise<void>
+  clearError: () => void
 }
 
 /**
@@ -14,9 +16,11 @@ interface UseCreateRoomResult {
 export function useCreateRoom(): UseCreateRoomResult {
   const navigate = useNavigate()
   const [isCreating, setIsCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function createRoom(): Promise<void> {
     setIsCreating(true)
+    setError(null)
     try {
       const response = await fetch(`${getHttpServerUrl()}/api/rooms`, { method: 'POST' })
       if (!response.ok) {
@@ -24,13 +28,17 @@ export function useCreateRoom(): UseCreateRoomResult {
       }
       const data = await response.json()
       navigate(`/room/${data.roomId}`)
-    } catch (error) {
-      console.error('Failed to create room:', error)
-      alert('Failed to create multiplayer room. Is the server running?')
+    } catch (err) {
+      console.error('Failed to create room:', err)
+      setError('Could not create room. The server may be starting up — try again in a moment.')
     } finally {
       setIsCreating(false)
     }
   }
 
-  return { isCreating, createRoom }
+  function clearError() {
+    setError(null)
+  }
+
+  return { isCreating, error, createRoom, clearError }
 }
