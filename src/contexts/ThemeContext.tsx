@@ -27,8 +27,8 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
 // Local Storage Keys
 // ============================================================================
 
-const STORAGE_KEY_CURRENT_THEME = 'daisu-current-theme'
-const STORAGE_KEY_OWNED_THEMES = 'daisu-owned-themes'
+const STORAGE_KEY_CURRENT_THEME = 'dicesuki-current-theme'
+const STORAGE_KEY_OWNED_THEMES = 'dicesuki-owned-themes'
 
 // ============================================================================
 // Theme Provider Component

@@ -202,7 +202,7 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
       },
     }),
     {
-      name: 'daisu-saved-rolls', // localStorage key
+      name: 'dicesuki-saved-rolls', // localStorage key
       storage: createJSONStorage(() => localStorage),
     }
   )
