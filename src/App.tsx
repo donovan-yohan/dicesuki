@@ -5,8 +5,9 @@ import { checkDeviceCompatibility } from './lib/deviceDetection'
 import { DeviceMotionProvider } from './contexts/DeviceMotionContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { useInventoryStore } from './store/useInventoryStore'
+import DiceFaceTestHarness from './components/test/DiceFaceTestHarness'
 
-function App() {
+function MainApp() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const regenerateCustomDiceBlobUrls = useInventoryStore(state => state.regenerateCustomDiceBlobUrls)
@@ -55,24 +56,31 @@ function App() {
     )
   }
 
-  // Main app with routing
+  return (
+    <div className="w-full h-full">
+      <Scene />
+    </div>
+  )
+}
+
+function App() {
   return (
     <BrowserRouter>
-      <ThemeProvider>
-        <DeviceMotionProvider>
-          <Routes>
-            {/* Main dice simulator app */}
-            <Route
-              path="/"
-              element={
-                <div className="w-full h-full">
-                  <Scene />
-                </div>
-              }
-            />
-          </Routes>
-        </DeviceMotionProvider>
-      </ThemeProvider>
+      <Routes>
+        {/* Dev-only test harness — bypasses device check and providers */}
+        <Route path="/test/dice-faces" element={<DiceFaceTestHarness />} />
+        {/* Main app with device check, theme, and motion providers */}
+        <Route
+          path="/*"
+          element={
+            <ThemeProvider>
+              <DeviceMotionProvider>
+                <MainApp />
+              </DeviceMotionProvider>
+            </ThemeProvider>
+          }
+        />
+      </Routes>
     </BrowserRouter>
   )
 }

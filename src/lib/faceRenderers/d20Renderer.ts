@@ -49,8 +49,12 @@ export const renderD20Styled: FaceRenderer = (
   backgroundColor,
 ) => {
   const centerX = canvasSize / 2
-  const centerY = canvasSize / 2
   const triangleSize = canvasSize * 0.85
+
+  // The equilateral triangle UV maps centroid to canvas (size/2, size*2/3),
+  // not (size/2, size/2). The triangle occupies the bottom 2/3 of the canvas
+  // with the apex at the top center.
+  const triangleCentroidY = canvasSize / 2 + canvasSize / 6
 
   // Fill canvas background
   ctx.fillStyle = backgroundColor
@@ -63,7 +67,7 @@ export const renderD20Styled: FaceRenderer = (
   ctx.shadowOffsetX = canvasSize * 0.01
   ctx.shadowOffsetY = canvasSize * 0.01
 
-  drawEquilateralTriangle(ctx, centerX, centerY, triangleSize)
+  drawEquilateralTriangle(ctx, centerX, triangleCentroidY, triangleSize)
   ctx.fillStyle = backgroundColor
   ctx.fill()
   ctx.restore()
@@ -83,12 +87,12 @@ export const renderD20Styled: FaceRenderer = (
   // Outline
   ctx.strokeStyle = 'black'
   ctx.lineWidth = fontSize * 0.08
-  ctx.strokeText(faceValue.toString(), centerX, centerY)
+  ctx.strokeText(faceValue.toString(), centerX, triangleCentroidY)
 
   // Fill
   ctx.shadowColor = 'transparent'
   ctx.fillStyle = 'white'
-  ctx.fillText(faceValue.toString(), centerX, centerY)
+  ctx.fillText(faceValue.toString(), centerX, triangleCentroidY)
 }
 
 /**

@@ -82,74 +82,97 @@ export const FACE_MATERIAL_MAPS: Record<DiceShape, number[]> = {
   ],
 
   // D4: 4 triangular faces (TetrahedronGeometry with detail=0)
-  // Simple 1:1 mapping - face value N → material index N-1
+  // 1:1 mapping - face normals extracted from geometry, values assigned sequentially
   d4: [
     -1, // Placeholder (no face value 0)
-    0,  // Face 1 → materials[0]
-    1,  // Face 2 → materials[1]
-    2,  // Face 3 → materials[2]
-    3,  // Face 4 → materials[3]
+    0,  // Face 1 → materials[0] (triangle 0)
+    1,  // Face 2 → materials[1] (triangle 1)
+    2,  // Face 3 → materials[2] (triangle 2)
+    3,  // Face 4 → materials[3] (triangle 3)
   ],
 
   // D8: 8 triangular faces (OctahedronGeometry with detail=0)
-  // Simple 1:1 mapping - face value N → material index N-1
+  // Face normals extracted from geometry, values assigned so opposite faces sum to 9
+  // Triangle order: 0(+,+,+), 1(+,-,+), 2(+,-,-), 3(+,+,-), 4(-,+,-), 5(-,-,-), 6(-,-,+), 7(-,+,+)
   d8: [
     -1, // Placeholder (no face value 0)
-    0,  // Face 1 → materials[0]
-    1,  // Face 2 → materials[1]
-    2,  // Face 3 → materials[2]
-    3,  // Face 4 → materials[3]
-    4,  // Face 5 → materials[4]
-    5,  // Face 6 → materials[5]
-    6,  // Face 7 → materials[6]
-    7,  // Face 8 → materials[7]
+    0,  // Face 1 → materials[0] (triangle 0)
+    1,  // Face 2 → materials[1] (triangle 1)
+    2,  // Face 3 → materials[2] (triangle 2)
+    3,  // Face 4 → materials[3] (triangle 3)
+    6,  // Face 5 → materials[6] (triangle 6, opposite of 4)
+    7,  // Face 6 → materials[7] (triangle 7, opposite of 3)
+    4,  // Face 7 → materials[4] (triangle 4, opposite of 2)
+    5,  // Face 8 → materials[5] (triangle 5, opposite of 1)
   ],
 
-  // D10: 10 kite-shaped faces (20 triangles total)
-  // Each face consists of 2 triangles
-  // Top triangles: indices 0-9, Bottom triangles: indices 10-19
-  // Face value 0-9 needs special handling (D10 uses 0-9, not 1-10)
+  // D10: 10 kite-shaped faces (20 triangles total, 2 per kite)
+  // Geometry groups pair both triangles of each kite to material index = kite index (0-9)
+  // Upper kites (0-4) at top apex, lower kites (5-9) at bottom apex
+  // Values: Kite 0→0, 1→2, 2→4, 3→6, 4→8, 5→3, 6→1, 7→9, 8→7, 9→5
+  // Opposite pairs (sum to 9): (0,7), (1,8), (2,9), (3,5), (4,6)
+  // Map: face value → kite index (material index)
   d10: [
-    0,  // Face 0 → materials[0] (top triangle)
-    1,  // Face 1 → materials[1]
-    2,  // Face 2 → materials[2]
-    3,  // Face 3 → materials[3]
-    4,  // Face 4 → materials[4]
-    5,  // Face 5 → materials[5]
-    6,  // Face 6 → materials[6]
-    7,  // Face 7 → materials[7]
-    8,  // Face 8 → materials[8]
-    9,  // Face 9 → materials[9]
+    0,  // Face 0 → kite 0 (materials[0])
+    6,  // Face 1 → kite 6 (materials[6])
+    1,  // Face 2 → kite 1 (materials[1])
+    5,  // Face 3 → kite 5 (materials[5])
+    2,  // Face 4 → kite 2 (materials[2])
+    9,  // Face 5 → kite 9 (materials[9])
+    3,  // Face 6 → kite 3 (materials[3])
+    8,  // Face 7 → kite 8 (materials[8])
+    4,  // Face 8 → kite 4 (materials[4])
+    7,  // Face 9 → kite 7 (materials[7])
   ],
 
   // D12: 12 pentagonal faces (36 triangles total = 3 triangles per face)
-  // TODO: Complex triangulation, needs empirical testing
-  d12: [],
+  // Face normals extracted from DodecahedronGeometry(1, 0)
+  // Each group of 3 consecutive triangles = 1 pentagonal face
+  // Material index = geometry face group index (0-11)
+  // Values assigned so opposite faces sum to 13
+  d12: [
+    -1,  // Placeholder (no face value 0)
+    0,   // Face 1  → materials[0]  (group 0, tris 0-2)
+    1,   // Face 2  → materials[1]  (group 1, tris 3-5)
+    2,   // Face 3  → materials[2]  (group 2, tris 6-8)
+    3,   // Face 4  → materials[3]  (group 3, tris 9-11)
+    5,   // Face 5  → materials[5]  (group 5, tris 15-17)
+    6,   // Face 6  → materials[6]  (group 6, tris 18-20)
+    10,  // Face 7  → materials[10] (group 10, tris 30-32)
+    11,  // Face 8  → materials[11] (group 11, tris 33-35)
+    9,   // Face 9  → materials[9]  (group 9, tris 27-29)
+    7,   // Face 10 → materials[7]  (group 7, tris 21-23)
+    4,   // Face 11 → materials[4]  (group 4, tris 12-14)
+    8,   // Face 12 → materials[8]  (group 8, tris 24-26)
+  ],
 
   // D20: 20 triangular faces (IcosahedronGeometry with detail=0)
-  // Simple 1:1 mapping - face value N → material index N-1
+  // Face normals extracted from geometry, values assigned so opposite faces sum to 21
+  // Opposite pairs: (0,13)→(1,20), (1,12)→(2,19), (2,11)→(3,18), (3,10)→(4,17),
+  //   (4,14)→(5,16), (5,17)→(6,15), (6,18)→(7,14), (7,19)→(8,13),
+  //   (8,15)→(9,12), (9,16)→(10,11)
   d20: [
     -1, // Placeholder (no face value 0)
-    0,  // Face 1 → materials[0]
-    1,  // Face 2 → materials[1]
-    2,  // Face 3 → materials[2]
-    3,  // Face 4 → materials[3]
-    4,  // Face 5 → materials[4]
-    5,  // Face 6 → materials[5]
-    6,  // Face 7 → materials[6]
-    7,  // Face 8 → materials[7]
-    8,  // Face 9 → materials[8]
-    9,  // Face 10 → materials[9]
-    10, // Face 11 → materials[10]
-    11, // Face 12 → materials[11]
-    12, // Face 13 → materials[12]
-    13, // Face 14 → materials[13]
-    14, // Face 15 → materials[14]
-    15, // Face 16 → materials[15]
-    16, // Face 17 → materials[16]
-    17, // Face 18 → materials[17]
-    18, // Face 19 → materials[18]
-    19, // Face 20 → materials[19]
+    0,  // Face 1  → materials[0]  (triangle 0)
+    1,  // Face 2  → materials[1]  (triangle 1)
+    2,  // Face 3  → materials[2]  (triangle 2)
+    3,  // Face 4  → materials[3]  (triangle 3)
+    4,  // Face 5  → materials[4]  (triangle 4)
+    5,  // Face 6  → materials[5]  (triangle 5)
+    6,  // Face 7  → materials[6]  (triangle 6)
+    7,  // Face 8  → materials[7]  (triangle 7)
+    8,  // Face 9  → materials[8]  (triangle 8)
+    9,  // Face 10 → materials[9]  (triangle 9)
+    16, // Face 11 → materials[16] (triangle 16, opposite of 10)
+    15, // Face 12 → materials[15] (triangle 15, opposite of 9)
+    19, // Face 13 → materials[19] (triangle 19, opposite of 8)
+    18, // Face 14 → materials[18] (triangle 18, opposite of 7)
+    17, // Face 15 → materials[17] (triangle 17, opposite of 6)
+    14, // Face 16 → materials[14] (triangle 14, opposite of 5)
+    10, // Face 17 → materials[10] (triangle 10, opposite of 4)
+    11, // Face 18 → materials[11] (triangle 11, opposite of 3)
+    12, // Face 19 → materials[12] (triangle 12, opposite of 2)
+    13, // Face 20 → materials[13] (triangle 13, opposite of 1)
   ],
 }
 
@@ -218,19 +241,14 @@ export function createFaceMaterialsArray(
     )
   }
 
-  // Special case: D10 has 20 triangles but only 10 face values
+  // Special case: D10 has 10 kite faces (2 triangles each, grouped in geometry)
+  // Geometry groups reference material indices 0-9 (one per kite)
   if (shape === 'd10') {
-    const materials: THREE.Material[] = new Array(20)
+    const materials: THREE.Material[] = new Array(10)
 
-    // Create materials for face values 0-9
     for (let faceValue = 0; faceValue <= 9; faceValue++) {
-      const material = createMaterial(faceValue)
-
-      // Apply same material to both triangles of this kite face
-      // Top triangle: index = faceValue
-      // Bottom triangle: index = faceValue + 10
-      materials[faceValue] = material
-      materials[faceValue + 10] = material.clone() // Clone to avoid sharing
+      const kiteIndex = mapping[faceValue]
+      materials[kiteIndex] = createMaterial(faceValue)
     }
 
     return materials
@@ -302,9 +320,9 @@ export function createDebugMaterials(shape: DiceShape): THREE.Material[] {
     '#FFFFFF', // 19: White
   ]
 
-  // For D10, create 20 materials (2 per kite face)
+  // For D10, create 10 materials (1 per kite face, geometry groups handle pairing)
   if (shape === 'd10') {
-    return Array.from({ length: 20 }, (_, index) =>
+    return Array.from({ length: 10 }, (_, index) =>
       new THREE.MeshStandardMaterial({
         color: debugColors[index % debugColors.length],
         roughness: 0.7,
@@ -343,12 +361,12 @@ export function validateFaceNormalRules(shape: DiceShape): {
   const errors: string[] = []
 
   // Only validate dice with opposite faces
-  if (shape !== 'd6' && shape !== 'd8' && shape !== 'd12' && shape !== 'd20') {
+  if (shape !== 'd6' && shape !== 'd8' && shape !== 'd10' && shape !== 'd12' && shape !== 'd20') {
     return { valid: true, errors: [] }
   }
 
   // Expected sum for opposite faces
-  const expectedSum = shape === 'd6' ? 7 : shape === 'd8' ? 9 : shape === 'd12' ? 13 : 21
+  const expectedSum = shape === 'd6' ? 7 : shape === 'd8' ? 9 : shape === 'd10' ? 9 : shape === 'd12' ? 13 : 21
 
   // Check each pair of opposite normals
   for (let i = 0; i < faceNormals.length; i++) {

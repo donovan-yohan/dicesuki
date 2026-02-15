@@ -26,3 +26,8 @@ dist-ssr
 # SSL certificates
 .cert/
 .vercel
+
+# Playwright
+e2e/screenshots/*.png
+test-results/
+playwright-report/
