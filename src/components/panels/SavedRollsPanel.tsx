@@ -69,14 +69,25 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
     // Spawn dice for each entry via inventory spawner
     const perDieBonuses = new Map<string, number>()
 
+    let spawnFailures = 0
+
     roll.dice.forEach((entry) => {
       for (let i = 0; i < entry.quantity; i++) {
         const result = spawnDiceFromToolbar(entry.type, currentTheme.id)
-        if (result.success && result.diceInstanceId && entry.perDieBonus !== 0) {
-          perDieBonuses.set(result.diceInstanceId, entry.perDieBonus)
+        if (result.success && result.diceInstanceId) {
+          if (entry.perDieBonus !== 0) {
+            perDieBonuses.set(result.diceInstanceId, entry.perDieBonus)
+          }
+        } else {
+          spawnFailures++
+          console.warn(`[SavedRolls] Failed to spawn ${entry.type}: ${result.error}`)
         }
       }
     })
+
+    if (spawnFailures > 0) {
+      console.warn(`[SavedRolls] ${spawnFailures} dice failed to spawn — check inventory`)
+    }
 
     // Set active saved roll for bonus display
     const activeSavedRoll: ActiveSavedRoll = {

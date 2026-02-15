@@ -267,12 +267,64 @@ describe('useDiceStore', () => {
     })
   })
 
+  describe('activeSavedRoll', () => {
+    it('should start with null activeSavedRoll', () => {
+      expect(useDiceStore.getState().activeSavedRoll).toBeNull()
+    })
+
+    it('should store active roll data via setActiveSavedRoll', () => {
+      const perDieBonuses = new Map([['die-1', 2], ['die-2', 2]])
+      useDiceStore.getState().setActiveSavedRoll({
+        name: 'Fireball',
+        flatBonus: 4,
+        perDieBonuses,
+      })
+
+      const { activeSavedRoll } = useDiceStore.getState()
+      expect(activeSavedRoll).not.toBeNull()
+      expect(activeSavedRoll!.name).toBe('Fireball')
+      expect(activeSavedRoll!.flatBonus).toBe(4)
+      expect(activeSavedRoll!.perDieBonuses.get('die-1')).toBe(2)
+      expect(activeSavedRoll!.perDieBonuses.get('die-2')).toBe(2)
+      expect(activeSavedRoll!.perDieBonuses.size).toBe(2)
+    })
+
+    it('should clear active roll via clearActiveSavedRoll', () => {
+      useDiceStore.getState().setActiveSavedRoll({
+        name: 'Fireball',
+        flatBonus: 4,
+        perDieBonuses: new Map(),
+      })
+      expect(useDiceStore.getState().activeSavedRoll).not.toBeNull()
+
+      useDiceStore.getState().clearActiveSavedRoll()
+      expect(useDiceStore.getState().activeSavedRoll).toBeNull()
+    })
+
+    it('should handle empty perDieBonuses map', () => {
+      useDiceStore.getState().setActiveSavedRoll({
+        name: 'Simple Roll',
+        flatBonus: 0,
+        perDieBonuses: new Map(),
+      })
+
+      const { activeSavedRoll } = useDiceStore.getState()
+      expect(activeSavedRoll!.perDieBonuses.size).toBe(0)
+      expect(activeSavedRoll!.flatBonus).toBe(0)
+    })
+  })
+
   describe('reset', () => {
-    it('should clear everything', () => {
+    it('should clear everything including activeSavedRoll', () => {
       useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')
       useDiceStore.getState().markDiceRolling(['die-2'])
       useDiceStore.getState().markDiceRolling(['die-3'])
       useDiceStore.getState().recordDieSettled('die-3', 5, 'd6')
+      useDiceStore.getState().setActiveSavedRoll({
+        name: 'Test Roll',
+        flatBonus: 2,
+        perDieBonuses: new Map([['die-1', 1]]),
+      })
 
       useDiceStore.getState().reset()
 
@@ -281,6 +333,7 @@ describe('useDiceStore', () => {
       expect(state.rollingDice.size).toBe(0)
       expect(state.currentRollCycleDice.size).toBe(0)
       expect(state.rollHistory).toEqual([])
+      expect(state.activeSavedRoll).toBeNull()
     })
   })
 })

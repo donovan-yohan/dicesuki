@@ -21,7 +21,9 @@ export interface RollSnapshot {
 }
 
 /**
- * Tracks the active saved roll context for bonus display
+ * Tracks the active saved roll context for bonus display.
+ * This is transient state (not persisted) — do not add to partialize.
+ * perDieBonuses uses Map which does not serialize to JSON.
  */
 export interface ActiveSavedRoll {
   name: string
