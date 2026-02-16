@@ -1,24 +1,42 @@
+// External libraries
 import { Box, Environment } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Physics, RigidBody, useRapier } from '@react-three/rapier'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
+
+// Config
 import { GRAVITY } from '../config/physicsConfig'
+
+// Contexts
+import { DiceBackendContext, DiceBackendProvider } from '../contexts/DiceBackendContext'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
 import { useTheme } from '../contexts/ThemeContext'
+
+// Hooks
 import { useDiceRoll } from '../hooks/useDiceRoll'
+import { useLocalDiceBackend } from '../hooks/useLocalDiceBackend'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
+import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
+
+// Utilities
 import { formatBonus } from '../lib/diceHelpers'
-import { spawnDiceFromToolbar, spawnSpecificDie } from '../lib/diceSpawner'
 import { initializeStarterDice } from '../lib/initializeStarterDice'
+
+// Stores
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useInventoryStore } from '../store/useInventoryStore'
+import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useUIStore } from '../store/useUIStore'
+
+// Components
 import { CustomDice } from './dice/CustomDice'
 import { Dice, DiceHandle } from './dice/Dice'
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
+import { MultiplayerDie } from './multiplayer/MultiplayerDie'
+import { RoomHeader } from './multiplayer/RoomHeader'
 import { HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
 
 /**
@@ -310,6 +328,60 @@ function ViewportBoundaries() {
 }
 
 /**
+ * Renders multiplayer dice with interpolation (no physics).
+ * Used inside Canvas when mode === 'multiplayer'.
+ */
+function MultiplayerDiceRenderer() {
+  const dice = useMultiplayerStore((s) => s.dice)
+  const players = useMultiplayerStore((s) => s.players)
+  const tRef = useSnapshotInterpolation()
+
+  const diceArray = Array.from(dice.values())
+
+  return (
+    <>
+      {diceArray.map((die) => {
+        const player = players.get(die.ownerId)
+        const color = player?.color || '#ffffff'
+
+        return (
+          <MultiplayerDie
+            key={die.id}
+            diceType={die.diceType}
+            color={color}
+            targetPosition={die.targetPosition}
+            targetRotation={die.targetRotation}
+            prevPosition={die.prevPosition}
+            prevRotation={die.prevRotation}
+            interpolationT={tRef.current}
+          />
+        )
+      })}
+    </>
+  )
+}
+
+/**
+ * Visual-only ground plane for multiplayer (no physics).
+ * Uses theme environment colors.
+ */
+function VisualGround() {
+  const { currentTheme } = useTheme()
+  const env = currentTheme.environment
+
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]} receiveShadow>
+      <planeGeometry args={[30, 30]} />
+      <meshStandardMaterial
+        color={env.floor.color}
+        roughness={env.floor.material.roughness}
+        metalness={env.floor.material.metalness}
+      />
+    </mesh>
+  )
+}
+
+/**
  * Main 3D scene component
  * Sets up React Three Fiber Canvas with Rapier physics
  *
@@ -329,11 +401,9 @@ function Scene() {
   const { requestPermission } = useDeviceMotionState()
   const { roll, onDiceRest, onDiceMoving } = useDiceRoll()
 
-  // Subscribe to dice manager store
+  // Subscribe to dice manager store (local physics dice)
   const dice = useDiceManagerStore((state) => state.dice)
   const addDice = useDiceManagerStore((state) => state.addDice)
-  const removeDice = useDiceManagerStore((state) => state.removeDice)
-  const removeAllDice = useDiceManagerStore((state) => state.removeAllDice)
 
   // Subscribe to drag store
   const setOnDiceDelete = useDragStore((state) => state.setOnDiceDelete)
@@ -397,45 +467,28 @@ function Scene() {
     })
   }, [roll, dice])
 
-  const handleDiceRest = useCallback(
-    (id: string, faceValue: number, diceType: string) => {
-      onDiceRest(id, faceValue, diceType)
-    },
-    [onDiceRest]
-  )
+  // Check if we're already inside a DiceBackendProvider (multiplayer mode)
+  const existingBackend = useContext(DiceBackendContext)
+  const localBackend = useLocalDiceBackend(handleRollClick)
+  const activeBackend = existingBackend || localBackend
+  const isMultiplayer = activeBackend.mode === 'multiplayer'
 
-  const handleDiceMoving = useCallback(
-    (id: string) => {
-      onDiceMoving(id)
-    },
-    [onDiceMoving]
-  )
-
+  // Delegate add/remove/clear through the active backend (works for both local and multiplayer)
   const handleAddDice = useCallback(
     (type: string, specificInventoryDieId?: string) => {
       const diceShape = type as import('../lib/geometries').DiceShape
-
-      // Clear active saved roll on manual dice changes
-      useDiceStore.getState().clearActiveSavedRoll()
-
-      if (specificInventoryDieId) {
-        // Spawning specific die from inventory panel
-        const result = spawnSpecificDie(specificInventoryDieId, diceShape, currentTheme.id)
-
-        if (!result.success) {
-          console.warn(`[handleAddDice] Failed to spawn die: ${result.error}`)
-        }
-      } else {
-        // Spawning from toolbar
-        const result = spawnDiceFromToolbar(diceShape, currentTheme.id)
-
-        if (!result.success) {
-          console.warn(`[handleAddDice] Failed to spawn die: ${result.error}`)
-        }
-      }
+      activeBackend.addDie(diceShape, specificInventoryDieId)
     },
-    [currentTheme.id]
+    [activeBackend]
   )
+
+  const handleRemoveDice = useCallback((id: string) => {
+    activeBackend.removeDie(id)
+  }, [activeBackend])
+
+  const handleClearAll = useCallback(() => {
+    activeBackend.clearAll()
+  }, [activeBackend])
 
   const handleToggleMotion = useCallback(async () => {
     if (!motionMode) {
@@ -447,27 +500,13 @@ function Scene() {
     toggleMotionMode()
   }, [motionMode, requestPermission, toggleMotionMode])
 
-  const handleRemoveDice = useCallback((id: string) => {
-    const store = useDiceStore.getState()
-    store.removeDieState(id)
-    store.clearActiveSavedRoll()
-    removeDice(id)
-  }, [removeDice])
-
-  const handleClearAll = useCallback(() => {
-    const store = useDiceStore.getState()
-    store.clearAllDieStates()
-    store.clearActiveSavedRoll()
-    removeAllDice()
-  }, [removeAllDice])
-
   // Register delete callback with drag store
   useEffect(() => {
     setOnDiceDelete(handleRemoveDice)
     return () => setOnDiceDelete(undefined)
   }, [setOnDiceDelete, handleRemoveDice])
 
-  return (
+  const content = (
     <>
       <Canvas
         shadows
@@ -497,33 +536,72 @@ function Scene() {
         {/* Themed Lighting */}
         <ThemedLighting />
 
-        {/* Physics world - gravity updated via PhysicsController, not props */}
-        <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
-          <PhysicsController gravityRef={gravityRef} />
+        {/* Conditional rendering: physics (local) vs interpolated (multiplayer) */}
+        {isMultiplayer ? (
+          <>
+            <VisualGround />
+            <MultiplayerDiceRenderer />
+          </>
+        ) : (
+          <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
+            <PhysicsController gravityRef={gravityRef} />
 
-          {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
-          <ViewportBoundaries />
+            {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
+            <ViewportBoundaries />
 
-          {/* Render all dice from store */}
-          {dice.map((die) => {
-            // Get inventory die to check for custom asset
-            const inventoryDie = die.inventoryDieId
-              ? useInventoryStore.getState().dice.find(d => d.id === die.inventoryDieId)
-              : null
+            {/* Render all dice from store */}
+            {dice.map((die) => {
+              // Get inventory die to check for custom asset
+              const inventoryDie = die.inventoryDieId
+                ? useInventoryStore.getState().dice.find(d => d.id === die.inventoryDieId)
+                : null
 
-            // Render CustomDice if inventory die has customAsset, otherwise standard Dice
-            if (inventoryDie?.customAsset) {
-              const customAsset = {
-                id: inventoryDie.id,
-                metadata: inventoryDie.customAsset.metadata,
-                modelUrl: inventoryDie.customAsset.modelUrl,
+              // Render CustomDice if inventory die has customAsset, otherwise standard Dice
+              if (inventoryDie?.customAsset) {
+                const customAsset = {
+                  id: inventoryDie.id,
+                  metadata: inventoryDie.customAsset.metadata,
+                  modelUrl: inventoryDie.customAsset.modelUrl,
+                }
+
+                return (
+                  <CustomDice
+                    key={die.id}
+                    id={die.id}
+                    asset={customAsset}
+                    ref={(el) => {
+                      if (el) {
+                        diceRefs.current.set(die.id, el)
+                      } else {
+                        diceRefs.current.delete(die.id)
+                      }
+                    }}
+                    position={die.position}
+                    onRest={onDiceRest}
+                    onMoving={onDiceMoving}
+                  />
+                )
+              }
+
+              // Standard dice rendering
+              // Use inventory die's appearance color if available, otherwise fallback to theme color
+              const diceColor = inventoryDie?.appearance?.baseColor || die.color
+
+              // Debug color selection
+              if (inventoryDie && inventoryDie.isDev) {
+                console.log(`[Scene Render] Dev die ${die.id}:`, {
+                  inventoryDieId: inventoryDie.id,
+                  baseColor: inventoryDie.appearance?.baseColor,
+                  dieColor: die.color,
+                  finalColor: diceColor
+                })
               }
 
               return (
-                <CustomDice
+                <Dice
                   key={die.id}
                   id={die.id}
-                  asset={customAsset}
+                  shape={die.type}
                   ref={(el) => {
                     if (el) {
                       diceRefs.current.set(die.id, el)
@@ -532,48 +610,16 @@ function Scene() {
                     }
                   }}
                   position={die.position}
-                  onRest={handleDiceRest}
-                  onMoving={handleDiceMoving}
+                  rotation={die.rotation}
+                  size={0.67}
+                  color={diceColor}
+                  onRest={onDiceRest}
+                  onMoving={onDiceMoving}
                 />
               )
-            }
-
-            // Standard dice rendering
-            // Use inventory die's appearance color if available, otherwise fallback to theme color
-            const diceColor = inventoryDie?.appearance?.baseColor || die.color
-
-            // Debug color selection
-            if (inventoryDie && inventoryDie.isDev) {
-              console.log(`[Scene Render] Dev die ${die.id}:`, {
-                inventoryDieId: inventoryDie.id,
-                baseColor: inventoryDie.appearance?.baseColor,
-                dieColor: die.color,
-                finalColor: diceColor
-              })
-            }
-
-            return (
-              <Dice
-                key={die.id}
-                id={die.id}
-                shape={die.type}
-                ref={(el) => {
-                  if (el) {
-                    diceRefs.current.set(die.id, el)
-                  } else {
-                    diceRefs.current.delete(die.id)
-                  }
-                }}
-                position={die.position}
-                rotation={die.rotation}
-                size={0.67}
-                color={diceColor}
-                onRest={handleDiceRest}
-                onMoving={handleDiceMoving}
-              />
-            )
-          })}
-        </Physics>
+            })}
+          </Physics>
+        )}
 
         {/* Performance monitoring */}
         <PerformanceOverlay />
@@ -596,7 +642,7 @@ function Scene() {
       />
 
       {/* Center Roll Button - elevated above nav */}
-      <CenterRollButton onClick={handleRollClick} isRolling={false} />
+      <CenterRollButton onClick={activeBackend.roll} isRolling={false} />
 
       {/* Top-Left Corner: Settings */}
       <CornerIcon
@@ -688,8 +734,16 @@ function Scene() {
         onClose={() => setIsSettingsOpen(false)}
       />
 
+      {/* Multiplayer overlay */}
+      {isMultiplayer && <RoomHeader />}
+
     </>
   )
+
+  // Only wrap in provider if not already wrapped (multiplayer provides its own)
+  return existingBackend
+    ? content
+    : <DiceBackendProvider value={localBackend}>{content}</DiceBackendProvider>
 }
 
 /**

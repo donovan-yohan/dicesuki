@@ -1,11 +1,10 @@
 import { useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
-import { MultiplayerScene } from './MultiplayerScene'
-import { RoomHeader } from './RoomHeader'
-import { MultiplayerToolbar } from './MultiplayerToolbar'
-import { RoomRollHistory } from './RoomRollHistory'
-import { MultiplayerResultDisplay } from './MultiplayerResultDisplay'
+import { useMultiplayerDiceBackend } from '../../hooks/useMultiplayerDiceBackend'
+import { DiceBackendProvider } from '../../contexts/DiceBackendContext'
+import { useDiceStore } from '../../store/useDiceStore'
+import Scene from '../Scene'
 
 export function MultiplayerRoom() {
   const { roomId } = useParams<{ roomId: string }>()
@@ -13,15 +12,18 @@ export function MultiplayerRoom() {
   const connect = useMultiplayerStore((s) => s.connect)
   const disconnect = useMultiplayerStore((s) => s.disconnect)
 
-  // Join flow state (will be replaced by RoomJoinFlow component in Plan 06)
   const [displayName, setDisplayName] = useState('')
   const [color, setColor] = useState('#8B5CF6')
   const [hasJoined, setHasJoined] = useState(false)
 
-  // Cleanup on unmount
+  const multiplayerBackend = useMultiplayerDiceBackend()
+
+  // Clear local dice state on mount; disconnect and reset on unmount
   useEffect(() => {
+    useDiceStore.getState().reset()
     return () => {
       disconnect()
+      useDiceStore.getState().reset()
     }
   }, [disconnect])
 
@@ -111,14 +113,12 @@ export function MultiplayerRoom() {
     )
   }
 
-  // Connected — show the multiplayer scene with full UI
+  // Connected — render the unified Scene with multiplayer backend
   return (
     <div style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden' }}>
-      <MultiplayerScene />
-      <RoomHeader />
-      <MultiplayerResultDisplay />
-      <RoomRollHistory />
-      <MultiplayerToolbar />
+      <DiceBackendProvider value={multiplayerBackend}>
+        <Scene />
+      </DiceBackendProvider>
     </div>
   )
 }

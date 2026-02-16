@@ -5,7 +5,7 @@ import { useMultiplayerStore } from '../store/useMultiplayerStore'
 /**
  * Manages interpolation timing between physics snapshots.
  *
- * Server sends snapshots at 20Hz (every 50ms).
+ * Server sends snapshots at a configurable rate (SNAPSHOT_DIVISOR in room.rs).
  * Client renders at 60fps (every 16.7ms).
  * We interpolate between the two most recent snapshots for smooth motion.
  *

@@ -10,6 +10,7 @@ use crate::face_detection::detect_face_value;
 pub const MAX_PLAYERS: usize = 8;
 pub const MAX_DICE: usize = 30;
 pub const IDLE_TIMEOUT_SECS: u64 = 1800; // 30 minutes
+pub const SNAPSHOT_DIVISOR: u64 = 1; // 1 = every tick (60Hz), 2 = 30Hz, 3 = 20Hz
 
 pub struct ServerDie {
     pub id: String,
@@ -229,8 +230,8 @@ impl Room {
             }
         }
 
-        // Build snapshot every 3rd tick (20Hz)
-        let snapshot = if self.tick_count % 3 == 0 {
+        // Build snapshot based on SNAPSHOT_DIVISOR (1 = 60Hz, 2 = 30Hz, 3 = 20Hz)
+        let snapshot = if self.tick_count % SNAPSHOT_DIVISOR == 0 {
             let dice_snapshots: Vec<DiceSnapshot> = self.dice.values()
                 .filter(|d| d.is_rolling)
                 .map(|d| DiceSnapshot {
@@ -585,13 +586,9 @@ mod tests {
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         room.roll_player_dice("p1");
 
-        // Tick 3 times to get a snapshot (every 3rd tick)
+        // With SNAPSHOT_DIVISOR=1, every tick should produce a snapshot
         let (snap1, _) = room.physics_tick();
-        let (snap2, _) = room.physics_tick();
-        let (snap3, _) = room.physics_tick();
-
-        assert!(snap1.is_none() || snap2.is_none()); // Not every tick
-        assert!(snap3.is_some()); // 3rd tick should have snapshot
+        assert!(snap1.is_some(), "Every tick should produce a snapshot with divisor=1");
     }
 
     #[test]
