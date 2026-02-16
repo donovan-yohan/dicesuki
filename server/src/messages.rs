@@ -24,6 +24,26 @@ pub enum ClientMessage {
         color: String,
     },
     Leave,
+    DragStart {
+        #[serde(rename = "dieId")]
+        die_id: String,
+        #[serde(rename = "grabOffset")]
+        grab_offset: [f32; 3],
+        #[serde(rename = "worldPosition")]
+        world_position: [f32; 3],
+    },
+    DragMove {
+        #[serde(rename = "dieId")]
+        die_id: String,
+        #[serde(rename = "worldPosition")]
+        world_position: [f32; 3],
+    },
+    DragEnd {
+        #[serde(rename = "dieId")]
+        die_id: String,
+        #[serde(rename = "velocityHistory")]
+        velocity_history: Vec<VelocityHistoryEntry>,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,6 +51,12 @@ pub struct SpawnDiceEntry {
     pub id: String,
     #[serde(rename = "diceType")]
     pub dice_type: DiceType,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VelocityHistoryEntry {
+    pub position: [f32; 3],
+    pub time: f32,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -208,6 +234,47 @@ mod tests {
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"p\":[1.0,2.0,3.0]"));
         assert!(json.contains("\"r\":[0.0,0.0,0.0,1.0]"));
+    }
+
+    #[test]
+    fn test_deserialize_drag_start() {
+        let json = r#"{"type":"drag_start","dieId":"d1","grabOffset":[0.1,0.0,-0.2],"worldPosition":[1.0,2.0,3.0]}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::DragStart { die_id, grab_offset, world_position } => {
+                assert_eq!(die_id, "d1");
+                assert_eq!(grab_offset, [0.1, 0.0, -0.2]);
+                assert_eq!(world_position, [1.0, 2.0, 3.0]);
+            }
+            _ => panic!("Expected DragStart message"),
+        }
+    }
+
+    #[test]
+    fn test_deserialize_drag_move() {
+        let json = r#"{"type":"drag_move","dieId":"d1","worldPosition":[2.0,2.0,4.0]}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::DragMove { die_id, world_position } => {
+                assert_eq!(die_id, "d1");
+                assert_eq!(world_position, [2.0, 2.0, 4.0]);
+            }
+            _ => panic!("Expected DragMove message"),
+        }
+    }
+
+    #[test]
+    fn test_deserialize_drag_end() {
+        let json = r#"{"type":"drag_end","dieId":"d1","velocityHistory":[{"position":[1.0,2.0,3.0],"time":0.0},{"position":[2.0,2.0,4.0],"time":16.7}]}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::DragEnd { die_id, velocity_history } => {
+                assert_eq!(die_id, "d1");
+                assert_eq!(velocity_history.len(), 2);
+                assert_eq!(velocity_history[0].position, [1.0, 2.0, 3.0]);
+            }
+            _ => panic!("Expected DragEnd message"),
+        }
     }
 
     #[test]

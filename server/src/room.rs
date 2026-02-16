@@ -3,7 +3,12 @@ use std::time::Instant;
 use rapier3d::prelude::RigidBodyHandle;
 use crate::messages::*;
 use crate::player::Player;
-use crate::physics::{PhysicsWorld, REST_DURATION_MS};
+use crate::physics::{
+    PhysicsWorld, REST_DURATION_MS,
+    DRAG_FOLLOW_SPEED, DRAG_DISTANCE_BOOST, DRAG_DISTANCE_THRESHOLD,
+    DRAG_ROLL_FACTOR, DRAG_SPIN_FACTOR,
+    THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
+};
 use crate::dice::{create_dice_body, generate_roll_impulse, generate_roll_torque, generate_spawn_position};
 use crate::face_detection::detect_face_value;
 
@@ -11,6 +16,13 @@ pub const MAX_PLAYERS: usize = 8;
 pub const MAX_DICE: usize = 30;
 pub const IDLE_TIMEOUT_SECS: u64 = 1800; // 30 minutes
 pub const SNAPSHOT_DIVISOR: u64 = 1; // 1 = every tick (60Hz), 2 = 30Hz, 3 = 20Hz
+
+pub struct DragState {
+    pub dragger_id: String,
+    pub grab_offset: [f32; 3],
+    pub target_position: [f32; 3],
+    pub last_target_position: [f32; 3],
+}
 
 pub struct ServerDie {
     pub id: String,
@@ -22,6 +34,7 @@ pub struct ServerDie {
     pub face_value: Option<u32>,
     pub body_handle: Option<RigidBodyHandle>,
     pub rest_start_tick: Option<u64>,
+    pub drag_state: Option<DragState>,
 }
 
 pub struct Room {
@@ -166,6 +179,7 @@ impl Room {
                 face_value: None,
                 body_handle: Some(body_handle),
                 rest_start_tick: None,
+                drag_state: None,
             };
             spawned.push(DiceState {
                 id: id.clone(),
@@ -215,6 +229,69 @@ impl Room {
     /// Step physics and check for settled dice.
     /// Returns (snapshot, newly_settled_dice) tuple.
     pub fn physics_tick(&mut self) -> (Option<ServerMessage>, Vec<(String, u32)>) {
+        // 1. Apply drag forces to dice being dragged (before stepping physics)
+        let dragged_ids: Vec<String> = self.dice.iter()
+            .filter(|(_, d)| d.drag_state.is_some() && d.body_handle.is_some())
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        for die_id in &dragged_ids {
+            let die = &self.dice[die_id];
+            let handle = die.body_handle.unwrap();
+            let drag = die.drag_state.as_ref().unwrap();
+            let target = drag.target_position;
+            let last = drag.last_target_position;
+
+            if let Some(rb) = self.physics.rigid_body_set.get_mut(handle) {
+                let pos = rb.translation();
+                let current = [pos.x, pos.y, pos.z];
+
+                // Displacement to target
+                let dx = target[0] - current[0];
+                let dy = target[1] - current[1];
+                let dz = target[2] - current[2];
+                let distance = (dx * dx + dy * dy + dz * dz).sqrt();
+
+                // Speed multiplier with distance boost (matching client)
+                let speed_mult = if distance > DRAG_DISTANCE_THRESHOLD {
+                    let factor = ((distance - DRAG_DISTANCE_THRESHOLD) / DRAG_DISTANCE_THRESHOLD).min(1.0);
+                    DRAG_FOLLOW_SPEED + DRAG_DISTANCE_BOOST * factor
+                } else {
+                    DRAG_FOLLOW_SPEED
+                };
+
+                // Set linear velocity toward target
+                let vx = dx * speed_mult;
+                let vy = dy * speed_mult;
+                let vz = dz * speed_mult;
+                rb.set_linvel(rapier3d::prelude::vector![vx, vy, vz], true);
+
+                // Apply rotational torque based on movement direction
+                let move_dx = target[0] - last[0];
+                let move_dz = target[2] - last[2];
+                let move_speed = (move_dx * move_dx + move_dz * move_dz).sqrt();
+
+                if move_speed > 0.001 {
+                    let dir_x = move_dx / move_speed;
+                    let dir_z = move_dz / move_speed;
+
+                    // Roll torque: perpendicular to movement (cross product with UP)
+                    let roll_x = -dir_z * move_speed * DRAG_ROLL_FACTOR;
+                    let roll_z = dir_x * move_speed * DRAG_ROLL_FACTOR;
+
+                    // Spin torque: along movement direction
+                    let spin_x = dir_x * move_speed * DRAG_SPIN_FACTOR;
+                    let spin_z = dir_z * move_speed * DRAG_SPIN_FACTOR;
+
+                    rb.apply_torque_impulse(
+                        rapier3d::prelude::vector![roll_x + spin_x, 0.0, roll_z + spin_z],
+                        true,
+                    );
+                }
+            }
+        }
+
+        // 2. Step physics
         self.physics.step();
         self.tick_count += 1;
 
@@ -233,7 +310,7 @@ impl Room {
         // Build snapshot based on SNAPSHOT_DIVISOR (1 = 60Hz, 2 = 30Hz, 3 = 20Hz)
         let snapshot = if self.tick_count % SNAPSHOT_DIVISOR == 0 {
             let dice_snapshots: Vec<DiceSnapshot> = self.dice.values()
-                .filter(|d| d.is_rolling)
+                .filter(|d| d.is_rolling || d.drag_state.is_some())
                 .map(|d| DiceSnapshot {
                     id: d.id.clone(),
                     position: d.position,
@@ -291,9 +368,9 @@ impl Room {
             }
         }
 
-        // Check if all dice are settled
-        let any_rolling = self.dice.values().any(|d| d.is_rolling);
-        if !any_rolling {
+        // Check if all dice are settled (including dragged dice as active)
+        let any_active = self.dice.values().any(|d| d.is_rolling || d.drag_state.is_some());
+        if !any_active {
             self.is_simulating = false;
         }
 
@@ -321,6 +398,97 @@ impl Room {
         (results, total)
     }
 
+    /// Start dragging a die. Only the owner can drag their own dice.
+    pub fn start_drag(
+        &mut self,
+        player_id: &str,
+        die_id: &str,
+        grab_offset: [f32; 3],
+        world_position: [f32; 3],
+    ) -> Result<(), String> {
+        // Validate ownership and drag state before mutating
+        {
+            let die = self.dice.get(die_id).ok_or("DIE_NOT_FOUND")?;
+            if die.owner_id != player_id {
+                return Err("NOT_OWNER".to_string());
+            }
+            if die.drag_state.is_some() {
+                return Err("ALREADY_DRAGGED".to_string());
+            }
+        }
+
+        let die = self.dice.get_mut(die_id).unwrap();
+        die.drag_state = Some(DragState {
+            dragger_id: player_id.to_string(),
+            grab_offset,
+            target_position: world_position,
+            last_target_position: world_position,
+        });
+        // Clear rolling state — dragging takes precedence
+        die.is_rolling = false;
+        die.face_value = None;
+        die.rest_start_tick = None;
+
+        self.is_simulating = true;
+        self.touch();
+        Ok(())
+    }
+
+    /// Update drag target position
+    pub fn update_drag(
+        &mut self,
+        player_id: &str,
+        die_id: &str,
+        world_position: [f32; 3],
+    ) -> Result<(), String> {
+        let die = self.dice.get_mut(die_id).ok_or("DIE_NOT_FOUND")?;
+        match &mut die.drag_state {
+            Some(drag) if drag.dragger_id == player_id => {
+                drag.last_target_position = drag.target_position;
+                drag.target_position = world_position;
+                Ok(())
+            }
+            Some(_) => Err("NOT_DRAGGER".to_string()),
+            None => Err("NOT_DRAGGING".to_string()),
+        }
+    }
+
+    /// End drag, optionally apply throw velocity from velocity history
+    pub fn end_drag(
+        &mut self,
+        player_id: &str,
+        die_id: &str,
+        velocity_history: &[VelocityHistoryEntry],
+    ) {
+        let Some(die) = self.dice.get_mut(die_id) else { return };
+        let Some(drag) = &die.drag_state else { return };
+        if drag.dragger_id != player_id {
+            return;
+        }
+
+        die.drag_state = None;
+        die.is_rolling = true;
+        die.face_value = None;
+        die.rest_start_tick = None;
+
+        // Calculate and apply throw velocity
+        if let Some(handle) = die.body_handle {
+            if let Some(throw_vel) = calculate_throw_velocity(velocity_history) {
+                if let Some(rb) = self.physics.rigid_body_set.get_mut(handle) {
+                    rb.set_linvel(
+                        rapier3d::prelude::vector![throw_vel[0], throw_vel[1], throw_vel[2]],
+                        true,
+                    );
+                    // Dampen angular velocity (same 0.75 factor as client)
+                    let ang = *rb.angvel();
+                    rb.set_angvel(ang * 0.75, true);
+                }
+            }
+        }
+
+        self.touch();
+    }
+
     /// Build a full room state snapshot (sent to newly joined players)
     pub fn build_room_state(&self) -> ServerMessage {
         ServerMessage::RoomState {
@@ -335,6 +503,57 @@ impl Room {
             }).collect(),
         }
     }
+}
+
+fn calculate_throw_velocity(history: &[VelocityHistoryEntry]) -> Option<[f32; 3]> {
+    if history.len() < 2 {
+        return None;
+    }
+
+    // Use last 3 entries
+    let start = if history.len() > 3 { history.len() - 3 } else { 0 };
+    let recent = &history[start..];
+
+    let mut velocities: Vec<[f32; 3]> = Vec::new();
+    for i in 1..recent.len() {
+        let dt = (recent[i].time - recent[i - 1].time) / 1000.0; // ms to seconds
+        if dt > 0.0 {
+            let vx = (recent[i].position[0] - recent[i - 1].position[0]) / dt;
+            let vy = (recent[i].position[1] - recent[i - 1].position[1]) / dt;
+            let vz = (recent[i].position[2] - recent[i - 1].position[2]) / dt;
+            velocities.push([vx, vy, vz]);
+        }
+    }
+
+    if velocities.is_empty() {
+        return None;
+    }
+
+    // Average
+    let n = velocities.len() as f32;
+    let mut avg = [0.0f32; 3];
+    for v in &velocities {
+        avg[0] += v[0] / n;
+        avg[1] += v[1] / n;
+        avg[2] += v[2] / n;
+    }
+
+    let speed = (avg[0] * avg[0] + avg[1] * avg[1] + avg[2] * avg[2]).sqrt();
+    if speed < MIN_THROW_SPEED {
+        return None;
+    }
+
+    // Scale and clamp
+    let clamped_speed = (speed * THROW_VELOCITY_SCALE).min(MAX_THROW_SPEED);
+    let scale = clamped_speed / speed;
+    avg[0] *= scale;
+    avg[1] *= scale;
+    avg[2] *= scale;
+
+    // Add upward boost
+    avg[1] += THROW_UPWARD_BOOST;
+
+    Some(avg)
 }
 
 #[cfg(test)]
@@ -368,6 +587,7 @@ impl Room {
                 face_value: None,
                 body_handle: None,
                 rest_start_tick: None,
+                drag_state: None,
             };
             spawned.push(DiceState {
                 id: id.clone(),
@@ -599,9 +819,10 @@ mod tests {
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         room.roll_player_dice("p1");
 
-        // Run simulation for up to 10 seconds (600 ticks)
+        // Run simulation for up to 20 seconds (1200 ticks)
+        // Narrower 9:16 arena causes more wall bounces, needs more settling time
         let mut settled = false;
-        for _ in 0..600 {
+        for _ in 0..1200 {
             let (_, newly_settled) = room.physics_tick();
             if !newly_settled.is_empty() {
                 settled = true;
@@ -609,12 +830,93 @@ mod tests {
             }
         }
 
-        assert!(settled, "Dice should settle within 10 seconds");
+        assert!(settled, "Dice should settle within 20 seconds");
         assert!(!room.is_simulating, "Room should stop simulating after all dice settle");
 
         let die = room.dice.get("d1").unwrap();
         assert!(die.face_value.is_some(), "Settled die should have a face value");
         let value = die.face_value.unwrap();
         assert!(value >= 1 && value <= 6, "D6 should show 1-6, got {}", value);
+    }
+
+    #[test]
+    fn test_start_drag_own_die() {
+        let mut room = Room::new("test".to_string());
+        let player = make_player("p1", "Gandalf");
+        room.add_player(player).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+
+        let result = room.start_drag("p1", "d1", [0.1, 0.0, -0.2], [1.0, 2.0, 3.0]);
+        assert!(result.is_ok());
+        assert!(room.dice.get("d1").unwrap().drag_state.is_some());
+    }
+
+    #[test]
+    fn test_cannot_drag_other_players_die() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.add_player(make_player("p2", "Frodo")).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+
+        let result = room.start_drag("p2", "d1", [0.0; 3], [0.0; 3]);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "NOT_OWNER");
+    }
+
+    #[test]
+    fn test_cannot_drag_already_dragged_die() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+
+        room.start_drag("p1", "d1", [0.0; 3], [0.0; 3]).unwrap();
+        let result = room.start_drag("p1", "d1", [0.0; 3], [0.0; 3]);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "ALREADY_DRAGGED");
+    }
+
+    #[test]
+    fn test_update_drag_target() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.start_drag("p1", "d1", [0.0; 3], [1.0, 2.0, 3.0]).unwrap();
+
+        let result = room.update_drag("p1", "d1", [2.0, 2.0, 4.0]);
+        assert!(result.is_ok());
+        let drag = room.dice.get("d1").unwrap().drag_state.as_ref().unwrap();
+        assert_eq!(drag.target_position, [2.0, 2.0, 4.0]);
+    }
+
+    #[test]
+    fn test_end_drag_clears_state() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.start_drag("p1", "d1", [0.0; 3], [0.0; 3]).unwrap();
+
+        room.end_drag("p1", "d1", &[]);
+        assert!(room.dice.get("d1").unwrap().drag_state.is_none());
+    }
+
+    #[test]
+    fn test_drag_moves_die_toward_target() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Test")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+
+        let initial_pos = room.dice.get("d1").unwrap().position;
+        let target = [initial_pos[0] + 3.0, 2.0, initial_pos[2]];
+
+        room.start_drag("p1", "d1", [0.0; 3], target).unwrap();
+
+        // Run a few physics ticks
+        for _ in 0..10 {
+            room.physics_tick();
+        }
+
+        let new_pos = room.dice.get("d1").unwrap().position;
+        // Die should have moved toward the target (X increased)
+        assert!(new_pos[0] > initial_pos[0], "Die should move toward drag target");
     }
 }

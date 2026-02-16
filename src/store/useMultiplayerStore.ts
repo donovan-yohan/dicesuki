@@ -5,6 +5,7 @@ import type {
   ServerMessage,
   PlayerInfo,
   DiceState,
+  VelocityHistoryEntry,
 } from '../lib/multiplayerMessages'
 import { getWsServerUrl } from '../lib/multiplayerServer'
 import { useDiceStore } from './useDiceStore'
@@ -27,6 +28,9 @@ export interface MultiplayerDie {
   // State
   isRolling: boolean
   faceValue: number | null
+  // Drag state (local optimistic)
+  isLocallyDragged: boolean
+  localDragPosition: [number, number, number] | null
 }
 
 interface MultiplayerState {
@@ -58,6 +62,12 @@ interface MultiplayerState {
   removeDice: (diceIds: string[]) => void
   roll: () => void
   updateColor: (color: string) => void
+
+  // Drag actions
+  startDrag: (dieId: string, grabOffset: [number, number, number], worldPosition: [number, number, number]) => void
+  moveDrag: (dieId: string, worldPosition: [number, number, number]) => void
+  endDrag: (dieId: string, velocityHistory: VelocityHistoryEntry[]) => void
+  setLocalDragPosition: (dieId: string, position: [number, number, number] | null) => void
 
   // Internal
   setConnectionStatus: (status: ConnectionStatus) => void
@@ -206,7 +216,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         const now = performance.now()
         for (const snap of msg.dice) {
           const die = newDice.get(snap.id)
-          if (die) {
+          if (die && !die.isLocallyDragged) {
             newDice.set(snap.id, {
               ...die,
               prevPosition: die.targetPosition,
@@ -304,6 +314,44 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     get().sendMessage({ type: 'update_color', color })
   },
 
+  startDrag: (dieId, grabOffset, worldPosition) => {
+    const { dice } = get()
+    const newDice = new Map(dice)
+    const die = newDice.get(dieId)
+    if (die) {
+      newDice.set(dieId, { ...die, isLocallyDragged: true, localDragPosition: worldPosition })
+    }
+    set({ dice: newDice })
+    get().sendMessage({ type: 'drag_start', dieId, grabOffset, worldPosition })
+  },
+
+  moveDrag: (dieId, worldPosition) => {
+    // Update local optimistic position (direct mutation for perf — avoid Map clone on every 30Hz update)
+    const die = get().dice.get(dieId)
+    if (die) {
+      die.localDragPosition = worldPosition
+    }
+    get().sendMessage({ type: 'drag_move', dieId, worldPosition })
+  },
+
+  endDrag: (dieId, velocityHistory) => {
+    const { dice } = get()
+    const newDice = new Map(dice)
+    const die = newDice.get(dieId)
+    if (die) {
+      newDice.set(dieId, { ...die, isLocallyDragged: false, localDragPosition: null })
+    }
+    set({ dice: newDice })
+    get().sendMessage({ type: 'drag_end', dieId, velocityHistory })
+  },
+
+  setLocalDragPosition: (dieId, position) => {
+    const die = get().dice.get(dieId)
+    if (die) {
+      die.localDragPosition = position
+    }
+  },
+
   setConnectionStatus: (status: ConnectionStatus) => {
     set({ connectionStatus: status })
   },
@@ -329,5 +377,7 @@ function diceStateToMultiplayerDie(d: DiceState): MultiplayerDie {
     prevRotation: d.rotation,
     isRolling: false,
     faceValue: null,
+    isLocallyDragged: false,
+    localDragPosition: null,
   }
 }

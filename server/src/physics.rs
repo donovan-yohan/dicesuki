@@ -13,13 +13,25 @@ pub const ROLL_HORIZONTAL_MAX: f32 = 3.0;
 pub const ROLL_VERTICAL_MIN: f32 = 3.0;
 pub const ROLL_VERTICAL_MAX: f32 = 5.0;
 
-/// Viewport bounds — matching client camera at height=15, fov=40deg
-/// Visible area at y=0: ~10.9 units tall, ~19.4 units wide (16:9)
-/// We use fixed conservative bounds that work for all aspect ratios
+// Drag interaction constants (matching client physicsConfig.ts)
+pub const DRAG_FOLLOW_SPEED: f32 = 12.0;
+pub const DRAG_DISTANCE_BOOST: f32 = 2.5;
+pub const DRAG_DISTANCE_THRESHOLD: f32 = 3.0;
+pub const DRAG_SPIN_FACTOR: f32 = 0.33;
+pub const DRAG_ROLL_FACTOR: f32 = 0.5;
+pub const DRAG_PLANE_HEIGHT: f32 = 2.0;
+
+// Throw mechanics (matching client physicsConfig.ts)
+pub const THROW_VELOCITY_SCALE: f32 = 0.8;
+pub const THROW_UPWARD_BOOST: f32 = 3.0;
+pub const MIN_THROW_SPEED: f32 = 2.0;
+pub const MAX_THROW_SPEED: f32 = 20.0;
+
+/// Viewport bounds — fixed 9:16 portrait arena for multiplayer
 pub const GROUND_Y: f32 = -0.5;
 pub const CEILING_Y: f32 = 15.0;
-pub const WALL_HALF_X: f32 = 8.0;
-pub const WALL_HALF_Z: f32 = 5.0;
+pub const WALL_HALF_X: f32 = 4.5;   // 9 units wide total
+pub const WALL_HALF_Z: f32 = 8.0;   // 16 units deep total
 pub const WALL_HEIGHT: f32 = 8.0;
 pub const WALL_THICKNESS: f32 = 0.5;
 

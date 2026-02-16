@@ -6,7 +6,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
-import { GRAVITY } from '../config/physicsConfig'
+import { GRAVITY, MULTIPLAYER_ARENA_HALF_X, MULTIPLAYER_ARENA_HALF_Z } from '../config/physicsConfig'
 
 // Contexts
 import { DiceBackendContext, DiceBackendProvider } from '../contexts/DiceBackendContext'
@@ -17,6 +17,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useLocalDiceBackend } from '../hooks/useLocalDiceBackend'
 import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
+import { useMultiplayerDrag } from '../hooks/useMultiplayerDrag'
 import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
 
 // Utilities
@@ -35,6 +36,7 @@ import { useUIStore } from '../store/useUIStore'
 import { CustomDice } from './dice/CustomDice'
 import { Dice, DiceHandle } from './dice/Dice'
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
+import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
 import { RoomHeader } from './multiplayer/RoomHeader'
 import { HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
@@ -334,7 +336,9 @@ function ViewportBoundaries() {
 function MultiplayerDiceRenderer() {
   const dice = useMultiplayerStore((s) => s.dice)
   const players = useMultiplayerStore((s) => s.players)
+  const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
   const tRef = useSnapshotInterpolation()
+  const { onPointerDown } = useMultiplayerDrag()
 
   const diceArray = Array.from(dice.values())
 
@@ -343,10 +347,12 @@ function MultiplayerDiceRenderer() {
       {diceArray.map((die) => {
         const player = players.get(die.ownerId)
         const color = player?.color || '#ffffff'
+        const isOwned = die.ownerId === localPlayerId
 
         return (
           <MultiplayerDie
             key={die.id}
+            dieId={die.id}
             diceType={die.diceType}
             color={color}
             targetPosition={die.targetPosition}
@@ -354,6 +360,10 @@ function MultiplayerDiceRenderer() {
             prevPosition={die.prevPosition}
             prevRotation={die.prevRotation}
             interpolationT={tRef.current}
+            isLocallyDragged={die.isLocallyDragged}
+            localDragPosition={die.localDragPosition}
+            isOwnedByLocalPlayer={isOwned}
+            onDragStart={onPointerDown}
           />
         )
       })}
@@ -362,23 +372,36 @@ function MultiplayerDiceRenderer() {
 }
 
 /**
- * Visual-only ground plane for multiplayer (no physics).
- * Uses theme environment colors.
+ * Camera controller for multiplayer mode.
+ * Adjusts camera height so the full 9:16 arena is visible on any screen.
  */
-function VisualGround() {
-  const { currentTheme } = useTheme()
-  const env = currentTheme.environment
+function MultiplayerCamera() {
+  const { camera, size } = useThree()
 
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]} receiveShadow>
-      <planeGeometry args={[30, 30]} />
-      <meshStandardMaterial
-        color={env.floor.color}
-        roughness={env.floor.material.roughness}
-        metalness={env.floor.material.metalness}
-      />
-    </mesh>
-  )
+  useEffect(() => {
+    if (!('fov' in camera)) return // Only for PerspectiveCamera
+    const perspCamera = camera as THREE.PerspectiveCamera
+    const aspect = size.width / size.height
+
+    const fovRad = (perspCamera.fov * Math.PI) / 180
+    const halfFovV = fovRad / 2
+
+    // Calculate height needed to see full arena depth (Z axis)
+    const heightForZ = MULTIPLAYER_ARENA_HALF_Z / Math.tan(halfFovV)
+
+    // Calculate height needed to see full arena width (X axis)
+    const halfFovH = Math.atan(Math.tan(halfFovV) * aspect)
+    const heightForX = MULTIPLAYER_ARENA_HALF_X / Math.tan(halfFovH)
+
+    // Use the larger height (ensures both dimensions fit) + margin
+    const cameraHeight = Math.max(heightForZ, heightForX) * 1.05 // 5% margin
+
+    perspCamera.position.set(0, cameraHeight, 0)
+    perspCamera.lookAt(0, 0, 0)
+    perspCamera.updateProjectionMatrix()
+  }, [camera, size.width, size.height])
+
+  return null
 }
 
 /**
@@ -539,7 +562,8 @@ function Scene() {
         {/* Conditional rendering: physics (local) vs interpolated (multiplayer) */}
         {isMultiplayer ? (
           <>
-            <VisualGround />
+            <MultiplayerCamera />
+            <MultiplayerArena />
             <MultiplayerDiceRenderer />
           </>
         ) : (

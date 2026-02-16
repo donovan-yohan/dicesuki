@@ -161,16 +161,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                         dice_ids,
                     });
 
-                    // Start simulation loop if not already running (atomic check-and-set under lock)
-                    let should_start = room_guard.is_simulating && !room_guard.is_sim_running;
-                    if should_start {
-                        room_guard.is_sim_running = true;
-                    }
-                    let sim_room = room.clone();
-                    drop(room_guard); // Release lock before spawning task
-                    if should_start {
-                        start_simulation_loop(sim_room);
-                    }
+                    maybe_start_simulation(&mut room_guard, room.clone());
                 }
             }
 
@@ -179,6 +170,39 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 if let Some(player) = room_guard.players.get_mut(&player_id) {
                     player.color = color;
                 }
+            }
+
+            ClientMessage::DragStart { die_id, grab_offset, world_position } if is_joined => {
+                let mut room_guard = room.write().await;
+                match room_guard.start_drag(&player_id, &die_id, grab_offset, world_position) {
+                    Ok(()) => {
+                        maybe_start_simulation(&mut room_guard, room.clone());
+                    }
+                    Err(code) => {
+                        let message = match code.as_str() {
+                            "NOT_OWNER" => "Can only drag your own dice".to_string(),
+                            "ALREADY_DRAGGED" => "Die is already being dragged".to_string(),
+                            "DIE_NOT_FOUND" => "Die not found".to_string(),
+                            _ => format!("Drag failed: {}", code),
+                        };
+                        let _ = tx.send(ServerMessage::Error { code, message });
+                    }
+                }
+            }
+
+            ClientMessage::DragMove { die_id, world_position } if is_joined => {
+                let mut room_guard = room.write().await;
+                if let Err(code) = room_guard.update_drag(&player_id, &die_id, world_position) {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: code.clone(),
+                        message: format!("Drag move failed: {}", code),
+                    });
+                }
+            }
+
+            ClientMessage::DragEnd { die_id, velocity_history } if is_joined => {
+                let mut room_guard = room.write().await;
+                room_guard.end_drag(&player_id, &die_id, &velocity_history);
             }
 
             ClientMessage::Leave if is_joined => {
@@ -216,6 +240,16 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
     }
 
     write_task.abort();
+}
+
+/// Check if the simulation loop needs to start, and start it if so.
+/// Must be called while holding the room lock. Drops the lock before spawning.
+fn maybe_start_simulation(room_guard: &mut crate::room::Room, room: SharedRoom) {
+    let should_start = room_guard.is_simulating && !room_guard.is_sim_running;
+    if should_start {
+        room_guard.is_sim_running = true;
+        start_simulation_loop(room);
+    }
 }
 
 /// Start the physics simulation loop for a room.

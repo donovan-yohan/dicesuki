@@ -34,6 +34,30 @@ export interface LeaveMessage {
   type: 'leave'
 }
 
+export interface DragStartMessage {
+  type: 'drag_start'
+  dieId: string
+  grabOffset: [number, number, number]
+  worldPosition: [number, number, number]
+}
+
+export interface DragMoveMessage {
+  type: 'drag_move'
+  dieId: string
+  worldPosition: [number, number, number]
+}
+
+export interface VelocityHistoryEntry {
+  position: [number, number, number]
+  time: number
+}
+
+export interface DragEndMessage {
+  type: 'drag_end'
+  dieId: string
+  velocityHistory: VelocityHistoryEntry[]
+}
+
 export type ClientMessage =
   | JoinMessage
   | SpawnDiceMessage
@@ -41,6 +65,9 @@ export type ClientMessage =
   | RollMessage
   | UpdateColorMessage
   | LeaveMessage
+  | DragStartMessage
+  | DragMoveMessage
+  | DragEndMessage
 
 // ==========================================
 // Server → Client Messages
