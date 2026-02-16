@@ -26,7 +26,8 @@ The project MUST maintain a **dual physics architecture** where single-player an
 - `RigidBody` components wrap each die mesh, providing physics simulation, collision detection, and contact force callbacks
 - Face detection reads quaternion orientation from `RigidBody` refs
 - All physics state is local; no network communication
-- Haptic feedback, device motion, drag-to-throw, and saved roll bonuses are only available in this mode
+- Haptic feedback, device motion, and saved roll bonuses are only available in this mode
+- Drag-to-throw uses direct RigidBody velocity setting via local Rapier refs
 
 ### Multiplayer Mode (Server-Side Physics)
 
@@ -36,6 +37,8 @@ The project MUST maintain a **dual physics architecture** where single-player an
 - The server streams `physics_snapshot` messages at 20Hz (every 3rd physics tick)
 - Clients MUST interpolate between snapshots using lerp (position) and slerp (rotation) for smooth 60fps rendering
 - Face detection runs server-side; the server sends `die_settled` messages with the authoritative face value
+- Drag-to-throw is available via server-side velocity-based following (see Shared-ADR-004)
+- Dragged dice remain dynamic bodies (not kinematic) to enable cross-player collisions
 
 ### Shared Physics Constants
 
@@ -53,6 +56,12 @@ The following constants MUST match between `src/config/physicsConfig.ts` (client
 | Roll horizontal range | 1-3 units | `physicsConfig.ts` | `dice.rs` |
 | Roll vertical range | 3-5 units | `physicsConfig.ts` | `dice.rs` |
 | Max dice velocity | 25 m/s | `physicsConfig.ts` | `physics.rs` |
+| Arena half-width (X) | 4.5 units | `physicsConfig.ts` | `physics.rs` |
+| Arena half-depth (Z) | 8.0 units | `physicsConfig.ts` | `physics.rs` |
+| Drag follow speed | 12.0 | `physicsConfig.ts` | `physics.rs` |
+| Drag plane height | 2.0 | `physicsConfig.ts` | `physics.rs` |
+| Throw velocity scale | 0.8 | `physicsConfig.ts` | `physics.rs` |
+| Max throw speed | 20.0 | `physicsConfig.ts` | `physics.rs` |
 
 ### Snapshot Interpolation (Client)
 
@@ -87,5 +96,5 @@ The following constants MUST match between `src/config/physicsConfig.ts` (client
 - Any change to physics tuning (restitution, friction, thresholds) requires updating both codebases and redeploying both client and server
 - Face detection logic is duplicated: quaternion-to-face mapping exists in both `src/lib/geometries.ts` (client) and `server/src/face_detection.rs` (server)
 - Snapshot interpolation introduces ~50-100ms visual delay for remote players' dice
-- Features available only in single-player mode (haptics, device motion, drag-to-throw, saved rolls, inventory) create a feature gap between modes
+- Features available only in single-player mode (haptics, device motion, saved rolls, inventory) create a feature gap between modes
 - The dual architecture means twice the physics-related code to maintain and test

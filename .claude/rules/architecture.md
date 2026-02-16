@@ -1,7 +1,7 @@
 # Architecture Rules (derived from ADRs)
 
 > DO NOT edit by hand. Regenerate with `/adr:update`.
-> Generated: 2026-02-15 | Source: 8 Accepted ADRs (4 Frontend, 1 Server, 3 Shared)
+> Generated: 2026-02-16 | Source: 9 Accepted ADRs (4 Frontend, 1 Server, 4 Shared)
 
 ---
 
@@ -82,6 +82,7 @@
 - [Shared-ADR-001] Face detection in multiplayer MUST run server-side; the server sends `die_settled` with the authoritative face value.
 - [Shared-ADR-001] Shared physics constants MUST match between `src/config/physicsConfig.ts` and `server/src/physics.rs` + `server/src/room.rs`.
 - [Shared-ADR-001] Any change to a shared physics constant MUST be applied to both client and server codebases.
+- [Shared-ADR-001] Dragged dice in multiplayer MUST remain dynamic bodies, not kinematic, to enable cross-player collisions.
 
 ## WebSocket JSON Protocol
 
@@ -93,12 +94,28 @@
 - [Shared-ADR-002] Message types MUST be defined in `src/lib/multiplayerMessages.ts` (client) and `server/src/messages.rs` (server), kept manually in sync.
 - [Shared-ADR-002] The `error` message MUST include a machine-readable `code` field.
 - [Shared-ADR-002] WebSocket upgrades require HTTP/1.1; reverse proxies MUST support this.
+- [Shared-ADR-002] Drag interaction MUST use three message types: `drag_start`, `drag_move`, `drag_end`.
+- [Shared-ADR-002] The `drag_end` message MUST include a `velocityHistory` array for throw calculation.
 
 ## Centralized Physics Configuration
 
 - [Shared-ADR-003] All client-side physics constants MUST be defined in `src/config/physicsConfig.ts`.
-- [Shared-ADR-003] Constants MUST be organized into clearly labeled sections (World Physics, Material, Roll Impulse, Face Detection, Drag, Throw, Device Motion, Geometry, Haptic, Presets).
+- [Shared-ADR-003] Constants MUST be organized into clearly labeled sections (World Physics, Material, Roll Impulse, Face Detection, Drag, Throw, Device Motion, Geometry, Haptic, Multiplayer Arena, Presets).
 - [Shared-ADR-003] Every constant MUST include a JSDoc comment with description, recommended range, and current value rationale.
 - [Shared-ADR-003] Named preset objects SHOULD be defined for distinct gameplay styles (Realistic, Arcade, Gentle).
 - [Shared-ADR-003] Server physics constants live in Rust source files; shared constants MUST be kept in sync manually.
 - [Shared-ADR-003] Any change to a shared constant MUST be applied to both `physicsConfig.ts` and the corresponding Rust files.
+
+## Multiplayer Drag Interaction
+
+- [Shared-ADR-004] Dragged dice MUST remain as dynamic rigid bodies; the server MUST set velocity toward drag target, not switch to kinematic mode.
+- [Shared-ADR-004] `drag_start` MUST validate die ownership and reject if the die is already being dragged.
+- [Shared-ADR-004] `drag_start` MUST start the physics simulation loop if not already running.
+- [Shared-ADR-004] `drag_move` messages MUST be throttled to ~30Hz on the client (`MULTIPLAYER_DRAG_THROTTLE_MS` = 33ms).
+- [Shared-ADR-004] The client MUST track the last `VELOCITY_HISTORY_SIZE` (5) position+timestamp samples during drag for throw calculation.
+- [Shared-ADR-004] The dragging player MUST see the die at finger position immediately via optimistic local rendering (`isLocallyDragged` + `localDragPosition`).
+- [Shared-ADR-004] `MultiplayerDie` `useFrame` MUST read drag position via `useMultiplayerStore.getState()`, not props, to avoid re-render overhead.
+- [Shared-ADR-004] The `physics_snapshot` handler MUST skip position updates for locally dragged dice.
+- [Shared-ADR-004] The multiplayer arena MUST use a 9:16 portrait aspect ratio (`MULTIPLAYER_ARENA_HALF_X` = 4.5, `MULTIPLAYER_ARENA_HALF_Z` = 8.0).
+- [Shared-ADR-004] Arena dimension constants MUST match between `src/config/physicsConfig.ts` and `server/src/physics.rs`.
+- [Shared-ADR-004] Players MUST only be able to drag their own dice; ownership validation MUST occur server-side.

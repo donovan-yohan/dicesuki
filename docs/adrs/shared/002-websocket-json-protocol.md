@@ -35,6 +35,9 @@ All messages MUST use a `type` field as the discriminator for tagged union deser
 | `roll` | Roll all of the player's dice | (none) |
 | `update_color` | Change player's dice color | `color` |
 | `leave` | Leave the room | (none) |
+| `drag_start` | Begin dragging a die | `dieId`, `grabOffset`, `worldPosition` |
+| `drag_move` | Update drag target position | `dieId`, `worldPosition` |
+| `drag_end` | Release die with throw data | `dieId`, `velocityHistory: [{position, time}]` |
 
 ### Server-to-Client Messages
 
@@ -86,6 +89,9 @@ The `error` message MUST include a machine-readable `code` field. Known codes:
 - `ROOM_FULL` -- Room has reached MAX_PLAYERS (8)
 - `ROOM_NOT_FOUND` -- Room ID does not exist
 - `DICE_LIMIT` -- Room has reached MAX_DICE (30)
+- `NOT_OWNER` -- Player tried to drag another player's die
+- `ALREADY_DRAGGED` -- Die is already being dragged by another player
+- `DIE_NOT_FOUND` -- Referenced die does not exist
 
 ## Alternatives Considered
 
@@ -97,7 +103,7 @@ The `error` message MUST include a machine-readable `code` field. Known codes:
 
 **gRPC-Web:** Provides typed bidirectional streaming with code generation, but requires a gRPC proxy layer and has limited browser support. The overhead is not justified for the current message complexity.
 
-**Shared type generation (e.g., JSON Schema, OpenAPI):** Would automate keeping TypeScript and Rust types in sync. Not adopted due to tooling overhead; the message surface is small enough (6 client types, 10 server types) to maintain manually. Worth revisiting if the protocol grows significantly.
+**Shared type generation (e.g., JSON Schema, OpenAPI):** Would automate keeping TypeScript and Rust types in sync. Not adopted due to tooling overhead; the message surface is small enough (9 client types, 10 server types) to maintain manually. Worth revisiting if the protocol grows significantly.
 
 ## Consequences
 
