@@ -7,7 +7,7 @@ import type {
   DiceState,
 } from '../lib/multiplayerMessages'
 import { getWsServerUrl } from '../lib/multiplayerServer'
-import { useRoomHistoryStore } from './useRoomHistoryStore'
+import { useDiceStore } from './useDiceStore'
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected'
 
@@ -45,7 +45,7 @@ interface MultiplayerState {
 
   // Snapshot interpolation
   lastSnapshotTime: number
-  snapshotInterval: number // ms between snapshots (~50ms for 20Hz)
+  snapshotInterval: number // ms between snapshots (should match server SNAPSHOT_DIVISOR)
 
   // Actions
   connect: (roomId: string, displayName: string, color: string) => void
@@ -194,6 +194,9 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           }
         }
         set({ dice: newDice })
+
+        // Also mark in unified dice store
+        useDiceStore.getState().markDiceRolling(msg.diceIds)
         break
       }
 
@@ -235,6 +238,15 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           })
         }
         set({ dice: newDice })
+
+        // Also record in unified dice store
+        if (die) {
+          useDiceStore.getState().recordDieSettled(
+            msg.diceId,
+            msg.faceValue,
+            die.diceType,
+          )
+        }
         break
       }
 
@@ -242,14 +254,24 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         const { players } = get()
         const player = players.get(msg.playerId)
         if (player) {
-          useRoomHistoryStore.getState().addRoll({
-            id: `roll-${Date.now()}-${msg.playerId}`,
-            playerId: msg.playerId,
-            displayName: player.displayName,
-            color: player.color,
-            results: msg.results,
-            total: msg.total,
-            timestamp: Date.now(),
+          const now = Date.now()
+          const dice = msg.results.map((r) => ({
+            diceId: r.diceId,
+            value: r.faceValue,
+            type: r.diceType.toString(),
+            settledAt: now,
+          }))
+          const sum = dice.reduce((acc, d) => acc + d.value, 0)
+
+          useDiceStore.getState().addRollToHistory({
+            dice,
+            sum,
+            timestamp: now,
+            player: {
+              id: msg.playerId,
+              displayName: player.displayName,
+              color: player.color,
+            },
           })
         }
         break

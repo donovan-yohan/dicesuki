@@ -105,12 +105,28 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h4
-            className="font-semibold"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            Roll #{rollNumber}
-          </h4>
+          {/* Show player name if multiplayer roll */}
+          {roll.player ? (
+            <div className="flex items-center gap-2">
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: roll.player.color }}
+              />
+              <h4
+                className="font-semibold"
+                style={{ color: roll.player.color }}
+              >
+                {roll.player.displayName}
+              </h4>
+            </div>
+          ) : (
+            <h4
+              className="font-semibold"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
+              Roll #{rollNumber}
+            </h4>
+          )}
           <p
             className="text-xs"
             style={{ color: 'var(--color-text-muted)' }}

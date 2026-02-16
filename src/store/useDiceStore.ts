@@ -18,6 +18,12 @@ export interface RollSnapshot {
   dice: DieSettledState[]
   sum: number
   timestamp: number
+  /** Multiplayer-only: who rolled. Null/undefined in local mode. */
+  player?: {
+    id: string
+    displayName: string
+    color: string
+  }
 }
 
 /**
@@ -51,6 +57,7 @@ interface DiceStore {
 
   markDiceRolling: (diceIds: string[]) => void
   recordDieSettled: (diceId: string, value: number, type: string) => void
+  addRollToHistory: (snapshot: RollSnapshot) => void
   removeDieState: (diceId: string) => void
   clearAllDieStates: () => void
   setActiveSavedRoll: (roll: ActiveSavedRoll) => void
@@ -135,6 +142,12 @@ export const useDiceStore = create<DiceStore>()(
             rollingDice: newRolling,
           }
         })
+      },
+
+      addRollToHistory: (snapshot: RollSnapshot) => {
+        set((state) => ({
+          rollHistory: [...state.rollHistory, snapshot],
+        }))
       },
 
       removeDieState: (diceId: string) => {

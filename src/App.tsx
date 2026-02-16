@@ -71,7 +71,13 @@ function App() {
         {/* Dev-only test harness — bypasses device check and providers */}
         <Route path="/test/dice-faces" element={<DiceFaceTestHarness />} />
         {/* Multiplayer room route */}
-        <Route path="/room/:roomId" element={<MultiplayerRoom />} />
+        <Route path="/room/:roomId" element={
+          <ThemeProvider>
+            <DeviceMotionProvider>
+              <MultiplayerRoom />
+            </DeviceMotionProvider>
+          </ThemeProvider>
+        } />
         {/* Main app with device check, theme, and motion providers */}
         <Route
           path="/*"
