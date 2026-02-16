@@ -51,7 +51,20 @@ export async function checkDeviceCompatibility(): Promise<DeviceCheckResult> {
       }
     } else {
       // Mobile devices: stricter check (tier 2+)
-      if (gpuTier.tier < 2) {
+      // But like desktop, detect-gpu's database can be outdated for newer phones
+      // (e.g., Pixel 10 Pro, newer Samsung Galaxy) returning tier 0/1 for capable GPUs
+      const mobileGpuName = gpuTier.gpu?.toLowerCase() || ''
+      const hasKnownMobileGPU =
+        mobileGpuName.includes('adreno') ||    // Qualcomm Snapdragon
+        mobileGpuName.includes('mali') ||      // ARM (Samsung Exynos, Google Tensor, MediaTek)
+        mobileGpuName.includes('immortalis') || // ARM high-end (Dimensity, Tensor G3+)
+        mobileGpuName.includes('xclipse') ||   // Samsung (Exynos with AMD RDNA)
+        mobileGpuName.includes('apple gpu') ||  // Apple devices
+        mobileGpuName.includes('powervr')       // Imagination (older MediaTek, Apple)
+
+      if (hasKnownMobileGPU) {
+        console.log('Known mobile GPU family detected, allowing regardless of tier:', mobileGpuName)
+      } else if (gpuTier.tier < 2) {
         return {
           compatible: false,
           message: 'Your device GPU is not powerful enough for this application.',
