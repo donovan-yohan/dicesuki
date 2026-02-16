@@ -38,15 +38,20 @@ export function useMultiplayerDrag() {
 
   const raycaster = useRef(new THREE.Raycaster())
   const dragPlane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), -DRAG_PLANE_HEIGHT))
+  const ndcVec = useRef(new THREE.Vector2())
+  const intersectionVec = useRef(new THREE.Vector3())
+  const dieCenterVec = useRef(new THREE.Vector3())
+  const offsetVec = useRef(new THREE.Vector3())
 
   const getPointerWorldPosition = useCallback((clientX: number, clientY: number): THREE.Vector3 | null => {
     const rect = gl.domElement.getBoundingClientRect()
-    const x = ((clientX - rect.left) / size.width) * 2 - 1
-    const y = -((clientY - rect.top) / size.height) * 2 + 1
-    raycaster.current.setFromCamera(new THREE.Vector2(x, y), camera)
-    const intersection = new THREE.Vector3()
-    const didIntersect = raycaster.current.ray.intersectPlane(dragPlane.current, intersection)
-    return didIntersect ? intersection : null
+    ndcVec.current.set(
+      ((clientX - rect.left) / size.width) * 2 - 1,
+      -((clientY - rect.top) / size.height) * 2 + 1
+    )
+    raycaster.current.setFromCamera(ndcVec.current, camera)
+    const didIntersect = raycaster.current.ray.intersectPlane(dragPlane.current, intersectionVec.current)
+    return didIntersect ? intersectionVec.current : null
   }, [camera, gl.domElement, size.width, size.height])
 
   const onPointerDown = useCallback((event: ThreeEvent<PointerEvent>, dieId: string) => {
@@ -67,15 +72,15 @@ export function useMultiplayerDrag() {
     const worldPos = getPointerWorldPosition(event.nativeEvent.clientX, event.nativeEvent.clientY)
     if (!worldPos) return
 
-    // Calculate grab offset from die center
-    const dieCenter = new THREE.Vector3()
-    event.object.getWorldPosition(dieCenter)
-    const offset = new THREE.Vector3().subVectors(dieCenter, worldPos)
-    dragOffsetRef.current = offset
+    // Calculate grab offset from die center (reuse pre-allocated vectors)
+    event.object.getWorldPosition(dieCenterVec.current)
+    offsetVec.current.subVectors(dieCenterVec.current, worldPos)
+    dragOffsetRef.current = offsetVec.current.clone()
 
-    const targetPos = worldPos.clone().add(offset)
-    const pos: [number, number, number] = [targetPos.x, targetPos.y, targetPos.z]
-    const grabOff: [number, number, number] = [offset.x, offset.y, offset.z]
+    // Apply offset to get the die-centered target position
+    worldPos.add(dragOffsetRef.current)
+    const pos: [number, number, number] = [worldPos.x, worldPos.y, worldPos.z]
+    const grabOff: [number, number, number] = [dragOffsetRef.current.x, dragOffsetRef.current.y, dragOffsetRef.current.z]
 
     isDraggingRef.current = true
     dragStartTimeRef.current = performance.now()

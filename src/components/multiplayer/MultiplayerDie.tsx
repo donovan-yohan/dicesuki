@@ -1,4 +1,4 @@
-import { useRef, useMemo, useCallback } from 'react'
+import { useRef, useMemo, useCallback, type MutableRefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -10,13 +10,7 @@ interface MultiplayerDieProps {
   dieId: string
   diceType: DiceShape
   color: string
-  targetPosition: [number, number, number]
-  targetRotation: [number, number, number, number] // quaternion [x, y, z, w]
-  prevPosition: [number, number, number]
-  prevRotation: [number, number, number, number]
-  interpolationT: number // 0-1, how far between prev and target
-  isLocallyDragged: boolean
-  localDragPosition: [number, number, number] | null
+  tRef: MutableRefObject<number>
   isOwnedByLocalPlayer: boolean
   onDragStart?: (event: ThreeEvent<PointerEvent>, dieId: string) => void
 }
@@ -25,13 +19,7 @@ export function MultiplayerDie({
   dieId,
   diceType,
   color,
-  targetPosition,
-  targetRotation,
-  prevPosition,
-  prevRotation,
-  interpolationT,
-  isLocallyDragged,
-  localDragPosition,
+  tRef,
   isOwnedByLocalPlayer,
   onDragStart,
 }: MultiplayerDieProps) {
@@ -62,25 +50,27 @@ export function MultiplayerDie({
   useFrame(() => {
     if (!meshRef.current) return
 
-    // Read drag position directly from store (bypasses React re-renders for 30Hz updates)
+    // Read all state directly from store every frame to avoid stale props.
+    // Props only update on re-render (~20Hz snapshots); useFrame runs at ~60fps.
     const currentDie = useMultiplayerStore.getState().dice.get(dieId)
-    const dragged = currentDie?.isLocallyDragged ?? isLocallyDragged
-    const dragPos = currentDie?.localDragPosition ?? localDragPosition
+    if (!currentDie) return
 
-    if (dragged && dragPos) {
+    if (currentDie.isLocallyDragged && currentDie.localDragPosition) {
       // Optimistic: show die at local drag position
+      const dragPos = currentDie.localDragPosition
       meshRef.current.position.set(dragPos[0], dragPos[1], dragPos[2])
     } else {
-      // Normal interpolation from server snapshots
-      interpPos.set(prevPosition[0], prevPosition[1], prevPosition[2])
-      targetPos.set(targetPosition[0], targetPosition[1], targetPosition[2])
-      interpPos.lerp(targetPos, interpolationT)
+      // Interpolate between prev and target snapshots using live t value
+      const t = tRef.current
+      interpPos.set(currentDie.prevPosition[0], currentDie.prevPosition[1], currentDie.prevPosition[2])
+      targetPos.set(currentDie.targetPosition[0], currentDie.targetPosition[1], currentDie.targetPosition[2])
+      interpPos.lerp(targetPos, t)
       meshRef.current.position.copy(interpPos)
 
       // Interpolate rotation (slerp)
-      prevQuat.set(prevRotation[0], prevRotation[1], prevRotation[2], prevRotation[3])
-      targetQuat.set(targetRotation[0], targetRotation[1], targetRotation[2], targetRotation[3])
-      interpQuat.slerpQuaternions(prevQuat, targetQuat, interpolationT)
+      prevQuat.set(currentDie.prevRotation[0], currentDie.prevRotation[1], currentDie.prevRotation[2], currentDie.prevRotation[3])
+      targetQuat.set(currentDie.targetRotation[0], currentDie.targetRotation[1], currentDie.targetRotation[2], currentDie.targetRotation[3])
+      interpQuat.slerpQuaternions(prevQuat, targetQuat, t)
       meshRef.current.quaternion.copy(interpQuat)
     }
   })

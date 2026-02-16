@@ -340,33 +340,19 @@ function MultiplayerDiceRenderer() {
   const tRef = useSnapshotInterpolation()
   const { onPointerDown } = useMultiplayerDrag()
 
-  const diceArray = Array.from(dice.values())
-
   return (
     <>
-      {diceArray.map((die) => {
-        const player = players.get(die.ownerId)
-        const color = player?.color || '#ffffff'
-        const isOwned = die.ownerId === localPlayerId
-
-        return (
-          <MultiplayerDie
-            key={die.id}
-            dieId={die.id}
-            diceType={die.diceType}
-            color={color}
-            targetPosition={die.targetPosition}
-            targetRotation={die.targetRotation}
-            prevPosition={die.prevPosition}
-            prevRotation={die.prevRotation}
-            interpolationT={tRef.current}
-            isLocallyDragged={die.isLocallyDragged}
-            localDragPosition={die.localDragPosition}
-            isOwnedByLocalPlayer={isOwned}
-            onDragStart={onPointerDown}
-          />
-        )
-      })}
+      {Array.from(dice.values()).map((die) => (
+        <MultiplayerDie
+          key={die.id}
+          dieId={die.id}
+          diceType={die.diceType}
+          color={players.get(die.ownerId)?.color ?? '#ffffff'}
+          tRef={tRef}
+          isOwnedByLocalPlayer={die.ownerId === localPlayerId}
+          onDragStart={onPointerDown}
+        />
+      ))}
     </>
   )
 }
@@ -499,19 +485,10 @@ function Scene() {
   // Delegate add/remove/clear through the active backend (works for both local and multiplayer)
   const handleAddDice = useCallback(
     (type: string, specificInventoryDieId?: string) => {
-      const diceShape = type as import('../lib/geometries').DiceShape
-      activeBackend.addDie(diceShape, specificInventoryDieId)
+      activeBackend.addDie(type as import('../lib/geometries').DiceShape, specificInventoryDieId)
     },
     [activeBackend]
   )
-
-  const handleRemoveDice = useCallback((id: string) => {
-    activeBackend.removeDie(id)
-  }, [activeBackend])
-
-  const handleClearAll = useCallback(() => {
-    activeBackend.clearAll()
-  }, [activeBackend])
 
   const handleToggleMotion = useCallback(async () => {
     if (!motionMode) {
@@ -525,9 +502,9 @@ function Scene() {
 
   // Register delete callback with drag store
   useEffect(() => {
-    setOnDiceDelete(handleRemoveDice)
+    setOnDiceDelete(activeBackend.removeDie)
     return () => setOnDiceDelete(undefined)
-  }, [setOnDiceDelete, handleRemoveDice])
+  }, [setOnDiceDelete, activeBackend.removeDie])
 
   const content = (
     <>
@@ -733,7 +710,7 @@ function Scene() {
       <DiceToolbar
         isOpen={isDiceManagerOpen}
         onAddDice={handleAddDice}
-        onClearAll={handleClearAll}
+        onClearAll={activeBackend.clearAll}
       />
 
       {/* THEMED PANELS */}
