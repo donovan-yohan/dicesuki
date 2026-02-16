@@ -34,6 +34,7 @@ export function useMultiplayerDrag() {
   const capturedElementRef = useRef<HTMLElement | null>(null)
   const velocityHistoryRef = useRef<VelocityHistoryEntry[]>([])
   const lastSendTimeRef = useRef(0)
+  const dragStartTimeRef = useRef(0)
 
   const raycaster = useRef(new THREE.Raycaster())
   const dragPlane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), -DRAG_PLANE_HEIGHT))
@@ -72,13 +73,14 @@ export function useMultiplayerDrag() {
     const offset = new THREE.Vector3().subVectors(dieCenter, worldPos)
     dragOffsetRef.current = offset
 
-    const targetPos = worldPos.add(offset)
+    const targetPos = worldPos.clone().add(offset)
     const pos: [number, number, number] = [targetPos.x, targetPos.y, targetPos.z]
     const grabOff: [number, number, number] = [offset.x, offset.y, offset.z]
 
     isDraggingRef.current = true
+    dragStartTimeRef.current = performance.now()
     velocityHistoryRef.current = [{ position: pos, time: 0 }]
-    lastSendTimeRef.current = performance.now()
+    lastSendTimeRef.current = dragStartTimeRef.current
 
     startDrag(dieId, grabOff, pos)
     setLocalDragPosition(dieId, pos)
@@ -101,10 +103,9 @@ export function useMultiplayerDrag() {
     // Always update local visual position (every frame)
     setLocalDragPosition(dieId, pos)
 
-    // Track velocity history
+    // Track velocity history (time relative to drag start)
     const now = performance.now()
-    const lastEntry = velocityHistoryRef.current[velocityHistoryRef.current.length - 1]
-    const relativeTime = (lastEntry?.time || 0) + (now - lastSendTimeRef.current)
+    const relativeTime = now - dragStartTimeRef.current
     velocityHistoryRef.current.push({ position: pos, time: relativeTime })
     if (velocityHistoryRef.current.length > VELOCITY_HISTORY_SIZE) {
       velocityHistoryRef.current.shift()

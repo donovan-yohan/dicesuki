@@ -4,6 +4,7 @@ import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { DiceShape } from '../../lib/geometries'
 import { createDiceGeometry } from '../../lib/geometries'
+import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 
 interface MultiplayerDieProps {
   dieId: string
@@ -61,9 +62,14 @@ export function MultiplayerDie({
   useFrame(() => {
     if (!meshRef.current) return
 
-    if (isLocallyDragged && localDragPosition) {
+    // Read drag position directly from store (bypasses React re-renders for 30Hz updates)
+    const currentDie = useMultiplayerStore.getState().dice.get(dieId)
+    const dragged = currentDie?.isLocallyDragged ?? isLocallyDragged
+    const dragPos = currentDie?.localDragPosition ?? localDragPosition
+
+    if (dragged && dragPos) {
       // Optimistic: show die at local drag position
-      meshRef.current.position.set(localDragPosition[0], localDragPosition[1], localDragPosition[2])
+      meshRef.current.position.set(dragPos[0], dragPos[1], dragPos[2])
     } else {
       // Normal interpolation from server snapshots
       interpPos.set(prevPosition[0], prevPosition[1], prevPosition[2])

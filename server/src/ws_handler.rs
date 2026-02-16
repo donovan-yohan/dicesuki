@@ -243,7 +243,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
 }
 
 /// Check if the simulation loop needs to start, and start it if so.
-/// Must be called while holding the room lock. Drops the lock before spawning.
+/// Must be called while holding the room lock; the caller is responsible for releasing it.
 fn maybe_start_simulation(room_guard: &mut crate::room::Room, room: SharedRoom) {
     let should_start = room_guard.is_simulating && !room_guard.is_sim_running;
     if should_start {
