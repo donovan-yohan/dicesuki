@@ -57,6 +57,19 @@ async fn recv_json(
     }
 }
 
+/// Try to read a JSON message with a short timeout; returns None if no message.
+async fn try_recv_json(
+    ws: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+) -> Option<Value> {
+    let short_timeout = Duration::from_millis(100);
+    match timeout(short_timeout, ws.next()).await {
+        Ok(Some(Ok(Message::Text(text)))) => serde_json::from_str(&text).ok(),
+        _ => None,
+    }
+}
+
 // ─── HTTP Route Tests ────────────────────────────────────────────
 
 #[tokio::test]
@@ -517,4 +530,112 @@ async fn room_info_reflects_player_count() {
         .unwrap();
     let body: Value = resp.json().await.unwrap();
     assert_eq!(body["playerCount"], 1);
+}
+
+// ─── Drag Flow Tests ────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_drag_flow() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{}/ws/{}", addr, room_id);
+
+    let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
+
+    // Join
+    ws.send(Message::Text(
+        json!({
+            "type": "join",
+            "roomId": room_id,
+            "displayName": "Dragger",
+            "color": "#FF0000"
+        })
+        .to_string(),
+    ))
+    .await
+    .unwrap();
+
+    let room_state = recv_json(&mut ws).await;
+    assert_eq!(room_state["type"], "room_state");
+
+    // Spawn a die
+    ws.send(Message::Text(
+        json!({
+            "type": "spawn_dice",
+            "dice": [{"id": "d1", "diceType": "d6"}]
+        })
+        .to_string(),
+    ))
+    .await
+    .unwrap();
+
+    let spawned = recv_json(&mut ws).await;
+    assert_eq!(spawned["type"], "dice_spawned");
+
+    // Start drag
+    ws.send(Message::Text(
+        json!({
+            "type": "drag_start",
+            "dieId": "d1",
+            "grabOffset": [0.0, 0.0, 0.0],
+            "worldPosition": [2.0, 2.0, 0.0]
+        })
+        .to_string(),
+    ))
+    .await
+    .unwrap();
+
+    // Small delay to let physics tick
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Move drag
+    ws.send(Message::Text(
+        json!({
+            "type": "drag_move",
+            "dieId": "d1",
+            "worldPosition": [3.0, 2.0, 1.0]
+        })
+        .to_string(),
+    ))
+    .await
+    .unwrap();
+
+    // Should receive physics snapshots
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // End drag with velocity history (throw)
+    ws.send(Message::Text(
+        json!({
+            "type": "drag_end",
+            "dieId": "d1",
+            "velocityHistory": [
+                {"position": [2.0, 2.0, 0.0], "time": 0.0},
+                {"position": [3.0, 2.0, 1.0], "time": 16.7},
+                {"position": [4.0, 2.0, 2.0], "time": 33.4}
+            ]
+        })
+        .to_string(),
+    ))
+    .await
+    .unwrap();
+
+    // Drain messages — should eventually get die_settled
+    // Read all available messages each iteration to keep up with 60Hz snapshots
+    let mut found_settled = false;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    while tokio::time::Instant::now() < deadline {
+        match try_recv_json(&mut ws).await {
+            Some(msg) if msg["type"] == "die_settled" => {
+                found_settled = true;
+                assert!(msg["faceValue"].as_u64().unwrap() >= 1);
+                assert!(msg["faceValue"].as_u64().unwrap() <= 6);
+                break;
+            }
+            Some(_) => continue, // Keep draining snapshots etc.
+            None => {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        }
+    }
+    assert!(found_settled, "Die should settle after drag throw");
 }

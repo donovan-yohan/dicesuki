@@ -421,6 +421,31 @@ export const HAPTIC_STRONG_DURATION = 75
 export const HAPTIC_THROTTLE_MS = 100
 
 // ============================================================================
+// MULTIPLAYER ARENA (Fixed 9:16 portrait)
+// ============================================================================
+
+/**
+ * Multiplayer arena half-width (X axis, world units)
+ * - Total width: 9 units (MULTIPLAYER_ARENA_HALF_X * 2)
+ * - Must match server/src/physics.rs WALL_HALF_X
+ */
+export const MULTIPLAYER_ARENA_HALF_X = 4.5
+
+/**
+ * Multiplayer arena half-depth (Z axis, world units)
+ * - Total depth: 16 units (MULTIPLAYER_ARENA_HALF_Z * 2)
+ * - Must match server/src/physics.rs WALL_HALF_Z
+ */
+export const MULTIPLAYER_ARENA_HALF_Z = 8.0
+
+/**
+ * Multiplayer drag message throttle interval (ms)
+ * - How often to send drag_move messages to server
+ * - 33ms ≈ 30Hz — balances responsiveness and bandwidth
+ */
+export const MULTIPLAYER_DRAG_THROTTLE_MS = 33
+
+// ============================================================================
 // PRESETS (Quick configs for different feels)
 // ============================================================================
 

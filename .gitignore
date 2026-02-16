@@ -31,3 +31,6 @@ dist-ssr
 e2e/screenshots/*.png
 test-results/
 playwright-report/
+
+# Design/planning documents (architecture captured via ADRs instead)
+docs/plans/
