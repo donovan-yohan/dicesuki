@@ -13,9 +13,8 @@ import { useDragStore } from '../store/useDragStore'
 
 /**
  * Hook for handling drag interaction with multiplayer dice.
- * Mirrors useDiceInteraction but sends WebSocket messages instead of
- * manipulating a local rigid body. Client shows optimistic local position
- * while the server applies physics forces.
+ * Sends WebSocket messages (drag_start, drag_move, drag_end) to the server.
+ * Dice rendering is server-authoritative via snapshot interpolation.
  */
 export function useMultiplayerDrag() {
   const { camera, gl, size } = useThree()
@@ -24,7 +23,6 @@ export function useMultiplayerDrag() {
   const startDrag = useMultiplayerStore((s) => s.startDrag)
   const moveDrag = useMultiplayerStore((s) => s.moveDrag)
   const endDrag = useMultiplayerStore((s) => s.endDrag)
-  const setLocalDragPosition = useMultiplayerStore((s) => s.setLocalDragPosition)
   const setDraggedDiceId = useDragStore((s) => s.setDraggedDiceId)
 
   const isDraggingRef = useRef(false)
@@ -88,8 +86,7 @@ export function useMultiplayerDrag() {
     lastSendTimeRef.current = dragStartTimeRef.current
 
     startDrag(dieId, grabOff, pos)
-    setLocalDragPosition(dieId, pos)
-  }, [dice, localPlayerId, getPointerWorldPosition, startDrag, setLocalDragPosition, setDraggedDiceId])
+  }, [dice, localPlayerId, getPointerWorldPosition, startDrag, setDraggedDiceId])
 
   const onPointerMove = useCallback((event: PointerEvent) => {
     if (!isDraggingRef.current || event.pointerId !== currentPointerIdRef.current) return
@@ -105,9 +102,6 @@ export function useMultiplayerDrag() {
 
     const pos: [number, number, number] = [worldPos.x, worldPos.y, worldPos.z]
 
-    // Always update local visual position (every frame)
-    setLocalDragPosition(dieId, pos)
-
     // Track velocity history (time relative to drag start)
     const now = performance.now()
     const relativeTime = now - dragStartTimeRef.current
@@ -121,7 +115,7 @@ export function useMultiplayerDrag() {
       lastSendTimeRef.current = now
       moveDrag(dieId, pos)
     }
-  }, [getPointerWorldPosition, setLocalDragPosition, moveDrag])
+  }, [getPointerWorldPosition, moveDrag])
 
   const endDragHandler = useCallback(() => {
     if (!isDraggingRef.current) return
