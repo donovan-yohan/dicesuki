@@ -69,6 +69,10 @@ interface MultiplayerState {
   endDrag: (dieId: string, velocityHistory: VelocityHistoryEntry[]) => void
   setLocalDragPosition: (dieId: string, position: [number, number, number] | null) => void
 
+  // Player filtering
+  selectedPlayerId: string | null
+  setSelectedPlayerId: (playerId: string | null) => void
+
   // Internal
   setConnectionStatus: (status: ConnectionStatus) => void
   reset: () => void
@@ -84,6 +88,7 @@ const createInitialState = () => ({
   dice: new Map<string, MultiplayerDie>(),
   lastSnapshotTime: 0,
   snapshotInterval: 50,
+  selectedPlayerId: null as string | null,
 })
 
 export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
@@ -350,6 +355,11 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     if (die) {
       die.localDragPosition = position
     }
+  },
+
+  setSelectedPlayerId: (playerId: string | null) => {
+    const current = get().selectedPlayerId
+    set({ selectedPlayerId: current === playerId ? null : playerId })
   },
 
   setConnectionStatus: (status: ConnectionStatus) => {

@@ -35,6 +35,7 @@ pub struct ServerDie {
     pub body_handle: Option<RigidBodyHandle>,
     pub rest_start_tick: Option<u64>,
     pub drag_state: Option<DragState>,
+    pub last_snapshot_position: [f32; 3],
 }
 
 pub struct Room {
@@ -180,6 +181,7 @@ impl Room {
                 body_handle: Some(body_handle),
                 rest_start_tick: None,
                 drag_state: None,
+                last_snapshot_position: position,
             };
             spawned.push(DiceState {
                 id: id.clone(),
@@ -308,15 +310,31 @@ impl Room {
         }
 
         // Build snapshot based on SNAPSHOT_DIVISOR (1 = 60Hz, 2 = 30Hz, 3 = 20Hz)
+        const POSITION_DELTA_THRESHOLD: f32 = 0.01; // 1cm movement threshold
         let snapshot = if self.tick_count % SNAPSHOT_DIVISOR == 0 {
             let dice_snapshots: Vec<DiceSnapshot> = self.dice.values()
-                .filter(|d| d.is_rolling || d.drag_state.is_some())
+                .filter(|d| {
+                    d.is_rolling || d.drag_state.is_some() || {
+                        let dx = d.position[0] - d.last_snapshot_position[0];
+                        let dy = d.position[1] - d.last_snapshot_position[1];
+                        let dz = d.position[2] - d.last_snapshot_position[2];
+                        (dx * dx + dy * dy + dz * dz) > POSITION_DELTA_THRESHOLD * POSITION_DELTA_THRESHOLD
+                    }
+                })
                 .map(|d| DiceSnapshot {
                     id: d.id.clone(),
                     position: d.position,
                     rotation: d.rotation,
                 })
                 .collect();
+
+            // Update last_snapshot_position for included dice
+            let included_ids: Vec<String> = dice_snapshots.iter().map(|s| s.id.clone()).collect();
+            for id in &included_ids {
+                if let Some(die) = self.dice.get_mut(id) {
+                    die.last_snapshot_position = die.position;
+                }
+            }
 
             if !dice_snapshots.is_empty() {
                 Some(ServerMessage::PhysicsSnapshot {
@@ -588,6 +606,7 @@ impl Room {
                 body_handle: None,
                 rest_start_tick: None,
                 drag_state: None,
+                last_snapshot_position: position,
             };
             spawned.push(DiceState {
                 id: id.clone(),
@@ -897,6 +916,35 @@ mod tests {
 
         room.end_drag("p1", "d1", &[]);
         assert!(room.dice.get("d1").unwrap().drag_state.is_none());
+    }
+
+    #[test]
+    fn test_settled_die_included_in_snapshot_after_displacement() {
+        let mut room = Room::new("test".to_string());
+        let p1 = make_player("p1", "Alice");
+        let p2 = make_player("p2", "Bob");
+        room.add_player(p1).unwrap();
+        room.add_player(p2).unwrap();
+
+        // Spawn p2's die with physics (starts settled)
+        room.spawn_dice_with_physics("p2", vec![("d2".to_string(), DiceType::D6)]).unwrap();
+
+        // Manually apply velocity to d2's rigid body to simulate collision displacement
+        if let Some(handle) = room.dice.get("d2").unwrap().body_handle {
+            if let Some(rb) = room.physics.rigid_body_set.get_mut(handle) {
+                rb.set_linvel(rapier3d::prelude::vector![5.0, 0.0, 0.0], true);
+            }
+        }
+
+        // Step physics so position updates
+        let (snapshot, _) = room.physics_tick();
+
+        // d2 should be in the snapshot even though it's not rolling (it moved)
+        assert!(snapshot.is_some(), "Snapshot should be generated for displaced die");
+        if let Some(ServerMessage::PhysicsSnapshot { dice, .. }) = snapshot {
+            let d2_in_snapshot = dice.iter().any(|d| d.id == "d2");
+            assert!(d2_in_snapshot, "Displaced settled die should be in snapshot");
+        }
     }
 
     #[test]
