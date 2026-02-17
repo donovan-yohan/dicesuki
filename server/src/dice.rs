@@ -338,6 +338,62 @@ mod tests {
     }
 
     #[test]
+    fn test_d8_opposite_faces_sum_to_9() {
+        let faces = get_face_normals(DiceType::D8);
+        for face in &faces {
+            let opposite = faces.iter().find(|f| {
+                (f.normal + face.normal).magnitude() < 0.01
+            });
+            if let Some(opp) = opposite {
+                assert_eq!(face.value + opp.value, 9,
+                    "D8 opposite faces {} and {} should sum to 9", face.value, opp.value);
+            }
+        }
+    }
+
+    #[test]
+    fn test_d10_opposite_faces_sum_to_9() {
+        let faces = get_face_normals(DiceType::D10);
+        for face in &faces {
+            let opposite = faces.iter().find(|f| {
+                (f.normal + face.normal).magnitude() < 0.01
+            });
+            if let Some(opp) = opposite {
+                assert_eq!(face.value + opp.value, 9,
+                    "D10 opposite faces {} and {} should sum to 9", face.value, opp.value);
+            }
+        }
+    }
+
+    #[test]
+    fn test_d12_opposite_faces_sum_to_13() {
+        let faces = get_face_normals(DiceType::D12);
+        for face in &faces {
+            let opposite = faces.iter().find(|f| {
+                (f.normal + face.normal).magnitude() < 0.01
+            });
+            if let Some(opp) = opposite {
+                assert_eq!(face.value + opp.value, 13,
+                    "D12 opposite faces {} and {} should sum to 13", face.value, opp.value);
+            }
+        }
+    }
+
+    #[test]
+    fn test_d20_opposite_faces_sum_to_21() {
+        let faces = get_face_normals(DiceType::D20);
+        for face in &faces {
+            let opposite = faces.iter().find(|f| {
+                (f.normal + face.normal).magnitude() < 0.01
+            });
+            if let Some(opp) = opposite {
+                assert_eq!(face.value + opp.value, 21,
+                    "D20 opposite faces {} and {} should sum to 21", face.value, opp.value);
+            }
+        }
+    }
+
+    #[test]
     fn test_roll_impulse_in_range() {
         for _ in 0..100 {
             let impulse = generate_roll_impulse();

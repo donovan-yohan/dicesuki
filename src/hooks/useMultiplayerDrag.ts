@@ -13,9 +13,8 @@ import { useDragStore } from '../store/useDragStore'
 
 /**
  * Hook for handling drag interaction with multiplayer dice.
- * Mirrors useDiceInteraction but sends WebSocket messages instead of
- * manipulating a local rigid body. Client shows optimistic local position
- * while the server applies physics forces.
+ * Sends WebSocket messages (drag_start, drag_move, drag_end) to the server.
+ * Dice rendering is server-authoritative via snapshot interpolation.
  */
 export function useMultiplayerDrag() {
   const { camera, gl, size } = useThree()
