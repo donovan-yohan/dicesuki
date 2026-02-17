@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useMultiplayerDiceBackend } from '../../hooks/useMultiplayerDiceBackend'
 import { DiceBackendProvider } from '../../contexts/DiceBackendContext'
+import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore } from '../../store/useDiceStore'
 import Scene from '../Scene'
 
@@ -21,9 +22,11 @@ export function MultiplayerRoom() {
   // Clear local dice state on mount; disconnect and reset on unmount
   useEffect(() => {
     useDiceStore.getState().reset()
+    useDiceManagerStore.getState().removeAllDice()
     return () => {
       disconnect()
       useDiceStore.getState().reset()
+      useDiceManagerStore.getState().removeAllDice()
     }
   }, [disconnect])
 

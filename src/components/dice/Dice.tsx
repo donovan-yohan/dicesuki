@@ -26,19 +26,9 @@ import { useTheme } from '../../contexts/ThemeContext'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
-import {
-  DiceShape,
-  createD12Geometry,
-  createD20Geometry,
-  createD4Geometry,
-  createD6Geometry,
-  createD8Geometry,
-  createD10Geometry,
-} from '../../lib/geometries'
+import { type DiceShape, createDiceGeometry } from '../../lib/geometries'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
-import { renderD4Classic } from '../../lib/faceRenderers/d4Renderer'
-import { renderD20Styled } from '../../lib/faceRenderers/d20Renderer'
-import { renderStyledNumber } from '../../lib/textureRendering'
+import { getFaceRendererForShape } from '../../lib/faceRenderers'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useUIStore } from '../../store/useUIStore'
 
@@ -396,34 +386,10 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       }
     })
 
-    // Select geometry based on shape and prepare for texturing
-    const geometry = useMemo(() => {
-      let geo: THREE.BufferGeometry
-      switch (shape) {
-        case 'd4':
-          geo = createD4Geometry(size)
-          break
-        case 'd6':
-          geo = createD6Geometry(size)
-          break
-        case 'd8':
-          geo = createD8Geometry(size)
-          break
-        case 'd10':
-          geo = createD10Geometry(size)
-          break
-        case 'd12':
-          geo = createD12Geometry(size)
-          break
-        case 'd20':
-          geo = createD20Geometry(size)
-          break
-        default:
-          geo = createD6Geometry(size)
-          break
-      }
-      return prepareGeometryForTexturing(geo, shape)
-    }, [shape, size])
+    const geometry = useMemo(
+      () => prepareGeometryForTexturing(createDiceGeometry(shape, size), shape),
+      [shape, size],
+    )
 
     const diceMats = currentTheme.dice.materials
     const materials = useDiceMaterials({
@@ -432,9 +398,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       roughness: diceMats.roughness,
       metalness: diceMats.metalness,
       emissiveIntensity: diceMats.emissiveIntensity,
-      faceRenderer: shape === 'd4' ? renderD4Classic
-        : (shape === 'd8' || shape === 'd20') ? renderD20Styled
-        : renderStyledNumber,
+      faceRenderer: getFaceRendererForShape(shape),
     })
 
     // Calculate half-extents for D6 collider

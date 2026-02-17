@@ -3,25 +3,18 @@ import { Canvas } from '@react-three/fiber'
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import {
-  DiceShape,
+  type DiceShape,
   getDiceFaceValue,
+  createDiceGeometry,
   D4_FACE_NORMALS,
   D6_FACE_NORMALS,
   D8_FACE_NORMALS,
   D10_FACE_NORMALS,
   D12_FACE_NORMALS,
   D20_FACE_NORMALS,
-  createD4Geometry,
-  createD6Geometry,
-  createD8Geometry,
-  createD10Geometry,
-  createD12Geometry,
-  createD20Geometry,
 } from '../../lib/geometries'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
-import { renderD4Classic } from '../../lib/faceRenderers/d4Renderer'
-import { renderD20Styled } from '../../lib/faceRenderers/d20Renderer'
-import { renderStyledNumber } from '../../lib/textureRendering'
+import { getFaceRendererForShape } from '../../lib/faceRenderers'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 
 const FACE_NORMALS_MAP: Record<DiceShape, import('../../lib/geometries').DiceFace[]> = {
@@ -33,14 +26,6 @@ const FACE_NORMALS_MAP: Record<DiceShape, import('../../lib/geometries').DiceFac
   d20: D20_FACE_NORMALS,
 }
 
-const GEOMETRY_CREATORS: Record<DiceShape, (size?: number) => THREE.BufferGeometry> = {
-  d4: createD4Geometry,
-  d6: createD6Geometry,
-  d8: createD8Geometry,
-  d10: createD10Geometry,
-  d12: createD12Geometry,
-  d20: createD20Geometry,
-}
 
 /**
  * Compute quaternion that rotates a face normal to align with the target direction.
@@ -67,8 +52,7 @@ function DieAtOrientation({
   materials: THREE.Material | THREE.Material[]
 }) {
   const geometry = useMemo(() => {
-    const baseGeometry = GEOMETRY_CREATORS[shape](1)
-    return prepareGeometryForTexturing(baseGeometry, shape)
+    return prepareGeometryForTexturing(createDiceGeometry(shape), shape)
   }, [shape])
   const euler = useMemo(() => new THREE.Euler().setFromQuaternion(quaternion), [quaternion])
 
@@ -95,9 +79,7 @@ export default function DiceFaceTestHarness() {
   const materials = useDiceMaterials({
     shape,
     color: '#ff6b35',
-    faceRenderer: shape === 'd4' ? renderD4Classic
-      : (shape === 'd8' || shape === 'd20') ? renderD20Styled
-      : renderStyledNumber,
+    faceRenderer: getFaceRendererForShape(shape),
   })
 
   return (

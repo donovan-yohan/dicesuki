@@ -2,7 +2,7 @@
 import { Box, Environment } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Physics, RigidBody, useRapier } from '@react-three/rapier'
-import { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
@@ -26,7 +26,7 @@ import { initializeStarterDice } from '../lib/initializeStarterDice'
 
 // Stores
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
-import { useDiceStore } from '../store/useDiceStore'
+import { useDiceStore, type DieSettledState } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useInventoryStore } from '../store/useInventoryStore'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
@@ -38,7 +38,7 @@ import { Dice, DiceHandle } from './dice/Dice'
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
 import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
-import { RoomHeader } from './multiplayer/RoomHeader'
+import { PlayerPanel } from './multiplayer/PlayerPanel'
 import { HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
 
 /**
@@ -425,6 +425,7 @@ function Scene() {
   const [isSavedRollsOpen, setIsSavedRollsOpen] = useState(false)
   const [isInventoryOpen, setIsInventoryOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isPlayerPanelOpen, setIsPlayerPanelOpen] = useState(false)
 
   // Detect if mobile
   const [isMobile, setIsMobile] = useState(false)
@@ -703,6 +704,32 @@ function Scene() {
         </button>
       </div>
 
+      {/* Top-Right (Lowest): Room Players — multiplayer only */}
+      {isMultiplayer && (
+        <div
+          className="fixed z-40"
+          style={{
+            top: '144px',
+            right: '16px',
+            pointerEvents: isUIVisible ? 'auto' : 'none'
+          }}
+        >
+          <button
+            onClick={() => setIsPlayerPanelOpen(!isPlayerPanelOpen)}
+            className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
+            style={{
+              ...TOP_RIGHT_BUTTON_STYLES,
+              opacity: isUIVisible ? 1 : 0,
+              transform: isUIVisible ? 'scale(1)' : 'scale(0.8)',
+            }}
+            aria-label="Room Players"
+            title="Toggle player list"
+          >
+            👥
+          </button>
+        </div>
+      )}
+
       {/* Mini UI Toggle - shows when UI hidden */}
       <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
 
@@ -735,8 +762,10 @@ function Scene() {
         onClose={() => setIsSettingsOpen(false)}
       />
 
-      {/* Multiplayer overlay */}
-      {isMultiplayer && <RoomHeader />}
+      {/* Multiplayer player panel */}
+      {isMultiplayer && (
+        <PlayerPanel isOpen={isPlayerPanelOpen} />
+      )}
 
     </>
   )
@@ -793,12 +822,44 @@ function ResultDisplay() {
   const activeSavedRoll = useDiceStore((s) => s.activeSavedRoll)
   const dice = useDiceManagerStore((s) => s.dice)
 
+  // Per-player filtering (multiplayer only)
+  const selectedPlayerId = useMultiplayerStore((s) => s.selectedPlayerId)
+  const multiplayerDice = useMultiplayerStore((s) => s.dice)
+  const isMultiplayerMode = useMultiplayerStore((s) => s.localPlayerId) !== null
+  const isFilterActive = isMultiplayerMode && selectedPlayerId !== null
+
+  const isOwnedBySelectedPlayer = useCallback(
+    (dieId: string): boolean => {
+      const mpDie = multiplayerDice.get(dieId)
+      return mpDie !== undefined && mpDie.ownerId === selectedPlayerId
+    },
+    [multiplayerDice, selectedPlayerId],
+  )
+
+  const filteredSettledDice = useMemo(() => {
+    if (!isFilterActive) return settledDice
+    const filtered = new Map<string, DieSettledState>()
+    for (const [id, die] of settledDice) {
+      if (isOwnedBySelectedPlayer(id)) filtered.set(id, die)
+    }
+    return filtered
+  }, [settledDice, isFilterActive, isOwnedBySelectedPlayer])
+
+  const filteredRollingDice = useMemo(() => {
+    if (!isFilterActive) return rollingDice
+    const filtered = new Set<string>()
+    for (const id of rollingDice) {
+      if (isOwnedBySelectedPlayer(id)) filtered.add(id)
+    }
+    return filtered
+  }, [rollingDice, isFilterActive, isOwnedBySelectedPlayer])
+
   const prevSumRef = useRef<number | null>(null)
   const [shouldAnimate, setShouldAnimate] = useState(false)
 
-  const settledArray = Array.from(settledDice.values())
+  const settledArray = Array.from(filteredSettledDice.values())
   const rawSum = settledArray.reduce((acc, d) => acc + d.value, 0)
-  const isAnyRolling = rollingDice.size > 0
+  const isAnyRolling = filteredRollingDice.size > 0
   const hasSettled = settledArray.length > 0
 
   // Calculate grand total with bonuses
@@ -820,7 +881,7 @@ function ResultDisplay() {
 
   if (!hasSettled && !isAnyRolling) return null
 
-  const rollingDiceOnTable = dice.filter(d => rollingDice.has(d.id))
+  const rollingDiceOnTable = dice.filter(d => filteredRollingDice.has(d.id))
 
   return (
     <div

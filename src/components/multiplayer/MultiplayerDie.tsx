@@ -2,8 +2,10 @@ import { useRef, useMemo, useCallback, type MutableRefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
-import type { DiceShape } from '../../lib/geometries'
-import { createDiceGeometry } from '../../lib/geometries'
+import { type DiceShape, createDiceGeometry } from '../../lib/geometries'
+import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
+import { getFaceRendererForShape } from '../../lib/faceRenderers'
+import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 
 interface MultiplayerDieProps {
@@ -25,8 +27,18 @@ export function MultiplayerDie({
 }: MultiplayerDieProps) {
   const meshRef = useRef<THREE.Mesh>(null)
 
-  // Memoize geometry creation
-  const geometry = useMemo(() => createDiceGeometry(diceType), [diceType])
+  const geometry = useMemo(
+    () => prepareGeometryForTexturing(createDiceGeometry(diceType), diceType),
+    [diceType],
+  )
+
+  const materials = useDiceMaterials({
+    shape: diceType,
+    color,
+    roughness: 0.7,
+    metalness: 0.1,
+    faceRenderer: getFaceRendererForShape(diceType),
+  })
 
   // Reusable objects — avoid allocation in render loop
   const prevQuat = useMemo(() => new THREE.Quaternion(), [])
@@ -79,13 +91,12 @@ export function MultiplayerDie({
     <mesh
       ref={meshRef}
       geometry={geometry}
+      material={materials}
       castShadow
       receiveShadow
       onPointerDown={isOwnedByLocalPlayer ? handlePointerDown : undefined}
       onPointerEnter={isOwnedByLocalPlayer ? handlePointerEnter : undefined}
       onPointerLeave={handlePointerLeave}
-    >
-      <meshStandardMaterial color={color} />
-    </mesh>
+    />
   )
 }
