@@ -67,24 +67,18 @@ export function MultiplayerDie({
     const currentDie = useMultiplayerStore.getState().dice.get(dieId)
     if (!currentDie) return
 
-    if (currentDie.isLocallyDragged && currentDie.localDragPosition) {
-      // Optimistic: show die at local drag position
-      const dragPos = currentDie.localDragPosition
-      meshRef.current.position.set(dragPos[0], dragPos[1], dragPos[2])
-    } else {
-      // Interpolate between prev and target snapshots using live t value
-      const t = tRef.current
-      interpPos.set(currentDie.prevPosition[0], currentDie.prevPosition[1], currentDie.prevPosition[2])
-      targetPos.set(currentDie.targetPosition[0], currentDie.targetPosition[1], currentDie.targetPosition[2])
-      interpPos.lerp(targetPos, t)
-      meshRef.current.position.copy(interpPos)
+    // Interpolate between prev and target snapshots using live t value
+    const t = tRef.current
+    interpPos.set(currentDie.prevPosition[0], currentDie.prevPosition[1], currentDie.prevPosition[2])
+    targetPos.set(currentDie.targetPosition[0], currentDie.targetPosition[1], currentDie.targetPosition[2])
+    interpPos.lerp(targetPos, t)
+    meshRef.current.position.copy(interpPos)
 
-      // Interpolate rotation (slerp)
-      prevQuat.set(currentDie.prevRotation[0], currentDie.prevRotation[1], currentDie.prevRotation[2], currentDie.prevRotation[3])
-      targetQuat.set(currentDie.targetRotation[0], currentDie.targetRotation[1], currentDie.targetRotation[2], currentDie.targetRotation[3])
-      interpQuat.slerpQuaternions(prevQuat, targetQuat, t)
-      meshRef.current.quaternion.copy(interpQuat)
-    }
+    // Interpolate rotation (slerp)
+    prevQuat.set(currentDie.prevRotation[0], currentDie.prevRotation[1], currentDie.prevRotation[2], currentDie.prevRotation[3])
+    targetQuat.set(currentDie.targetRotation[0], currentDie.targetRotation[1], currentDie.targetRotation[2], currentDie.targetRotation[3])
+    interpQuat.slerpQuaternions(prevQuat, targetQuat, t)
+    meshRef.current.quaternion.copy(interpQuat)
   })
 
   return (

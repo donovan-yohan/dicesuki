@@ -4,7 +4,7 @@ use rapier3d::prelude::RigidBodyHandle;
 use crate::messages::*;
 use crate::player::Player;
 use crate::physics::{
-    PhysicsWorld, REST_DURATION_MS,
+    PhysicsWorld, REST_DURATION_MS, MAX_DICE_VELOCITY,
     DRAG_FOLLOW_SPEED, DRAG_DISTANCE_BOOST, DRAG_DISTANCE_THRESHOLD,
     DRAG_ROLL_FACTOR, DRAG_SPIN_FACTOR,
     THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
@@ -296,6 +296,19 @@ impl Room {
         // 2. Step physics
         self.physics.step();
         self.tick_count += 1;
+
+        // 3. Clamp dice velocity (matching client MAX_DICE_VELOCITY)
+        for die in self.dice.values() {
+            if let Some(handle) = die.body_handle {
+                if let Some(rb) = self.physics.rigid_body_set.get_mut(handle) {
+                    let vel = *rb.linvel();
+                    let speed = vel.magnitude();
+                    if speed > MAX_DICE_VELOCITY {
+                        rb.set_linvel(vel * (MAX_DICE_VELOCITY / speed), true);
+                    }
+                }
+            }
+        }
 
         // Update positions from physics
         for die in self.dice.values_mut() {

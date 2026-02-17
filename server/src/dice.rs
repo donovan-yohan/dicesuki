@@ -194,10 +194,10 @@ pub fn get_face_normals(dice_type: DiceType) -> Vec<DiceFace> {
         DiceType::D4 => {
             let s = 1.0 / 3.0_f32.sqrt();
             vec![
-                DiceFace { value: 1, normal: Vector3::new(s, s, s) },
-                DiceFace { value: 2, normal: Vector3::new(s, -s, -s) },
-                DiceFace { value: 3, normal: Vector3::new(-s, s, -s) },
-                DiceFace { value: 4, normal: Vector3::new(-s, -s, s) },
+                DiceFace { value: 1, normal: Vector3::new(-s, s, s) },
+                DiceFace { value: 2, normal: Vector3::new(s, s, -s) },
+                DiceFace { value: 3, normal: Vector3::new(s, -s, s) },
+                DiceFace { value: 4, normal: Vector3::new(-s, -s, -s) },
             ]
         }
         DiceType::D6 => {
@@ -214,82 +214,76 @@ pub fn get_face_normals(dice_type: DiceType) -> Vec<DiceFace> {
             let s = 1.0 / 3.0_f32.sqrt();
             vec![
                 DiceFace { value: 1, normal: Vector3::new(s, s, s) },
-                DiceFace { value: 2, normal: Vector3::new(-s, s, s) },
-                DiceFace { value: 3, normal: Vector3::new(s, s, -s) },
-                DiceFace { value: 4, normal: Vector3::new(-s, s, -s) },
-                DiceFace { value: 5, normal: Vector3::new(s, -s, s) },
-                DiceFace { value: 6, normal: Vector3::new(-s, -s, s) },
-                DiceFace { value: 7, normal: Vector3::new(s, -s, -s) },
+                DiceFace { value: 2, normal: Vector3::new(s, -s, s) },
+                DiceFace { value: 3, normal: Vector3::new(s, -s, -s) },
+                DiceFace { value: 4, normal: Vector3::new(s, s, -s) },
+                DiceFace { value: 7, normal: Vector3::new(-s, s, -s) },
                 DiceFace { value: 8, normal: Vector3::new(-s, -s, -s) },
+                DiceFace { value: 5, normal: Vector3::new(-s, -s, s) },
+                DiceFace { value: 6, normal: Vector3::new(-s, s, s) },
             ]
         }
         DiceType::D10 => {
-            // D10 face normals — computed from kite geometry
-            // Upper faces (even: 0,2,4,6,8) and lower faces (odd: 3,1,9,7,5)
-            let mut faces = Vec::new();
-            let values_upper = [0u32, 2, 4, 6, 8];
-            let values_lower = [3u32, 1, 9, 7, 5];
-            for i in 0..5 {
-                let angle = (i as f32) * std::f32::consts::TAU / 5.0;
-                let nx = angle.cos();
-                let nz = angle.sin();
-                faces.push(DiceFace { value: values_upper[i], normal: Vector3::new(nx, 0.3, nz).normalize() });
-            }
-            for i in 0..5 {
-                let angle = (i as f32) * std::f32::consts::TAU / 5.0 + std::f32::consts::TAU / 10.0;
-                let nx = angle.cos();
-                let nz = angle.sin();
-                faces.push(DiceFace { value: values_lower[i], normal: Vector3::new(nx, -0.3, nz).normalize() });
-            }
-            faces
+            // Normals extracted from client Three.js D10 geometry (createD10Geometry)
+            // to ensure perfect alignment with rendered faces.
+            // Upper kites (0-4): values [0, 2, 4, 6, 8]
+            // Lower kites (5-9): values [3, 1, 9, 7, 5]
+            vec![
+                DiceFace { value: 0, normal: Vector3::new(-0.741456, 0.671001, -0.001183).normalize() },
+                DiceFace { value: 2, normal: Vector3::new(-0.227997, 0.671001, -0.705532).normalize() },
+                DiceFace { value: 4, normal: Vector3::new(0.600546, 0.671001, -0.434860).normalize() },
+                DiceFace { value: 6, normal: Vector3::new(0.599155, 0.671001, 0.436774).normalize() },
+                DiceFace { value: 8, normal: Vector3::new(-0.230247, 0.671001, 0.704801).normalize() },
+                DiceFace { value: 3, normal: Vector3::new(-0.599155, -0.671001, -0.436774).normalize() },
+                DiceFace { value: 1, normal: Vector3::new(0.230247, -0.671001, -0.704801).normalize() },
+                DiceFace { value: 9, normal: Vector3::new(0.741456, -0.671001, 0.001183).normalize() },
+                DiceFace { value: 7, normal: Vector3::new(0.227997, -0.671001, 0.705532).normalize() },
+                DiceFace { value: 5, normal: Vector3::new(-0.600546, -0.671001, 0.434860).normalize() },
+            ]
         }
         DiceType::D12 => {
-            let a = 0.5257311; // 1/sqrt(phi+2) approximately
-            let b = 0.8506508; // phi/sqrt(phi+2) approximately
+            let a: f32 = 0.5257311;
+            let b: f32 = 0.8506508;
             vec![
-                DiceFace { value: 1, normal: Vector3::new(0.0, b, a) },
-                DiceFace { value: 2, normal: Vector3::new(0.0, b, -a) },
-                DiceFace { value: 3, normal: Vector3::new(0.0, -b, a) },
-                DiceFace { value: 4, normal: Vector3::new(0.0, -b, -a) },
-                DiceFace { value: 5, normal: Vector3::new(a, 0.0, b) },
-                DiceFace { value: 6, normal: Vector3::new(-a, 0.0, b) },
-                DiceFace { value: 7, normal: Vector3::new(a, 0.0, -b) },
-                DiceFace { value: 8, normal: Vector3::new(-a, 0.0, -b) },
-                DiceFace { value: 9, normal: Vector3::new(b, a, 0.0) },
-                DiceFace { value: 10, normal: Vector3::new(-b, a, 0.0) },
-                DiceFace { value: 11, normal: Vector3::new(b, -a, 0.0) },
-                DiceFace { value: 12, normal: Vector3::new(-b, -a, 0.0) },
+                DiceFace { value: 1,  normal: Vector3::new(0.0, b, a) },
+                DiceFace { value: 2,  normal: Vector3::new(b, a, 0.0) },
+                DiceFace { value: 3,  normal: Vector3::new(a, 0.0, -b) },
+                DiceFace { value: 4,  normal: Vector3::new(-a, 0.0, -b) },
+                DiceFace { value: 11, normal: Vector3::new(-b, -a, 0.0) },
+                DiceFace { value: 5,  normal: Vector3::new(0.0, b, -a) },
+                DiceFace { value: 6,  normal: Vector3::new(-b, a, 0.0) },
+                DiceFace { value: 10, normal: Vector3::new(-a, 0.0, b) },
+                DiceFace { value: 12, normal: Vector3::new(0.0, -b, -a) },
+                DiceFace { value: 9,  normal: Vector3::new(a, 0.0, b) },
+                DiceFace { value: 7,  normal: Vector3::new(b, -a, 0.0) },
+                DiceFace { value: 8,  normal: Vector3::new(0.0, -b, a) },
             ]
         }
         DiceType::D20 => {
-            // Icosahedron face normals (20 faces)
-            // These are the centroids of each triangular face, normalized
-            let phi = (1.0 + 5.0_f32.sqrt()) / 2.0;
-            let a = 1.0;
-            let b = phi;
-            // Vertices of icosahedron
-            let verts = [
-                Vector3::new(-a, b, 0.0), Vector3::new(a, b, 0.0),
-                Vector3::new(-a, -b, 0.0), Vector3::new(a, -b, 0.0),
-                Vector3::new(0.0, -a, b), Vector3::new(0.0, a, b),
-                Vector3::new(0.0, -a, -b), Vector3::new(0.0, a, -b),
-                Vector3::new(b, 0.0, -a), Vector3::new(b, 0.0, a),
-                Vector3::new(-b, 0.0, -a), Vector3::new(-b, 0.0, a),
-            ];
-            // 20 triangular faces (vertex indices)
-            let face_indices: [(usize, usize, usize); 20] = [
-                (0, 11, 5), (0, 5, 1), (0, 1, 7), (0, 7, 10), (0, 10, 11),
-                (1, 5, 9), (5, 11, 4), (11, 10, 2), (10, 7, 6), (7, 1, 8),
-                (3, 9, 4), (3, 4, 2), (3, 2, 6), (3, 6, 8), (3, 8, 9),
-                (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1),
-            ];
-            face_indices.iter().enumerate().map(|(i, &(a_i, b_i, c_i))| {
-                let center = (verts[a_i] + verts[b_i] + verts[c_i]) / 3.0;
-                DiceFace {
-                    value: (i + 1) as u32,
-                    normal: center.normalize(),
-                }
-            }).collect()
+            // Normals extracted from Three.js IcosahedronGeometry to match client exactly.
+            // Opposite faces sum to 21.
+            vec![
+                DiceFace { value: 1,  normal: Vector3::new(-0.5774, 0.5774, 0.5774).normalize() },
+                DiceFace { value: 2,  normal: Vector3::new(0.0000, 0.9342, 0.3568).normalize() },
+                DiceFace { value: 3,  normal: Vector3::new(0.0000, 0.9342, -0.3568).normalize() },
+                DiceFace { value: 4,  normal: Vector3::new(-0.5774, 0.5774, -0.5774).normalize() },
+                DiceFace { value: 5,  normal: Vector3::new(-0.9342, 0.3568, 0.0000).normalize() },
+                DiceFace { value: 6,  normal: Vector3::new(0.5774, 0.5774, 0.5774).normalize() },
+                DiceFace { value: 7,  normal: Vector3::new(-0.3568, 0.0000, 0.9342).normalize() },
+                DiceFace { value: 8,  normal: Vector3::new(-0.9342, -0.3568, 0.0000).normalize() },
+                DiceFace { value: 9,  normal: Vector3::new(-0.3568, 0.0000, -0.9342).normalize() },
+                DiceFace { value: 10, normal: Vector3::new(0.5774, 0.5774, -0.5774).normalize() },
+                DiceFace { value: 17, normal: Vector3::new(0.5774, -0.5774, 0.5774).normalize() },
+                DiceFace { value: 18, normal: Vector3::new(0.0000, -0.9342, 0.3568).normalize() },
+                DiceFace { value: 19, normal: Vector3::new(0.0000, -0.9342, -0.3568).normalize() },
+                DiceFace { value: 20, normal: Vector3::new(0.5774, -0.5774, -0.5774).normalize() },
+                DiceFace { value: 16, normal: Vector3::new(0.9342, -0.3568, 0.0000).normalize() },
+                DiceFace { value: 12, normal: Vector3::new(0.3568, 0.0000, 0.9342).normalize() },
+                DiceFace { value: 11, normal: Vector3::new(-0.5774, -0.5774, 0.5774).normalize() },
+                DiceFace { value: 15, normal: Vector3::new(-0.5774, -0.5774, -0.5774).normalize() },
+                DiceFace { value: 14, normal: Vector3::new(0.3568, 0.0000, -0.9342).normalize() },
+                DiceFace { value: 13, normal: Vector3::new(0.9342, 0.3568, 0.0000).normalize() },
+            ]
         }
     }
 }

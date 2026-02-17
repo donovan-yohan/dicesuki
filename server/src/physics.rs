@@ -27,6 +27,9 @@ pub const THROW_UPWARD_BOOST: f32 = 3.0;
 pub const MIN_THROW_SPEED: f32 = 2.0;
 pub const MAX_THROW_SPEED: f32 = 20.0;
 
+// Velocity clamping (matching client physicsConfig.ts)
+pub const MAX_DICE_VELOCITY: f32 = 25.0;
+
 /// Viewport bounds — fixed 9:16 portrait arena for multiplayer
 pub const GROUND_Y: f32 = -0.5;
 pub const CEILING_Y: f32 = 15.0;
