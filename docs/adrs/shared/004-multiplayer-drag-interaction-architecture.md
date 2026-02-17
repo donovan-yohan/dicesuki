@@ -10,7 +10,7 @@ Multiplayer mode originally only supported rolling dice — players could not mo
 
 - **Cross-player collisions:** All dice on the table MUST physically interact regardless of which player owns them. A player dragging their die should be able to push other players' dice out of the way.
 - **Ownership:** Players MUST only be able to drag their own dice, but collisions affect all.
-- **Latency:** The dragging player MUST see responsive feedback (die follows finger immediately) despite server round-trip latency.
+- **Latency:** The dragging player MUST see responsive feedback despite server round-trip latency.
 - **Screen sizes:** Desktop and mobile users share the same table simultaneously, requiring a fixed world size with adaptive camera.
 
 ## Decision
@@ -56,16 +56,15 @@ interface VelocityHistoryEntry {
 
 The server's `calculate_throw_velocity()` computes average velocity from the history, scales by `THROW_VELOCITY_SCALE` (0.8), adds `THROW_UPWARD_BOOST` (3.0), and clamps between `MIN_THROW_SPEED` (2.0) and `MAX_THROW_SPEED` (20.0).
 
-### Optimistic Local Rendering
+### Server-Authoritative Drag Rendering
 
-The dragging player MUST see the die at the finger position immediately (zero perceived latency):
+Dragged dice MUST use the same server-authoritative snapshot interpolation as all other dice. There is no optimistic client-side rendering during drag.
 
-- Client sets `isLocallyDragged = true` and `localDragPosition` on the die
-- `MultiplayerDie`'s `useFrame` reads drag position via `useMultiplayerStore.getState()` (not props, to avoid re-render overhead)
-- The `physics_snapshot` handler MUST skip position updates for locally dragged dice
-- On drag end, `isLocallyDragged` is cleared and the die transitions back to server-interpolated position
+- `MultiplayerDie`'s `useFrame` reads position via `useMultiplayerStore.getState()` (not props, to avoid re-render overhead)
+- The `physics_snapshot` handler MUST NOT skip any dice — all dice update from snapshots uniformly
+- The server sends 60Hz snapshots (`SNAPSHOT_DIVISOR=1`), providing responsive visual feedback without client-side prediction
 
-Other clients see the dragged die via normal server snapshot interpolation (~50-150ms delay).
+All clients (including the dragger) see the die via server snapshot interpolation. The 60Hz snapshot rate keeps perceived latency low (~16.67ms between updates).
 
 ### Portrait-First Arena (9:16)
 
@@ -94,7 +93,8 @@ The `MultiplayerArena` component renders themed walls, floor, and ceiling matchi
 ### Positive
 
 - Cross-player dice collisions work naturally during drags because dice remain dynamic bodies
-- Dragging player sees zero-latency feedback via optimistic local rendering
+- All clients see consistent die positions (no visual divergence between dragger and observers)
+- 60Hz server snapshots provide responsive feedback without client-side prediction complexity
 - Throw/flick behavior mirrors single-player via velocity history calculation
 - 9:16 arena is mobile-optimized while accessible on all screen sizes
 - Throttled drag messages (~30Hz) balance responsiveness vs bandwidth
@@ -102,9 +102,8 @@ The `MultiplayerArena` component renders themed walls, floor, and ceiling matchi
 
 ### Negative / Considerations
 
-- Velocity-based following introduces slight lag between finger and die position for other clients (~50-150ms)
+- Velocity-based following introduces slight lag between finger and die position (~16.67ms at 60Hz snapshots)
 - The server must process drag_move messages at 30Hz per dragging player, adding load
 - Drag physics constants (DRAG_FOLLOW_SPEED, etc.) must be tuned for good feel; too low feels sluggish, too high causes instability
-- Optimistic rendering means the dragging player and other clients may briefly see the die in different positions
 - The `useMultiplayerStore.getState()` pattern in `useFrame` bypasses React's rendering cycle, which is intentional for performance but requires awareness of this pattern
 - Portrait arena is narrower than single-player's full-width layout; dice may bounce more off walls in the constrained X dimension

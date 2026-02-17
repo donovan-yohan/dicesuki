@@ -1,7 +1,7 @@
 # Architecture Rules (derived from ADRs)
 
 > DO NOT edit by hand. Regenerate with `/adr:update`.
-> Generated: 2026-02-16 | Source: 9 Accepted ADRs (4 Frontend, 1 Server, 4 Shared)
+> Generated: 2026-02-17 | Source: 9 Accepted ADRs (4 Frontend, 1 Server, 4 Shared)
 
 ---
 
@@ -113,9 +113,10 @@
 - [Shared-ADR-004] `drag_start` MUST start the physics simulation loop if not already running.
 - [Shared-ADR-004] `drag_move` messages MUST be throttled to ~30Hz on the client (`MULTIPLAYER_DRAG_THROTTLE_MS` = 33ms).
 - [Shared-ADR-004] The client MUST track the last `VELOCITY_HISTORY_SIZE` (5) position+timestamp samples during drag for throw calculation.
-- [Shared-ADR-004] The dragging player MUST see the die at finger position immediately via optimistic local rendering (`isLocallyDragged` + `localDragPosition`).
-- [Shared-ADR-004] `MultiplayerDie` `useFrame` MUST read drag position via `useMultiplayerStore.getState()`, not props, to avoid re-render overhead.
-- [Shared-ADR-004] The `physics_snapshot` handler MUST skip position updates for locally dragged dice.
+- [Shared-ADR-004] Dragged dice MUST use server-authoritative snapshot interpolation; there MUST be no optimistic client-side rendering during drag.
+- [Shared-ADR-004] The `physics_snapshot` handler MUST NOT skip any dice; all dice update from snapshots uniformly.
+- [Shared-ADR-004] The server MUST send 60Hz snapshots (`SNAPSHOT_DIVISOR=1`) during drag for responsive visual feedback.
+- [Shared-ADR-004] `MultiplayerDie` `useFrame` MUST read position via `useMultiplayerStore.getState()`, not props, to avoid re-render overhead.
 - [Shared-ADR-004] The multiplayer arena MUST use a 9:16 portrait aspect ratio (`MULTIPLAYER_ARENA_HALF_X` = 4.5, `MULTIPLAYER_ARENA_HALF_Z` = 8.0).
 - [Shared-ADR-004] Arena dimension constants MUST match between `src/config/physicsConfig.ts` and `server/src/physics.rs`.
 - [Shared-ADR-004] Players MUST only be able to drag their own dice; ownership validation MUST occur server-side.
