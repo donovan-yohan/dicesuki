@@ -95,7 +95,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   connect: (roomId: string, displayName: string, color: string) => {
     const { serverUrl } = get()
-    set({ connectionStatus: 'connecting' })
+    set({ connectionStatus: 'connecting', parseErrorCount: 0 })
 
     const wsUrl = `${serverUrl}/ws/${roomId}`
     const socket = new WebSocket(wsUrl)

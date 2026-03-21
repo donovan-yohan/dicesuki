@@ -53,6 +53,25 @@ impl RoomError {
     }
 }
 
+impl std::fmt::Display for RoomError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            RoomError::RoomFull => "Room is full",
+            RoomError::InvalidName => "Display name must be 1-20 characters",
+            RoomError::DiceLimit => "Table is full (max 30 dice)",
+            RoomError::PlayerNotFound => "Player not found",
+            RoomError::DieNotFound => "Die not found",
+            RoomError::NotOwner => "You don't own this die",
+            RoomError::AlreadyDragged => "Die is already being dragged",
+            RoomError::NotDragger => "You are not the one dragging this die",
+            RoomError::NotDragging => "Die is not being dragged",
+        };
+        write!(f, "{msg}")
+    }
+}
+
+impl std::error::Error for RoomError {}
+
 pub const MAX_PLAYERS: usize = 8;
 pub const MAX_DICE: usize = 30;
 pub const IDLE_TIMEOUT_SECS: u64 = 1800; // 30 minutes
@@ -308,7 +327,7 @@ impl Room {
             }
         }
 
-        // 5. Build snapshot (60Hz — SNAPSHOT_DIVISOR=1)
+        // 5. Build snapshot (snapshots sent every tick at 60Hz)
         let snapshot = self.build_physics_snapshot();
 
         // 6. Check for newly settled dice
@@ -662,7 +681,7 @@ impl Room {
         let die = self.dice.get_mut(die_id).ok_or(RoomError::DieNotFound)?;
         let drag = die.drag_state.as_ref().ok_or(RoomError::NotDragging)?;
         if drag.dragger_id != player_id {
-            return Err(RoomError::NotOwner);
+            return Err(RoomError::NotDragger);
         }
 
         die.drag_state = None;
@@ -1008,9 +1027,9 @@ mod tests {
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         room.roll_player_dice("p1");
 
-        // With SNAPSHOT_DIVISOR=1, every tick should produce a snapshot
+        // Snapshots are sent every tick at 60Hz
         let (snap1, _) = room.physics_tick();
-        assert!(snap1.is_some(), "Every tick should produce a snapshot with divisor=1");
+        assert!(snap1.is_some(), "Every tick should produce a snapshot at 60Hz");
     }
 
     #[test]
@@ -1219,7 +1238,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_not_owner_end_drag() {
+    fn test_error_not_dragger_end_drag() {
         let mut room = Room::new("test".to_string());
         room.add_player(make_player("p1", "Alice")).unwrap();
         room.add_player(make_player("p2", "Bob")).unwrap();
@@ -1229,7 +1248,7 @@ mod tests {
         // p2 tries to end the drag — not the dragger
         assert_eq!(
             room.end_drag("p2", "d1", &[]).unwrap_err(),
-            RoomError::NotOwner
+            RoomError::NotDragger
         );
     }
 

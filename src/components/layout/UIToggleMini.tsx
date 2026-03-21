@@ -7,6 +7,7 @@
 
 import { motion } from 'framer-motion'
 import { useTheme } from '../../contexts/ThemeContext'
+import { hasAsset } from '../../lib/themeHelpers'
 import {
   miniToggleVariants,
   buttonPressScale,
@@ -21,8 +22,6 @@ interface UIToggleMiniProps {
 export function UIToggleMini({ onClick, isVisible }: UIToggleMiniProps) {
   const { currentTheme } = useTheme()
   const toggleIcon = currentTheme.assets.icons.uiToggle
-  const hasAsset = (path: string | null | undefined): path is string =>
-    path !== null && path !== undefined && path.length > 0
   const reduceMotion = shouldReduceMotion()
 
   return (

@@ -229,9 +229,15 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
             ClientMessage::DragMove { die_id, world_position } if is_joined => {
                 let mut room_guard = room.write().await;
                 if let Err(err) = room_guard.update_drag(&player_id, &die_id, world_position) {
+                    let message = match err {
+                        RoomError::DieNotFound => "Die not found".to_string(),
+                        RoomError::NotDragger => "Can only move drag on your own dice".to_string(),
+                        RoomError::NotDragging => "Die is not being dragged".to_string(),
+                        _ => format!("Drag move failed: {}", err.code()),
+                    };
                     let _ = tx.send(ServerMessage::Error {
                         code: err.code().to_string(),
-                        message: format!("Drag move failed: {}", err.code()),
+                        message,
                     });
                 }
             }
@@ -241,7 +247,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 if let Err(err) = room_guard.end_drag(&player_id, &die_id, &velocity_history) {
                     let message = match err {
                         RoomError::DieNotFound => "Die not found".to_string(),
-                        RoomError::NotOwner => "Can only end drag on your own dice".to_string(),
+                        RoomError::NotDragger => "Can only end drag on your own dice".to_string(),
                         RoomError::NotDragging => "Die is not being dragged".to_string(),
                         _ => format!("Drag end failed: {}", err.code()),
                     };
@@ -287,4 +293,56 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
     }
 
     write_task.abort();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_valid_hex_color;
+
+    #[test]
+    fn test_valid_hex_color_rrggbb() {
+        assert!(is_valid_hex_color("#1A2B3C"));
+        assert!(is_valid_hex_color("#FFFFFF"));
+        assert!(is_valid_hex_color("#000000"));
+        assert!(is_valid_hex_color("#aabbcc"));
+    }
+
+    #[test]
+    fn test_valid_hex_color_rgb() {
+        assert!(is_valid_hex_color("#ABC"));
+        assert!(is_valid_hex_color("#fff"));
+        assert!(is_valid_hex_color("#000"));
+        assert!(is_valid_hex_color("#1aF"));
+    }
+
+    #[test]
+    fn test_invalid_hex_color_missing_hash() {
+        assert!(!is_valid_hex_color("AABBCC"));
+        assert!(!is_valid_hex_color("ABC"));
+        assert!(!is_valid_hex_color("ffffff"));
+    }
+
+    #[test]
+    fn test_invalid_hex_color_non_hex_chars() {
+        assert!(!is_valid_hex_color("#GGHHII"));
+        assert!(!is_valid_hex_color("#XYZ"));
+        assert!(!is_valid_hex_color("#12345G"));
+    }
+
+    #[test]
+    fn test_invalid_hex_color_empty_string() {
+        assert!(!is_valid_hex_color(""));
+    }
+
+    #[test]
+    fn test_invalid_hex_color_wrong_length() {
+        // Too short (2 chars after #)
+        assert!(!is_valid_hex_color("#AB"));
+        // 5 chars after #
+        assert!(!is_valid_hex_color("#ABCDE"));
+        // 8 chars after # (too long)
+        assert!(!is_valid_hex_color("#AABBCCDD"));
+        // Just the hash
+        assert!(!is_valid_hex_color("#"));
+    }
 }

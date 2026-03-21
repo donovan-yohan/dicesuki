@@ -707,6 +707,8 @@ export const useInventoryStore = create<InventoryStore>()(
        * Call this on app initialization to restore custom dice after page reload
        */
       regenerateCustomDiceBlobUrls: async () => {
+        set({ customDiceLoadErrors: [] })
+
         const state = get()
         const customDice = state.dice.filter(die => die.customAsset)
 
