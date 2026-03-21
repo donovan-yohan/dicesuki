@@ -174,6 +174,7 @@ mod tests {
         let json = r##"{"type":"join","roomId":"abc123","displayName":"Gandalf","color":"#8B5CF6"}"##;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
+            #[allow(clippy::used_underscore_binding)]
             ClientMessage::Join { _room_id, display_name, color } => {
                 assert_eq!(_room_id, "abc123");
                 assert_eq!(display_name, "Gandalf");
@@ -237,6 +238,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_deserialize_drag_start() {
         let json = r#"{"type":"drag_start","dieId":"d1","grabOffset":[0.1,0.0,-0.2],"worldPosition":[1.0,2.0,3.0]}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
@@ -251,6 +253,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_deserialize_drag_move() {
         let json = r#"{"type":"drag_move","dieId":"d1","worldPosition":[2.0,2.0,4.0]}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
@@ -264,6 +267,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_deserialize_drag_end() {
         let json = r#"{"type":"drag_end","dieId":"d1","velocityHistory":[{"position":[1.0,2.0,3.0],"time":0.0},{"position":[2.0,2.0,4.0],"time":16.7}]}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();

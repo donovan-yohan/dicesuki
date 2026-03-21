@@ -124,6 +124,7 @@ interface InventoryStore {
   // ============================================================================
 
   regenerateCustomDiceBlobUrls: () => Promise<void>
+  customDiceLoadErrors: string[]
   getDevDice: () => InventoryDie[]
   removeAllDevDice: () => Promise<void>
 }
@@ -209,6 +210,7 @@ export const useInventoryStore = create<InventoryStore>()(
         premiumTokens: 0
       },
       assignments: {},
+      customDiceLoadErrors: [],
 
       // ========================================================================
       // Dice Management
@@ -234,19 +236,16 @@ export const useInventoryStore = create<InventoryStore>()(
           return false
         }
 
-        // Unassign from all rolls
-        die.assignedToRolls.forEach(() => {
-          // Remove assignments
-          Object.keys(state.assignments).forEach(key => {
-            if (state.assignments[key] === dieId) {
-              delete state.assignments[key]
-            }
-          })
+        // Remove die and all of its assignments in a single set() call
+        set(state => {
+          const newAssignments = Object.fromEntries(
+            Object.entries(state.assignments).filter(([, assignedDieId]) => assignedDieId !== dieId)
+          )
+          return {
+            dice: state.dice.filter(d => d.id !== dieId),
+            assignments: newAssignments
+          }
         })
-
-        set(state => ({
-          dice: state.dice.filter(d => d.id !== dieId)
-        }))
 
         return true
       },
@@ -713,6 +712,8 @@ export const useInventoryStore = create<InventoryStore>()(
 
         console.log(`[InventoryStore] Regenerating blob URLs for ${customDice.length} custom dice`)
 
+        const failedDiceIds: string[] = []
+
         for (const die of customDice) {
           if (!die.customAsset) continue
 
@@ -742,10 +743,16 @@ export const useInventoryStore = create<InventoryStore>()(
               console.log(`[InventoryStore] Regenerated blob URL for die: ${die.id}`)
             } else {
               console.warn(`[InventoryStore] No stored model found for die: ${die.id}`)
+              failedDiceIds.push(die.id)
             }
           } catch (error) {
             console.error(`[InventoryStore] Failed to regenerate blob URL for die ${die.id}:`, error)
+            failedDiceIds.push(die.id)
           }
+        }
+
+        if (failedDiceIds.length > 0) {
+          set({ customDiceLoadErrors: failedDiceIds })
         }
       },
 

@@ -34,3 +34,7 @@ playwright-report/
 
 # Design/planning documents (architecture captured via ADRs instead)
 docs/plans/
+
+# Desloppify local state
+.desloppify/
+scorecard.png

@@ -4,13 +4,20 @@ use tokio::sync::RwLock;
 use log::info;
 use crate::room::Room;
 
-pub type SharedRoom = Arc<RwLock<Room>>;
+pub use crate::room::SharedRoom;
 
 pub struct RoomManager {
     rooms: HashMap<String, SharedRoom>,
 }
 
+impl Default for RoomManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RoomManager {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             rooms: HashMap::new(),
@@ -24,15 +31,17 @@ impl RoomManager {
         (room_id, room)
     }
 
+    #[must_use]
     pub fn get_room(&self, room_id: &str) -> Option<SharedRoom> {
         self.rooms.get(room_id).cloned()
     }
 
     pub fn remove_room(&mut self, room_id: &str) {
         self.rooms.remove(room_id);
-        info!("Room destroyed: {}", room_id);
+        info!("Room destroyed: {room_id}");
     }
 
+    #[must_use]
     pub fn room_count(&self) -> usize {
         self.rooms.len()
     }

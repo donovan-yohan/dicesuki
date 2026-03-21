@@ -15,7 +15,7 @@ import { THEME_REGISTRY, getThemeById } from '../themes/registry'
 
 interface ThemeContextValue {
   currentTheme: Theme
-  setTheme: (themeId: string) => void
+  setTheme: (themeId: string) => boolean
   availableThemes: Theme[]
   ownedThemes: string[]
   purchaseTheme: (themeId: string) => Promise<boolean>
@@ -99,22 +99,24 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   /**
    * Change the current theme
    * Only allows switching to owned themes
+   * Returns true on success, false if the theme is not found or not owned
    */
-  const setTheme = (themeId: string) => {
+  const setTheme = (themeId: string): boolean => {
     // Check if user owns this theme
     if (!ownedThemes.includes(themeId)) {
       console.warn(`Cannot switch to theme "${themeId}" - not owned by user`)
-      return
+      return false
     }
 
     // Load theme from registry
     const theme = getThemeById(themeId)
     if (!theme) {
       console.error(`Theme "${themeId}" not found in registry`)
-      return
+      return false
     }
 
     setCurrentTheme(theme)
+    return true
   }
 
   /**

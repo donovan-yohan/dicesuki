@@ -10,7 +10,7 @@ import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { useCreateRoom } from '../../hooks/useCreateRoom'
 import { ThemeSelector } from '../ThemeSelector'
 import { FlyoutPanel } from './FlyoutPanel'
-import { ArtistTestingPanel } from './ArtistTestingPanel'
+import { ArtistTestingPanel } from './artist-tools/ArtistTestingPanel'
 
 interface SettingsPanelProps {
   isOpen: boolean

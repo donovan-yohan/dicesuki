@@ -209,14 +209,14 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
 )
 
 // Helper function to create a new roll and start editing
-export function createNewRoll(): SavedRoll {
+export function createAndStartEditingRoll(): SavedRoll {
   const roll = createDefaultSavedRoll()
   useSavedRollsStore.getState().startEditing(roll)
   return roll
 }
 
-// Helper function to save the currently editing roll
-export function saveCurrentRoll() {
+// Helper function to save the currently editing roll and stop editing
+export function saveAndStopEditing() {
   const { currentlyEditing, addRoll, updateRoll, stopEditing } = useSavedRollsStore.getState()
   if (!currentlyEditing) return
 

@@ -2,6 +2,7 @@ import { createContext, useContext, type ReactNode } from 'react'
 import type { DiceShape } from '../lib/geometries'
 import type { PlayerInfo } from '../lib/multiplayerMessages'
 import type { RollSnapshot } from '../store/useDiceStore'
+import type { ConnectionStatus } from '../store/useMultiplayerStore'
 
 export type DiceBackendMode = 'local' | 'multiplayer'
 
@@ -24,7 +25,7 @@ export interface DiceBackendState {
     players: Map<string, PlayerInfo>
     localPlayerId: string
     roomId: string
-    connectionStatus: 'disconnected' | 'connecting' | 'connected'
+    connectionStatus: ConnectionStatus
   } | null
 }
 

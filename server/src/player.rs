@@ -13,6 +13,7 @@ pub struct Player {
 }
 
 impl Player {
+    #[must_use]
     pub fn new(id: String, display_name: String, color: String, sender: PlayerSender) -> Self {
         Self {
             id,
@@ -23,10 +24,12 @@ impl Player {
         }
     }
 
+    #[must_use]
     pub fn send(&self, msg: &ServerMessage) -> bool {
         self.sender.send(msg.clone()).is_ok()
     }
 
+    #[must_use]
     pub fn to_info(&self) -> crate::messages::PlayerInfo {
         crate::messages::PlayerInfo {
             id: self.id.clone(),

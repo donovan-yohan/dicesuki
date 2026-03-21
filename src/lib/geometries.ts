@@ -1,10 +1,9 @@
 import * as THREE from 'three'
 import { POLYHEDRON_DETAIL_LEVEL } from '../config/physicsConfig'
+import type { DiceShape } from '../types/diceShape'
 
-/**
- * Dice shape types
- */
-export type DiceShape = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20'
+// Re-export for backwards compatibility
+export type { DiceShape }
 
 /**
  * Face definition with normal vector and value

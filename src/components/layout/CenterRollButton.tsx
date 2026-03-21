@@ -12,7 +12,7 @@ import {
   rollButtonRollingVariants,
   shouldReduceMotion,
 } from '../../animations/ui-transitions'
-import { useThemedAsset } from '../../hooks/useThemedAsset'
+import { useTheme } from '../../contexts/ThemeContext'
 
 interface CenterRollButtonProps {
   onClick: () => void
@@ -25,8 +25,10 @@ export function CenterRollButton({
   disabled = false,
   isRolling,
 }: CenterRollButtonProps) {
-  const { getIcon, hasAsset } = useThemedAsset()
-  const rollIcon = getIcon('roll')
+  const { currentTheme } = useTheme()
+  const rollIcon = currentTheme.assets.icons.roll
+  const hasAsset = (path: string | null | undefined): path is string =>
+    path !== null && path !== undefined && path.length > 0
 
   const reduceMotion = shouldReduceMotion()
 
