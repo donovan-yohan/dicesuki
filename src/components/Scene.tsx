@@ -28,6 +28,7 @@ import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useDiceStore, type DieSettledState } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useInventoryStore } from '../store/useInventoryStore'
+import type { InventoryDie } from '../types/inventory'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useUIStore } from '../store/useUIStore'
 
@@ -429,6 +430,15 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
   // Subscribe to inventory dice for reactive lookup during render
   const inventoryDice = useInventoryStore((state) => state.dice)
 
+  // O(1) lookup map for inventory dice by id, avoiding O(n*m) .find() inside .map()
+  const inventoryDiceMap = useMemo(() => {
+    const map = new Map<string, InventoryDie>()
+    for (const die of inventoryDice) {
+      map.set(die.id, die)
+    }
+    return map
+  }, [inventoryDice])
+
   // Subscribe to drag store
   const setOnDiceDelete = useDragStore((state) => state.setOnDiceDelete)
 
@@ -571,7 +581,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
             {dice.map((die) => {
               // Get inventory die to check for custom asset
               const inventoryDie = die.inventoryDieId
-                ? inventoryDice.find(d => d.id === die.inventoryDieId)
+                ? inventoryDiceMap.get(die.inventoryDieId)
                 : null
 
               // Render CustomDice if inventory die has customAsset, otherwise standard Dice

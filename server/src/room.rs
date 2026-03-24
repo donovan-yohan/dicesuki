@@ -15,6 +15,7 @@ use crate::physics::{
 };
 use crate::dice::{create_dice_body, generate_roll_impulse, generate_roll_torque, generate_spawn_position};
 use crate::face_detection::detect_face_value;
+use log::warn;
 
 /// A reference-counted, async-read/write-locked room handle.
 pub type SharedRoom = Arc<RwLock<Room>>;
@@ -358,7 +359,13 @@ impl Room {
             let last = drag.last_target_position;
 
             // Read current position via the PhysicsWorld API
-            let current = self.physics.get_position(handle).unwrap_or([0.0; 3]);
+            let current = match self.physics.get_position(handle) {
+                Some(pos) => pos,
+                None => {
+                    warn!("Drag force: missing physics body for die {die_id}, skipping");
+                    continue;
+                }
+            };
 
             // Displacement to target
             let dx = target[0] - current[0];
