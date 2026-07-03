@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Daisu UV spike — wrapped evidence</title>
+<style>
+  html, body { margin: 0; background: #0b0f17; color: #e5e7eb; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 28px; }
+  h1 { margin: 0 0 8px; font-size: 28px; }
+  p { color: #94a3b8; line-height: 1.5; max-width: 980px; }
+  canvas { width: 100%; height: auto; display: block; border: 1px solid #1f2937; border-radius: 18px; background: #0f172a; box-shadow: 0 24px 80px rgba(0,0,0,.45); }
+  .note { font-size: 13px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Daisu #31 UV/full-AI texture spike — wrapped evidence</h1>
+  <p>This canvas uses the AI-generated texture attempts as source material, then projects sampled islands onto faux D6 and D20 facets. It is evidence for wrap behavior and legibility, not a production renderer.</p>
+  <canvas id="preview" width="1600" height="980"></canvas>
+  <p class="note">Verdict visible here: material style survives the wrap, but AI-authored atlas structure and face placement are not reliable enough for production numerals.</p>
+</main>
+<script>
+const assets = {
+  d6: 'assets/attempt-01-d6-cranberry.png',
+  d20: 'assets/attempt-02-d20-teal.png',
+  combined: 'assets/attempt-03-combined-amethyst.png',
+};
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+function poly(ctx, pts) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+}
+function drawQuadCrop(ctx, img, sx, sy, sw, sh, p0, p1, p2, p3) {
+  ctx.save();
+  poly(ctx, [p0, p1, p2, p3]);
+  ctx.clip();
+  const a = (p1[0] - p0[0]) / sw;
+  const b = (p1[1] - p0[1]) / sw;
+  const c = (p3[0] - p0[0]) / sh;
+  const d = (p3[1] - p0[1]) / sh;
+  ctx.setTransform(a, b, c, d, p0[0], p0[1]);
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  ctx.restore();
+  ctx.save();
+  poly(ctx, [p0, p1, p2, p3]);
+  ctx.strokeStyle = 'rgba(255,255,255,.48)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+}
+function drawTriCrop(ctx, img, sx, sy, sw, sh, pts) {
+  ctx.save();
+  poly(ctx, pts);
+  ctx.clip();
+  const [p0, p1, p2] = pts;
+  const minX = Math.min(p0[0], p1[0], p2[0]);
+  const minY = Math.min(p0[1], p1[1], p2[1]);
+  const maxX = Math.max(p0[0], p1[0], p2[0]);
+  const maxY = Math.max(p0[1], p1[1], p2[1]);
+  ctx.drawImage(img, sx, sy, sw, sh, minX, minY, maxX - minX, maxY - minY);
+  ctx.restore();
+  ctx.save();
+  poly(ctx, pts);
+  ctx.strokeStyle = 'rgba(255,255,255,.45)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+}
+function label(ctx, text, x, y, size=24, color='#f8fafc') {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.font = `700 ${size}px Inter, Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,.7)';
+  ctx.shadowBlur = 8;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+async function render() {
+  const [d6, d20, combined] = await Promise.all([loadImage(assets.d6), loadImage(assets.d20), loadImage(assets.combined)]);
+  const canvas = document.getElementById('preview');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const grad = ctx.createLinearGradient(0,0,1600,980);
+  grad.addColorStop(0, '#101827'); grad.addColorStop(1, '#1e1332');
+  ctx.fillStyle = grad; ctx.fillRect(0,0,1600,980);
+
+  ctx.fillStyle = '#e5e7eb'; ctx.font = '800 34px Inter, Arial'; ctx.fillText('Source AI atlases', 70, 62);
+  ctx.font = '700 28px Inter, Arial'; ctx.fillText('Projected wrap previews', 650, 62);
+  ctx.fillStyle = '#94a3b8'; ctx.font = '18px Inter, Arial'; ctx.fillText('Cropping generated sheets into visible dice facets exposes whether face numbers survive seams and perspective.', 650, 94);
+
+  ctx.drawImage(d6, 70, 105, 250, 250);
+  ctx.drawImage(d20, 70, 390, 250, 250);
+  ctx.drawImage(combined, 70, 675, 250, 250);
+  label(ctx, 'attempt 01 — D6', 195, 372, 18, '#cbd5e1');
+  label(ctx, 'attempt 02 — D20', 195, 657, 18, '#cbd5e1');
+  label(ctx, 'attempt 03 — combined', 195, 942, 18, '#cbd5e1');
+
+  // D6 source crop boxes from observed generated cube-cross sheet.
+  const face2 = {sx:300, sy:360, sw:280, sh:280};
+  const face3 = {sx:578, sy:360, sw:280, sh:280};
+  const face1 = {sx:298, sy:72, sw:280, sh:280};
+  drawQuadCrop(ctx, d6, face2.sx, face2.sy, face2.sw, face2.sh, [560, 450], [835, 385], [840, 660], [570, 720]);
+  drawQuadCrop(ctx, d6, face3.sx, face3.sy, face3.sw, face3.sh, [835, 385], [1045, 500], [1050, 760], [840, 660]);
+  drawQuadCrop(ctx, d6, face1.sx, face1.sy, face1.sw, face1.sh, [560, 450], [835, 385], [1045, 500], [780, 565]);
+  label(ctx, 'D6 wrap sample: legible, but canonical face placement is wrong', 805, 805, 22);
+
+  // D20 source crop centers for row-grid AI output.
+  const centers = {
+    6: [122, 390], 9: [708, 390], 10: [900, 390], 12: [315, 635], 20: [900, 875], 1: [130, 145], 3: [515, 145], 17: [315, 875]
+  };
+  const triW = 180, triH = 210;
+  const facets = [
+    {v: 20, pts:[[1215,260],[1110,425],[1320,425]]},
+    {v: 9, pts:[[1110,425],[1215,560],[1320,425]]},
+    {v: 10, pts:[[1110,425],[995,610],[1215,560]]},
+    {v: 12, pts:[[1320,425],[1215,560],[1440,610]]},
+    {v: 6, pts:[[995,610],[1110,425],[875,500]]},
+    {v: 17, pts:[[1440,610],[1320,425],[1510,500]]},
+    {v: 1, pts:[[995,610],[1215,560],[1105,780]]},
+    {v: 3, pts:[[1215,560],[1440,610],[1328,780]]},
+  ];
+  for (const f of facets) {
+    const [cx, cy] = centers[f.v];
+    drawTriCrop(ctx, d20, cx - triW/2, cy - triH/2, triW, triH, f.pts);
+  }
+  label(ctx, 'D20 wrap sample: hard cases survive as decals; adjacency remains unproven', 1195, 870, 20);
+
+  ctx.strokeStyle = 'rgba(250,204,21,.55)'; ctx.setLineDash([10,8]); ctx.lineWidth = 2;
+  ctx.strokeRect(535, 130, 1010, 800); ctx.setLineDash([]);
+}
+render();
+</script>
+</body>
+</html>
