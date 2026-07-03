@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useMultiplayerDiceBackend } from '../../hooks/useMultiplayerDiceBackend'
 import { DiceBackendProvider } from '../../contexts/DiceBackendContext'
@@ -13,6 +13,9 @@ export function MultiplayerRoom() {
   const [searchParams] = useSearchParams()
   const connectionStatus = useMultiplayerStore((s) => s.connectionStatus)
   const connectionError = useMultiplayerStore((s) => s.connectionError)
+  const playerCount = useMultiplayerStore((s) => s.players.size)
+  const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
+  const diceCount = useMultiplayerStore((s) => s.dice.size)
   const connect = useMultiplayerStore((s) => s.connect)
   const disconnect = useMultiplayerStore((s) => s.disconnect)
 
@@ -24,6 +27,7 @@ export function MultiplayerRoom() {
   const [displayName, setDisplayName] = useState(initialDisplayName)
   const [color, setColor] = useState('#8B5CF6')
   const [hasJoined, setHasJoined] = useState(false)
+  const autoJoinAttemptsRef = useRef(0)
 
   const multiplayerBackend = useMultiplayerDiceBackend()
 
@@ -39,10 +43,12 @@ export function MultiplayerRoom() {
   }, [disconnect])
 
   useEffect(() => {
-    if (!isSoloRoom || hasJoined || !roomId) return
+    if (!isSoloRoom || !roomId || connectionStatus !== 'disconnected') return
+    if (autoJoinAttemptsRef.current >= 2) return
+    autoJoinAttemptsRef.current += 1
     connect(roomId, initialDisplayName || 'Solo Player', color, serverConfig.wsUrl)
     setHasJoined(true)
-  }, [color, connect, hasJoined, initialDisplayName, isSoloRoom, roomId, serverConfig.wsUrl])
+  }, [color, connect, connectionStatus, initialDisplayName, isSoloRoom, roomId, serverConfig.wsUrl])
 
   const handleJoin = () => {
     if (!roomId || !displayName.trim()) return
@@ -158,7 +164,15 @@ export function MultiplayerRoom() {
 
   // Connected — render the unified Scene with multiplayer backend
   return (
-    <div style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden' }}>
+    <div
+      data-testid="multiplayer-room"
+      data-connection-status={connectionStatus}
+      data-server-mode={serverMode}
+      data-player-count={playerCount}
+      data-local-player-ready={localPlayerId ? 'true' : 'false'}
+      data-dice-count={diceCount}
+      style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden' }}
+    >
       <DiceBackendProvider value={multiplayerBackend}>
         <Scene />
       </DiceBackendProvider>

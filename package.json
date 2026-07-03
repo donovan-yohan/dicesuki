@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
+    "test:e2e:local-room": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18181} DICESUKI_ROOM_TEST_PORT=${DICESUKI_ROOM_TEST_PORT:-18180} VITE_LOCAL_ROOM_SERVER_URL=${VITE_LOCAL_ROOM_SERVER_URL:-ws://127.0.0.1:${DICESUKI_ROOM_TEST_PORT:-18180}} VITE_LOCAL_ROOM_SERVER_HTTP_URL=${VITE_LOCAL_ROOM_SERVER_HTTP_URL:-http://127.0.0.1:${DICESUKI_ROOM_TEST_PORT:-18180}} playwright test e2e/local-loopback-room.spec.ts",
     "test:coverage": "vitest --coverage",
     "generate-dice-manifest": "node scripts/generate-dice-manifest.js"
   },
