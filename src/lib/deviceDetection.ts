@@ -1,4 +1,5 @@
 import { getGPUTier } from 'detect-gpu'
+import { resolveRenderDeviceTier, type RenderDeviceTier } from './renderLod'
 
 interface DeviceCheckResult {
   compatible: boolean
@@ -13,6 +14,18 @@ interface DeviceCheckResult {
  */
 const KNOWN_DESKTOP_GPUS = ['rtx', 'gtx', 'geforce', 'radeon', 'rx ', 'arc ']
 const KNOWN_MOBILE_GPUS = ['adreno', 'mali', 'immortalis', 'xclipse', 'apple gpu', 'powervr']
+let gpuTierDetectionPromise: ReturnType<typeof getGPUTier> | null = null
+
+function detectGpuTierOnce(): ReturnType<typeof getGPUTier> {
+  if (!gpuTierDetectionPromise) {
+    gpuTierDetectionPromise = getGPUTier().catch((error) => {
+      gpuTierDetectionPromise = null
+      throw error
+    })
+  }
+
+  return gpuTierDetectionPromise
+}
 
 /**
  * Returns true if the GPU name matches any entry in the given family list.
@@ -29,7 +42,7 @@ function matchesKnownGPU(gpuName: string, families: string[]): boolean {
  */
 export async function checkDeviceCompatibility(): Promise<DeviceCheckResult> {
   try {
-    const gpuTier = await getGPUTier()
+    const gpuTier = await detectGpuTierOnce()
 
     console.log('Device GPU Info:', {
       tier: gpuTier.tier,
@@ -84,5 +97,27 @@ export async function checkDeviceCompatibility(): Promise<DeviceCheckResult> {
       compatible: true,
       message: 'Could not detect GPU tier, proceeding with caution'
     }
+  }
+}
+
+export async function detectRenderDeviceTier(): Promise<RenderDeviceTier> {
+  const viewportHints = {
+    viewportWidth: window.innerWidth,
+    devicePixelRatio: window.devicePixelRatio,
+  }
+
+  try {
+    const gpuTier = await detectGpuTierOnce()
+    return resolveRenderDeviceTier({
+      ...viewportHints,
+      gpuTier: gpuTier.tier,
+      isMobile: gpuTier.isMobile,
+    })
+  } catch (error) {
+    console.warn('Render device tier detection failed:', error)
+    return resolveRenderDeviceTier({
+      ...viewportHints,
+      isMobile: window.innerWidth < 768,
+    })
   }
 }

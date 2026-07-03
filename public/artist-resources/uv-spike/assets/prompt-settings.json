@@ -1,0 +1,26 @@
+{
+  "provider": "openai-codex",
+  "model": "gpt-image-2-high",
+  "size": "1024x1024",
+  "date": "2026-07-03",
+  "attempts": [
+    {
+      "file": "attempt-01-d6-cranberry.png",
+      "kind": "D6 cube-cross atlas",
+      "prompt": "Square 1024x1024 game-asset UV atlas experiment for a six-sided fantasy die. Flat orthographic texture sheet, no perspective, no mockup, no 3D render. Arrange six square face islands in a cube-cross layout with thin seam gaps and bleed continuing across edges. Each face includes a large crisp engraved numeral 1, 2, 3, 4, 5, 6, centered with high contrast ivory ink on deep lacquered cranberry red resin with subtle gold flecks. Include tiny orientation arrows and safe margins as part of the texture sheet. Clean production concept art, readable numbers, no extra text besides the face numerals.",
+      "evaluation": "Strong flat texture concept and readable 1-6 numerals, but the generated cube net does not match Daisu canonical D6 placement: value 1 is at the top island and 6 is on the far-right island instead of top=6, bottom=1, front=2, right=3, left=4, back=5. Safe-zone/dashed guides are plausible but not mechanically tied to the repo UVs. Not production-usable as-is."
+    },
+    {
+      "file": "attempt-02-d20-teal.png",
+      "kind": "D20 triangular atlas",
+      "prompt": "Square 1024x1024 game-asset UV atlas experiment for a twenty-sided fantasy die. Flat orthographic texture sheet, no perspective, no 3D render. Arrange twenty triangular face islands in neat rows, each triangle with a single large crisp engraved numeral 1 through 20, ivory ink on smoky teal resin with small silver speckles. Include visible bleed artwork beyond each triangle edge, seam-aware ornamentation that does not cross over numbers, and subtle arrow motifs pointing toward each face top. Numbers must be high contrast and centered; include hard cases 6, 9, 10, 12, 20 clearly. No extra text besides numerals.",
+      "evaluation": "Best legibility of the three: 1-20 are present, including 6/9/10/12/20. It is still a row of independent triangular decals, not a connected icosahedron UV unwrap, so seam continuity and face adjacency are not trustworthy. The background transparency checker is baked into the image, which would contaminate a real texture. Useful for material/numeral style exploration only."
+    },
+    {
+      "file": "attempt-03-combined-amethyst.png",
+      "kind": "Combined D6 + D20 atlas",
+      "prompt": "Square 1024x1024 game-asset UV atlas experiment for D6 and D20 dice, full AI-rendered numbers included. Flat orthographic texture sheet, not a 3D product render. Split the sheet into a left cube-cross area with six square face islands numbered 1-6, and a right icosahedron area with twenty triangular face islands numbered 1-20. Style: translucent amethyst glass, pearlescent swirls, etched white numerals, thin gold edge filigree, safe zones and bleed. Prioritize legibility of 6/9, 10, 12, 20; centered numerals; seam danger zones kept decorative only. No words or labels except the numerals.",
+      "evaluation": "Readable and visually cohesive, but the D6 net is non-canonical for Daisu and the D20 remains independent triangle decals rather than a connected atlas. The ornamental border consumes too much texture budget and would be clipped away. Good brand/style inspiration; not production-usable directly."
+    }
+  ]
+}

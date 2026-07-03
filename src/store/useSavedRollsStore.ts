@@ -9,8 +9,15 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { SavedRoll, DiceEntry } from '../types/savedRolls'
 import { createDefaultSavedRoll } from '../lib/diceHelpers'
+import {
+  isRecord,
+  normalizePersistedSavedRoll,
+  normalizeSavedRollSources,
+  withNormalizedRollSources,
+  withRollSources,
+} from '../lib/rollSources'
 
-interface SavedRollsStore {
+export interface SavedRollsStore {
   // State
   savedRolls: SavedRoll[]
   currentlyEditing: SavedRoll | null
@@ -43,6 +50,24 @@ interface SavedRollsStore {
   getAllTags: () => string[]
 }
 
+export function normalizePersistedSavedRollsState(persistedState: unknown): Partial<SavedRollsStore> {
+  const state = isRecord(persistedState)
+    ? persistedState as Partial<SavedRollsStore>
+    : {}
+  const savedRolls = Array.isArray(state.savedRolls)
+    ? state.savedRolls
+      .map(normalizePersistedSavedRoll)
+      .filter((roll): roll is SavedRoll => roll !== null)
+    : []
+  const currentlyEditing = normalizePersistedSavedRoll(state.currentlyEditing)
+
+  return {
+    ...state,
+    savedRolls,
+    currentlyEditing,
+  }
+}
+
 export const useSavedRollsStore = create<SavedRollsStore>()(
   persist(
     (set, get) => ({
@@ -57,14 +82,14 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
           return state
         }
         return {
-          savedRolls: [...state.savedRolls, roll]
+          savedRolls: [...state.savedRolls, normalizeSavedRollSources(roll)]
         }
       }),
 
       // Update an existing roll
       updateRoll: (id, updates) => set((state) => ({
         savedRolls: state.savedRolls.map(roll =>
-          roll.id === id ? { ...roll, ...updates } : roll
+          roll.id === id ? normalizeSavedRollSources({ ...roll, ...updates }) : roll
         )
       })),
 
@@ -78,13 +103,13 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
         const original = state.savedRolls.find(r => r.id === id)
         if (!original) return state
 
-        const duplicate: SavedRoll = {
+        const duplicate: SavedRoll = normalizeSavedRollSources({
           ...original,
           id: `roll-${Date.now()}`,
           name: `${original.name} (Copy)`,
           createdAt: Date.now(),
           lastUsed: undefined,
-        }
+        })
 
         return {
           savedRolls: [...state.savedRolls, duplicate]
@@ -107,7 +132,7 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
 
       // Start editing a roll (creates a working copy)
       startEditing: (roll) => set({
-        currentlyEditing: { ...roll }
+        currentlyEditing: normalizeSavedRollSources(roll)
       }),
 
       // Stop editing (discard changes)
@@ -132,7 +157,7 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
         return {
           currentlyEditing: {
             ...state.currentlyEditing,
-            dice: [...state.currentlyEditing.dice, entry]
+            dice: [...state.currentlyEditing.dice, withNormalizedRollSources(entry)]
           }
         }
       }),
@@ -144,7 +169,11 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
           currentlyEditing: {
             ...state.currentlyEditing,
             dice: state.currentlyEditing.dice.map(entry =>
-              entry.id === entryId ? { ...entry, ...updates } : entry
+              entry.id === entryId
+                ? updates.sources
+                  ? withRollSources({ ...entry, ...updates }, updates.sources)
+                  : withNormalizedRollSources({ ...entry, ...updates })
+                : entry
             )
           }
         }
@@ -204,6 +233,8 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
     {
       name: 'dicesuki-saved-rolls', // localStorage key
       storage: createJSONStorage(() => localStorage),
+      version: 1,
+      migrate: normalizePersistedSavedRollsState,
     }
   )
 )

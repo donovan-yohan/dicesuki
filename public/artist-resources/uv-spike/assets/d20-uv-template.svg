@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="640" viewBox="0 0 900 640" role="img" aria-labelledby="title desc">
+<title id="title">Daisu D20 UV atlas template</title>
+<desc id="desc">D20 triangular face atlas with labels, orientation arrows, bleed, safe zones, and seam danger zones.</desc>
+<rect width="900" height="640" fill="#101217"/>
+<text x="34" y="38" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700">D20 UV atlas template — Daisu face-index order</text>
+<text x="34" y="64" fill="#94a3b8" font-family="Inter, Arial, sans-serif" font-size="13">20 independent triangular islands match material group order; numbers are labels, not final art.</text>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#facc15"/></marker></defs>
+
+<g id="face-index-0-value-1">
+  <polygon points="130.0,76 202,205 58,205" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="130.0,90 188,193 72,193" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="130.0,114 163,175 97,175" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="130.0" y="159.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">1</text>
+  <text x="130.0" y="185" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 0</text>
+  <line x1="130.0" y1="159" x2="130.0" y2="116" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="130.0,90 188,193 72,193" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-1-value-2">
+  <polygon points="270.0,76 342,205 198,205" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="270.0,90 328,193 212,193" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="270.0,114 303,175 237,175" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="270.0" y="159.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">2</text>
+  <text x="270.0" y="185" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 1</text>
+  <line x1="270.0" y1="159" x2="270.0" y2="116" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="270.0,90 328,193 212,193" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-2-value-3">
+  <polygon points="410.0,76 482,205 338,205" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="410.0,90 468,193 352,193" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="410.0,114 443,175 377,175" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="410.0" y="159.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">3</text>
+  <text x="410.0" y="185" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 2</text>
+  <line x1="410.0" y1="159" x2="410.0" y2="116" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="410.0,90 468,193 352,193" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-3-value-4">
+  <polygon points="550.0,76 622,205 478,205" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="550.0,90 608,193 492,193" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="550.0,114 583,175 517,175" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="550.0" y="159.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">4</text>
+  <text x="550.0" y="185" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 3</text>
+  <line x1="550.0" y1="159" x2="550.0" y2="116" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="550.0,90 608,193 492,193" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-4-value-5">
+  <polygon points="690.0,76 762,205 618,205" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="690.0,90 748,193 632,193" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="690.0,114 723,175 657,175" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="690.0" y="159.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">5</text>
+  <text x="690.0" y="185" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 4</text>
+  <line x1="690.0" y1="159" x2="690.0" y2="116" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="690.0,90 748,193 632,193" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-5-value-6">
+  <polygon points="130.0,213 202,342 58,342" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="130.0,227 188,330 72,330" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="130.0,251 163,312 97,312" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="130.0" y="296.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">6</text>
+  <text x="130.0" y="322" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 5</text>
+  <line x1="130.0" y1="296" x2="130.0" y2="253" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="130.0,227 188,330 72,330" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-6-value-7">
+  <polygon points="270.0,213 342,342 198,342" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="270.0,227 328,330 212,330" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="270.0,251 303,312 237,312" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="270.0" y="296.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">7</text>
+  <text x="270.0" y="322" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 6</text>
+  <line x1="270.0" y1="296" x2="270.0" y2="253" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="270.0,227 328,330 212,330" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-7-value-8">
+  <polygon points="410.0,213 482,342 338,342" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="410.0,227 468,330 352,330" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="410.0,251 443,312 377,312" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="410.0" y="296.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">8</text>
+  <text x="410.0" y="322" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 7</text>
+  <line x1="410.0" y1="296" x2="410.0" y2="253" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="410.0,227 468,330 352,330" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-8-value-9">
+  <polygon points="550.0,213 622,342 478,342" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="550.0,227 608,330 492,330" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="550.0,251 583,312 517,312" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="550.0" y="296.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">9</text>
+  <text x="550.0" y="322" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 8</text>
+  <line x1="550.0" y1="296" x2="550.0" y2="253" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="550.0,227 608,330 492,330" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-9-value-10">
+  <polygon points="690.0,213 762,342 618,342" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="690.0,227 748,330 632,330" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="690.0,251 723,312 657,312" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="690.0" y="296.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">10</text>
+  <text x="690.0" y="322" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 9</text>
+  <line x1="690.0" y1="296" x2="690.0" y2="253" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="690.0,227 748,330 632,330" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-10-value-17">
+  <polygon points="130.0,350 202,479 58,479" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="130.0,364 188,467 72,467" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="130.0,388 163,449 97,449" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="130.0" y="433.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">17</text>
+  <text x="130.0" y="459" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 10</text>
+  <line x1="130.0" y1="433" x2="130.0" y2="390" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="130.0,364 188,467 72,467" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-11-value-18">
+  <polygon points="270.0,350 342,479 198,479" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="270.0,364 328,467 212,467" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="270.0,388 303,449 237,449" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="270.0" y="433.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">18</text>
+  <text x="270.0" y="459" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 11</text>
+  <line x1="270.0" y1="433" x2="270.0" y2="390" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="270.0,364 328,467 212,467" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-12-value-19">
+  <polygon points="410.0,350 482,479 338,479" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="410.0,364 468,467 352,467" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="410.0,388 443,449 377,449" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="410.0" y="433.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">19</text>
+  <text x="410.0" y="459" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 12</text>
+  <line x1="410.0" y1="433" x2="410.0" y2="390" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="410.0,364 468,467 352,467" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-13-value-20">
+  <polygon points="550.0,350 622,479 478,479" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="550.0,364 608,467 492,467" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="550.0,388 583,449 517,449" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="550.0" y="433.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">20</text>
+  <text x="550.0" y="459" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 13</text>
+  <line x1="550.0" y1="433" x2="550.0" y2="390" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="550.0,364 608,467 492,467" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-14-value-16">
+  <polygon points="690.0,350 762,479 618,479" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="690.0,364 748,467 632,467" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="690.0,388 723,449 657,449" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="690.0" y="433.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">16</text>
+  <text x="690.0" y="459" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 14</text>
+  <line x1="690.0" y1="433" x2="690.0" y2="390" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="690.0,364 748,467 632,467" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-15-value-12">
+  <polygon points="130.0,487 202,616 58,616" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="130.0,501 188,604 72,604" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="130.0,525 163,586 97,586" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="130.0" y="570.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">12</text>
+  <text x="130.0" y="596" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 15</text>
+  <line x1="130.0" y1="570" x2="130.0" y2="527" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="130.0,501 188,604 72,604" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-16-value-11">
+  <polygon points="270.0,487 342,616 198,616" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="270.0,501 328,604 212,604" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="270.0,525 303,586 237,586" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="270.0" y="570.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">11</text>
+  <text x="270.0" y="596" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 16</text>
+  <line x1="270.0" y1="570" x2="270.0" y2="527" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="270.0,501 328,604 212,604" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-17-value-15">
+  <polygon points="410.0,487 482,616 338,616" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="410.0,501 468,604 352,604" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="410.0,525 443,586 377,586" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="410.0" y="570.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">15</text>
+  <text x="410.0" y="596" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 17</text>
+  <line x1="410.0" y1="570" x2="410.0" y2="527" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="410.0,501 468,604 352,604" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-18-value-14">
+  <polygon points="550.0,487 622,616 478,616" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="550.0,501 608,604 492,604" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="550.0,525 583,586 517,586" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="550.0" y="570.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">14</text>
+  <text x="550.0" y="596" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 18</text>
+  <line x1="550.0" y1="570" x2="550.0" y2="527" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="550.0,501 608,604 492,604" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g id="face-index-19-value-13">
+  <polygon points="690.0,487 762,616 618,616" fill="#0f766e" opacity="0.25" stroke="#22d3ee" stroke-dasharray="6 6"/>
+  <polygon points="690.0,501 748,604 632,604" fill="#172033" stroke="#f97316" stroke-width="3"/>
+  <polygon points="690.0,525 723,586 657,586" fill="none" stroke="#facc15" stroke-dasharray="6 5" stroke-width="2"/>
+  <text x="690.0" y="570.74" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="32" text-anchor="middle" font-weight="800">13</text>
+  <text x="690.0" y="596" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="10" text-anchor="middle">idx 19</text>
+  <line x1="690.0" y1="570" x2="690.0" y2="527" stroke="#facc15" stroke-width="2" marker-end="url(#arrow)"/>
+  <polygon points="690.0,501 748,604 632,604" fill="none" stroke="#fb7185" stroke-width="5" stroke-opacity="0.22"/>
+</g>
+<g font-family="Inter, Arial, sans-serif" font-size="13" fill="#cbd5e1">
+  <text x="34" y="600">Hard cases to inspect after wrapping: 6/9 rotation, two-digit width for 10/12/20, and value/face-index order.</text>
+  <text x="34" y="622">Current repo uses one triangle per D20 material group with full-face UVs, so this is a per-face decal map rather than a continuous connected unwrap.</text>
+</g>
+</svg>

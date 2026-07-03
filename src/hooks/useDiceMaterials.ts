@@ -8,6 +8,7 @@ import {
   FaceRenderer,
   disposeAllTextures,
 } from '../lib/textureRendering'
+import { type DiceRenderLodPolicy, resolveLodTextureSize } from '../lib/renderLod'
 
 /**
  * Configuration for dice material creation
@@ -33,6 +34,9 @@ export interface DiceMaterialConfig {
 
   /** Texture size (defaults to 512) */
   textureSize?: number
+
+  /** Rendering LOD policy selected by context/device/visibility/focus */
+  lodPolicy?: DiceRenderLodPolicy
 
   /** Use debug materials (colored faces for mapping verification) */
   debugMode?: boolean
@@ -72,8 +76,10 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
     emissiveIntensity,
     faceRenderer = renderSimpleNumber,
     textureSize = 512,
+    lodPolicy,
     debugMode = false,
   } = config
+  const resolvedTextureSize = resolveLodTextureSize(config.textureSize, lodPolicy, textureSize)
 
   // Create materials with memoization to prevent re-creation
   const materials = useMemo(() => {
@@ -82,11 +88,22 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
       return createDebugMaterials(shape)
     }
 
+    if (lodPolicy?.materialMode === 'solid' || lodPolicy?.materialMode === 'hidden') {
+      const solidMaterial = new THREE.MeshStandardMaterial({
+        color,
+        roughness,
+        metalness,
+        flatShading: shape !== 'd6',
+      })
+      solidMaterial.userData.renderLod = lodPolicy
+      return solidMaterial
+    }
+
     // Production mode: create materials with face textures
     try {
       const materialsArray = createFaceMaterialsArray(shape, (faceValue) => {
         // Render face value to canvas texture
-        const texture = renderDiceFaceToTexture(faceValue, color, faceRenderer, textureSize)
+        const texture = renderDiceFaceToTexture(faceValue, color, faceRenderer, resolvedTextureSize)
 
         // Create material with texture
         const material = new THREE.MeshStandardMaterial({
@@ -102,10 +119,15 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
           material.emissiveIntensity = emissiveIntensity
         }
 
+        material.userData.renderLod = lodPolicy
+
         return material
       })
 
-      console.log(`[useDiceMaterials] Created ${materialsArray.length} materials for ${shape}`)
+      console.log(
+        `[useDiceMaterials] Created ${materialsArray.length} materials for ${shape}`,
+        lodPolicy ? `lod=${lodPolicy.debugLabel}` : `texture=${resolvedTextureSize}px`,
+      )
       return materialsArray
     } catch (error) {
       // If material mapping not implemented, fall back to single solid material
@@ -118,11 +140,12 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
         metalness,
         flatShading: shape !== 'd6',
       })
+      fallbackMaterial.userData.renderLod = lodPolicy
 
       console.log(`[useDiceMaterials] Using solid color fallback for ${shape}`)
       return fallbackMaterial
     }
-  }, [shape, color, roughness, metalness, emissiveIntensity, faceRenderer, textureSize, debugMode])
+  }, [shape, color, roughness, metalness, emissiveIntensity, faceRenderer, resolvedTextureSize, lodPolicy, debugMode])
 
   // Cleanup materials and textures on unmount or when dependencies change
   useEffect(() => {
@@ -181,7 +204,9 @@ export function usePreRenderedTextures(
     color = '#ff6b35',
     faceRenderer = renderSimpleNumber,
     textureSize = 512,
+    lodPolicy,
   } = config
+  const resolvedTextureSize = resolveLodTextureSize(config.textureSize, lodPolicy, textureSize)
 
   const textures = useMemo(() => {
     const textureMap: Record<number, THREE.CanvasTexture> = {}
@@ -193,11 +218,11 @@ export function usePreRenderedTextures(
 
     // Render all faces
     for (let faceValue = startValue; faceValue <= endValue; faceValue++) {
-      textureMap[faceValue] = renderDiceFaceToTexture(faceValue, color, faceRenderer, textureSize)
+      textureMap[faceValue] = renderDiceFaceToTexture(faceValue, color, faceRenderer, resolvedTextureSize)
     }
 
     return textureMap
-  }, [shape, color, faceRenderer, textureSize])
+  }, [shape, color, faceRenderer, resolvedTextureSize])
 
   // Cleanup textures on unmount
   useEffect(() => {

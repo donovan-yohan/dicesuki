@@ -22,7 +22,14 @@ import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
 
 // Utilities
 import { formatBonus } from '../lib/diceHelpers'
+import { detectRenderDeviceTier } from '../lib/deviceDetection'
 import { initializeStarterDice } from '../lib/initializeStarterDice'
+import {
+  type DiceRenderContext,
+  type RenderDeviceTier,
+  resolveDiceRenderLod,
+  resolveRenderDeviceTier,
+} from '../lib/renderLod'
 
 // Stores
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
@@ -51,6 +58,78 @@ const TOP_RIGHT_BUTTON_STYLES = {
   boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
   border: '1px solid rgba(251, 146, 60, 0.2)'
 } as const
+
+const LOD_DEBUG_NAMESPACE = 'RenderLOD'
+
+function isRenderLodDebugEnabled(): boolean {
+  try {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('lod') === '1' || params.get('lodDebug') === '1') return true
+
+    const debugConfig = window.localStorage.getItem('debug')
+    if (!debugConfig) return false
+    if (debugConfig === '*') return true
+    return debugConfig.split(',').some((namespace) => namespace.trim() === LOD_DEBUG_NAMESPACE)
+  } catch {
+    return false
+  }
+}
+
+function getRenderDeviceTierOverride(): RenderDeviceTier | null {
+  try {
+    const tier = new URLSearchParams(window.location.search).get('lodTier')
+    return tier === 'low' || tier === 'mid' || tier === 'high' ? tier : null
+  } catch {
+    return null
+  }
+}
+
+function RenderLodDebugOverlay({
+  isVisible,
+  deviceTier,
+  trayDiceCount,
+  isMultiplayer,
+}: {
+  isVisible: boolean
+  deviceTier: RenderDeviceTier
+  trayDiceCount: number
+  isMultiplayer: boolean
+}) {
+  if (!isVisible) return null
+
+  const contexts: DiceRenderContext[] = ['hero', 'tray', 'grid', 'offscreen']
+  const policies = contexts.map((context) => resolveDiceRenderLod({
+    context,
+    deviceTier,
+    isVisible: context !== 'offscreen',
+    isFocused: context === 'hero',
+    isInteracting: context === 'tray',
+  }))
+
+  return (
+    <div
+      data-testid="render-lod-debug"
+      className="fixed bottom-20 left-3 z-50 max-w-[min(92vw,360px)] rounded-xl border border-orange-400/30 bg-black/75 px-3 py-2 font-mono text-[10px] text-orange-100 shadow-xl backdrop-blur"
+      style={{ pointerEvents: 'none' }}
+    >
+      <div className="mb-1 text-xs font-bold uppercase tracking-wide text-orange-300">
+        render lod · {deviceTier} · {isMultiplayer ? 'multiplayer' : 'local'} · tray {trayDiceCount}
+      </div>
+      <div className="grid grid-cols-[72px_1fr] gap-x-2 gap-y-0.5">
+        {policies.map((policy) => {
+          const textureSizeLabel = policy.textureSize > 0 ? `${policy.textureSize}px` : 'none'
+
+          return (
+            <div key={policy.context} className="contents">
+              <span className="text-orange-300">{policy.context}</span>
+              <span>{policy.fidelity} · {textureSizeLabel} · {policy.physicsMode}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 /**
  * Component to dynamically update physics gravity based on device motion
@@ -317,11 +396,7 @@ function ViewportBoundaries() {
       {env.ceiling.visible && (
         <RigidBody type="fixed" position={[0, 6, 0]}>
           <Box args={[bounds.width, wallThickness, bounds.height]}>
-            <meshStandardMaterial
-              color={env.ceiling.color || '#1a1a1a'}
-              transparent
-              opacity={env.ceiling.color ? 1 : 0}
-            />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
           </Box>
         </RigidBody>
       )}
@@ -329,11 +404,27 @@ function ViewportBoundaries() {
   )
 }
 
+function LocalCamera() {
+  const { camera } = useThree()
+
+  useEffect(() => {
+    if (!('fov' in camera)) return
+    const perspectiveCamera = camera as THREE.PerspectiveCamera
+
+    perspectiveCamera.position.set(0, 15, 0)
+    perspectiveCamera.up.set(0, 0, -1)
+    perspectiveCamera.lookAt(0, 0, 0)
+    perspectiveCamera.updateProjectionMatrix()
+  }, [camera])
+
+  return null
+}
+
 /**
  * Renders multiplayer dice with interpolation (no physics).
  * Used inside Canvas when mode === 'multiplayer'.
  */
-function MultiplayerDiceRenderer() {
+function MultiplayerDiceRenderer({ renderDeviceTier }: { renderDeviceTier: RenderDeviceTier }) {
   const dice = useMultiplayerStore((s) => s.dice)
   const players = useMultiplayerStore((s) => s.players)
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
@@ -350,6 +441,7 @@ function MultiplayerDiceRenderer() {
           color={players.get(die.ownerId)?.color ?? '#ffffff'}
           tRef={tRef}
           isOwnedByLocalPlayer={die.ownerId === localPlayerId}
+          renderDeviceTier={renderDeviceTier}
           onDragStart={onPointerDown}
         />
       ))}
@@ -426,14 +518,45 @@ function Scene() {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isPlayerPanelOpen, setIsPlayerPanelOpen] = useState(false)
+  const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>('high')
+  const [showRenderLodDebug, setShowRenderLodDebug] = useState(false)
+  const detectedRenderDeviceTierRef = useRef<RenderDeviceTier | null>(null)
+  const rollTimeoutRef = useRef<number | null>(null)
 
   // Detect if mobile
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    let isCancelled = false
+
+    const checkMobile = () => {
+      const nextIsMobile = window.innerWidth < 768
+      const tierOverride = getRenderDeviceTierOverride()
+      setIsMobile(nextIsMobile)
+      setRenderDeviceTier(tierOverride ?? detectedRenderDeviceTierRef.current ?? resolveRenderDeviceTier({
+        isMobile: nextIsMobile,
+        viewportWidth: window.innerWidth,
+        devicePixelRatio: window.devicePixelRatio,
+      }))
+      setShowRenderLodDebug(isRenderLodDebugEnabled())
+    }
+
     checkMobile()
+    detectRenderDeviceTier().then((detectedTier) => {
+      if (!isCancelled) {
+        detectedRenderDeviceTierRef.current = detectedTier
+        setRenderDeviceTier(getRenderDeviceTierOverride() ?? detectedTier)
+      }
+    })
+
     window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+    return () => {
+      isCancelled = true
+      window.removeEventListener('resize', checkMobile)
+      if (rollTimeoutRef.current !== null) {
+        window.clearTimeout(rollTimeoutRef.current)
+        rollTimeoutRef.current = null
+      }
+    }
   }, [])
 
 
@@ -462,11 +585,13 @@ function Scene() {
         )
       }
     }
-  }, []) // Only run once on mount - ref guard prevents re-execution
+  }, [addDice, currentTheme.id]) // Only run once on mount - ref guard prevents re-execution
 
   const handleRollClick = useCallback(() => {
+    const diceAtRollStart = useDiceManagerStore.getState().dice
+
     // Mark ALL dice as rolling
-    useDiceStore.getState().markDiceRolling(dice.map(d => d.id))
+    useDiceStore.getState().markDiceRolling(diceAtRollStart.map(d => d.id))
 
     // Generate and apply impulse
     const impulse = roll()
@@ -475,7 +600,25 @@ function Scene() {
         diceHandle.applyRollImpulse(impulse)
       }
     })
-  }, [roll, dice])
+
+    if (rollTimeoutRef.current !== null) {
+      window.clearTimeout(rollTimeoutRef.current)
+    }
+
+    rollTimeoutRef.current = window.setTimeout(() => {
+      rollTimeoutRef.current = null
+      const { rollingDice } = useDiceStore.getState()
+      if (rollingDice.size === 0) return
+
+      useDiceManagerStore.getState().dice.forEach((die) => {
+        if (!rollingDice.has(die.id)) return
+        const faceValue = diceRefs.current.get(die.id)?.readCurrentFace()
+        if (faceValue !== null && faceValue !== undefined) {
+          onDiceRest(die.id, faceValue, die.type)
+        }
+      })
+    }, 4000)
+  }, [roll, onDiceRest])
 
   // Check if we're already inside a DiceBackendProvider (multiplayer mode)
   const existingBackend = useContext(DiceBackendContext)
@@ -542,10 +685,11 @@ function Scene() {
           <>
             <MultiplayerCamera />
             <MultiplayerArena />
-            <MultiplayerDiceRenderer />
+            <MultiplayerDiceRenderer renderDeviceTier={renderDeviceTier} />
           </>
         ) : (
           <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
+            <LocalCamera />
             <PhysicsController gravityRef={gravityRef} />
 
             {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
@@ -615,6 +759,9 @@ function Scene() {
                   rotation={die.rotation}
                   size={0.67}
                   color={diceColor}
+                  renderContext="tray"
+                  renderDeviceTier={renderDeviceTier}
+                  isVisibleForLod
                   onRest={onDiceRest}
                   onMoving={onDiceMoving}
                 />
@@ -629,6 +776,13 @@ function Scene() {
 
       {/* Result Display - subscribes to store */}
       <ResultDisplay />
+
+      <RenderLodDebugOverlay
+        isVisible={showRenderLodDebug}
+        deviceTier={renderDeviceTier}
+        trayDiceCount={isMultiplayer ? useMultiplayerStore.getState().dice.size : dice.length}
+        isMultiplayer={isMultiplayer}
+      />
 
       {/* NEW LAYOUT SYSTEM */}
       {/* Bottom Navigation Bar */}

@@ -15,6 +15,7 @@ import {
   CompareMode,
 } from '../types/savedRolls'
 import { getDieMax, getDieMin } from './diceHelpers'
+import { expandDiceEntrySources, getDiceEntrySourceQuantity } from './rollSources'
 
 /**
  * Roll a single die
@@ -145,12 +146,14 @@ function rollDieCompletely(type: DiceShape, entry: DiceEntry): {
  * Roll all dice for a dice entry
  */
 export function rollDiceEntry(entry: DiceEntry): DiceEntryResult {
-  const rollCount = entry.rollCount || entry.quantity
+  const expandedSources = expandDiceEntrySources(entry)
+  const rollCount = entry.rollCount || getDiceEntrySourceQuantity(entry)
   const rolls: SingleDieRoll[] = []
 
   // Roll all dice
   for (let i = 0; i < rollCount; i++) {
     const dieResult = rollDieCompletely(entry.type, entry)
+    const source = expandedSources[i]
 
     // Apply constraints
     let value = applyConstraints(dieResult.value, entry)
@@ -164,6 +167,14 @@ export function rollDiceEntry(entry: DiceEntry): DiceEntryResult {
       wasRerolled: dieResult.wasRerolled,
       explosions: dieResult.explosions,
       wasKept: false, // Will be updated after keep/drop logic
+      source: source
+        ? {
+            kind: source.kind,
+            slotIndex: i,
+            dieId: source.kind === 'specific' ? source.dieId : undefined,
+            skinId: source.skinId,
+          }
+        : undefined,
     })
   }
 
