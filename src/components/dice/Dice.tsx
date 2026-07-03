@@ -31,6 +31,11 @@ import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 import { getFaceRendererForShape } from '../../lib/faceRenderers'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useUIStore } from '../../store/useUIStore'
+import {
+  type DiceRenderContext,
+  type RenderDeviceTier,
+  resolveDiceRenderLod,
+} from '../../lib/renderLod'
 
 type RendererType = 'simple' | 'styled' | 'bordered' | 'debug' | undefined
 
@@ -42,6 +47,10 @@ interface DiceProps {
   size?: number
   color?: string
   rendererType?: RendererType
+  renderContext?: DiceRenderContext
+  renderDeviceTier?: RenderDeviceTier
+  isVisibleForLod?: boolean
+  isFocusedForLod?: boolean
   onRest?: (id: string, faceValue: number, diceType: string) => void
   onMoving?: (id: string) => void
 }
@@ -69,9 +78,13 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       id = 'dice-0',
       shape,
       position = [0, 5, 0],
-      // rotation = [0, 0, 0], // Not used, removed to fix TS error
+      rotation = [0, 0, 0],
       size = 1,
       color = 'orange',
+      renderContext = 'tray',
+      renderDeviceTier = 'high',
+      isVisibleForLod = true,
+      isFocusedForLod = false,
       onRest,
       onMoving,
     },
@@ -258,7 +271,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
           }
         })
       }
-    }, [isAtRest, faceValue, onRest, id])
+    }, [isAtRest, faceValue, onRest, id, shape])
 
     // Update physics state every frame
     useFrame(() => {
@@ -391,6 +404,17 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       [shape, size],
     )
 
+    const lodPolicy = useMemo(
+      () => resolveDiceRenderLod({
+        context: renderContext,
+        deviceTier: renderDeviceTier,
+        isVisible: isVisibleForLod,
+        isFocused: isFocusedForLod || isDragging,
+        isInteracting: isDragging || !isAtRest,
+      }),
+      [renderContext, renderDeviceTier, isVisibleForLod, isFocusedForLod, isDragging, isAtRest],
+    )
+
     const diceMats = currentTheme.dice.materials
     const materials = useDiceMaterials({
       shape,
@@ -399,6 +423,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       metalness: diceMats.metalness,
       emissiveIntensity: diceMats.emissiveIntensity,
       faceRenderer: getFaceRendererForShape(shape),
+      lodPolicy,
     })
 
     // Calculate half-extents for D6 collider
@@ -479,16 +504,41 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       [vibrateOnCollision],
     )
 
+    if (lodPolicy.materialMode === 'hidden') {
+      return null
+    }
+
+    const meshElement = (
+      <mesh
+        geometry={geometry}
+        material={materials}
+        position={lodPolicy.physicsMode === 'none' ? position : undefined}
+        rotation={lodPolicy.physicsMode === 'none' ? rotation : undefined}
+        castShadow={lodPolicy.castShadow}
+        receiveShadow={lodPolicy.receiveShadow}
+        userData={{ renderLod: lodPolicy }}
+        onPointerDown={(event) => {
+          if (rigidBodyRef.current) {
+            onPointerDown(event, rigidBodyRef.current, id)
+          }
+        }}
+      />
+    )
+
+    if (lodPolicy.physicsMode === 'none') {
+      return meshElement
+    }
+
     return (
       <RigidBody
         ref={rigidBodyRef}
         position={position}
         colliders={shape === 'd6' ? false : 'hull'}
-        type="dynamic"
+        type={lodPolicy.physicsMode === 'static' ? 'fixed' : 'dynamic'}
         restitution={DICE_RESTITUTION}
         friction={DICE_FRICTION}
         canSleep={false}
-        onContactForce={handleContactForce}
+        onContactForce={lodPolicy.physicsMode === 'dynamic' ? handleContactForce : undefined}
       >
         {/* Use RoundCuboid for D6 to add chamfered edges */}
         {shape === 'd6' && (
@@ -497,17 +547,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
           />
         )}
 
-        <mesh
-          geometry={geometry}
-          material={materials}
-          castShadow
-          receiveShadow
-          onPointerDown={(event) => {
-            if (rigidBodyRef.current) {
-              onPointerDown(event, rigidBodyRef.current, id)
-            }
-          }}
-        />
+        {meshElement}
       </RigidBody>
     )
   },
