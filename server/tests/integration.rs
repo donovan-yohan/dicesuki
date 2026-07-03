@@ -291,6 +291,49 @@ async fn spawn_dice_after_join() {
 }
 
 #[tokio::test]
+async fn duplicate_inventory_die_spawn_is_rejected() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{}/ws/{}", addr, room_id);
+
+    let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
+
+    ws.send(Message::Text(json!({
+        "type": "join",
+        "roomId": room_id,
+        "displayName": "Player1",
+        "color": "#FF0000"
+    }).to_string())).await.unwrap();
+    let _ = recv_json(&mut ws).await;
+
+    let spawn_msg = json!({
+        "type": "spawn_dice",
+        "dice": [{
+            "id": "die-1",
+            "diceType": "d20",
+            "presentation": { "inventoryDieId": "die_lucky_d20" }
+        }]
+    });
+    ws.send(Message::Text(spawn_msg.to_string())).await.unwrap();
+    let spawned = recv_json(&mut ws).await;
+    assert_eq!(spawned["type"], "dice_spawned");
+
+    let duplicate_spawn = json!({
+        "type": "spawn_dice",
+        "dice": [{
+            "id": "die-2",
+            "diceType": "d20",
+            "presentation": { "inventoryDieId": "die_lucky_d20" }
+        }]
+    });
+    ws.send(Message::Text(duplicate_spawn.to_string())).await.unwrap();
+
+    let body = recv_json(&mut ws).await;
+    assert_eq!(body["type"], "error");
+    assert_eq!(body["code"], "DUPLICATE_INVENTORY_DIE");
+}
+
+#[tokio::test]
 async fn remove_dice_after_spawn() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;

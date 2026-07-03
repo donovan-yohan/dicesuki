@@ -27,11 +27,14 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
     useDiceStore.getState().clearActiveSavedRoll()
 
     const inventoryStore = useInventoryStore.getState()
-    const inUseInventoryIds = new Set(
-      Array.from(useMultiplayerStore.getState().dice.values())
+    const multiplayerState = useMultiplayerStore.getState()
+    const inUseInventoryIds = new Set([
+      ...Array.from(multiplayerState.dice.values())
+        .filter((die) => !multiplayerState.localPlayerId || die.ownerId === multiplayerState.localPlayerId)
         .map((die) => die.presentation?.inventoryDieId)
         .filter((id): id is string => Boolean(id)),
-    )
+      ...multiplayerState.pendingInventoryDieIds,
+    ])
 
     const inventoryCandidates = inventoryStore.getDiceByType(type)
     const inventoryDie = inventoryDieId

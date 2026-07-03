@@ -271,6 +271,7 @@ describe('useMultiplayerStore', () => {
       useMultiplayerStore.setState({
         connectionStatus: 'connected',
         socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
       })
 
       useMultiplayerStore.getState().spawnDice('d20', {
@@ -295,6 +296,68 @@ describe('useMultiplayerStore', () => {
         ],
       })
       expect(payload.dice[0].id).toContain('die_lucky_d20')
+      expect(payload.dice[0].id).toMatch(/^die_lucky_d20-\d+-[a-z0-9]+$/)
+      expect(useMultiplayerStore.getState().pendingInventoryDieIds.has('die_lucky_d20')).toBe(true)
+    })
+
+    it('blocks duplicate pending inventory dice before the server roundtrip', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
+      })
+
+      useMultiplayerStore.getState().spawnDice('d20', { inventoryDieId: 'die_lucky_d20' })
+      useMultiplayerStore.getState().spawnDice('d20', { inventoryDieId: 'die_lucky_d20' })
+
+      expect(send).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears pending inventory dice when the server acknowledges the spawn', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
+      })
+
+      useMultiplayerStore.getState().spawnDice('d20', { inventoryDieId: 'die_lucky_d20' })
+      expect(useMultiplayerStore.getState().pendingInventoryDieIds.has('die_lucky_d20')).toBe(true)
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'dice_spawned',
+        ownerId: 'p1',
+        dice: [
+          {
+            id: 'die_lucky_d20-1',
+            ownerId: 'p1',
+            diceType: 'd20',
+            position: [0, 2, 0],
+            rotation: [0, 0, 0, 1],
+            presentation: { inventoryDieId: 'die_lucky_d20' },
+          },
+        ],
+      })
+
+      expect(useMultiplayerStore.getState().pendingInventoryDieIds.has('die_lucky_d20')).toBe(false)
+    })
+
+    it('generates random-suffixed ids for inventory and generic dice', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
+      })
+
+      useMultiplayerStore.getState().spawnDice('d20', { inventoryDieId: 'die_lucky_d20' })
+      useMultiplayerStore.getState().spawnDice('d6')
+
+      const inventoryPayload = JSON.parse(send.mock.calls[0][0])
+      const genericPayload = JSON.parse(send.mock.calls[1][0])
+      expect(inventoryPayload.dice[0].id).toMatch(/^die_lucky_d20-\d+-[a-z0-9]+$/)
+      expect(genericPayload.dice[0].id).toMatch(/^d6-\d+-[a-z0-9]+$/)
     })
   })
 

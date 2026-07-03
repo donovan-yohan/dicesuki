@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 use rapier3d::prelude::RigidBodyHandle;
 use crate::messages::*;
@@ -190,6 +190,7 @@ impl Room {
         if !self.players.contains_key(owner_id) {
             return Err("PLAYER_NOT_FOUND".to_string());
         }
+        self.validate_spawn_entries(owner_id, &entries)?;
 
         let mut spawned = Vec::new();
         for entry in entries {
@@ -232,6 +233,36 @@ impl Room {
 
         self.touch();
         Ok(spawned)
+    }
+
+    fn validate_spawn_entries(&self, owner_id: &str, entries: &[DiceSpawnRequest]) -> Result<(), String> {
+        let mut request_ids = HashSet::new();
+        let mut request_inventory_die_ids = HashSet::new();
+
+        for entry in entries {
+            if !request_ids.insert(entry.id.as_str()) || self.dice.contains_key(&entry.id) {
+                return Err("DUPLICATE_DICE_ID".to_string());
+            }
+
+            let Some(inventory_die_id) = entry.presentation.as_ref()
+                .and_then(|presentation| presentation.inventory_die_id.as_deref())
+            else {
+                continue;
+            };
+
+            if !request_inventory_die_ids.insert(inventory_die_id)
+                || self.dice.values().any(|die| {
+                    die.owner_id == owner_id
+                        && die.presentation.as_ref()
+                            .and_then(|presentation| presentation.inventory_die_id.as_deref())
+                            == Some(inventory_die_id)
+                })
+            {
+                return Err("DUPLICATE_INVENTORY_DIE".to_string());
+            }
+        }
+
+        Ok(())
     }
 
     /// Apply roll impulse to all of a player's dice
@@ -644,6 +675,7 @@ impl Room {
         if !self.players.contains_key(owner_id) {
             return Err("PLAYER_NOT_FOUND".to_string());
         }
+        self.validate_spawn_entries(owner_id, &entries)?;
 
         let mut spawned = Vec::new();
         for entry in entries {
@@ -693,6 +725,21 @@ mod tests {
     fn make_player(id: &str, name: &str) -> Player {
         let (tx, _rx) = mpsc::unbounded_channel();
         Player::new(id.to_string(), name.to_string(), "#FFF".to_string(), tx)
+    }
+
+    fn make_presentation(inventory_die_id: &str) -> DicePresentationMetadata {
+        DicePresentationMetadata {
+            inventory_die_id: Some(inventory_die_id.to_string()),
+            display_name: Some("Lucky D20".to_string()),
+            set_id: Some("starter".to_string()),
+            rarity: Some("rare".to_string()),
+            base_color: Some("#8b5cf6".to_string()),
+            accent_color: Some("#ffffff".to_string()),
+            material: Some("plastic".to_string()),
+            custom_asset_id: None,
+            custom_asset_name: None,
+            unsupported_reason: None,
+        }
     }
 
     #[test]
@@ -861,23 +908,44 @@ mod tests {
     }
 
     #[test]
+    fn test_spawn_dice_rejects_duplicate_dice_ids() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+
+        assert_eq!(room.spawn_dice("p1", vec![
+            ("d1".to_string(), DiceType::D20),
+            ("d1".to_string(), DiceType::D6),
+        ]).unwrap_err(), "DUPLICATE_DICE_ID");
+    }
+
+    #[test]
+    fn test_spawn_dice_rejects_duplicate_owned_inventory_die() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+
+        room.spawn_dice("p1", vec![SpawnDiceEntry {
+            id: "d1".to_string(),
+            dice_type: DiceType::D20,
+            presentation: Some(make_presentation("die_lucky_d20")),
+        }]).unwrap();
+
+        let duplicate = room.spawn_dice("p1", vec![SpawnDiceEntry {
+            id: "d2".to_string(),
+            dice_type: DiceType::D20,
+            presentation: Some(make_presentation("die_lucky_d20")),
+        }]);
+
+        assert_eq!(duplicate.unwrap_err(), "DUPLICATE_INVENTORY_DIE");
+        assert_eq!(room.dice_count(), 1);
+    }
+
+    #[test]
     fn test_spawn_dice_preserves_presentation_metadata() {
         let mut room = Room::new("test".to_string());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
 
-        let presentation = DicePresentationMetadata {
-            inventory_die_id: Some("die_lucky_d20".to_string()),
-            display_name: Some("Lucky D20".to_string()),
-            set_id: Some("starter".to_string()),
-            rarity: Some("rare".to_string()),
-            base_color: Some("#8b5cf6".to_string()),
-            accent_color: Some("#ffffff".to_string()),
-            material: Some("plastic".to_string()),
-            custom_asset_id: None,
-            custom_asset_name: None,
-            unsupported_reason: None,
-        };
+        let presentation = make_presentation("die_lucky_d20");
 
         let spawned = room.spawn_dice("p1", vec![SpawnDiceEntry {
             id: "d1".to_string(),

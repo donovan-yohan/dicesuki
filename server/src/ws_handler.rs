@@ -131,6 +131,8 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                                 "Table is full ({}/30 dice)",
                                 room_guard.dice_count()
                             ),
+                            "DUPLICATE_DICE_ID" => "Duplicate dice ID in spawn request".to_string(),
+                            "DUPLICATE_INVENTORY_DIE" => "That inventory die is already on the table".to_string(),
                             _ => format!("Failed to spawn dice: {}", code),
                         };
                         let _ = tx.send(ServerMessage::Error { code, message });
