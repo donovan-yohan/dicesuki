@@ -117,11 +117,8 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
             }
 
             ClientMessage::SpawnDice { dice } if is_joined => {
-                let entries: Vec<(String, DiceType)> =
-                    dice.into_iter().map(|d| (d.id, d.dice_type)).collect();
-
                 let mut room_guard = room.write().await;
-                match room_guard.spawn_dice_with_physics(&player_id, entries) {
+                match room_guard.spawn_dice_with_physics(&player_id, dice) {
                     Ok(spawned) => {
                         room_guard.broadcast(&ServerMessage::DiceSpawned {
                             owner_id: player_id.clone(),

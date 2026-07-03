@@ -5,6 +5,7 @@ import type {
   ServerMessage,
   PlayerInfo,
   DiceState,
+  DicePresentationMetadata,
   VelocityHistoryEntry,
 } from '../lib/multiplayerMessages'
 import { getWsServerUrl } from '../lib/multiplayerServer'
@@ -16,6 +17,7 @@ export interface MultiplayerDie {
   id: string
   ownerId: string
   diceType: DiceShape
+  presentation?: DicePresentationMetadata
   // Current rendered position (interpolated)
   position: [number, number, number]
   rotation: [number, number, number, number]
@@ -56,7 +58,7 @@ interface MultiplayerState {
   handleServerMessage: (msg: ServerMessage) => void
 
   // Game actions
-  spawnDice: (diceType: DiceShape) => void
+  spawnDice: (diceType: DiceShape, presentation?: DicePresentationMetadata) => void
   removeDice: (diceIds: string[]) => void
   roll: () => void
   updateColor: (color: string) => void
@@ -262,6 +264,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             msg.diceId,
             msg.faceValue,
             die.diceType,
+            die.presentation,
           )
         }
         break
@@ -277,6 +280,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             value: r.faceValue,
             type: r.diceType.toString(),
             settledAt: now,
+            presentation: r.presentation,
           }))
           const sum = dice.reduce((acc, d) => acc + d.value, 0)
 
@@ -301,11 +305,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     }
   },
 
-  spawnDice: (diceType: DiceShape) => {
-    const id = `${diceType}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  spawnDice: (diceType: DiceShape, presentation?: DicePresentationMetadata) => {
+    const id = presentation?.inventoryDieId
+      ? `${presentation.inventoryDieId}-${Date.now()}`
+      : `${diceType}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
     get().sendMessage({
       type: 'spawn_dice',
-      dice: [{ id, diceType }],
+      dice: [{ id, diceType, presentation }],
     })
   },
 
@@ -355,6 +361,7 @@ function diceStateToMultiplayerDie(d: DiceState): MultiplayerDie {
     id: d.id,
     ownerId: d.ownerId,
     diceType: d.diceType,
+    presentation: d.presentation,
     position: d.position,
     rotation: d.rotation,
     targetPosition: d.position,
