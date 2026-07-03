@@ -35,6 +35,7 @@ interface MultiplayerState {
   connectionStatus: ConnectionStatus
   socket: WebSocket | null
   serverUrl: string
+  connectionError: string | null
 
   // Room
   roomId: string | null
@@ -49,7 +50,7 @@ interface MultiplayerState {
   snapshotInterval: number // ms between snapshots (should match server SNAPSHOT_DIVISOR)
 
   // Actions
-  connect: (roomId: string, displayName: string, color: string) => void
+  connect: (roomId: string, displayName: string, color: string, serverUrl?: string) => void
   disconnect: () => void
   sendMessage: (msg: ClientMessage) => void
   handleServerMessage: (msg: ServerMessage) => void
@@ -77,6 +78,7 @@ const createInitialState = () => ({
   connectionStatus: 'disconnected' as ConnectionStatus,
   socket: null as WebSocket | null,
   serverUrl: getWsServerUrl(),
+  connectionError: null as string | null,
   roomId: null as string | null,
   players: new Map<string, PlayerInfo>(),
   localPlayerId: null as string | null,
@@ -89,11 +91,12 @@ const createInitialState = () => ({
 export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   ...createInitialState(),
 
-  connect: (roomId: string, displayName: string, color: string) => {
+  connect: (roomId: string, displayName: string, color: string, serverUrlOverride?: string) => {
     const { serverUrl } = get()
-    set({ connectionStatus: 'connecting' })
+    const activeServerUrl = serverUrlOverride || serverUrl
+    set({ connectionStatus: 'connecting', connectionError: null, serverUrl: activeServerUrl })
 
-    const wsUrl = `${serverUrl}/ws/${roomId}`
+    const wsUrl = `${activeServerUrl}/ws/${roomId}`
     const socket = new WebSocket(wsUrl)
 
     socket.onopen = () => {
@@ -122,7 +125,11 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
     socket.onerror = (error) => {
       console.error('[Multiplayer] WebSocket error:', error)
-      set({ connectionStatus: 'disconnected', socket: null })
+      set({
+        connectionStatus: 'disconnected',
+        connectionError: `Could not connect to ${activeServerUrl}. Verify the room server is running and this room still exists.`,
+        socket: null,
+      })
     }
   },
 
