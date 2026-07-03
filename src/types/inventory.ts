@@ -6,6 +6,7 @@
  */
 
 import { DiceShape } from '../lib/geometries'
+import type { DiceMetadata } from './customDice'
 
 // ============================================================================
 // Enums & Literals
@@ -103,6 +104,7 @@ export interface InventoryDie {
   description?: string        // Optional flavor text
   isFavorite: boolean         // Star for quick access
   isLocked: boolean           // Prevent accidental deletion/crafting
+  tags?: string[]             // Display/filter tags for owned dice identity
 
   // Dev/Testing Flags
   isDev?: boolean             // Development/test dice (show badge, easy removal)
@@ -111,6 +113,8 @@ export interface InventoryDie {
   // Metadata
   acquiredAt: number          // Timestamp
   source: AcquisitionSource
+  lastRolledAt?: number       // Optional local-only recency metadata
+  recentRollValues?: number[] // Optional local-only roll history sample
 
   // Stats (for player engagement)
   stats: DieStats
@@ -122,7 +126,7 @@ export interface InventoryDie {
   customAsset?: {
     modelUrl: string            // Blob URL for current session
     assetId?: string            // IndexedDB key for persistence (optional for backwards compatibility)
-    metadata: any               // DiceMetadata from customDice types
+    metadata: DiceMetadata
   }
 }
 
@@ -207,7 +211,7 @@ export type NewInventoryDie = Omit<
  */
 export type DieUpdate = Partial<Pick<
   InventoryDie,
-  'name' | 'description' | 'isFavorite' | 'isLocked' | 'assignedToRolls'
+  'name' | 'description' | 'isFavorite' | 'isLocked' | 'assignedToRolls' | 'tags'
 >>
 
 /**

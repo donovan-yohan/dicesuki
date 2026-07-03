@@ -11,6 +11,34 @@ export type KeepMode = 'highest' | 'lowest'
 export type CompareMode = 'equals' | 'lessThan' | 'lessOrEqual' | 'greaterThan' | 'greaterOrEqual'
 
 /**
+ * Roll source metadata distinguishes generic dice from specific owned dice.
+ * Anonymous sources preserve legacy expressions such as "8d6"; specific
+ * sources point at stable InventoryDie ids such as "my lucky d20".
+ */
+export type RollSourceKind = 'anonymous' | 'specific'
+
+export interface AnonymousRollSource {
+  kind: 'anonymous'
+  quantity: number
+  skinId?: string
+}
+
+export interface SpecificDieRollSource {
+  kind: 'specific'
+  dieId: string
+  skinId?: string
+}
+
+export type RollSource = AnonymousRollSource | SpecificDieRollSource
+
+export interface RollSourceMetadata {
+  kind: RollSourceKind
+  slotIndex: number
+  dieId?: string
+  skinId?: string
+}
+
+/**
  * Exploding dice configuration
  * Dice "explode" (roll additional dice) when certain values are rolled
  */
@@ -50,6 +78,9 @@ export interface DiceEntry {
   quantity: number        // How many dice to KEEP in final result
   perDieBonus: number     // Applied to each die individually (e.g., +1 in "d6+1")
 
+  // Roll Sources
+  sources?: RollSource[]  // Omitted legacy entries are treated as anonymous quantity/skinId
+
   // Keep/Drop Mechanics
   rollCount?: number      // Total dice to roll (if > quantity, drop some)
   keepMode?: KeepMode     // Which dice to keep when rollCount > quantity
@@ -67,7 +98,7 @@ export interface DiceEntry {
   // Success Counting (alternative mode)
   countSuccesses?: SuccessCountingConfig
 
-  // Future: specific dice skin/texture to use
+  // Legacy/default specific dice skin/texture to use. Preserved for migration.
   skinId?: string
 }
 
@@ -104,6 +135,7 @@ export interface SingleDieRoll {
   wasRerolled?: boolean
   explosions?: number[]   // Array of explosion values
   wasKept: boolean        // Was this die kept in the final result?
+  source?: RollSourceMetadata
 }
 
 /**

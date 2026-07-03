@@ -12,7 +12,8 @@ import { RollBuilder } from './saved-rolls/RollBuilder'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
-import { spawnDiceFromToolbar } from '../../lib/diceSpawner'
+import { spawnDiceFromToolbar, spawnSpecificDie } from '../../lib/diceSpawner'
+import { expandDiceEntrySources } from '../../lib/rollSources'
 import { SavedRoll } from '../../types/savedRolls'
 import { useTheme } from '../../contexts/ThemeContext'
 
@@ -72,17 +73,20 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
     let spawnFailures = 0
 
     roll.dice.forEach((entry) => {
-      for (let i = 0; i < entry.quantity; i++) {
-        const result = spawnDiceFromToolbar(entry.type, currentTheme.id)
+      expandDiceEntrySources(entry).forEach((source) => {
+        const result = source.kind === 'specific'
+          ? spawnSpecificDie(source.dieId, entry.type, currentTheme.id)
+          : spawnDiceFromToolbar(entry.type, currentTheme.id)
+
         if (result.success && result.diceInstanceId) {
           if (entry.perDieBonus !== 0) {
             perDieBonuses.set(result.diceInstanceId, entry.perDieBonus)
           }
         } else {
           spawnFailures++
-          console.warn(`[SavedRolls] Failed to spawn ${entry.type}: ${result.error}`)
+          console.warn(`[SavedRolls] Failed to spawn ${source.kind} ${entry.type}: ${result.error}`)
         }
-      }
+      })
     })
 
     if (spawnFailures > 0) {
