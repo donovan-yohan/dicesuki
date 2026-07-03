@@ -9,14 +9,15 @@ import * as THREE from 'three'
 import { GRAVITY, MULTIPLAYER_ARENA_HALF_X, MULTIPLAYER_ARENA_HALF_Z } from '../config/physicsConfig'
 
 // Contexts
-import { DiceBackendContext, DiceBackendProvider } from '../contexts/DiceBackendContext'
+import { DiceBackendContext } from '../contexts/DiceBackendContext'
+import { DiceBackendProvider } from '../contexts/DiceBackendProvider'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
 import { useTheme } from '../contexts/ThemeContext'
 
 // Hooks
 import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useLocalDiceBackend } from '../hooks/useLocalDiceBackend'
-import { PerformanceOverlay } from '../hooks/usePerformanceMonitor'
+import { PerformanceOverlay } from './effects/PerformanceOverlay'
 import { useMultiplayerDrag } from '../hooks/useMultiplayerDrag'
 import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
 

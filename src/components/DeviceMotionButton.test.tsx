@@ -1,7 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { DeviceMotionButton } from './DeviceMotionButton'
-import { DeviceMotionProvider } from '../contexts/DeviceMotionContext'
+import { DeviceMotionProvider } from '../contexts/DeviceMotionProvider'
+
+type DeviceMotionEventWithPermission = typeof DeviceMotionEvent & {
+  requestPermission?: () => Promise<'granted' | 'denied'>
+}
+
+const motionGlobal = globalThis as unknown as {
+  DeviceMotionEvent: DeviceMotionEventWithPermission | undefined
+}
+
+const mutableDeviceMotionEvent = () => DeviceMotionEvent as DeviceMotionEventWithPermission
 
 // Wrapper component to provide context
 const renderWithProvider = (component: React.ReactElement) => {
@@ -20,14 +30,14 @@ describe('DeviceMotionButton', () => {
   describe('unsupported devices', () => {
     it('should not render when device motion is unsupported', () => {
       // Mock unsupported device
-      const originalDeviceMotionEvent = (globalThis as any).DeviceMotionEvent
-      ;(globalThis as any).DeviceMotionEvent = undefined
+      const originalDeviceMotionEvent = motionGlobal.DeviceMotionEvent
+      motionGlobal.DeviceMotionEvent = undefined
 
       renderWithProvider(<DeviceMotionButton />)
 
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
 
-      ;(globalThis as any).DeviceMotionEvent = originalDeviceMotionEvent
+      motionGlobal.DeviceMotionEvent = originalDeviceMotionEvent
     })
   })
 
@@ -41,7 +51,7 @@ describe('DeviceMotionButton', () => {
 
     it('should request permission when button clicked', async () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('granted')
-      ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
+      mutableDeviceMotionEvent().requestPermission = mockRequestPermission
 
       renderWithProvider(<DeviceMotionButton />)
 
@@ -57,7 +67,7 @@ describe('DeviceMotionButton', () => {
   describe('permission granted state', () => {
     it('should show active state when permission granted', async () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('granted')
-      ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
+      mutableDeviceMotionEvent().requestPermission = mockRequestPermission
 
       renderWithProvider(<DeviceMotionButton />)
 
@@ -71,7 +81,7 @@ describe('DeviceMotionButton', () => {
 
     it('should show shake indicator when shaking', async () => {
       // Auto-grant permission
-      ;(DeviceMotionEvent as any).requestPermission = undefined
+      mutableDeviceMotionEvent().requestPermission = undefined
 
       renderWithProvider(<DeviceMotionButton />)
 
@@ -86,7 +96,7 @@ describe('DeviceMotionButton', () => {
   describe('permission denied state', () => {
     it('should show denied message when permission denied', async () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('denied')
-      ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
+      mutableDeviceMotionEvent().requestPermission = mockRequestPermission
 
       renderWithProvider(<DeviceMotionButton />)
 
@@ -100,7 +110,7 @@ describe('DeviceMotionButton', () => {
 
     it('should show help text for denied state', async () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('denied')
-      ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
+      mutableDeviceMotionEvent().requestPermission = mockRequestPermission
 
       renderWithProvider(<DeviceMotionButton />)
 
@@ -116,7 +126,7 @@ describe('DeviceMotionButton', () => {
   describe('visual states', () => {
     it('should have distinct styling for each state', async () => {
       const mockRequestPermission = vi.fn().mockResolvedValue('granted')
-      ;(DeviceMotionEvent as any).requestPermission = mockRequestPermission
+      mutableDeviceMotionEvent().requestPermission = mockRequestPermission
 
       renderWithProvider(<DeviceMotionButton />)
 
