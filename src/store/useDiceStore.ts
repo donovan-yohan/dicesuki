@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import type { DicePresentationMetadata } from '../lib/multiplayerMessages'
 
 /**
  * Represents a single die that has settled with a face value
@@ -9,6 +10,7 @@ export interface DieSettledState {
   value: number
   type: string
   settledAt: number
+  presentation?: DicePresentationMetadata
 }
 
 /**
@@ -56,7 +58,7 @@ interface DiceStore {
   activeSavedRoll: ActiveSavedRoll | null
 
   markDiceRolling: (diceIds: string[]) => void
-  recordDieSettled: (diceId: string, value: number, type: string) => void
+  recordDieSettled: (diceId: string, value: number, type: string, presentation?: DicePresentationMetadata) => void
   addRollToHistory: (snapshot: RollSnapshot) => void
   removeDieState: (diceId: string) => void
   clearAllDieStates: () => void
@@ -96,7 +98,7 @@ export const useDiceStore = create<DiceStore>()(
         })
       },
 
-      recordDieSettled: (diceId: string, value: number, type: string) => {
+      recordDieSettled: (diceId: string, value: number, type: string, presentation?: DicePresentationMetadata) => {
         set((state) => {
           const newSettled = new Map(state.settledDice)
           newSettled.set(diceId, {
@@ -104,6 +106,7 @@ export const useDiceStore = create<DiceStore>()(
             value,
             type,
             settledAt: Date.now(),
+            presentation,
           })
 
           const newRolling = new Set(state.rollingDice)

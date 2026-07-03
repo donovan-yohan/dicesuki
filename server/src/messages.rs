@@ -51,6 +51,32 @@ pub struct SpawnDiceEntry {
     pub id: String,
     #[serde(rename = "diceType")]
     pub dice_type: DiceType,
+    pub presentation: Option<DicePresentationMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DicePresentationMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inventory_die_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub set_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rarity: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accent_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub material: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_asset_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_asset_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unsupported_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -144,6 +170,8 @@ pub struct DiceState {
     pub dice_type: DiceType,
     pub position: [f32; 3],
     pub rotation: [f32; 4],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presentation: Option<DicePresentationMetadata>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -163,6 +191,8 @@ pub struct DieResult {
     pub dice_type: DiceType,
     #[serde(rename = "faceValue")]
     pub face_value: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presentation: Option<DicePresentationMetadata>,
 }
 
 #[cfg(test)]
@@ -192,6 +222,23 @@ mod tests {
                 assert_eq!(dice.len(), 2);
                 assert_eq!(dice[0].dice_type, DiceType::D20);
                 assert_eq!(dice[1].dice_type, DiceType::D6);
+                assert!(dice[0].presentation.is_none());
+            }
+            _ => panic!("Expected SpawnDice message"),
+        }
+    }
+
+    #[test]
+    fn test_deserialize_spawn_dice_with_presentation_metadata() {
+        let json = r##"{"type":"spawn_dice","dice":[{"id":"d1","diceType":"d20","presentation":{"inventoryDieId":"die_lucky_d20","displayName":"Lucky D20","setId":"starter","rarity":"rare","baseColor":"#8b5cf6","customAssetId":"die_lucky_d20","customAssetName":"Lucky Mesh","unsupportedReason":"generic fallback"}}]}"##;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::SpawnDice { dice } => {
+                let presentation = dice[0].presentation.as_ref().unwrap();
+                assert_eq!(presentation.inventory_die_id.as_deref(), Some("die_lucky_d20"));
+                assert_eq!(presentation.display_name.as_deref(), Some("Lucky D20"));
+                assert_eq!(presentation.base_color.as_deref(), Some("#8b5cf6"));
+                assert_eq!(presentation.unsupported_reason.as_deref(), Some("generic fallback"));
             }
             _ => panic!("Expected SpawnDice message"),
         }
