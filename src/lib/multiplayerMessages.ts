@@ -11,9 +11,28 @@ export interface JoinMessage {
   color: string
 }
 
+export interface DicePresentationMetadata {
+  inventoryDieId?: string
+  displayName?: string
+  setId?: string
+  rarity?: string
+  baseColor?: string
+  accentColor?: string
+  material?: string
+  customAssetId?: string
+  customAssetName?: string
+  unsupportedReason?: string
+}
+
+export interface SpawnDiceEntry {
+  id: string
+  diceType: DiceShape
+  presentation?: DicePresentationMetadata
+}
+
 export interface SpawnDiceMessage {
   type: 'spawn_dice'
-  dice: { id: string; diceType: DiceShape }[]
+  dice: SpawnDiceEntry[]
 }
 
 export interface RemoveDiceMessage {
@@ -85,6 +104,7 @@ export interface DiceState {
   diceType: DiceShape
   position: [number, number, number]
   rotation: [number, number, number, number] // quaternion [x, y, z, w]
+  presentation?: DicePresentationMetadata
 }
 
 export interface DiceSnapshot {
@@ -97,6 +117,7 @@ export interface DieResult {
   diceId: string
   diceType: DiceShape
   faceValue: number
+  presentation?: DicePresentationMetadata
 }
 
 export interface RoomStateMessage {

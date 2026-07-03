@@ -440,6 +440,7 @@ function MultiplayerDiceRenderer({ renderDeviceTier }: { renderDeviceTier: Rende
           dieId={die.id}
           diceType={die.diceType}
           color={players.get(die.ownerId)?.color ?? '#ffffff'}
+          presentation={die.presentation}
           tRef={tRef}
           isOwnedByLocalPlayer={die.ownerId === localPlayerId}
           renderDeviceTier={renderDeviceTier}
