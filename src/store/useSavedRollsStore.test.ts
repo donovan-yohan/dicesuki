@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useSavedRollsStore } from './useSavedRollsStore'
+import { normalizePersistedSavedRollsState, useSavedRollsStore } from './useSavedRollsStore'
 import {
   createAnonymousRollSource,
   createSpecificDieRollSource,
@@ -99,5 +99,23 @@ describe('useSavedRollsStore roll source identity', () => {
     expect(updated?.rollCount).toBeUndefined()
     expect(updated?.sources).toEqual([createAnonymousRollSource(4)])
     expect(getDiceEntrySourceQuantity(updated as DiceEntry)).toBe(4)
+  })
+
+  it('guards persisted migration state against corrupt saved rolls', () => {
+    expect(normalizePersistedSavedRollsState('bad-state')).toEqual({
+      savedRolls: [],
+      currentlyEditing: null,
+    })
+
+    const migrated = normalizePersistedSavedRollsState({
+      savedRolls: 'not-an-array',
+      currentlyEditing: {
+        ...baseRoll,
+        dice: { nope: true },
+      },
+    })
+
+    expect(migrated.savedRolls).toEqual([])
+    expect(migrated.currentlyEditing?.dice).toEqual([])
   })
 })

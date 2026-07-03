@@ -28,7 +28,7 @@ function getRandomSpawnPosition(existingDiceCount = 0): [number, number, number]
   // Spawn near center, but fan out sequential spawns so saved-roll dice don't
   // start inside the same collider and blast each other out of the tray.
   const laneOffset = ((existingDiceCount % 3) - 1) * 0.75
-  const rowOffset = (Math.floor(existingDiceCount / 3) % 2) * 0.9
+  const rowOffset = Math.floor(existingDiceCount / 3) * 0.9
   const jitterX = (Math.random() - 0.5) * 0.3
   const jitterZ = (Math.random() - 0.5) * 0.3
   const x = laneOffset + jitterX

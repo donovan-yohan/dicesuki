@@ -547,7 +547,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
         type={lodPolicy.physicsMode === 'static' ? 'fixed' : 'dynamic'}
         restitution={DICE_RESTITUTION}
         friction={DICE_FRICTION}
-        canSleep
+        canSleep={false}
         onContactForce={lodPolicy.physicsMode === 'dynamic' ? handleContactForce : undefined}
       >
         {/* Keep D6 on a stable cuboid collider; rounded colliders can micro-roll out of saved-roll results. */}

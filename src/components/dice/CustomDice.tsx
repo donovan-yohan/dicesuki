@@ -479,7 +479,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
         restitution={physicsProps.restitution}
         friction={physicsProps.friction}
         density={physicsProps.density}
-        canSleep
+        canSleep={false}
         onContactForce={handleContactForce}
       >
         {/* Render appropriate collider based on metadata type */}

@@ -116,12 +116,16 @@ function RenderLodDebugOverlay({
         render lod · {deviceTier} · {isMultiplayer ? 'multiplayer' : 'local'} · tray {trayDiceCount}
       </div>
       <div className="grid grid-cols-[72px_1fr] gap-x-2 gap-y-0.5">
-        {policies.map((policy) => (
-          <div key={policy.context} className="contents">
-            <span className="text-orange-300">{policy.context}</span>
-            <span>{policy.fidelity} · {policy.textureSize || 'none'}px · {policy.physicsMode}</span>
-          </div>
-        ))}
+        {policies.map((policy) => {
+          const textureSizeLabel = policy.textureSize > 0 ? `${policy.textureSize}px` : 'none'
+
+          return (
+            <div key={policy.context} className="contents">
+              <span className="text-orange-300">{policy.context}</span>
+              <span>{policy.fidelity} · {textureSizeLabel} · {policy.physicsMode}</span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -517,6 +521,7 @@ function Scene() {
   const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>('high')
   const [showRenderLodDebug, setShowRenderLodDebug] = useState(false)
   const detectedRenderDeviceTierRef = useRef<RenderDeviceTier | null>(null)
+  const rollTimeoutRef = useRef<number | null>(null)
 
   // Detect if mobile
   const [isMobile, setIsMobile] = useState(false)
@@ -547,6 +552,10 @@ function Scene() {
     return () => {
       isCancelled = true
       window.removeEventListener('resize', checkMobile)
+      if (rollTimeoutRef.current !== null) {
+        window.clearTimeout(rollTimeoutRef.current)
+        rollTimeoutRef.current = null
+      }
     }
   }, [])
 
@@ -579,8 +588,10 @@ function Scene() {
   }, [addDice, currentTheme.id]) // Only run once on mount - ref guard prevents re-execution
 
   const handleRollClick = useCallback(() => {
+    const diceAtRollStart = useDiceManagerStore.getState().dice
+
     // Mark ALL dice as rolling
-    useDiceStore.getState().markDiceRolling(dice.map(d => d.id))
+    useDiceStore.getState().markDiceRolling(diceAtRollStart.map(d => d.id))
 
     // Generate and apply impulse
     const impulse = roll()
@@ -590,11 +601,16 @@ function Scene() {
       }
     })
 
-    window.setTimeout(() => {
+    if (rollTimeoutRef.current !== null) {
+      window.clearTimeout(rollTimeoutRef.current)
+    }
+
+    rollTimeoutRef.current = window.setTimeout(() => {
+      rollTimeoutRef.current = null
       const { rollingDice } = useDiceStore.getState()
       if (rollingDice.size === 0) return
 
-      dice.forEach((die) => {
+      useDiceManagerStore.getState().dice.forEach((die) => {
         if (!rollingDice.has(die.id)) return
         const faceValue = diceRefs.current.get(die.id)?.readCurrentFace()
         if (faceValue !== null && faceValue !== undefined) {
@@ -602,7 +618,7 @@ function Scene() {
         }
       })
     }, 4000)
-  }, [roll, dice, onDiceRest])
+  }, [roll, onDiceRest])
 
   // Check if we're already inside a DiceBackendProvider (multiplayer mode)
   const existingBackend = useContext(DiceBackendContext)

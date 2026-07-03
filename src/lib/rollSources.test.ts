@@ -31,6 +31,28 @@ describe('rollSources', () => {
     ])
   })
 
+  it('falls back when persisted sources or dice are not arrays', () => {
+    const corruptEntry = {
+      id: 'corrupt-entry',
+      type: 'd6',
+      quantity: 2,
+      perDieBonus: 0,
+      sources: { kind: 'anonymous', quantity: 99 },
+    } as unknown as DiceEntry
+
+    expect(expandDiceEntrySources(corruptEntry)).toEqual([
+      { kind: 'anonymous', quantity: 1 },
+      { kind: 'anonymous', quantity: 1 },
+    ])
+    expect(normalizeSavedRollSources({
+      id: 'corrupt-roll',
+      name: 'Corrupt roll',
+      dice: 'not-an-array',
+      flatBonus: 0,
+      createdAt: 1,
+    } as unknown as SavedRoll).dice).toEqual([])
+  })
+
   it('reconciles stale sources when an existing entry quantity changes', () => {
     const entry: DiceEntry = {
       id: 'anon-d6',
@@ -43,6 +65,27 @@ describe('rollSources', () => {
     const resized = withNormalizedRollSources({ ...entry, quantity: 3 })
 
     expect(resized.sources).toEqual([createAnonymousRollSource(3)])
+    expect(getDiceEntrySourceQuantity(resized)).toBe(3)
+  })
+
+  it('preserves multiple anonymous skin groups when shrinking quantity', () => {
+    const entry: DiceEntry = {
+      id: 'multi-skin-d6',
+      type: 'd6',
+      quantity: 3,
+      perDieBonus: 0,
+      sources: [
+        createAnonymousRollSource(2, 'red'),
+        createAnonymousRollSource(2, 'blue'),
+      ],
+    }
+
+    const resized = withNormalizedRollSources(entry)
+
+    expect(resized.sources).toEqual([
+      createAnonymousRollSource(2, 'red'),
+      createAnonymousRollSource(1, 'blue'),
+    ])
     expect(getDiceEntrySourceQuantity(resized)).toBe(3)
   })
 

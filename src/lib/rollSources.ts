@@ -1,21 +1,31 @@
 import type { DiceEntry, RollSource, SavedRoll } from '../types/savedRolls'
 
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function clampQuantity(quantity: number): number {
   if (!Number.isFinite(quantity)) return 1
   return Math.max(1, Math.floor(quantity))
 }
 
-function normalizeRollSource(value: RollSource | undefined, fallbackSkinId?: string): RollSource | null {
-  if (!value) return null
+function normalizeRollSource(value: unknown, fallbackSkinId?: string): RollSource | null {
+  if (!isRecord(value)) return null
 
   if (value.kind === 'anonymous') {
-    return createAnonymousRollSource(value.quantity, value.skinId ?? fallbackSkinId)
+    return createAnonymousRollSource(
+      typeof value.quantity === 'number' ? value.quantity : Number.NaN,
+      typeof value.skinId === 'string' ? value.skinId : fallbackSkinId,
+    )
   }
 
   if (value.kind === 'specific' && typeof value.dieId === 'string') {
     const dieId = value.dieId.trim()
     if (dieId.length > 0) {
-      return createSpecificDieRollSource(dieId, value.skinId ?? fallbackSkinId)
+      return createSpecificDieRollSource(
+        dieId,
+        typeof value.skinId === 'string' ? value.skinId : fallbackSkinId,
+      )
     }
   }
 
@@ -61,7 +71,7 @@ function reconcileSourcesToEntryQuantity(entry: DiceEntry, sources: RollSource[]
     return sources
   }
 
-  if (sources.every(source => source.kind === 'anonymous')) {
+  if (sources.length === 1 && sources[0].kind === 'anonymous') {
     return [createAnonymousRollSource(targetQuantity, sources[0]?.skinId ?? entry.skinId)]
   }
 
@@ -101,9 +111,11 @@ export function normalizeRollSources(
   options: { reconcileToEntryQuantity?: boolean } = {},
 ): RollSource[] {
   const { reconcileToEntryQuantity = true } = options
-  const sources = entry.sources
-    ?.map(source => normalizeRollSource(source, entry.skinId))
-    .filter((source): source is RollSource => source !== null)
+  const sources = Array.isArray(entry.sources)
+    ? entry.sources
+      .map(source => normalizeRollSource(source, entry.skinId))
+      .filter((source): source is RollSource => source !== null)
+    : undefined
 
   if (sources && sources.length > 0) {
     return reconcileToEntryQuantity
@@ -164,8 +176,19 @@ export function withRollSources(entry: DiceEntry, sources: RollSource[]): DiceEn
 }
 
 export function normalizeSavedRollSources(roll: SavedRoll): SavedRoll {
+  const dice = Array.isArray(roll.dice)
+    ? roll.dice
+      .filter(isRecord)
+      .map(entry => withNormalizedRollSources(entry as unknown as DiceEntry))
+    : []
+
   return {
     ...roll,
-    dice: roll.dice.map(withNormalizedRollSources),
+    dice,
   }
+}
+
+export function normalizePersistedSavedRoll(value: unknown): SavedRoll | null {
+  if (!isRecord(value)) return null
+  return normalizeSavedRollSources(value as unknown as SavedRoll)
 }

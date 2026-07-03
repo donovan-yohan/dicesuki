@@ -9,9 +9,15 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { SavedRoll, DiceEntry } from '../types/savedRolls'
 import { createDefaultSavedRoll } from '../lib/diceHelpers'
-import { normalizeSavedRollSources, withNormalizedRollSources, withRollSources } from '../lib/rollSources'
+import {
+  isRecord,
+  normalizePersistedSavedRoll,
+  normalizeSavedRollSources,
+  withNormalizedRollSources,
+  withRollSources,
+} from '../lib/rollSources'
 
-interface SavedRollsStore {
+export interface SavedRollsStore {
   // State
   savedRolls: SavedRoll[]
   currentlyEditing: SavedRoll | null
@@ -42,6 +48,24 @@ interface SavedRollsStore {
   getRollsByTag: (tag: string) => SavedRoll[]
   searchRolls: (query: string) => SavedRoll[]
   getAllTags: () => string[]
+}
+
+export function normalizePersistedSavedRollsState(persistedState: unknown): Partial<SavedRollsStore> {
+  const state = isRecord(persistedState)
+    ? persistedState as Partial<SavedRollsStore>
+    : {}
+  const savedRolls = Array.isArray(state.savedRolls)
+    ? state.savedRolls
+      .map(normalizePersistedSavedRoll)
+      .filter((roll): roll is SavedRoll => roll !== null)
+    : []
+  const currentlyEditing = normalizePersistedSavedRoll(state.currentlyEditing)
+
+  return {
+    ...state,
+    savedRolls,
+    currentlyEditing,
+  }
 }
 
 export const useSavedRollsStore = create<SavedRollsStore>()(
@@ -210,16 +234,7 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
       name: 'dicesuki-saved-rolls', // localStorage key
       storage: createJSONStorage(() => localStorage),
       version: 1,
-      migrate: (persistedState) => {
-        const state = persistedState as Partial<SavedRollsStore>
-        return {
-          ...state,
-          savedRolls: (state.savedRolls || []).map(normalizeSavedRollSources),
-          currentlyEditing: state.currentlyEditing
-            ? normalizeSavedRollSources(state.currentlyEditing)
-            : null,
-        }
-      },
+      migrate: normalizePersistedSavedRollsState,
     }
   )
 )
