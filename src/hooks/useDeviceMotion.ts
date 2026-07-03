@@ -12,6 +12,10 @@ import {
 
 type PermissionState = 'prompt' | 'granted' | 'denied' | 'unsupported'
 
+type DeviceMotionEventWithPermission = typeof DeviceMotionEvent & {
+  requestPermission?: () => Promise<PermissionState>
+}
+
 export interface DeviceMotionState {
   isSupported: boolean
   permissionState: PermissionState
@@ -88,9 +92,10 @@ export function useDeviceMotion(): DeviceMotionState {
 
     try {
       // iOS 13+ requires explicit permission
-      if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
-        const response = await (DeviceMotionEvent as any).requestPermission()
-        setPermissionState(response as PermissionState)
+      const motionEvent = DeviceMotionEvent as DeviceMotionEventWithPermission
+      if (typeof motionEvent.requestPermission === 'function') {
+        const response = await motionEvent.requestPermission()
+        setPermissionState(response)
       } else {
         // Android or older iOS - permission granted automatically
         setPermissionState('granted')
