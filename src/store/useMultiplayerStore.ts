@@ -94,14 +94,22 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   ...createInitialState(),
 
   connect: (roomId: string, displayName: string, color: string, serverUrlOverride?: string) => {
-    const { serverUrl } = get()
+    const { serverUrl, socket: existingSocket } = get()
+    if (existingSocket) {
+      existingSocket.close()
+    }
+
     const activeServerUrl = serverUrlOverride || serverUrl
-    set({ connectionStatus: 'connecting', connectionError: null, serverUrl: activeServerUrl })
 
     const wsUrl = `${activeServerUrl}/ws/${roomId}`
     const socket = new WebSocket(wsUrl)
+    set({ socket, connectionStatus: 'connecting', connectionError: null, serverUrl: activeServerUrl })
 
     socket.onopen = () => {
+      if (get().socket !== socket) {
+        socket.close()
+        return
+      }
       set({ socket, connectionStatus: 'connected', roomId })
       const joinMsg: ClientMessage = {
         type: 'join',
@@ -122,16 +130,20 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     }
 
     socket.onclose = () => {
-      set({ connectionStatus: 'disconnected', socket: null })
+      if (get().socket === socket) {
+        set({ connectionStatus: 'disconnected', socket: null })
+      }
     }
 
     socket.onerror = (error) => {
       console.error('[Multiplayer] WebSocket error:', error)
-      set({
-        connectionStatus: 'disconnected',
-        connectionError: `Could not connect to ${activeServerUrl}. Verify the room server is running and this room still exists.`,
-        socket: null,
-      })
+      if (get().socket === socket) {
+        set({
+          connectionStatus: 'disconnected',
+          connectionError: `Could not connect to ${activeServerUrl}. Verify the room server is running and this room still exists.`,
+          socket: null,
+        })
+      }
     }
   },
 
