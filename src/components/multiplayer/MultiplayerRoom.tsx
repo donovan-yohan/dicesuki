@@ -1,19 +1,27 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useMultiplayerDiceBackend } from '../../hooks/useMultiplayerDiceBackend'
 import { DiceBackendProvider } from '../../contexts/DiceBackendContext'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore } from '../../store/useDiceStore'
+import { getRoomServerConfig, type RoomServerMode } from '../../lib/multiplayerServer'
 import Scene from '../Scene'
 
 export function MultiplayerRoom() {
   const { roomId } = useParams<{ roomId: string }>()
+  const [searchParams] = useSearchParams()
   const connectionStatus = useMultiplayerStore((s) => s.connectionStatus)
+  const connectionError = useMultiplayerStore((s) => s.connectionError)
   const connect = useMultiplayerStore((s) => s.connect)
   const disconnect = useMultiplayerStore((s) => s.disconnect)
 
-  const [displayName, setDisplayName] = useState('')
+  const serverMode: RoomServerMode = searchParams.get('server') === 'local' ? 'local-loopback' : 'public'
+  const serverConfig = getRoomServerConfig(serverMode)
+  const isSoloRoom = searchParams.get('solo') === '1'
+  const initialDisplayName = searchParams.get('name') || (isSoloRoom ? 'Solo Player' : '')
+
+  const [displayName, setDisplayName] = useState(initialDisplayName)
   const [color, setColor] = useState('#8B5CF6')
   const [hasJoined, setHasJoined] = useState(false)
 
@@ -30,14 +38,21 @@ export function MultiplayerRoom() {
     }
   }, [disconnect])
 
+  useEffect(() => {
+    if (!isSoloRoom || hasJoined || !roomId) return
+    connect(roomId, initialDisplayName || 'Solo Player', color, serverConfig.wsUrl)
+    setHasJoined(true)
+  }, [color, connect, hasJoined, initialDisplayName, isSoloRoom, roomId, serverConfig.wsUrl])
+
   const handleJoin = () => {
     if (!roomId || !displayName.trim()) return
-    connect(roomId, displayName.trim(), color)
+    connect(roomId, displayName.trim(), color, serverConfig.wsUrl)
     setHasJoined(true)
   }
 
   // Show join form if not connected
   if (!hasJoined || connectionStatus === 'disconnected') {
+    const showConnectionError = hasJoined && connectionError
     return (
       <div style={{
         width: '100vw',
@@ -51,8 +66,33 @@ export function MultiplayerRoom() {
         color: 'white',
         background: '#1a1a2e',
       }}>
-        <h1>Join Room</h1>
+        <h1>{isSoloRoom ? 'Local Solo Room' : 'Join Room'}</h1>
         <p style={{ opacity: 0.7 }}>Room: {roomId}</p>
+        <p style={{ opacity: 0.7, maxWidth: '28rem', textAlign: 'center' }}>
+          {serverConfig.label}: {serverConfig.wsUrl}
+        </p>
+        {showConnectionError && (
+          <div
+            role="alert"
+            style={{
+              maxWidth: '28rem',
+              padding: '0.875rem 1rem',
+              borderRadius: '10px',
+              border: '1px solid rgba(248, 113, 113, 0.45)',
+              background: 'rgba(127, 29, 29, 0.45)',
+              color: '#fecaca',
+              fontSize: '0.9rem',
+              lineHeight: 1.4,
+            }}
+          >
+            <strong>Connection failed.</strong> {connectionError}
+            {serverConfig.startCommand && (
+              <div style={{ marginTop: '0.5rem' }}>
+                Start the local server with <code>{serverConfig.startCommand}</code>, then try again.
+              </div>
+            )}
+          </div>
+        )}
         <input
           type="text"
           placeholder="Display name"
@@ -92,7 +132,7 @@ export function MultiplayerRoom() {
             cursor: displayName.trim() ? 'pointer' : 'not-allowed',
           }}
         >
-          Join
+          {showConnectionError ? 'Try Again' : 'Join'}
         </button>
       </div>
     )
@@ -111,7 +151,7 @@ export function MultiplayerRoom() {
         background: '#1a1a2e',
         fontFamily: 'system-ui, sans-serif',
       }}>
-        Connecting to room {roomId}...
+        Connecting to {serverConfig.label.toLowerCase()} room {roomId}...
       </div>
     )
   }
