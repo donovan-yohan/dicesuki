@@ -84,4 +84,20 @@ describe('useSavedRollsStore roll source identity', () => {
     ])
     expect(updated?.quantity).toBe(3)
   })
+
+  it('keeps existing sources in sync when editing a saved roll quantity', () => {
+    useSavedRollsStore.getState().startEditing({
+      ...baseRoll,
+      dice: [entry('resized-d6', 'd6', 1)],
+    })
+
+    useSavedRollsStore.getState().updateDiceEntry('resized-d6', { quantity: 4 })
+
+    const updated = useSavedRollsStore.getState().currentlyEditing?.dice[0]
+
+    expect(updated?.quantity).toBe(4)
+    expect(updated?.rollCount).toBeUndefined()
+    expect(updated?.sources).toEqual([createAnonymousRollSource(4)])
+    expect(getDiceEntrySourceQuantity(updated as DiceEntry)).toBe(4)
+  })
 })

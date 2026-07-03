@@ -24,11 +24,16 @@ interface DiceManagerStore {
 /**
  * Generate random spawn position within viewport bounds
  */
-function getRandomSpawnPosition(): [number, number, number] {
-  // Spawn within a small area near center
-  const x = (Math.random() - 0.5) * 2 // -1 to 1
+function getRandomSpawnPosition(existingDiceCount = 0): [number, number, number] {
+  // Spawn near center, but fan out sequential spawns so saved-roll dice don't
+  // start inside the same collider and blast each other out of the tray.
+  const laneOffset = ((existingDiceCount % 3) - 1) * 0.75
+  const rowOffset = (Math.floor(existingDiceCount / 3) % 2) * 0.9
+  const jitterX = (Math.random() - 0.5) * 0.3
+  const jitterZ = (Math.random() - 0.5) * 0.3
+  const x = laneOffset + jitterX
   const y = 5 // Always spawn at height 5
-  const z = (Math.random() - 0.5) * 2 // -1 to 1
+  const z = rowOffset + jitterZ
   return [x, y, z]
 }
 
@@ -76,7 +81,7 @@ export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
         {
           id: diceId,
           type,
-          position: getRandomSpawnPosition(),
+          position: getRandomSpawnPosition(state.dice.length),
           rotation: getRandomRotation(),
           color: getColorForType(type, themeId),
           inventoryDieId

@@ -8,11 +8,44 @@ import {
   getDiceEntrySourceQuantity,
   getSpecificDieIds,
   normalizeSavedRollSources,
+  withNormalizedRollSources,
   withRollSources,
 } from './rollSources'
 import type { DiceEntry, SavedRoll } from '../types/savedRolls'
 
 describe('rollSources', () => {
+  it('drops malformed persisted sources instead of throwing during normalization', () => {
+    const corruptEntry = {
+      id: 'corrupt-entry',
+      type: 'd6',
+      quantity: Number.NaN,
+      perDieBonus: 0,
+      sources: [
+        { kind: 'specific' },
+        { kind: 'anonymous', quantity: Number.POSITIVE_INFINITY },
+      ],
+    } as unknown as DiceEntry
+
+    expect(expandDiceEntrySources(corruptEntry)).toEqual([
+      { kind: 'anonymous', quantity: 1 },
+    ])
+  })
+
+  it('reconciles stale sources when an existing entry quantity changes', () => {
+    const entry: DiceEntry = {
+      id: 'anon-d6',
+      type: 'd6',
+      quantity: 1,
+      perDieBonus: 0,
+      sources: [createAnonymousRollSource(1)],
+    }
+
+    const resized = withNormalizedRollSources({ ...entry, quantity: 3 })
+
+    expect(resized.sources).toEqual([createAnonymousRollSource(3)])
+    expect(getDiceEntrySourceQuantity(resized)).toBe(3)
+  })
+
   it('represents anonymous quantities and specific owned dice in one saved roll', () => {
     const roll: SavedRoll = normalizeSavedRollSources({
       id: 'mixed-roll',

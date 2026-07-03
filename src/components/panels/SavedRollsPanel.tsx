@@ -12,7 +12,7 @@ import { RollBuilder } from './saved-rolls/RollBuilder'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
-import { spawnDiceFromToolbar, spawnSpecificDie } from '../../lib/diceSpawner'
+import { spawnSpecificDie } from '../../lib/diceSpawner'
 import { expandDiceEntrySources } from '../../lib/rollSources'
 import { SavedRoll } from '../../types/savedRolls'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -76,7 +76,10 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
       expandDiceEntrySources(entry).forEach((source) => {
         const result = source.kind === 'specific'
           ? spawnSpecificDie(source.dieId, entry.type, currentTheme.id)
-          : spawnDiceFromToolbar(entry.type, currentTheme.id)
+          : {
+              success: true,
+              diceInstanceId: useDiceManagerStore.getState().addDice(entry.type, currentTheme.id),
+            }
 
         if (result.success && result.diceInstanceId) {
           if (entry.perDieBonus !== 0) {

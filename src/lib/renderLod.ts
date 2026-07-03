@@ -159,7 +159,11 @@ export function resolveDiceRenderLod(input: DiceRenderLodInput): DiceRenderLodPo
 
   if (input.isFocused && input.context === 'grid' && input.deviceTier !== 'low') {
     policy.fidelity = 'standard'
-    policy.textureSize = Math.max(policy.textureSize, 256)
+    policy.textureSize = minTextureByDevice(
+      input.context,
+      input.deviceTier,
+      Math.max(policy.textureSize, 256),
+    )
   }
 
   if (input.isFocused && input.context === 'tray' && input.deviceTier === 'high') {

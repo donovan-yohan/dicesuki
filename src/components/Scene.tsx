@@ -392,16 +392,28 @@ function ViewportBoundaries() {
       {env.ceiling.visible && (
         <RigidBody type="fixed" position={[0, 6, 0]}>
           <Box args={[bounds.width, wallThickness, bounds.height]}>
-            <meshStandardMaterial
-              color={env.ceiling.color || '#1a1a1a'}
-              transparent
-              opacity={env.ceiling.color ? 1 : 0}
-            />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
           </Box>
         </RigidBody>
       )}
     </>
   )
+}
+
+function LocalCamera() {
+  const { camera } = useThree()
+
+  useEffect(() => {
+    if (!('fov' in camera)) return
+    const perspectiveCamera = camera as THREE.PerspectiveCamera
+
+    perspectiveCamera.position.set(0, 15, 0)
+    perspectiveCamera.up.set(0, 0, -1)
+    perspectiveCamera.lookAt(0, 0, 0)
+    perspectiveCamera.updateProjectionMatrix()
+  }, [camera])
+
+  return null
 }
 
 /**
@@ -504,6 +516,7 @@ function Scene() {
   const [isPlayerPanelOpen, setIsPlayerPanelOpen] = useState(false)
   const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>('high')
   const [showRenderLodDebug, setShowRenderLodDebug] = useState(false)
+  const detectedRenderDeviceTierRef = useRef<RenderDeviceTier | null>(null)
 
   // Detect if mobile
   const [isMobile, setIsMobile] = useState(false)
@@ -514,7 +527,7 @@ function Scene() {
       const nextIsMobile = window.innerWidth < 768
       const tierOverride = getRenderDeviceTierOverride()
       setIsMobile(nextIsMobile)
-      setRenderDeviceTier(tierOverride ?? resolveRenderDeviceTier({
+      setRenderDeviceTier(tierOverride ?? detectedRenderDeviceTierRef.current ?? resolveRenderDeviceTier({
         isMobile: nextIsMobile,
         viewportWidth: window.innerWidth,
         devicePixelRatio: window.devicePixelRatio,
@@ -525,6 +538,7 @@ function Scene() {
     checkMobile()
     detectRenderDeviceTier().then((detectedTier) => {
       if (!isCancelled) {
+        detectedRenderDeviceTierRef.current = detectedTier
         setRenderDeviceTier(getRenderDeviceTierOverride() ?? detectedTier)
       }
     })
@@ -575,7 +589,20 @@ function Scene() {
         diceHandle.applyRollImpulse(impulse)
       }
     })
-  }, [roll, dice])
+
+    window.setTimeout(() => {
+      const { rollingDice } = useDiceStore.getState()
+      if (rollingDice.size === 0) return
+
+      dice.forEach((die) => {
+        if (!rollingDice.has(die.id)) return
+        const faceValue = diceRefs.current.get(die.id)?.readCurrentFace()
+        if (faceValue !== null && faceValue !== undefined) {
+          onDiceRest(die.id, faceValue, die.type)
+        }
+      })
+    }, 4000)
+  }, [roll, dice, onDiceRest])
 
   // Check if we're already inside a DiceBackendProvider (multiplayer mode)
   const existingBackend = useContext(DiceBackendContext)
@@ -646,6 +673,7 @@ function Scene() {
           </>
         ) : (
           <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
+            <LocalCamera />
             <PhysicsController gravityRef={gravityRef} />
 
             {/* Viewport-aligned boundaries (ground, walls, ceiling) */}

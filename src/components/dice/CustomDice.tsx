@@ -23,7 +23,9 @@ import {
   HAPTIC_MIN_FORCE,
   HAPTIC_MIN_SPEED,
   HAPTIC_MIN_VELOCITY_CHANGE,
+  LINEAR_VELOCITY_THRESHOLD,
   MAX_DICE_VELOCITY,
+  ANGULAR_VELOCITY_THRESHOLD,
 } from '../../config/physicsConfig'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
 import { useAnimationMixer } from '../../hooks/useAnimationMixer'
@@ -31,6 +33,7 @@ import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
+import { getDiceFaceValue } from '../../lib/geometries'
 import { useUIStore } from '../../store/useUIStore'
 import { CustomDiceAsset } from '../../types/customDice'
 import { DiceHandle } from './Dice'
@@ -205,6 +208,16 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
         hasNotifiedRef.current = false
       },
 
+      readCurrentFace: () => {
+        if (!rigidBodyRef.current) return null
+        const rotation = rigidBodyRef.current.rotation()
+        return getDiceFaceValue(
+          new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w),
+          diceType,
+          faceNormals,
+        )
+      },
+
       reset: () => {
         if (!rigidBodyRef.current) return
 
@@ -272,8 +285,8 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
             const vel = rigidBodyRef.current.linvel()
             const angVel = rigidBodyRef.current.angvel()
             const stillAtRest =
-              Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) < 0.01 &&
-              Math.sqrt(angVel.x ** 2 + angVel.y ** 2 + angVel.z ** 2) < 0.01
+              Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) < LINEAR_VELOCITY_THRESHOLD &&
+              Math.sqrt(angVel.x ** 2 + angVel.y ** 2 + angVel.z ** 2) < ANGULAR_VELOCITY_THRESHOLD
 
             if (stillAtRest) {
               onRest(id, pendingNotificationRef.current, diceType)
@@ -466,7 +479,7 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
         restitution={physicsProps.restitution}
         friction={physicsProps.friction}
         density={physicsProps.density}
-        canSleep={false}
+        canSleep
         onContactForce={handleContactForce}
       >
         {/* Render appropriate collider based on metadata type */}

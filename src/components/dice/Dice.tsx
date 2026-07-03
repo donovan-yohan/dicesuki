@@ -1,7 +1,7 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 
 import { useFrame } from '@react-three/fiber'
-import { ContactForcePayload, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
+import { ContactForcePayload, CuboidCollider, RapierRigidBody, RigidBody } from '@react-three/rapier'
 import * as THREE from 'three'
 import {
   DICE_FRICTION,
@@ -11,7 +11,6 @@ import {
   DRAG_FOLLOW_SPEED,
   DRAG_SPIN_FACTOR,
   DRAG_ROLL_FACTOR,
-  EDGE_CHAMFER_RADIUS,
   MAX_DICE_VELOCITY,
   HAPTIC_MIN_SPEED,
   HAPTIC_MIN_VELOCITY_CHANGE,
@@ -20,13 +19,15 @@ import {
   HAPTIC_LIGHT_THRESHOLD,
   HAPTIC_MEDIUM_THRESHOLD,
   HAPTIC_HIGH_FORCE_BYPASS,
+  LINEAR_VELOCITY_THRESHOLD,
+  ANGULAR_VELOCITY_THRESHOLD,
 } from '../../config/physicsConfig'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
-import { type DiceShape, createDiceGeometry } from '../../lib/geometries'
+import { type DiceShape, createDiceGeometry, getDiceFaceValue } from '../../lib/geometries'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 import { getFaceRendererForShape } from '../../lib/faceRenderers'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
@@ -58,6 +59,7 @@ interface DiceProps {
 export interface DiceHandle {
   applyImpulse: (impulse: THREE.Vector3) => void
   applyRollImpulse: (impulse: THREE.Vector3) => void // Apply impulse without resetting position
+  readCurrentFace: () => number | null
   reset: () => void
 }
 
@@ -189,6 +191,14 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
         resetFaceDetection()
         hasNotifiedRef.current = false
       },
+      readCurrentFace: () => {
+        if (!rigidBodyRef.current) return null
+        const rotation = rigidBodyRef.current.rotation()
+        return getDiceFaceValue(
+          new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w),
+          shape,
+        )
+      },
       reset: () => {
         if (!rigidBodyRef.current) return
 
@@ -260,8 +270,8 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
             const vel = rigidBodyRef.current.linvel()
             const angVel = rigidBodyRef.current.angvel()
             const stillAtRest =
-              Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) < 0.01 &&
-              Math.sqrt(angVel.x ** 2 + angVel.y ** 2 + angVel.z ** 2) < 0.01
+              Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) < LINEAR_VELOCITY_THRESHOLD &&
+              Math.sqrt(angVel.x ** 2 + angVel.y ** 2 + angVel.z ** 2) < ANGULAR_VELOCITY_THRESHOLD
 
             if (stillAtRest) {
               onRest(id, pendingNotificationRef.current, shape)
@@ -537,14 +547,12 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
         type={lodPolicy.physicsMode === 'static' ? 'fixed' : 'dynamic'}
         restitution={DICE_RESTITUTION}
         friction={DICE_FRICTION}
-        canSleep={false}
+        canSleep
         onContactForce={lodPolicy.physicsMode === 'dynamic' ? handleContactForce : undefined}
       >
-        {/* Use RoundCuboid for D6 to add chamfered edges */}
+        {/* Keep D6 on a stable cuboid collider; rounded colliders can micro-roll out of saved-roll results. */}
         {shape === 'd6' && (
-          <RoundCuboidCollider
-            args={[halfSize, halfSize, halfSize, EDGE_CHAMFER_RADIUS]}
-          />
+          <CuboidCollider args={[halfSize, halfSize, halfSize]} />
         )}
 
         {meshElement}

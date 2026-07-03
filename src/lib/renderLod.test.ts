@@ -55,6 +55,19 @@ describe('renderLod', () => {
     expect(policy.physicsMode).toBe('none')
   })
 
+  it('keeps focused mid-tier grid dice within the mid grid texture cap', () => {
+    const policy = resolveDiceRenderLod({
+      context: 'grid',
+      deviceTier: 'mid',
+      isVisible: true,
+      isFocused: true,
+    })
+
+    expect(policy.fidelity).toBe('standard')
+    expect(policy.textureSize).toBe(128)
+    expect(policy.physicsMode).toBe('none')
+  })
+
   it('falls back to offscreen hidden policy when not visible', () => {
     const policy = resolveDiceRenderLod({
       context: 'tray',

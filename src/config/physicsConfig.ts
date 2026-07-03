@@ -95,18 +95,18 @@ export const ROLL_VERTICAL_MAX = 5
  * - Dice must be below this speed to be considered "at rest"
  * - 0.01: Very strict (waits until completely still)
  * - 0.05: Lenient (registers result while still moving slightly)
- * - Recommended: 0.01 for accuracy
+ * - Recommended: 0.05 to avoid rounded dice micro-sliding forever in UI state
  */
-export const LINEAR_VELOCITY_THRESHOLD = 0.01
+export const LINEAR_VELOCITY_THRESHOLD = 0.05
 
 /**
  * Angular velocity threshold for rest detection (rad/s)
  * - Dice must be rotating slower than this to be "at rest"
  * - 0.01: Very strict (no rotation allowed)
  * - 0.05: Lenient (slight wobble OK)
- * - Recommended: 0.01 for clean results
+ * - Recommended: 0.05 for rounded-edge dice that can micro-wobble under Rapier
  */
-export const ANGULAR_VELOCITY_THRESHOLD = 0.01
+export const ANGULAR_VELOCITY_THRESHOLD = 0.05
 
 /**
  * Duration dice must remain still before result registers (ms)

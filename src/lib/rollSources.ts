@@ -1,13 +1,25 @@
 import type { DiceEntry, RollSource, SavedRoll } from '../types/savedRolls'
 
 function clampQuantity(quantity: number): number {
+  if (!Number.isFinite(quantity)) return 1
   return Math.max(1, Math.floor(quantity))
 }
 
-function isRollSource(value: RollSource | undefined): value is RollSource {
-  if (!value) return false
-  if (value.kind === 'anonymous') return value.quantity >= 1
-  return value.dieId.trim().length > 0
+function normalizeRollSource(value: RollSource | undefined, fallbackSkinId?: string): RollSource | null {
+  if (!value) return null
+
+  if (value.kind === 'anonymous') {
+    return createAnonymousRollSource(value.quantity, value.skinId ?? fallbackSkinId)
+  }
+
+  if (value.kind === 'specific' && typeof value.dieId === 'string') {
+    const dieId = value.dieId.trim()
+    if (dieId.length > 0) {
+      return createSpecificDieRollSource(dieId, value.skinId ?? fallbackSkinId)
+    }
+  }
+
+  return null
 }
 
 export function createAnonymousRollSource(quantity: number, skinId?: string): RollSource {
@@ -34,16 +46,69 @@ export function getLegacyEntrySourceQuantity(entry: DiceEntry): number {
   return clampQuantity(entry.rollCount ?? entry.quantity)
 }
 
-export function normalizeRollSources(entry: DiceEntry): RollSource[] {
+function getTotalSourceQuantity(sources: RollSource[]): number {
+  return sources.reduce(
+    (total, source) => total + getRollSourceQuantity(source),
+    0
+  )
+}
+
+function reconcileSourcesToEntryQuantity(entry: DiceEntry, sources: RollSource[]): RollSource[] {
+  const targetQuantity = getLegacyEntrySourceQuantity(entry)
+  const sourceQuantity = getTotalSourceQuantity(sources)
+
+  if (sourceQuantity === targetQuantity) {
+    return sources
+  }
+
+  if (sources.every(source => source.kind === 'anonymous')) {
+    return [createAnonymousRollSource(targetQuantity, sources[0]?.skinId ?? entry.skinId)]
+  }
+
+  if (sourceQuantity < targetQuantity) {
+    return [
+      ...sources,
+      createAnonymousRollSource(targetQuantity - sourceQuantity, entry.skinId),
+    ]
+  }
+
+  let remaining = targetQuantity
+  const reconciled: RollSource[] = []
+
+  for (const source of sources) {
+    if (remaining <= 0) break
+
+    if (source.kind === 'specific') {
+      reconciled.push(source)
+      remaining -= 1
+      continue
+    }
+
+    const keptQuantity = Math.min(getRollSourceQuantity(source), remaining)
+    if (keptQuantity > 0) {
+      reconciled.push(createAnonymousRollSource(keptQuantity, source.skinId ?? entry.skinId))
+      remaining -= keptQuantity
+    }
+  }
+
+  return reconciled.length > 0
+    ? reconciled
+    : [createAnonymousRollSource(targetQuantity, entry.skinId)]
+}
+
+export function normalizeRollSources(
+  entry: DiceEntry,
+  options: { reconcileToEntryQuantity?: boolean } = {},
+): RollSource[] {
+  const { reconcileToEntryQuantity = true } = options
   const sources = entry.sources
-    ?.map(source => source.kind === 'anonymous'
-      ? createAnonymousRollSource(source.quantity, source.skinId ?? entry.skinId)
-      : createSpecificDieRollSource(source.dieId, source.skinId ?? entry.skinId)
-    )
-    .filter(isRollSource)
+    ?.map(source => normalizeRollSource(source, entry.skinId))
+    .filter((source): source is RollSource => source !== null)
 
   if (sources && sources.length > 0) {
-    return sources
+    return reconcileToEntryQuantity
+      ? reconcileSourcesToEntryQuantity(entry, sources)
+      : sources
   }
 
   return [createAnonymousRollSource(getLegacyEntrySourceQuantity(entry), entry.skinId)]
@@ -80,11 +145,11 @@ export function withNormalizedRollSources(entry: DiceEntry): DiceEntry {
 }
 
 export function withRollSources(entry: DiceEntry, sources: RollSource[]): DiceEntry {
-  const normalized = normalizeRollSources({ ...entry, sources })
-  const sourceQuantity = normalized.reduce(
-    (total, source) => total + getRollSourceQuantity(source),
-    0
+  const normalized = normalizeRollSources(
+    { ...entry, sources },
+    { reconcileToEntryQuantity: false },
   )
+  const sourceQuantity = getTotalSourceQuantity(normalized)
 
   return {
     ...entry,
