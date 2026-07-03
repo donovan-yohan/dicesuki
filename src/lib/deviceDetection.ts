@@ -1,4 +1,5 @@
 import { getGPUTier } from 'detect-gpu'
+import { resolveRenderDeviceTier, type RenderDeviceTier } from './renderLod'
 
 interface DeviceCheckResult {
   compatible: boolean
@@ -84,5 +85,26 @@ export async function checkDeviceCompatibility(): Promise<DeviceCheckResult> {
       compatible: true,
       message: 'Could not detect GPU tier, proceeding with caution'
     }
+  }
+}
+
+export async function detectRenderDeviceTier(): Promise<RenderDeviceTier> {
+  const viewportHints = {
+    viewportWidth: window.innerWidth,
+    devicePixelRatio: window.devicePixelRatio,
+  }
+
+  try {
+    const gpuTier = await getGPUTier()
+    return resolveRenderDeviceTier({
+      ...viewportHints,
+      gpuTier: gpuTier.tier,
+      isMobile: gpuTier.isMobile,
+    })
+  } catch {
+    return resolveRenderDeviceTier({
+      ...viewportHints,
+      isMobile: window.innerWidth < 768,
+    })
   }
 }

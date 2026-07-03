@@ -7,6 +7,7 @@ import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 import { getFaceRendererForShape } from '../../lib/faceRenderers'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
+import { type RenderDeviceTier, resolveDiceRenderLod } from '../../lib/renderLod'
 
 interface MultiplayerDieProps {
   dieId: string
@@ -14,6 +15,7 @@ interface MultiplayerDieProps {
   color: string
   tRef: MutableRefObject<number>
   isOwnedByLocalPlayer: boolean
+  renderDeviceTier?: RenderDeviceTier
   onDragStart?: (event: ThreeEvent<PointerEvent>, dieId: string) => void
 }
 
@@ -23,6 +25,7 @@ export function MultiplayerDie({
   color,
   tRef,
   isOwnedByLocalPlayer,
+  renderDeviceTier = 'high',
   onDragStart,
 }: MultiplayerDieProps) {
   const meshRef = useRef<THREE.Mesh>(null)
@@ -32,12 +35,24 @@ export function MultiplayerDie({
     [diceType],
   )
 
+  const lodPolicy = useMemo(
+    () => resolveDiceRenderLod({
+      context: 'tray',
+      deviceTier: renderDeviceTier,
+      isVisible: true,
+      isFocused: isOwnedByLocalPlayer,
+      isInteracting: true,
+    }),
+    [renderDeviceTier, isOwnedByLocalPlayer],
+  )
+
   const materials = useDiceMaterials({
     shape: diceType,
     color,
     roughness: 0.7,
     metalness: 0.1,
     faceRenderer: getFaceRendererForShape(diceType),
+    lodPolicy,
   })
 
   // Reusable objects — avoid allocation in render loop
@@ -81,13 +96,18 @@ export function MultiplayerDie({
     meshRef.current.quaternion.copy(interpQuat)
   })
 
+  if (lodPolicy.materialMode === 'hidden') {
+    return null
+  }
+
   return (
     <mesh
       ref={meshRef}
       geometry={geometry}
       material={materials}
-      castShadow
-      receiveShadow
+      castShadow={lodPolicy.castShadow}
+      receiveShadow={lodPolicy.receiveShadow}
+      userData={{ renderLod: lodPolicy }}
       onPointerDown={isOwnedByLocalPlayer ? handlePointerDown : undefined}
       onPointerEnter={isOwnedByLocalPlayer ? handlePointerEnter : undefined}
       onPointerLeave={handlePointerLeave}
