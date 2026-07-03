@@ -7,7 +7,7 @@
 
 import { useState } from 'react'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
-import { useCreateRoom } from '../../hooks/useCreateRoom'
+import { useCreateRoom, type CreateRoomError } from '../../hooks/useCreateRoom'
 import { ThemeSelector } from '../ThemeSelector'
 import { FlyoutPanel } from './FlyoutPanel'
 import { ArtistTestingPanel } from './ArtistTestingPanel'
@@ -21,7 +21,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showThemeSelector, setShowThemeSelector] = useState(false)
   const [showArtistPanel, setShowArtistPanel] = useState(false)
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
-  const { isCreating: isCreatingRoom, error: roomError, createRoom: handleCreateRoom, clearError: clearRoomError } = useCreateRoom()
+  const publicRoom = useCreateRoom()
+  const localSoloRoom = useCreateRoom({ mode: 'local-loopback', solo: true })
 
   return (
     <>
@@ -42,14 +43,14 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           </h3>
 
           <button
-            onClick={handleCreateRoom}
-            disabled={isCreatingRoom}
+            onClick={localSoloRoom.createRoom}
+            disabled={localSoloRoom.isCreating}
             className="w-full flex items-center justify-between p-4 rounded-lg transition-all"
             style={{
               backgroundColor: 'rgba(139, 92, 246, 0.1)',
               border: '1px solid rgba(139, 92, 246, 0.3)',
-              cursor: isCreatingRoom ? 'wait' : 'pointer',
-              opacity: isCreatingRoom ? 0.6 : 1,
+              cursor: localSoloRoom.isCreating ? 'wait' : 'pointer',
+              opacity: localSoloRoom.isCreating ? 0.6 : 1,
             }}
           >
             <div className="flex items-center gap-3">
@@ -59,7 +60,40 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   className="font-semibold text-sm"
                   style={{ color: 'var(--color-text-primary)' }}
                 >
-                  {isCreatingRoom ? 'Creating Room...' : 'Create Multiplayer Room'}
+                  {localSoloRoom.isCreating ? 'Starting Solo Room...' : 'Open Local Solo Room'}
+                </div>
+                <div
+                  className="text-xs"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  Uses the loopback room server for offline solo play
+                </div>
+              </div>
+            </div>
+            <span style={{ color: 'var(--color-accent)' }}>→</span>
+          </button>
+
+          <RoomErrorMessage error={localSoloRoom.error} onDismiss={localSoloRoom.clearError} />
+
+          <button
+            onClick={publicRoom.createRoom}
+            disabled={publicRoom.isCreating}
+            className="mt-3 w-full flex items-center justify-between p-4 rounded-lg transition-all"
+            style={{
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              cursor: publicRoom.isCreating ? 'wait' : 'pointer',
+              opacity: publicRoom.isCreating ? 0.6 : 1,
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🌐</span>
+              <div className="text-left">
+                <div
+                  className="font-semibold text-sm"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  {publicRoom.isCreating ? 'Creating Room...' : 'Create Multiplayer Room'}
                 </div>
                 <div
                   className="text-xs"
@@ -72,25 +106,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             <span style={{ color: 'var(--color-accent)' }}>→</span>
           </button>
 
-          {roomError && (
-            <div
-              className="mt-2 p-3 rounded-lg text-xs flex items-center justify-between"
-              style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#fca5a5',
-              }}
-            >
-              <span>{roomError}</span>
-              <button
-                onClick={clearRoomError}
-                className="ml-2 opacity-60 hover:opacity-100"
-                style={{ color: '#fca5a5' }}
-              >
-                ✕
-              </button>
-            </div>
-          )}
+          <RoomErrorMessage error={publicRoom.error} onDismiss={publicRoom.clearError} />
         </div>
 
         {/* Theme Section */}
@@ -254,5 +270,44 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         </div>
       )}
     </>
+  )
+}
+
+function RoomErrorMessage({
+  error,
+  onDismiss,
+}: {
+  error: CreateRoomError | null
+  onDismiss: () => void
+}) {
+  if (!error) return null
+
+  return (
+    <div
+      className="mt-2 p-3 rounded-lg text-xs flex items-start justify-between gap-3"
+      role="alert"
+      style={{
+        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+        border: '1px solid rgba(239, 68, 68, 0.3)',
+        color: '#fca5a5',
+      }}
+    >
+      <span>
+        <strong>{error.title}.</strong> {error.message}
+        {error.command && (
+          <span className="block mt-1">
+            Run <code>{error.command}</code>, then try again.
+          </span>
+        )}
+      </span>
+      <button
+        onClick={onDismiss}
+        className="opacity-60 hover:opacity-100"
+        style={{ color: '#fca5a5' }}
+        aria-label="Dismiss room server error"
+      >
+        ✕
+      </button>
+    </div>
   )
 }

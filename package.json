@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -n vite,dice -c blue,yellow \"vite\" \"node scripts/watch-dice-manifest.js\"",
+    "dev:local-room": "concurrently -n server,vite,dice -c green,blue,yellow \"npm run dev:server\" \"vite\" \"node scripts/watch-dice-manifest.js\"",
+    "dev:server": "cd server && PORT=8080 ~/.cargo/bin/cargo run",
     "dev:vite": "vite",
     "build": "node scripts/generate-dice-manifest.js && tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
