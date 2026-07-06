@@ -15,7 +15,7 @@ import {
   navBarVariants,
   shouldReduceMotion,
 } from '../../animations/ui-transitions'
-import { useThemedAsset } from '../../hooks/useThemedAsset'
+import { useTheme } from '../../contexts/ThemeContext'
 
 interface BottomNavProps {
   isVisible: boolean
@@ -38,7 +38,8 @@ export function BottomNav({
   motionModeActive = false,
   diceManagerOpen = false,
 }: BottomNavProps) {
-  const { getIcon } = useThemedAsset()
+  const { currentTheme } = useTheme()
+  const getIcon = (name: keyof typeof currentTheme.assets.icons) => currentTheme.assets.icons[name]
   const reduceMotion = shouldReduceMotion()
 
   return (

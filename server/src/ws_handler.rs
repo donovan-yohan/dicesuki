@@ -4,11 +4,20 @@ use log::{error, info, warn};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::messages::*;
+use crate::messages::{ClientMessage, DiceType, PlayerInfo, ServerMessage};
 use crate::player::Player;
+use crate::room::RoomError;
 use crate::room_manager::SharedRoom;
 
+/// Returns true if `color` is a valid hex color string (#RGB or #RRGGBB).
+fn is_valid_hex_color(color: &str) -> bool {
+    (color.len() == 4 || color.len() == 7)
+        && color.starts_with('#')
+        && color[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
 /// Handle a single WebSocket connection for a room
+#[allow(clippy::too_many_lines)]
 pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
@@ -20,11 +29,11 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
         while let Some(msg) = rx.recv().await {
             match serde_json::to_string(&msg) {
                 Ok(json) => {
-                    if ws_sender.send(Message::Text(json.into())).await.is_err() {
+                    if ws_sender.send(Message::Text(json)).await.is_err() {
                         break;
                     }
                 }
-                Err(e) => error!("Failed to serialize message: {}", e),
+                Err(e) => error!("Failed to serialize message: {e}"),
             }
         }
     });
@@ -39,7 +48,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
             Ok(Message::Close(_)) => break,
             Ok(_) => continue, // Ignore binary, ping, pong
             Err(e) => {
-                warn!("WebSocket error: {}", e);
+                warn!("WebSocket error: {e}");
                 break;
             }
         };
@@ -47,10 +56,10 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
         let client_msg: ClientMessage = match serde_json::from_str(&text) {
             Ok(m) => m,
             Err(e) => {
-                warn!("Invalid message from {}: {}", player_id, e);
+                warn!("Invalid message from {player_id}: {e}");
                 let _ = tx.send(ServerMessage::Error {
                     code: "INVALID_MESSAGE".to_string(),
-                    message: format!("Failed to parse message: {}", e),
+                    message: format!("Failed to parse message: {e}"),
                 });
                 continue;
             }
@@ -66,6 +75,14 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                     let _ = tx.send(ServerMessage::Error {
                         code: "ALREADY_JOINED".to_string(),
                         message: "Already joined this room".to_string(),
+                    });
+                    continue;
+                }
+
+                if !is_valid_hex_color(&color) {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "INVALID_COLOR".to_string(),
+                        message: "Color must be a valid hex color (#RGB or #RRGGBB)".to_string(),
                     });
                     continue;
                 }
@@ -103,15 +120,18 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                             &player_id,
                         );
                     }
-                    Err(code) => {
-                        let message = match code.as_str() {
-                            "ROOM_FULL" => "Room is full (8/8 players)".to_string(),
-                            "INVALID_NAME" => {
+                    Err(err) => {
+                        let message = match err {
+                            RoomError::RoomFull => "Room is full (8/8 players)".to_string(),
+                            RoomError::InvalidName => {
                                 "Display name must be 1-20 characters".to_string()
                             }
-                            _ => format!("Failed to join: {}", code),
+                            _ => format!("Failed to join: {}", err.code()),
                         };
-                        let _ = tx.send(ServerMessage::Error { code, message });
+                        let _ = tx.send(ServerMessage::Error {
+                            code: err.code().to_string(),
+                            message,
+                        });
                     }
                 }
             }
@@ -125,17 +145,24 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                             dice: spawned,
                         });
                     }
-                    Err(code) => {
-                        let message = match code.as_str() {
-                            "DICE_LIMIT" => format!(
+                    Err(err) => {
+                        let message = match err {
+                            RoomError::DiceLimit => format!(
                                 "Table is full ({}/30 dice)",
                                 room_guard.dice_count()
                             ),
-                            "DUPLICATE_DICE_ID" => "Duplicate dice ID in spawn request".to_string(),
-                            "DUPLICATE_INVENTORY_DIE" => "That inventory die is already on the table".to_string(),
-                            _ => format!("Failed to spawn dice: {}", code),
+                            RoomError::DuplicateDiceId => {
+                                "Duplicate dice ID in spawn request".to_string()
+                            }
+                            RoomError::DuplicateInventoryDie => {
+                                "That inventory die is already on the table".to_string()
+                            }
+                            _ => format!("Failed to spawn dice: {}", err.code()),
                         };
-                        let _ = tx.send(ServerMessage::Error { code, message });
+                        let _ = tx.send(ServerMessage::Error {
+                            code: err.code().to_string(),
+                            message,
+                        });
                     }
                 }
             }
@@ -160,11 +187,19 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                         dice_ids,
                     });
 
-                    maybe_start_simulation(&mut room_guard, room.clone());
+                    crate::room::Room::maybe_start_simulation(&mut room_guard, room.clone());
                 }
             }
 
             ClientMessage::UpdateColor { color } if is_joined => {
+                // Validate: must be a hex color (#RGB or #RRGGBB)
+                if !is_valid_hex_color(&color) {
+                    let _ = tx.send(ServerMessage::Error {
+                        code: "INVALID_COLOR".to_string(),
+                        message: "Color must be a valid hex color (#RGB or #RRGGBB)".to_string(),
+                    });
+                    continue;
+                }
                 let mut room_guard = room.write().await;
                 if let Some(player) = room_guard.players.get_mut(&player_id) {
                     player.color = color;
@@ -175,33 +210,55 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 let mut room_guard = room.write().await;
                 match room_guard.start_drag(&player_id, &die_id, grab_offset, world_position) {
                     Ok(()) => {
-                        maybe_start_simulation(&mut room_guard, room.clone());
+                        crate::room::Room::maybe_start_simulation(&mut room_guard, room.clone());
                     }
-                    Err(code) => {
-                        let message = match code.as_str() {
-                            "NOT_OWNER" => "Can only drag your own dice".to_string(),
-                            "ALREADY_DRAGGED" => "Die is already being dragged".to_string(),
-                            "DIE_NOT_FOUND" => "Die not found".to_string(),
-                            _ => format!("Drag failed: {}", code),
+                    Err(err) => {
+                        let message = match err {
+                            RoomError::NotOwner => "Can only drag your own dice".to_string(),
+                            RoomError::AlreadyDragged => {
+                                "Die is already being dragged".to_string()
+                            }
+                            RoomError::DieNotFound => "Die not found".to_string(),
+                            _ => format!("Drag failed: {}", err.code()),
                         };
-                        let _ = tx.send(ServerMessage::Error { code, message });
+                        let _ = tx.send(ServerMessage::Error {
+                            code: err.code().to_string(),
+                            message,
+                        });
                     }
                 }
             }
 
             ClientMessage::DragMove { die_id, world_position } if is_joined => {
                 let mut room_guard = room.write().await;
-                if let Err(code) = room_guard.update_drag(&player_id, &die_id, world_position) {
+                if let Err(err) = room_guard.update_drag(&player_id, &die_id, world_position) {
+                    let message = match err {
+                        RoomError::DieNotFound => "Die not found".to_string(),
+                        RoomError::NotDragger => "Can only move drag on your own dice".to_string(),
+                        RoomError::NotDragging => "Die is not being dragged".to_string(),
+                        _ => format!("Drag move failed: {}", err.code()),
+                    };
                     let _ = tx.send(ServerMessage::Error {
-                        code: code.clone(),
-                        message: format!("Drag move failed: {}", code),
+                        code: err.code().to_string(),
+                        message,
                     });
                 }
             }
 
             ClientMessage::DragEnd { die_id, velocity_history } if is_joined => {
                 let mut room_guard = room.write().await;
-                room_guard.end_drag(&player_id, &die_id, &velocity_history);
+                if let Err(err) = room_guard.end_drag(&player_id, &die_id, &velocity_history) {
+                    let message = match err {
+                        RoomError::DieNotFound => "Die not found".to_string(),
+                        RoomError::NotDragger => "Can only end drag on your own dice".to_string(),
+                        RoomError::NotDragging => "Die is not being dragged".to_string(),
+                        _ => format!("Drag end failed: {}", err.code()),
+                    };
+                    let _ = tx.send(ServerMessage::Error {
+                        code: err.code().to_string(),
+                        message,
+                    });
+                }
             }
 
             ClientMessage::Leave if is_joined => {
@@ -241,73 +298,54 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
     write_task.abort();
 }
 
-/// Check if the simulation loop needs to start, and start it if so.
-/// Must be called while holding the room lock; the caller is responsible for releasing it.
-fn maybe_start_simulation(room_guard: &mut crate::room::Room, room: SharedRoom) {
-    let should_start = room_guard.is_simulating && !room_guard.is_sim_running;
-    if should_start {
-        room_guard.is_sim_running = true;
-        start_simulation_loop(room);
+#[cfg(test)]
+mod tests {
+    use super::is_valid_hex_color;
+
+    #[test]
+    fn test_valid_hex_color_rrggbb() {
+        assert!(is_valid_hex_color("#1A2B3C"));
+        assert!(is_valid_hex_color("#FFFFFF"));
+        assert!(is_valid_hex_color("#000000"));
+        assert!(is_valid_hex_color("#aabbcc"));
     }
-}
 
-/// Start the physics simulation loop for a room.
-/// Runs at 60Hz, broadcasts snapshots at 20Hz, detects settlements.
-fn start_simulation_loop(room: SharedRoom) {
-    tokio::spawn(async move {
-        let tick_duration = std::time::Duration::from_micros(16_667); // ~60Hz
+    #[test]
+    fn test_valid_hex_color_rgb() {
+        assert!(is_valid_hex_color("#ABC"));
+        assert!(is_valid_hex_color("#fff"));
+        assert!(is_valid_hex_color("#000"));
+        assert!(is_valid_hex_color("#1aF"));
+    }
 
-        loop {
-            tokio::time::sleep(tick_duration).await;
+    #[test]
+    fn test_invalid_hex_color_missing_hash() {
+        assert!(!is_valid_hex_color("AABBCC"));
+        assert!(!is_valid_hex_color("ABC"));
+        assert!(!is_valid_hex_color("ffffff"));
+    }
 
-            let mut room_guard = room.write().await;
+    #[test]
+    fn test_invalid_hex_color_non_hex_chars() {
+        assert!(!is_valid_hex_color("#GGHHII"));
+        assert!(!is_valid_hex_color("#XYZ"));
+        assert!(!is_valid_hex_color("#12345G"));
+    }
 
-            if !room_guard.is_simulating {
-                room_guard.is_sim_running = false;
-                break;
-            }
+    #[test]
+    fn test_invalid_hex_color_empty_string() {
+        assert!(!is_valid_hex_color(""));
+    }
 
-            let (snapshot, newly_settled) = room_guard.physics_tick();
-
-            // Broadcast physics snapshot
-            if let Some(snap) = snapshot {
-                room_guard.broadcast(&snap);
-            }
-
-            // Handle newly settled dice
-            for (dice_id, face_value) in &newly_settled {
-                if let Some(die) = room_guard.dice.get(dice_id) {
-                    room_guard.broadcast(&ServerMessage::DieSettled {
-                        dice_id: dice_id.clone(),
-                        face_value: *face_value,
-                        position: die.position,
-                        rotation: die.rotation,
-                    });
-                }
-            }
-
-            // Check if any player's full roll is complete
-            if !newly_settled.is_empty() {
-                let player_ids: Vec<String> = room_guard.players.keys().cloned().collect();
-                for pid in player_ids {
-                    let player_has_dice = room_guard.dice.values().any(|d| d.owner_id == pid);
-                    if player_has_dice && room_guard.is_player_roll_complete(&pid) {
-                        let (results, total) = room_guard.get_player_results(&pid);
-                        if !results.is_empty() {
-                            let has_new = results
-                                .iter()
-                                .any(|r| newly_settled.iter().any(|(id, _)| *id == r.dice_id));
-                            if has_new {
-                                room_guard.broadcast(&ServerMessage::RollComplete {
-                                    player_id: pid,
-                                    results,
-                                    total,
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    });
+    #[test]
+    fn test_invalid_hex_color_wrong_length() {
+        // Too short (2 chars after #)
+        assert!(!is_valid_hex_color("#AB"));
+        // 5 chars after #
+        assert!(!is_valid_hex_color("#ABCDE"));
+        // 8 chars after # (too long)
+        assert!(!is_valid_hex_color("#AABBCCDD"));
+        // Just the hash
+        assert!(!is_valid_hex_color("#"));
+    }
 }

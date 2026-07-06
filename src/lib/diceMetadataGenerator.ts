@@ -27,19 +27,14 @@ import {
  * Generate default metadata for a dice type
  *
  * @param diceType - Type of dice (d4, d6, etc.)
- * @param name - Optional custom name for the dice
- * @param artist - Optional artist name
- * @param scale - Optional scale factor (default: 1.0)
- * @param density - Optional density value (default: from DEFAULT_PHYSICS, 0.3 matches standard dice)
+ * @param options - Optional overrides: name, artist, scale, density
  * @returns Complete metadata object with default values
  */
 export function generateDefaultMetadata(
   diceType: DiceShape,
-  name?: string,
-  artist?: string,
-  scale?: number,
-  density?: number
+  options?: { name?: string; artist?: string; scale?: number; density?: number }
 ): DiceMetadata {
+  const { name, artist, scale, density } = options ?? {}
   const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
 
   // Get default face normals for this dice type
@@ -227,7 +222,7 @@ export function generateMetadataFromScene(
   const name = filename.replace(/\.glb$/i, '').replace(/[-_]/g, ' ')
 
   // Start with default metadata
-  const metadata = generateDefaultMetadata(diceType, name)
+  const metadata = generateDefaultMetadata(diceType, { name })
 
   // Try to extract geometry for face normal detection
   let geometry: THREE.BufferGeometry | null = null

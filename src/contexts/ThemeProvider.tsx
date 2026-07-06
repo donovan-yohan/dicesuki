@@ -68,19 +68,20 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, [ownedThemes])
 
-  const setTheme = (themeId: string) => {
+  const setTheme = (themeId: string): boolean => {
     if (!ownedThemes.includes(themeId)) {
       console.warn(`Cannot switch to theme "${themeId}" - not owned by user`)
-      return
+      return false
     }
 
     const theme = getThemeById(themeId)
     if (!theme) {
       console.error(`Theme "${themeId}" not found in registry`)
-      return
+      return false
     }
 
     setCurrentTheme(theme)
+    return true
   }
 
   const purchaseTheme = async (themeId: string): Promise<boolean> => {

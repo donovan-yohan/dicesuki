@@ -16,26 +16,26 @@
  */
 
 import { useState, useCallback, useRef } from 'react'
-import { useInventoryStore } from '../../store/useInventoryStore'
-import { saveCustomDiceModel } from '../../lib/customDiceDB'
-import { devLog } from '../../lib/debug'
-import { DiceShape } from '../../lib/geometries'
+import { useInventoryStore } from '../../../store/useInventoryStore'
+import { saveCustomDiceModel } from '../../../lib/customDiceDB'
+import { devLog } from '../../../lib/debug'
+import { DiceShape } from '../../../lib/geometries'
 import {
   CustomDiceAsset,
   FaceNormal,
   UploadState,
-} from '../../types/customDice'
+} from '../../../types/customDice'
 import {
   validateGLBFile,
   parseMetadataJSON,
   formatValidationResults,
   analyzeGLBScale,
   ScaleAnalysisResult,
-} from '../../lib/diceMetadataSchema'
+} from '../../../lib/diceMetadataSchema'
 import {
   generateDefaultMetadata,
   downloadMetadata,
-} from '../../lib/diceMetadataGenerator'
+} from '../../../lib/diceMetadataGenerator'
 import { FaceNormalMapper } from './FaceNormalMapper'
 
 interface ArtistTestingPanelProps {
@@ -147,13 +147,12 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
    * Auto-generate metadata from dice type and custom fields
    */
   const handleAutoGenerateMetadata = useCallback(() => {
-    const metadata = generateDefaultMetadata(
-      selectedDiceType,
-      customName || undefined,
-      customArtist || undefined,
-      userScale,
-      userDensity
-    )
+    const metadata = generateDefaultMetadata(selectedDiceType, {
+      name: customName || undefined,
+      artist: customArtist || undefined,
+      scale: userScale,
+      density: userDensity,
+    })
 
     // Override face normals if custom mappings were created
     if (customFaceNormals.length > 0) {
@@ -239,6 +238,14 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       })
       await saveCustomDiceModel(newDie.id, uploadState.file)
       devLog.log('[ArtistTestingPanel] Successfully saved GLB file to IndexedDB for die:', newDie.id)
+      // Set assetId so the reload shim looks up this die by its stable inventory ID
+      useInventoryStore.setState(state => ({
+        dice: state.dice.map(d =>
+          d.id === newDie.id && d.customAsset
+            ? { ...d, customAsset: { ...d.customAsset, assetId: newDie.id } }
+            : d
+        ),
+      }))
     } catch (error) {
       devLog.error('[ArtistTestingPanel] Failed to save GLB file to IndexedDB:', error)
       alert('Warning: Custom die added to inventory but file could not be saved for persistence. It will not survive page reloads.')

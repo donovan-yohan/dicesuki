@@ -144,6 +144,42 @@ export function MultiplayerRoom() {
     )
   }
 
+  // Show error state
+  if (connectionStatus === 'error') {
+    return (
+      <div style={{
+        width: '100vw',
+        height: '100dvh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        gap: '1rem',
+        fontFamily: 'system-ui, sans-serif',
+        color: 'white',
+        background: '#1a1a2e',
+      }}>
+        <p style={{ color: '#f87171', fontSize: '1.1rem' }}>Connection error. Please rejoin the room.</p>
+        <button
+          onClick={() => {
+            disconnect()
+          }}
+          style={{
+            padding: '0.75rem 2rem',
+            borderRadius: '8px',
+            border: 'none',
+            background: '#8B5CF6',
+            color: 'white',
+            fontSize: '1rem',
+            cursor: 'pointer',
+          }}
+        >
+          Back to Join
+        </button>
+      </div>
+    )
+  }
+
   // Show connecting state
   if (connectionStatus === 'connecting') {
     return (

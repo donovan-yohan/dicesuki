@@ -30,7 +30,7 @@ async fn start_server() -> SocketAddr {
 /// Create a room via the REST API and return its ID.
 async fn api_create_room(addr: &SocketAddr) -> String {
     let resp = reqwest::Client::new()
-        .post(format!("http://{}/api/rooms", addr))
+        .post(format!("http://{addr}/api/rooms"))
         .send()
         .await
         .unwrap();
@@ -53,7 +53,7 @@ async fn recv_json(
 
     match msg {
         Message::Text(text) => serde_json::from_str(&text).expect("Invalid JSON from server"),
-        other => panic!("Expected Text message, got {:?}", other),
+        other => panic!("Expected Text message, got {other:?}"),
     }
 }
 
@@ -75,7 +75,7 @@ async fn try_recv_json(
 #[tokio::test]
 async fn health_endpoint_returns_ok() {
     let addr = start_server().await;
-    let resp = reqwest::get(format!("http://{}/health", addr))
+    let resp = reqwest::get(format!("http://{addr}/health"))
         .await
         .unwrap();
 
@@ -98,7 +98,7 @@ async fn get_room_info_for_existing_room() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
 
-    let resp = reqwest::get(format!("http://{}/api/rooms/{}", addr, room_id))
+    let resp = reqwest::get(format!("http://{addr}/api/rooms/{room_id}"))
         .await
         .unwrap();
 
@@ -112,7 +112,7 @@ async fn get_room_info_for_existing_room() {
 #[tokio::test]
 async fn get_nonexistent_room_returns_404() {
     let addr = start_server().await;
-    let resp = reqwest::get(format!("http://{}/api/rooms/NOPE99", addr))
+    let resp = reqwest::get(format!("http://{addr}/api/rooms/NOPE99"))
         .await
         .unwrap();
 
@@ -124,7 +124,7 @@ async fn get_nonexistent_room_returns_404() {
 #[tokio::test]
 async fn unknown_route_returns_404() {
     let addr = start_server().await;
-    let resp = reqwest::get(format!("http://{}/nonexistent/path", addr))
+    let resp = reqwest::get(format!("http://{addr}/nonexistent/path"))
         .await
         .unwrap();
 
@@ -141,7 +141,7 @@ async fn websocket_upgrade_succeeds() {
     // issue is Render's proxy environment.
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     let result = timeout(TEST_TIMEOUT, connect_async(&url)).await;
     assert!(result.is_ok(), "WebSocket connection timed out");
@@ -161,7 +161,7 @@ async fn websocket_upgrade_succeeds() {
 #[tokio::test]
 async fn websocket_to_nonexistent_room_rejects() {
     let addr = start_server().await;
-    let url = format!("ws://{}/ws/FAKEID", addr);
+    let url = format!("ws://{addr}/ws/FAKEID");
 
     let result = connect_async(&url).await;
     assert!(
@@ -176,7 +176,7 @@ async fn websocket_to_nonexistent_room_rejects() {
 async fn join_receives_room_state() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
 
@@ -202,7 +202,7 @@ async fn join_receives_room_state() {
 async fn actions_before_join_return_not_joined_error() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
 
@@ -222,7 +222,7 @@ async fn actions_before_join_return_not_joined_error() {
 async fn double_join_returns_error() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
 
@@ -249,7 +249,7 @@ async fn double_join_returns_error() {
 async fn spawn_dice_after_join() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
 
@@ -337,7 +337,7 @@ async fn duplicate_inventory_die_spawn_is_rejected() {
 async fn remove_dice_after_spawn() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
 
@@ -379,7 +379,7 @@ async fn remove_dice_after_spawn() {
 async fn two_players_see_each_other_join() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     // Player 1 connects and joins
     let (mut ws1, _) = connect_async(&url).await.expect("P1 failed to connect");
@@ -419,7 +419,7 @@ async fn two_players_see_each_other_join() {
 async fn player_disconnect_notifies_others() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     // Player 1 joins
     let (mut ws1, _) = connect_async(&url).await.unwrap();
@@ -456,7 +456,7 @@ async fn player_disconnect_notifies_others() {
 async fn dice_spawn_broadcast_to_all_players() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     // Player 1 joins
     let (mut ws1, _) = connect_async(&url).await.unwrap();
@@ -513,7 +513,7 @@ async fn dice_spawn_broadcast_to_all_players() {
 async fn invalid_json_returns_error() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
 
@@ -531,7 +531,7 @@ async fn invalid_json_returns_error() {
 async fn invalid_name_rejected() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
 
@@ -555,10 +555,10 @@ async fn invalid_name_rejected() {
 async fn room_info_reflects_player_count() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     // Verify empty room
-    let resp = reqwest::get(format!("http://{}/api/rooms/{}", addr, room_id))
+    let resp = reqwest::get(format!("http://{addr}/api/rooms/{room_id}"))
         .await
         .unwrap();
     let body: Value = resp.json().await.unwrap();
@@ -580,7 +580,7 @@ async fn room_info_reflects_player_count() {
     let _ = recv_json(&mut ws).await; // room_state
 
     // Verify player count via REST API
-    let resp = reqwest::get(format!("http://{}/api/rooms/{}", addr, room_id))
+    let resp = reqwest::get(format!("http://{addr}/api/rooms/{room_id}"))
         .await
         .unwrap();
     let body: Value = resp.json().await.unwrap();
@@ -593,7 +593,7 @@ async fn room_info_reflects_player_count() {
 async fn test_drag_flow() {
     let addr = start_server().await;
     let room_id = api_create_room(&addr).await;
-    let url = format!("ws://{}/ws/{}", addr, room_id);
+    let url = format!("ws://{addr}/ws/{room_id}");
 
     let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
 
@@ -686,11 +686,62 @@ async fn test_drag_flow() {
                 assert!(msg["faceValue"].as_u64().unwrap() <= 6);
                 break;
             }
-            Some(_) => continue, // Keep draining snapshots etc.
+            Some(_) => {} // Keep draining snapshots etc.
             None => {
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
         }
     }
     assert!(found_settled, "Die should settle after drag throw");
+}
+
+// ─── get_room_info lock-release tests ────────────────────────────
+
+/// Verifies that get_room_info returns the correct fields for an existing room
+/// and that the manager lock is released before reading the room (no nested lock
+/// deadlock). We confirm this by firing concurrent requests while the room exists.
+#[tokio::test]
+async fn get_room_info_returns_correct_data_for_existing_room() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+
+    let resp = reqwest::get(format!("http://{addr}/api/rooms/{room_id}"))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(body["roomId"], room_id, "roomId should match the created room");
+    assert_eq!(body["playerCount"], 0, "fresh room has no players");
+    assert_eq!(body["diceCount"], 0, "fresh room has no dice");
+    assert!(body["instanceId"].is_string(), "instanceId should be present");
+}
+
+/// Fires multiple concurrent get_room_info requests to verify the manager lock
+/// is not held across the nested room read, which would cause a deadlock.
+#[tokio::test]
+async fn get_room_info_concurrent_requests_do_not_deadlock() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+
+    // Issue 10 concurrent GET /api/rooms/{room_id} requests.
+    // If the manager lock were held across room.read().await, these requests
+    // would queue behind each other on the single-threaded tokio scheduler
+    // and could deadlock. With the fix (lock released before room.read()),
+    // all requests complete independently.
+    let handles: Vec<_> = (0..10)
+        .map(|_| {
+            let url = format!("http://{addr}/api/rooms/{room_id}");
+            tokio::spawn(async move {
+                reqwest::get(&url).await.unwrap()
+            })
+        })
+        .collect();
+
+    for handle in handles {
+        let resp = handle.await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body: Value = resp.json().await.unwrap();
+        assert_eq!(body["roomId"], room_id);
+    }
 }

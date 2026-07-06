@@ -2,14 +2,14 @@
 import { Box, Environment } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Physics, RigidBody, useRapier } from '@react-three/rapier'
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
 import { GRAVITY, MULTIPLAYER_ARENA_HALF_X, MULTIPLAYER_ARENA_HALF_Z } from '../config/physicsConfig'
 
 // Contexts
-import { DiceBackendContext } from '../contexts/DiceBackendContext'
+import { DiceBackendContext, useDiceBackend } from '../contexts/DiceBackendContext'
 import { DiceBackendProvider } from '../contexts/DiceBackendProvider'
 import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
 import { useTheme } from '../contexts/ThemeContext'
@@ -24,7 +24,6 @@ import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
 // Utilities
 import { formatBonus } from '../lib/diceHelpers'
 import { detectRenderDeviceTier } from '../lib/deviceDetection'
-import { initializeStarterDice } from '../lib/initializeStarterDice'
 import {
   type DiceRenderContext,
   type RenderDeviceTier,
@@ -37,6 +36,7 @@ import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useDiceStore, type DieSettledState } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useInventoryStore } from '../store/useInventoryStore'
+import type { InventoryDie } from '../types/inventory'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useUIStore } from '../store/useUIStore'
 
@@ -133,6 +133,23 @@ function RenderLodDebugOverlay({
 }
 
 /**
+ * Compute camera frustum width and height at a given distance from the camera.
+ * @param camera - An object with a fov property (degrees)
+ * @param distance - The distance along the camera's view axis (e.g. camera height above ground)
+ * @param aspect - Aspect ratio (width / height)
+ */
+function getCameraFrustumDimensions(
+  camera: { fov: number },
+  distance: number,
+  aspect: number
+): { width: number; height: number } {
+  const vFOV = THREE.MathUtils.degToRad(camera.fov)
+  const height = 2 * Math.tan(vFOV / 2) * distance
+  const width = height * aspect
+  return { width, height }
+}
+
+/**
  * Component to dynamically update physics gravity based on device motion
  * Uses R3F's useFrame hook - runs every frame (~60fps) synchronized with Three.js rendering
  * Reads from gravityRef without triggering any React re-renders
@@ -201,9 +218,7 @@ function ThemedLighting() {
   // Calculate viewport bounds for torch positioning
   const aspect = size.width / size.height
   const distance = 15 // camera height
-  const vFOV = THREE.MathUtils.degToRad(40)
-  const height = 2 * Math.tan(vFOV / 2) * distance
-  const width = height * aspect
+  const { width, height } = getCameraFrustumDimensions({ fov: 40 }, distance, aspect)
   const margin = -0.05
 
   const wallPositions = {
@@ -295,23 +310,21 @@ function ViewportBoundaries() {
   const { currentTheme } = useTheme()
   const env = currentTheme.environment
 
-  // Ensure camera FOV is set (default to 40 if not yet configured)
   const perspectiveCamera = camera as THREE.PerspectiveCamera
-  if (!perspectiveCamera.fov || perspectiveCamera.fov === 50) {
-    // Default Three.js PerspectiveCamera FOV is 50, our setup sets it to 40
-    perspectiveCamera.fov = 40
-    perspectiveCamera.updateProjectionMatrix()
-  }
+
+  // Ensure camera FOV is set (default to 40 if not yet configured)
+  // Default Three.js PerspectiveCamera FOV is 50, our setup sets it to 40
+  useLayoutEffect(() => {
+    if (!perspectiveCamera.fov || perspectiveCamera.fov === 50) {
+      perspectiveCamera.fov = 40
+      perspectiveCamera.updateProjectionMatrix()
+    }
+  }, [perspectiveCamera])
 
   // Calculate viewport bounds based on camera frustum at ground level (y=0)
   const aspect = size.width / size.height
-  const fov = perspectiveCamera.fov
   const distance = camera.position.y || 15 // Camera height (dynamically read, fallback to 15)
-
-  // Calculate viewport dimensions at ground plane
-  const vFOV = THREE.MathUtils.degToRad(fov)
-  const height = 2 * Math.tan(vFOV / 2) * distance
-  const width = height * aspect
+  const { width, height } = getCameraFrustumDimensions(perspectiveCamera, distance, aspect)
 
   // Tighter bounds - reduce margin to create a more confined dice tray
   const margin = -0.05 // Negative margin to make space tighter than viewport
@@ -485,7 +498,7 @@ function MultiplayerCamera() {
 }
 
 /**
- * Main 3D scene component
+ * Main 3D scene content — must be rendered inside a DiceBackendProvider.
  * Sets up React Three Fiber Canvas with Rapier physics
  *
  * CRITICAL ARCHITECTURE:
@@ -494,7 +507,7 @@ function MultiplayerCamera() {
  * - Only UI components subscribe to store, not the Scene component
  * - Device motion updates physics gravity in real-time for tilt-based interaction
  */
-function Scene() {
+function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => void } }) {
   // Create refs for ALL dice (not just the first one)
   const diceRefs = useRef<Map<string, DiceHandle>>(new Map())
 
@@ -507,6 +520,18 @@ function Scene() {
   // Subscribe to dice manager store (local physics dice)
   const dice = useDiceManagerStore((state) => state.dice)
   const addDice = useDiceManagerStore((state) => state.addDice)
+
+  // Subscribe to inventory dice for reactive lookup during render
+  const inventoryDice = useInventoryStore((state) => state.dice)
+
+  // O(1) lookup map for inventory dice by id, avoiding O(n*m) .find() inside .map()
+  const inventoryDiceMap = useMemo(() => {
+    const map = new Map<string, InventoryDie>()
+    for (const die of inventoryDice) {
+      map.set(die.id, die)
+    }
+    return map
+  }, [inventoryDice])
 
   // Subscribe to drag store
   const setOnDiceDelete = useDragStore((state) => state.setOnDiceDelete)
@@ -564,7 +589,7 @@ function Scene() {
 
   // Initialize starter dice on first load
   useEffect(() => {
-    initializeStarterDice()
+    useInventoryStore.getState().initializeStarterDice()
   }, [])
 
   // Spawn initial d20 from inventory on first load
@@ -622,10 +647,11 @@ function Scene() {
     }, 4000)
   }, [roll, onDiceRest])
 
-  // Check if we're already inside a DiceBackendProvider (multiplayer mode)
-  const existingBackend = useContext(DiceBackendContext)
-  const localBackend = useLocalDiceBackend(handleRollClick)
-  const activeBackend = existingBackend || localBackend
+  // Keep the roll callback ref up to date so the Scene wrapper's local backend can call it
+  rollCallbackRef.current = handleRollClick
+
+  // Get the active backend — always provided by the Scene wrapper
+  const activeBackend = useDiceBackend()
   const isMultiplayer = activeBackend.mode === 'multiplayer'
 
   // Delegate add/remove/clear through the active backend (works for both local and multiplayer)
@@ -701,7 +727,7 @@ function Scene() {
             {dice.map((die) => {
               // Get inventory die to check for custom asset
               const inventoryDie = die.inventoryDieId
-                ? useInventoryStore.getState().dice.find(d => d.id === die.inventoryDieId)
+                ? inventoryDiceMap.get(die.inventoryDieId)
                 : null
 
               // Render CustomDice if inventory die has customAsset, otherwise standard Dice
@@ -926,10 +952,27 @@ function Scene() {
     </>
   )
 
-  // Only wrap in provider if not already wrapped (multiplayer provides its own)
-  return existingBackend
-    ? content
-    : <DiceBackendProvider value={localBackend}>{content}</DiceBackendProvider>
+  return content
+}
+
+/**
+ * Scene entry point.
+ * Wraps SceneContent in a local DiceBackendProvider when not already inside one
+ * (multiplayer wraps Scene externally with its own provider).
+ */
+function Scene() {
+  const rollCallbackRef = useRef<() => void>(() => {})
+  const existingBackend = useContext(DiceBackendContext)
+  const localBackend = useLocalDiceBackend(() => rollCallbackRef.current())
+
+  if (existingBackend) {
+    return <SceneContent rollCallbackRef={rollCallbackRef} />
+  }
+  return (
+    <DiceBackendProvider value={localBackend}>
+      <SceneContent rollCallbackRef={rollCallbackRef} />
+    </DiceBackendProvider>
+  )
 }
 
 /**

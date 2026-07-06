@@ -3,7 +3,7 @@ use crate::dice::get_face_normals;
 use crate::messages::DiceType;
 
 /// Detect which face is pointing up given a quaternion rotation.
-/// Matches the client-side getDiceFaceValue() in src/lib/geometries.ts.
+/// Matches the client-side `getDiceFaceValue()` in src/lib/geometries.ts.
 ///
 /// Algorithm:
 /// 1. For each face normal, rotate it by the die's quaternion
@@ -12,6 +12,7 @@ use crate::messages::DiceType;
 ///
 /// For d4: we check which face points DOWN (d4 rests on a face, value is on top vertex)
 /// For all others: we check which face points UP
+#[must_use]
 pub fn detect_face_value(rotation: [f32; 4], dice_type: DiceType) -> u32 {
     let quat = UnitQuaternion::from_quaternion(
         nalgebra::Quaternion::new(rotation[3], rotation[0], rotation[1], rotation[2])
@@ -92,7 +93,7 @@ mod tests {
     #[test]
     fn test_d20_identity_returns_valid_value() {
         let value = detect_face_value([0.0, 0.0, 0.0, 1.0], DiceType::D20);
-        assert!(value >= 1 && value <= 20, "D20 value should be 1-20, got {}", value);
+        assert!((1..=20).contains(&value), "D20 value should be 1-20, got {value}");
     }
 
     #[test]
@@ -107,7 +108,7 @@ mod tests {
         ];
         for (dice_type, max) in types_and_max {
             let value = detect_face_value([0.0, 0.0, 0.0, 1.0], dice_type);
-            assert!(value <= max, "{:?} returned {}, expected <= {}", dice_type, value, max);
+            assert!(value <= max, "{dice_type:?} returned {value}, expected <= {max}");
         }
     }
 }

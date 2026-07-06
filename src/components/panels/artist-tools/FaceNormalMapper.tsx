@@ -11,8 +11,8 @@ import { OrbitControls, Environment, useGLTF } from '@react-three/drei'
 import { Suspense, useState, useCallback, useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { ThreeEvent } from '@react-three/fiber'
-import { FaceNormal, EXPECTED_FACE_COUNTS } from '../../types/customDice'
-import { DiceShape } from '../../lib/geometries'
+import { FaceNormal, EXPECTED_FACE_COUNTS } from '../../../types/customDice'
+import { DiceShape } from '../../../lib/geometries'
 
 interface FaceNormalMapperProps {
   /** URL to the GLB model (blob URL from upload) */

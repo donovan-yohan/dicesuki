@@ -39,8 +39,8 @@ pub const WALL_HEIGHT: f32 = 8.0;
 pub const WALL_THICKNESS: f32 = 0.5;
 
 pub struct PhysicsWorld {
-    pub rigid_body_set: RigidBodySet,
-    pub collider_set: ColliderSet,
+    pub(crate) rigid_body_set: RigidBodySet,
+    pub(crate) collider_set: ColliderSet,
     pub gravity: Vector<f32>,
     pub integration_parameters: IntegrationParameters,
     pub physics_pipeline: PhysicsPipeline,
@@ -53,7 +53,14 @@ pub struct PhysicsWorld {
     pub query_pipeline: QueryPipeline,
 }
 
+impl Default for PhysicsWorld {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PhysicsWorld {
+    #[must_use]
     pub fn new() -> Self {
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
@@ -135,6 +142,7 @@ impl PhysicsWorld {
     }
 
     /// Get position of a rigid body
+    #[must_use]
     pub fn get_position(&self, handle: RigidBodyHandle) -> Option<[f32; 3]> {
         self.rigid_body_set.get(handle).map(|rb| {
             let pos = rb.translation();
@@ -143,6 +151,7 @@ impl PhysicsWorld {
     }
 
     /// Get rotation (quaternion) of a rigid body
+    #[must_use]
     pub fn get_rotation(&self, handle: RigidBodyHandle) -> Option<[f32; 4]> {
         self.rigid_body_set.get(handle).map(|rb| {
             let rot = rb.rotation();
@@ -151,23 +160,98 @@ impl PhysicsWorld {
     }
 
     /// Get linear velocity magnitude
+    #[must_use]
     pub fn get_linear_speed(&self, handle: RigidBodyHandle) -> f32 {
         self.rigid_body_set.get(handle)
-            .map(|rb| rb.linvel().magnitude())
-            .unwrap_or(0.0)
+            .map_or(0.0, |rb| rb.linvel().magnitude())
     }
 
     /// Get angular velocity magnitude
+    #[must_use]
     pub fn get_angular_speed(&self, handle: RigidBodyHandle) -> f32 {
         self.rigid_body_set.get(handle)
-            .map(|rb| rb.angvel().magnitude())
-            .unwrap_or(0.0)
+            .map_or(0.0, |rb| rb.angvel().magnitude())
     }
 
     /// Check if a body is at rest (below velocity thresholds)
+    #[must_use]
     pub fn is_at_rest(&self, handle: RigidBodyHandle) -> bool {
         self.get_linear_speed(handle) < LINEAR_VELOCITY_THRESHOLD
             && self.get_angular_speed(handle) < ANGULAR_VELOCITY_THRESHOLD
+    }
+
+    /// Insert a pre-built rigid body and attach a collider to it.
+    /// Returns the handle of the inserted body.
+    pub fn spawn_body(&mut self, body: RigidBody, collider: Collider) -> RigidBodyHandle {
+        let handle = self.rigid_body_set.insert(body);
+        self.collider_set.insert_with_parent(collider, handle, &mut self.rigid_body_set);
+        handle
+    }
+
+    /// Set linear velocity of a rigid body
+    pub fn set_linear_velocity(&mut self, handle: RigidBodyHandle, vel: [f32; 3]) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            rb.set_linvel(vector![vel[0], vel[1], vel[2]], true);
+        }
+    }
+
+    /// Set angular velocity of a rigid body
+    pub fn set_angular_velocity(&mut self, handle: RigidBodyHandle, vel: [f32; 3]) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            rb.set_angvel(vector![vel[0], vel[1], vel[2]], true);
+        }
+    }
+
+    /// Scale the current angular velocity of a rigid body by a factor (e.g. 0.75 to dampen)
+    pub fn scale_angular_velocity(&mut self, handle: RigidBodyHandle, scale: f32) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            let ang = *rb.angvel();
+            rb.set_angvel(ang * scale, true);
+        }
+    }
+
+    /// Apply a linear impulse to a rigid body
+    pub fn apply_impulse(&mut self, handle: RigidBodyHandle, impulse: [f32; 3]) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            rb.apply_impulse(vector![impulse[0], impulse[1], impulse[2]], true);
+        }
+    }
+
+    /// Apply a torque impulse to a rigid body
+    pub fn apply_torque_impulse(&mut self, handle: RigidBodyHandle, torque: [f32; 3]) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            rb.apply_torque_impulse(vector![torque[0], torque[1], torque[2]], true);
+        }
+    }
+
+    /// Clamp the linear speed of a body to `max_speed`. No-op if already within bounds.
+    pub fn clamp_velocity(&mut self, handle: RigidBodyHandle, max_speed: f32) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            let vel = *rb.linvel();
+            let speed = vel.magnitude();
+            if speed > max_speed {
+                rb.set_linvel(vel * (max_speed / speed), true);
+            }
+        }
+    }
+
+    /// Returns the number of rigid bodies currently in the simulation.
+    #[must_use]
+    pub fn body_count(&self) -> usize {
+        self.rigid_body_set.len()
+    }
+
+    /// Remove a rigid body and all its attached colliders from the simulation.
+    /// No-op if the handle is invalid (already removed or never inserted).
+    pub fn remove_body(&mut self, handle: RigidBodyHandle) {
+        self.rigid_body_set.remove(
+            handle,
+            &mut self.island_manager,
+            &mut self.collider_set,
+            &mut self.impulse_joint_set,
+            &mut self.multibody_joint_set,
+            true,
+        );
     }
 }
 

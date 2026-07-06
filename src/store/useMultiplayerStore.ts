@@ -11,7 +11,7 @@ import type {
 import { getWsServerUrl } from '../lib/multiplayerServer'
 import { useDiceStore } from './useDiceStore'
 
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected'
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 export interface MultiplayerDie {
   id: string
@@ -52,6 +52,9 @@ interface MultiplayerState {
   lastSnapshotTime: number
   snapshotInterval: number // ms between snapshots (should match server SNAPSHOT_DIVISOR)
 
+  // Parse error tracking
+  parseErrorCount: number
+
   // Actions
   connect: (roomId: string, displayName: string, color: string, serverUrl?: string) => void
   disconnect: () => void
@@ -90,6 +93,7 @@ const createInitialState = () => ({
   lastSnapshotTime: 0,
   snapshotInterval: 1000 / 60, // ~16.67ms — must match server SNAPSHOT_DIVISOR=1 (60Hz)
   selectedPlayerId: null as string | null,
+  parseErrorCount: 0,
 })
 
 export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
@@ -105,7 +109,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
     const wsUrl = `${activeServerUrl}/ws/${roomId}`
     const socket = new WebSocket(wsUrl)
-    set({ socket, connectionStatus: 'connecting', connectionError: null, serverUrl: activeServerUrl })
+    set({
+      socket,
+      connectionStatus: 'connecting',
+      connectionError: null,
+      serverUrl: activeServerUrl,
+      parseErrorCount: 0,
+    })
 
     socket.onopen = () => {
       if (get().socket !== socket) {
@@ -126,8 +136,17 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       try {
         const msg: ServerMessage = JSON.parse(event.data)
         get().handleServerMessage(msg)
+        if (get().parseErrorCount !== 0) {
+          set({ parseErrorCount: 0 })
+        }
       } catch (e) {
         console.error('[Multiplayer] Failed to parse server message:', e)
+        const newCount = get().parseErrorCount + 1
+        if (newCount > 3) {
+          set({ parseErrorCount: newCount, connectionStatus: 'error' })
+        } else {
+          set({ parseErrorCount: newCount })
+        }
       }
     }
 

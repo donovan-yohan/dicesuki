@@ -3,7 +3,7 @@ import type { Theme } from '../themes/tokens'
 
 export interface ThemeContextValue {
   currentTheme: Theme
-  setTheme: (themeId: string) => void
+  setTheme: (themeId: string) => boolean
   availableThemes: Theme[]
   ownedThemes: string[]
   purchaseTheme: (themeId: string) => Promise<boolean>

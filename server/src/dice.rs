@@ -2,7 +2,7 @@ use rapier3d::prelude::*;
 use nalgebra::{Vector3, UnitQuaternion};
 use rand::Rng;
 use crate::messages::DiceType;
-use crate::physics::*;
+use crate::physics::{PhysicsWorld, EDGE_CHAMFER_RADIUS, DICE_RESTITUTION, DICE_FRICTION, ROLL_HORIZONTAL_MIN, ROLL_HORIZONTAL_MAX, ROLL_VERTICAL_MIN, ROLL_VERTICAL_MAX};
 
 /// Face definition for face detection
 #[derive(Debug, Clone)]
@@ -14,12 +14,12 @@ pub struct DiceFace {
 /// Dice size (half-extent for d6, approximate radius for others)
 pub const DICE_SIZE: f32 = 0.5;
 
-/// Create a rigid body and collider for a given dice type at a spawn position
+/// Create a rigid body and collider for a given dice type at a spawn position,
+/// inserting them into the provided `PhysicsWorld`.
 pub fn create_dice_body(
     dice_type: DiceType,
     position: [f32; 3],
-    rigid_body_set: &mut RigidBodySet,
-    collider_set: &mut ColliderSet,
+    world: &mut PhysicsWorld,
 ) -> RigidBodyHandle {
     let mut rng = rand::thread_rng();
 
@@ -30,39 +30,36 @@ pub fn create_dice_body(
         rng.gen_range(0.0..std::f32::consts::TAU),
     );
 
+    let (roll, pitch, yaw) = rot.euler_angles();
     let body = RigidBodyBuilder::dynamic()
         .translation(vector![position[0], position[1], position[2]])
-        .rotation(vector![rot.euler_angles().0, rot.euler_angles().1, rot.euler_angles().2])
+        .rotation(vector![roll, pitch, yaw])
         .can_sleep(false)
         .build();
-    let handle = rigid_body_set.insert(body);
 
-    let collider = match dice_type {
-        DiceType::D6 => {
-            ColliderBuilder::round_cuboid(
-                DICE_SIZE - EDGE_CHAMFER_RADIUS,
-                DICE_SIZE - EDGE_CHAMFER_RADIUS,
-                DICE_SIZE - EDGE_CHAMFER_RADIUS,
-                EDGE_CHAMFER_RADIUS,
-            )
-        }
-        _ => {
-            // For non-d6 dice, use convex hull from vertices
-            let vertices = get_dice_vertices(dice_type);
-            ColliderBuilder::convex_hull(&vertices)
-                .unwrap_or_else(|| ColliderBuilder::ball(DICE_SIZE))
-        }
+    let collider = if dice_type == DiceType::D6 {
+        ColliderBuilder::round_cuboid(
+            DICE_SIZE - EDGE_CHAMFER_RADIUS,
+            DICE_SIZE - EDGE_CHAMFER_RADIUS,
+            DICE_SIZE - EDGE_CHAMFER_RADIUS,
+            EDGE_CHAMFER_RADIUS,
+        )
+    } else {
+        // For non-d6 dice, use convex hull from vertices
+        let vertices = get_dice_vertices(dice_type);
+        ColliderBuilder::convex_hull(&vertices)
+            .unwrap_or_else(|| ColliderBuilder::ball(DICE_SIZE))
     }
     .restitution(DICE_RESTITUTION)
     .friction(DICE_FRICTION)
     .density(1.0)
     .build();
 
-    collider_set.insert_with_parent(collider, handle, rigid_body_set);
-    handle
+    world.spawn_body(body, collider)
 }
 
 /// Generate a random roll impulse matching client-side parameters
+#[must_use]
 pub fn generate_roll_impulse() -> Vector3<f32> {
     let mut rng = rand::thread_rng();
     let angle = rng.gen_range(0.0..std::f32::consts::TAU);
@@ -77,6 +74,7 @@ pub fn generate_roll_impulse() -> Vector3<f32> {
 }
 
 /// Generate random angular torque for realistic tumbling
+#[must_use]
 pub fn generate_roll_torque() -> Vector3<f32> {
     let mut rng = rand::thread_rng();
     Vector3::new(
@@ -87,6 +85,7 @@ pub fn generate_roll_torque() -> Vector3<f32> {
 }
 
 /// Generate a random spawn position above the table
+#[must_use]
 pub fn generate_spawn_position() -> [f32; 3] {
     let mut rng = rand::thread_rng();
     [
@@ -130,8 +129,10 @@ fn get_dice_vertices(dice_type: DiceType) -> Vec<Point<f32>> {
             let mid_top = s * 0.3;
             let mid_bot = -s * 0.3;
             let r = s * 0.9;
-            for i in 0..5 {
-                let angle = (i as f32) * std::f32::consts::TAU / 5.0;
+            for i in 0..5_i32 {
+                // i is in [0,4], f64::from is infallible; f64->f32 truncation is acceptable here
+                #[allow(clippy::cast_possible_truncation)]
+                let angle = (f64::from(i) as f32) * std::f32::consts::TAU / 5.0;
                 let offset_angle = angle + std::f32::consts::TAU / 10.0;
                 verts.push(point![angle.cos() * r, mid_top, angle.sin() * r]);
                 verts.push(point![offset_angle.cos() * r, mid_bot, offset_angle.sin() * r]);
@@ -142,7 +143,7 @@ fn get_dice_vertices(dice_type: DiceType) -> Vec<Point<f32>> {
         }
         DiceType::D12 => {
             // Regular dodecahedron
-            let phi = (1.0 + 5.0_f32.sqrt()) / 2.0;
+            let phi = f32::midpoint(1.0, 5.0_f32.sqrt());
             let a = s * 0.5;
             let b = s * 0.5 / phi;
             let c = s * 0.5 * phi;
@@ -167,7 +168,7 @@ fn get_dice_vertices(dice_type: DiceType) -> Vec<Point<f32>> {
         }
         DiceType::D20 => {
             // Regular icosahedron
-            let phi = (1.0 + 5.0_f32.sqrt()) / 2.0;
+            let phi = f32::midpoint(1.0, 5.0_f32.sqrt());
             let a = s * 0.5;
             let b = s * 0.5 * phi;
             vec![
@@ -189,6 +190,7 @@ fn get_dice_vertices(dice_type: DiceType) -> Vec<Point<f32>> {
 
 /// Get face normals for a given dice type
 /// These MUST match the client-side face normals in src/lib/geometries.ts
+#[must_use]
 pub fn get_face_normals(dice_type: DiceType) -> Vec<DiceFace> {
     match dice_type {
         DiceType::D4 => {
@@ -229,21 +231,21 @@ pub fn get_face_normals(dice_type: DiceType) -> Vec<DiceFace> {
             // Upper kites (0-4): values [0, 2, 4, 6, 8]
             // Lower kites (5-9): values [3, 1, 9, 7, 5]
             vec![
-                DiceFace { value: 0, normal: Vector3::new(-0.741456, 0.671001, -0.001183).normalize() },
-                DiceFace { value: 2, normal: Vector3::new(-0.227997, 0.671001, -0.705532).normalize() },
-                DiceFace { value: 4, normal: Vector3::new(0.600546, 0.671001, -0.434860).normalize() },
-                DiceFace { value: 6, normal: Vector3::new(0.599155, 0.671001, 0.436774).normalize() },
-                DiceFace { value: 8, normal: Vector3::new(-0.230247, 0.671001, 0.704801).normalize() },
-                DiceFace { value: 3, normal: Vector3::new(-0.599155, -0.671001, -0.436774).normalize() },
-                DiceFace { value: 1, normal: Vector3::new(0.230247, -0.671001, -0.704801).normalize() },
-                DiceFace { value: 9, normal: Vector3::new(0.741456, -0.671001, 0.001183).normalize() },
-                DiceFace { value: 7, normal: Vector3::new(0.227997, -0.671001, 0.705532).normalize() },
-                DiceFace { value: 5, normal: Vector3::new(-0.600546, -0.671001, 0.434860).normalize() },
+                DiceFace { value: 0, normal: Vector3::new(-0.741_456, 0.671_001, -0.001_183).normalize() },
+                DiceFace { value: 2, normal: Vector3::new(-0.227_997, 0.671_001, -0.705_532).normalize() },
+                DiceFace { value: 4, normal: Vector3::new(0.600_546, 0.671_001, -0.434_860).normalize() },
+                DiceFace { value: 6, normal: Vector3::new(0.599_155, 0.671_001, 0.436_774).normalize() },
+                DiceFace { value: 8, normal: Vector3::new(-0.230_247, 0.671_001, 0.704_801).normalize() },
+                DiceFace { value: 3, normal: Vector3::new(-0.599_155, -0.671_001, -0.436_774).normalize() },
+                DiceFace { value: 1, normal: Vector3::new(0.230_247, -0.671_001, -0.704_801).normalize() },
+                DiceFace { value: 9, normal: Vector3::new(0.741_456, -0.671_001, 0.001_183).normalize() },
+                DiceFace { value: 7, normal: Vector3::new(0.227_997, -0.671_001, 0.705_532).normalize() },
+                DiceFace { value: 5, normal: Vector3::new(-0.600_546, -0.671_001, 0.434_860).normalize() },
             ]
         }
         DiceType::D12 => {
-            let a: f32 = 0.5257311;
-            let b: f32 = 0.8506508;
+            let a: f32 = 0.525_731_1;
+            let b: f32 = 0.850_650_8;
             vec![
                 DiceFace { value: 1,  normal: Vector3::new(0.0, b, a) },
                 DiceFace { value: 2,  normal: Vector3::new(b, a, 0.0) },
@@ -398,14 +400,15 @@ mod tests {
         for _ in 0..100 {
             let impulse = generate_roll_impulse();
             let horizontal = (impulse.x * impulse.x + impulse.z * impulse.z).sqrt();
-            assert!(horizontal >= ROLL_HORIZONTAL_MIN * 0.99, "Horizontal too small: {}", horizontal);
-            assert!(horizontal <= ROLL_HORIZONTAL_MAX * 1.01, "Horizontal too large: {}", horizontal);
+            assert!(horizontal >= ROLL_HORIZONTAL_MIN * 0.99, "Horizontal too small: {horizontal}");
+            assert!(horizontal <= ROLL_HORIZONTAL_MAX * 1.01, "Horizontal too large: {horizontal}");
             assert!(impulse.y >= ROLL_VERTICAL_MIN, "Vertical too small: {}", impulse.y);
             assert!(impulse.y <= ROLL_VERTICAL_MAX, "Vertical too large: {}", impulse.y);
         }
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_spawn_position_in_bounds() {
         for _ in 0..100 {
             let pos = generate_spawn_position();
@@ -419,12 +422,7 @@ mod tests {
     fn test_create_d6_body() {
         let mut world = PhysicsWorld::new();
         let initial_count = world.rigid_body_set.len();
-        let handle = create_dice_body(
-            DiceType::D6,
-            [0.0, 2.0, 0.0],
-            &mut world.rigid_body_set,
-            &mut world.collider_set,
-        );
+        let handle = create_dice_body(DiceType::D6, [0.0, 2.0, 0.0], &mut world);
         assert_eq!(world.rigid_body_set.len(), initial_count + 1);
         assert!(world.get_position(handle).is_some());
     }
@@ -432,12 +430,7 @@ mod tests {
     #[test]
     fn test_create_d20_body() {
         let mut world = PhysicsWorld::new();
-        let handle = create_dice_body(
-            DiceType::D20,
-            [0.0, 2.0, 0.0],
-            &mut world.rigid_body_set,
-            &mut world.collider_set,
-        );
+        let handle = create_dice_body(DiceType::D20, [0.0, 2.0, 0.0], &mut world);
         assert!(world.get_position(handle).is_some());
     }
 }

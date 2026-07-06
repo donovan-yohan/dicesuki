@@ -12,8 +12,13 @@ import {
   VELOCITY_HISTORY_SIZE,
 } from '../config/physicsConfig'
 import { useDragStore } from '../store/useDragStore'
+// VelocityHistoryEntry (tuple format) is the wire type in multiplayerMessages.ts
 
-interface VelocityHistoryEntry {
+/**
+ * Internal drag history entry using THREE.Vector3 for computation convenience.
+ * Converted to/from VelocityHistoryEntry (tuple format) at wire boundaries.
+ */
+interface DragHistoryEntry {
   position: THREE.Vector3
   time: number
 }
@@ -56,7 +61,7 @@ export function useDiceInteraction(): DiceInteraction {
   const currentDiceIdRef = useRef<string | null>(null)
 
   // Velocity tracking for throw calculation
-  const velocityHistoryRef = useRef<VelocityHistoryEntry[]>([])
+  const velocityHistoryRef = useRef<DragHistoryEntry[]>([])
   
   // Raycasting
   const raycaster = useRef(new THREE.Raycaster())
