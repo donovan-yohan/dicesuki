@@ -297,7 +297,12 @@ export const useInventoryStore = create<InventoryStore>()(
               lowestRoll: Math.min(d.stats.lowestRoll || Infinity, value)
             }
 
-            return { ...d, stats: newStats }
+            return {
+              ...d,
+              stats: newStats,
+              lastRolledAt: Date.now(),
+              recentRollValues: [value, ...(d.recentRollValues || [])].slice(0, 20)
+            }
           })
         }))
       },

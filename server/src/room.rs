@@ -1,10 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
 use rapier3d::prelude::RigidBodyHandle;
 use tokio::sync::RwLock;
 use crate::messages::{
-    DiceSnapshot, DiceState, DiceType, DieResult, ServerMessage, VelocityHistoryEntry,
+    DicePresentationMetadata, DiceSnapshot, DiceState, DiceType, DieResult, ServerMessage,
+    SpawnDiceEntry, VelocityHistoryEntry,
 };
 use crate::player::Player;
 use crate::physics::{
@@ -33,6 +34,8 @@ pub enum RoomError {
     AlreadyDragged,
     NotDragger,
     NotDragging,
+    DuplicateDiceId,
+    DuplicateInventoryDie,
 }
 
 impl RoomError {
@@ -50,6 +53,8 @@ impl RoomError {
             RoomError::AlreadyDragged => "ALREADY_DRAGGED",
             RoomError::NotDragger => "NOT_DRAGGER",
             RoomError::NotDragging => "NOT_DRAGGING",
+            RoomError::DuplicateDiceId => "DUPLICATE_DICE_ID",
+            RoomError::DuplicateInventoryDie => "DUPLICATE_INVENTORY_DIE",
         }
     }
 }
@@ -66,6 +71,8 @@ impl std::fmt::Display for RoomError {
             RoomError::AlreadyDragged => "Die is already being dragged",
             RoomError::NotDragger => "You are not the one dragging this die",
             RoomError::NotDragging => "Die is not being dragged",
+            RoomError::DuplicateDiceId => "Duplicate dice ID in spawn request",
+            RoomError::DuplicateInventoryDie => "That inventory die is already on the table",
         };
         write!(f, "{msg}")
     }
@@ -76,6 +83,7 @@ impl std::error::Error for RoomError {}
 pub const MAX_PLAYERS: usize = 8;
 pub const MAX_DICE: usize = 30;
 pub const IDLE_TIMEOUT_SECS: u64 = 1800; // 30 minutes
+pub const SNAPSHOT_DIVISOR: u64 = 1; // 1 = every tick (60Hz), 2 = 30Hz, 3 = 20Hz
 
 pub struct DragState {
     pub dragger_id: String,
@@ -88,6 +96,7 @@ pub struct ServerDie {
     pub id: String,
     pub owner_id: String,
     pub dice_type: DiceType,
+    pub presentation: Option<DicePresentationMetadata>,
     pub position: [f32; 3],
     pub rotation: [f32; 4], // quaternion [x, y, z, w]
     pub is_rolling: bool,
@@ -96,6 +105,32 @@ pub struct ServerDie {
     pub rest_start_tick: Option<u64>,
     pub drag_state: Option<DragState>,
     pub last_snapshot_position: [f32; 3],
+}
+
+pub struct DiceSpawnRequest {
+    pub id: String,
+    pub dice_type: DiceType,
+    pub presentation: Option<DicePresentationMetadata>,
+}
+
+impl From<SpawnDiceEntry> for DiceSpawnRequest {
+    fn from(entry: SpawnDiceEntry) -> Self {
+        Self {
+            id: entry.id,
+            dice_type: entry.dice_type,
+            presentation: entry.presentation,
+        }
+    }
+}
+
+impl From<(String, DiceType)> for DiceSpawnRequest {
+    fn from((id, dice_type): (String, DiceType)) -> Self {
+        Self {
+            id,
+            dice_type,
+            presentation: None,
+        }
+    }
 }
 
 pub struct Room {
@@ -232,24 +267,31 @@ impl Room {
     /// # Errors
     ///
     /// Returns `Err(RoomError::DiceLimit)` if max dice reached, or `Err(RoomError::PlayerNotFound)` if owner unknown.
-    pub fn spawn_dice_with_physics(&mut self, owner_id: &str, entries: Vec<(String, DiceType)>) -> Result<Vec<DiceState>, RoomError> {
+    pub fn spawn_dice_with_physics<I, E>(&mut self, owner_id: &str, entries: I) -> Result<Vec<DiceState>, RoomError>
+    where
+        I: IntoIterator<Item = E>,
+        E: Into<DiceSpawnRequest>,
+    {
+        let entries: Vec<DiceSpawnRequest> = entries.into_iter().map(Into::into).collect();
         if self.dice.len() + entries.len() > MAX_DICE {
             return Err(RoomError::DiceLimit);
         }
         if !self.players.contains_key(owner_id) {
             return Err(RoomError::PlayerNotFound);
         }
+        self.validate_spawn_entries(owner_id, &entries)?;
 
         let mut spawned = Vec::new();
-        for (id, dice_type) in entries {
+        for entry in entries {
             let position = generate_spawn_position();
-            let body_handle = create_dice_body(dice_type, position, &mut self.physics);
+            let body_handle = create_dice_body(entry.dice_type, position, &mut self.physics);
             let rotation = self.physics.get_rotation(body_handle).unwrap_or([0.0, 0.0, 0.0, 1.0]);
 
             let die = ServerDie {
-                id: id.clone(),
+                id: entry.id.clone(),
                 owner_id: owner_id.to_string(),
-                dice_type,
+                dice_type: entry.dice_type,
+                presentation: entry.presentation.clone(),
                 position,
                 rotation,
                 is_rolling: false,
@@ -260,20 +302,51 @@ impl Room {
                 last_snapshot_position: position,
             };
             spawned.push(DiceState {
-                id: id.clone(),
+                id: entry.id.clone(),
                 owner_id: owner_id.to_string(),
-                dice_type,
+                dice_type: entry.dice_type,
                 position,
                 rotation,
+                presentation: entry.presentation,
             });
             if let Some(player) = self.players.get_mut(owner_id) {
-                player.dice_ids.push(id.clone());
+                player.dice_ids.push(entry.id.clone());
             }
-            self.dice.insert(id, die);
+            self.dice.insert(entry.id, die);
         }
 
         self.touch();
         Ok(spawned)
+    }
+
+    fn validate_spawn_entries(&self, owner_id: &str, entries: &[DiceSpawnRequest]) -> Result<(), RoomError> {
+        let mut request_ids = HashSet::new();
+        let mut request_inventory_die_ids = HashSet::new();
+
+        for entry in entries {
+            if !request_ids.insert(entry.id.as_str()) || self.dice.contains_key(&entry.id) {
+                return Err(RoomError::DuplicateDiceId);
+            }
+
+            let Some(inventory_die_id) = entry.presentation.as_ref()
+                .and_then(|presentation| presentation.inventory_die_id.as_deref())
+            else {
+                continue;
+            };
+
+            if !request_inventory_die_ids.insert(inventory_die_id)
+                || self.dice.values().any(|die| {
+                    die.owner_id == owner_id
+                        && die.presentation.as_ref()
+                            .and_then(|presentation| presentation.inventory_die_id.as_deref())
+                            == Some(inventory_die_id)
+                })
+            {
+                return Err(RoomError::DuplicateInventoryDie);
+            }
+        }
+
+        Ok(())
     }
 
     /// Apply roll impulse to all of a player's dice
@@ -601,6 +674,7 @@ impl Room {
                 dice_id: d.id.clone(),
                 dice_type: d.dice_type,
                 face_value: d.face_value.expect("face_value is Some: filter above requires face_value.is_some()"),
+                presentation: d.presentation.clone(),
             })
             .collect();
         let total: u32 = results.iter().map(|r| r.face_value).sum();
@@ -721,6 +795,7 @@ impl Room {
                 dice_type: d.dice_type,
                 position: d.position,
                 rotation: d.rotation,
+                presentation: d.presentation.clone(),
             }).collect(),
         }
     }
@@ -792,22 +867,29 @@ impl Room {
     /// # Errors
     ///
     /// Returns `Err(RoomError::DiceLimit)` if max dice reached, or `Err(RoomError::PlayerNotFound)` if owner unknown.
-    pub fn spawn_dice(&mut self, owner_id: &str, entries: Vec<(String, DiceType)>) -> Result<Vec<DiceState>, RoomError> {
+    pub fn spawn_dice<I, E>(&mut self, owner_id: &str, entries: I) -> Result<Vec<DiceState>, RoomError>
+    where
+        I: IntoIterator<Item = E>,
+        E: Into<DiceSpawnRequest>,
+    {
+        let entries: Vec<DiceSpawnRequest> = entries.into_iter().map(Into::into).collect();
         if self.dice.len() + entries.len() > MAX_DICE {
             return Err(RoomError::DiceLimit);
         }
         if !self.players.contains_key(owner_id) {
             return Err(RoomError::PlayerNotFound);
         }
+        self.validate_spawn_entries(owner_id, &entries)?;
 
         let mut spawned = Vec::new();
-        for (id, dice_type) in entries {
+        for entry in entries {
             let position = [0.0, 2.0, 0.0];
             let rotation = [0.0, 0.0, 0.0, 1.0];
             let die = ServerDie {
-                id: id.clone(),
+                id: entry.id.clone(),
                 owner_id: owner_id.to_string(),
-                dice_type,
+                dice_type: entry.dice_type,
+                presentation: entry.presentation.clone(),
                 position,
                 rotation,
                 is_rolling: false,
@@ -818,13 +900,14 @@ impl Room {
                 last_snapshot_position: position,
             };
             spawned.push(DiceState {
-                id: id.clone(),
+                id: entry.id.clone(),
                 owner_id: owner_id.to_string(),
-                dice_type,
+                dice_type: entry.dice_type,
                 position,
                 rotation,
+                presentation: entry.presentation,
             });
-            self.dice.insert(id, die);
+            self.dice.insert(entry.id, die);
         }
 
         if let Some(player) = self.players.get_mut(owner_id) {
@@ -846,6 +929,21 @@ mod tests {
     fn make_player(id: &str, name: &str) -> Player {
         let (tx, _rx) = mpsc::unbounded_channel();
         Player::new(id.to_string(), name.to_string(), "#FFF".to_string(), tx)
+    }
+
+    fn make_presentation(inventory_die_id: &str) -> DicePresentationMetadata {
+        DicePresentationMetadata {
+            inventory_die_id: Some(inventory_die_id.to_string()),
+            display_name: Some("Lucky D20".to_string()),
+            set_id: Some("starter".to_string()),
+            rarity: Some("rare".to_string()),
+            base_color: Some("#8b5cf6".to_string()),
+            accent_color: Some("#ffffff".to_string()),
+            material: Some("plastic".to_string()),
+            custom_asset_id: None,
+            custom_asset_name: None,
+            unsupported_reason: None,
+        }
     }
 
     #[test]
@@ -1011,6 +1109,62 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(room.dice_count(), 1);
         assert!(room.dice.get("d1").unwrap().body_handle.is_some());
+    }
+
+    #[test]
+    fn test_spawn_dice_rejects_duplicate_dice_ids() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+
+        assert_eq!(room.spawn_dice("p1", vec![
+            ("d1".to_string(), DiceType::D20),
+            ("d1".to_string(), DiceType::D6),
+        ]).unwrap_err(), RoomError::DuplicateDiceId);
+    }
+
+    #[test]
+    fn test_spawn_dice_rejects_duplicate_owned_inventory_die() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+
+        room.spawn_dice("p1", vec![SpawnDiceEntry {
+            id: "d1".to_string(),
+            dice_type: DiceType::D20,
+            presentation: Some(make_presentation("die_lucky_d20")),
+        }]).unwrap();
+
+        let duplicate = room.spawn_dice("p1", vec![SpawnDiceEntry {
+            id: "d2".to_string(),
+            dice_type: DiceType::D20,
+            presentation: Some(make_presentation("die_lucky_d20")),
+        }]);
+
+        assert_eq!(duplicate.unwrap_err(), RoomError::DuplicateInventoryDie);
+        assert_eq!(room.dice_count(), 1);
+    }
+
+    #[test]
+    fn test_spawn_dice_preserves_presentation_metadata() {
+        let mut room = Room::new("test".to_string());
+        let player = make_player("p1", "Gandalf");
+        room.add_player(player).unwrap();
+
+        let presentation = make_presentation("die_lucky_d20");
+
+        let spawned = room.spawn_dice("p1", vec![SpawnDiceEntry {
+            id: "d1".to_string(),
+            dice_type: DiceType::D20,
+            presentation: Some(presentation.clone()),
+        }]).unwrap();
+
+        assert_eq!(spawned[0].presentation.as_ref(), Some(&presentation));
+        assert_eq!(room.dice.get("d1").unwrap().presentation.as_ref(), Some(&presentation));
+        match room.build_room_state() {
+            ServerMessage::RoomState { dice, .. } => {
+                assert_eq!(dice[0].presentation.as_ref(), Some(&presentation));
+            }
+            _ => panic!("Expected room state"),
+        }
     }
 
     #[test]

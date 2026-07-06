@@ -10,6 +10,7 @@ import {
   SavedRoll,
   QuickPreset,
 } from '../types/savedRolls'
+import { getDiceEntrySourceQuantity, getSpecificDieIds } from './rollSources'
 
 /**
  * Get maximum value for a dice type
@@ -29,7 +30,8 @@ export function getDieMax(type: DiceShape): number {
 /**
  * Get minimum value for a dice type
  */
-export function getDieMin(_type: DiceShape): number {
+export function getDieMin(type: DiceShape): number {
+  void type
   return 1
 }
 
@@ -199,6 +201,11 @@ export function formatDiceEntry(entry: DiceEntry): string {
     text += ` ${mode}${entry.quantity}`
   }
 
+  const specificDieCount = getSpecificDieIds(entry).length
+  if (specificDieCount > 0) {
+    text += ` [${specificDieCount} specific]`
+  }
+
   return text
 }
 
@@ -249,6 +256,9 @@ export function formatSavedRoll(roll: SavedRoll): string {
 export function calculateDiceEntryRange(entry: DiceEntry): { min: number; max: number } {
   const dieMin = getDieMin(entry.type)
   const dieMax = getDieMax(entry.type)
+  const quantity = entry.rollCount && entry.rollCount > entry.quantity
+    ? entry.quantity
+    : getDiceEntrySourceQuantity(entry)
 
   // Apply per-die bonus
   const effectiveMin = Math.max(entry.minimum || dieMin, dieMin) + entry.perDieBonus
@@ -256,8 +266,8 @@ export function calculateDiceEntryRange(entry: DiceEntry): { min: number; max: n
 
   // Multiply by kept quantity
   return {
-    min: effectiveMin * entry.quantity,
-    max: effectiveMax * entry.quantity,
+    min: effectiveMin * quantity,
+    max: effectiveMax * quantity,
   }
 }
 
@@ -316,6 +326,11 @@ export function getDiceEntryBadges(entry: DiceEntry): string[] {
   // Min/max constraints
   if (entry.minimum !== undefined || entry.maximum !== undefined) {
     badges.push('🎯 Limits')
+  }
+
+  const specificDieCount = getSpecificDieIds(entry).length
+  if (specificDieCount > 0) {
+    badges.push(`${specificDieCount} Owned`)
   }
 
   return badges

@@ -9,7 +9,7 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-;(globalThis as any).ResizeObserver = ResizeObserverMock
+globalThis.ResizeObserver = ResizeObserverMock
 
 // Mock WebGL context for Three.js
 HTMLCanvasElement.prototype.getContext = vi.fn().mockImplementation((contextId) => {

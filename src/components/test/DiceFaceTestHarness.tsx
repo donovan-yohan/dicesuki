@@ -67,13 +67,11 @@ export default function DiceFaceTestHarness() {
   const faceIndex = parseInt(searchParams.get('face') || '0')
 
   const faceNormals = FACE_NORMALS_MAP[shape]
-  if (!faceNormals || Number.isNaN(faceIndex) || faceIndex >= faceNormals.length || faceIndex < 0) {
-    return <div data-testid="dice-test-harness">Invalid params</div>
-  }
+  const isValidFaceIndex = faceNormals && !Number.isNaN(faceIndex) && faceIndex < faceNormals.length && faceIndex >= 0
 
-  const face = faceNormals[faceIndex]
-  const quaternion = computeAlignmentQuaternion(face.normal, shape)
-  const reportedValue = getDiceFaceValue(quaternion, shape)
+  const face = isValidFaceIndex ? faceNormals[faceIndex] : null
+  const quaternion = face ? computeAlignmentQuaternion(face.normal, shape) : null
+  const reportedValue = quaternion ? getDiceFaceValue(quaternion, shape) : null
 
   // Use textured materials for visual validation
   const materials = useDiceMaterials({
@@ -81,6 +79,10 @@ export default function DiceFaceTestHarness() {
     color: '#ff6b35',
     faceRenderer: getFaceRendererForShape(shape),
   })
+
+  if (!face || !quaternion || reportedValue === null) {
+    return <div data-testid="dice-test-harness">Invalid params</div>
+  }
 
   return (
     <div data-testid="dice-test-harness" style={{ width: '100vw', height: '100vh', background: '#111' }}>

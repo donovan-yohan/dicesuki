@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useMultiplayerStore } from './useMultiplayerStore'
 import type { ServerMessage } from '../lib/multiplayerMessages'
 
@@ -41,6 +41,33 @@ describe('useMultiplayerStore', () => {
       expect(state.dice.size).toBe(1)
       expect(state.dice.get('d1')?.diceType).toBe('d20')
       expect(state.localPlayerId).toBe('p2') // Last player = local
+    })
+
+    it('should preserve inventory presentation metadata from room_state', () => {
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'room_state',
+        roomId: 'abc123',
+        players: [{ id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' }],
+        dice: [
+          {
+            id: 'd1',
+            ownerId: 'p1',
+            diceType: 'd20',
+            position: [0, 1, 0],
+            rotation: [0, 0, 0, 1],
+            presentation: {
+              inventoryDieId: 'die_lucky_d20',
+              displayName: 'Lucky D20',
+              baseColor: '#8b5cf6',
+            },
+          },
+        ],
+      })
+
+      const die = useMultiplayerStore.getState().dice.get('d1')
+      expect(die?.presentation?.inventoryDieId).toBe('die_lucky_d20')
+      expect(die?.presentation?.displayName).toBe('Lucky D20')
+      expect(die?.presentation?.baseColor).toBe('#8b5cf6')
     })
 
     it('should handle player_joined message', () => {
@@ -237,6 +264,100 @@ describe('useMultiplayerStore', () => {
       expect(() => {
         useMultiplayerStore.getState().sendMessage({ type: 'roll' })
       }).not.toThrow()
+    })
+
+    it('should send spawn_dice with presentation metadata when connected', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
+      })
+
+      useMultiplayerStore.getState().spawnDice('d20', {
+        inventoryDieId: 'die_lucky_d20',
+        displayName: 'Lucky D20',
+        baseColor: '#8b5cf6',
+      })
+
+      expect(send).toHaveBeenCalledTimes(1)
+      const payload = JSON.parse(send.mock.calls[0][0])
+      expect(payload).toMatchObject({
+        type: 'spawn_dice',
+        dice: [
+          {
+            diceType: 'd20',
+            presentation: {
+              inventoryDieId: 'die_lucky_d20',
+              displayName: 'Lucky D20',
+              baseColor: '#8b5cf6',
+            },
+          },
+        ],
+      })
+      expect(payload.dice[0].id).toContain('die_lucky_d20')
+      expect(payload.dice[0].id).toMatch(/^die_lucky_d20-\d+-[a-z0-9]+$/)
+      expect(useMultiplayerStore.getState().pendingInventoryDieIds.has('die_lucky_d20')).toBe(true)
+    })
+
+    it('blocks duplicate pending inventory dice before the server roundtrip', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
+      })
+
+      useMultiplayerStore.getState().spawnDice('d20', { inventoryDieId: 'die_lucky_d20' })
+      useMultiplayerStore.getState().spawnDice('d20', { inventoryDieId: 'die_lucky_d20' })
+
+      expect(send).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears pending inventory dice when the server acknowledges the spawn', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
+      })
+
+      useMultiplayerStore.getState().spawnDice('d20', { inventoryDieId: 'die_lucky_d20' })
+      expect(useMultiplayerStore.getState().pendingInventoryDieIds.has('die_lucky_d20')).toBe(true)
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'dice_spawned',
+        ownerId: 'p1',
+        dice: [
+          {
+            id: 'die_lucky_d20-1',
+            ownerId: 'p1',
+            diceType: 'd20',
+            position: [0, 2, 0],
+            rotation: [0, 0, 0, 1],
+            presentation: { inventoryDieId: 'die_lucky_d20' },
+          },
+        ],
+      })
+
+      expect(useMultiplayerStore.getState().pendingInventoryDieIds.has('die_lucky_d20')).toBe(false)
+    })
+
+    it('generates random-suffixed ids for inventory and generic dice', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
+      })
+
+      useMultiplayerStore.getState().spawnDice('d20', { inventoryDieId: 'die_lucky_d20' })
+      useMultiplayerStore.getState().spawnDice('d6')
+
+      const inventoryPayload = JSON.parse(send.mock.calls[0][0])
+      const genericPayload = JSON.parse(send.mock.calls[1][0])
+      expect(inventoryPayload.dice[0].id).toMatch(/^die_lucky_d20-\d+-[a-z0-9]+$/)
+      expect(genericPayload.dice[0].id).toMatch(/^d6-\d+-[a-z0-9]+$/)
     })
   })
 

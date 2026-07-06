@@ -345,14 +345,14 @@ export function useDiceInteraction(): DiceInteraction {
 
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerleave', onPointerCancel)
-    canvas.addEventListener('lostpointercapture', onLostPointerCapture as any)
+    canvas.addEventListener('lostpointercapture', onLostPointerCapture)
     window.addEventListener('pointerup', onPointerUp)
     window.addEventListener('pointercancel', onPointerCancel)
 
     return () => {
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerleave', onPointerCancel)
-      canvas.removeEventListener('lostpointercapture', onLostPointerCapture as any)
+      canvas.removeEventListener('lostpointercapture', onLostPointerCapture)
       window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('pointercancel', onPointerCancel)
     }

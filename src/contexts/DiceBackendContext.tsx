@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext } from 'react'
 import type { DiceShape } from '../lib/geometries'
 import type { PlayerInfo } from '../lib/multiplayerMessages'
 import type { RollSnapshot } from '../store/useDiceStore'
@@ -37,17 +37,4 @@ export function useDiceBackend(): DiceBackendState {
     throw new Error('useDiceBackend must be used within a DiceBackendProvider')
   }
   return ctx
-}
-
-interface DiceBackendProviderProps {
-  value: DiceBackendState
-  children: ReactNode
-}
-
-export function DiceBackendProvider({ value, children }: DiceBackendProviderProps) {
-  return (
-    <DiceBackendContext.Provider value={value}>
-      {children}
-    </DiceBackendContext.Provider>
-  )
 }

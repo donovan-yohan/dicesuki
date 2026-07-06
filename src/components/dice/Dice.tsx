@@ -1,7 +1,7 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 
 import { useFrame } from '@react-three/fiber'
-import { ContactForcePayload, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
+import { ContactForcePayload, CuboidCollider, RapierRigidBody, RigidBody } from '@react-three/rapier'
 import * as THREE from 'three'
 import {
   DICE_FRICTION,
@@ -11,7 +11,6 @@ import {
   DRAG_FOLLOW_SPEED,
   DRAG_SPIN_FACTOR,
   DRAG_ROLL_FACTOR,
-  EDGE_CHAMFER_RADIUS,
   MAX_DICE_VELOCITY,
   HAPTIC_MIN_SPEED,
   HAPTIC_MIN_VELOCITY_CHANGE,
@@ -20,17 +19,24 @@ import {
   HAPTIC_LIGHT_THRESHOLD,
   HAPTIC_MEDIUM_THRESHOLD,
   HAPTIC_HIGH_FORCE_BYPASS,
+  LINEAR_VELOCITY_THRESHOLD,
+  ANGULAR_VELOCITY_THRESHOLD,
 } from '../../config/physicsConfig'
 import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
-import { type DiceShape, createDiceGeometry } from '../../lib/geometries'
+import { type DiceShape, createDiceGeometry, getDiceFaceValue } from '../../lib/geometries'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 import { getFaceRendererForShape } from '../../lib/faceRenderers'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useUIStore } from '../../store/useUIStore'
+import {
+  type DiceRenderContext,
+  type RenderDeviceTier,
+  resolveDiceRenderLod,
+} from '../../lib/renderLod'
 
 type RendererType = 'simple' | 'styled' | 'bordered' | 'debug' | undefined
 
@@ -42,6 +48,10 @@ interface DiceProps {
   size?: number
   color?: string
   rendererType?: RendererType
+  renderContext?: DiceRenderContext
+  renderDeviceTier?: RenderDeviceTier
+  isVisibleForLod?: boolean
+  isFocusedForLod?: boolean
   onRest?: (id: string, faceValue: number, diceType: string) => void
   onMoving?: (id: string) => void
 }
@@ -49,6 +59,7 @@ interface DiceProps {
 export interface DiceHandle {
   applyImpulse: (impulse: THREE.Vector3) => void
   applyRollImpulse: (impulse: THREE.Vector3) => void // Apply impulse without resetting position
+  readCurrentFace: () => number | null
   reset: () => void
 }
 
@@ -69,9 +80,13 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       id = 'dice-0',
       shape,
       position = [0, 5, 0],
-      // rotation = [0, 0, 0], // Not used, removed to fix TS error
+      rotation = [0, 0, 0],
       size = 1,
       color = 'orange',
+      renderContext = 'tray',
+      renderDeviceTier = 'high',
+      isVisibleForLod = true,
+      isFocusedForLod = false,
       onRest,
       onMoving,
     },
@@ -176,6 +191,14 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
         resetFaceDetection()
         hasNotifiedRef.current = false
       },
+      readCurrentFace: () => {
+        if (!rigidBodyRef.current) return null
+        const rotation = rigidBodyRef.current.rotation()
+        return getDiceFaceValue(
+          new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w),
+          shape,
+        )
+      },
       reset: () => {
         if (!rigidBodyRef.current) return
 
@@ -247,8 +270,8 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
             const vel = rigidBodyRef.current.linvel()
             const angVel = rigidBodyRef.current.angvel()
             const stillAtRest =
-              Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) < 0.01 &&
-              Math.sqrt(angVel.x ** 2 + angVel.y ** 2 + angVel.z ** 2) < 0.01
+              Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2) < LINEAR_VELOCITY_THRESHOLD &&
+              Math.sqrt(angVel.x ** 2 + angVel.y ** 2 + angVel.z ** 2) < ANGULAR_VELOCITY_THRESHOLD
 
             if (stillAtRest) {
               onRest(id, pendingNotificationRef.current, shape)
@@ -258,7 +281,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
           }
         })
       }
-    }, [isAtRest, faceValue, onRest, id])
+    }, [isAtRest, faceValue, onRest, id, shape])
 
     // Update physics state every frame
     useFrame(() => {
@@ -391,6 +414,17 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       [shape, size],
     )
 
+    const lodPolicy = useMemo(
+      () => resolveDiceRenderLod({
+        context: renderContext,
+        deviceTier: renderDeviceTier,
+        isVisible: isVisibleForLod,
+        isFocused: isFocusedForLod || isDragging,
+        isInteracting: isDragging || !isAtRest,
+      }),
+      [renderContext, renderDeviceTier, isVisibleForLod, isFocusedForLod, isDragging, isAtRest],
+    )
+
     const diceMats = currentTheme.dice.materials
     const materials = useDiceMaterials({
       shape,
@@ -399,6 +433,7 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       metalness: diceMats.metalness,
       emissiveIntensity: diceMats.emissiveIntensity,
       faceRenderer: getFaceRendererForShape(shape),
+      lodPolicy,
     })
 
     // Calculate half-extents for D6 collider
@@ -479,35 +514,48 @@ const DiceComponent = forwardRef<DiceHandle, DiceProps>(
       [vibrateOnCollision],
     )
 
+    if (lodPolicy.materialMode === 'hidden') {
+      return null
+    }
+
+    const meshElement = (
+      <mesh
+        geometry={geometry}
+        material={materials}
+        position={lodPolicy.physicsMode === 'none' ? position : undefined}
+        rotation={lodPolicy.physicsMode === 'none' ? rotation : undefined}
+        castShadow={lodPolicy.castShadow}
+        receiveShadow={lodPolicy.receiveShadow}
+        userData={{ renderLod: lodPolicy }}
+        onPointerDown={(event) => {
+          if (rigidBodyRef.current) {
+            onPointerDown(event, rigidBodyRef.current, id)
+          }
+        }}
+      />
+    )
+
+    if (lodPolicy.physicsMode === 'none') {
+      return meshElement
+    }
+
     return (
       <RigidBody
         ref={rigidBodyRef}
         position={position}
         colliders={shape === 'd6' ? false : 'hull'}
-        type="dynamic"
+        type={lodPolicy.physicsMode === 'static' ? 'fixed' : 'dynamic'}
         restitution={DICE_RESTITUTION}
         friction={DICE_FRICTION}
         canSleep={false}
-        onContactForce={handleContactForce}
+        onContactForce={lodPolicy.physicsMode === 'dynamic' ? handleContactForce : undefined}
       >
-        {/* Use RoundCuboid for D6 to add chamfered edges */}
+        {/* Keep D6 on a stable cuboid collider; rounded colliders can micro-roll out of saved-roll results. */}
         {shape === 'd6' && (
-          <RoundCuboidCollider
-            args={[halfSize, halfSize, halfSize, EDGE_CHAMFER_RADIUS]}
-          />
+          <CuboidCollider args={[halfSize, halfSize, halfSize]} />
         )}
 
-        <mesh
-          geometry={geometry}
-          material={materials}
-          castShadow
-          receiveShadow
-          onPointerDown={(event) => {
-            if (rigidBodyRef.current) {
-              onPointerDown(event, rigidBodyRef.current, id)
-            }
-          }}
-        />
+        {meshElement}
       </RigidBody>
     )
   },

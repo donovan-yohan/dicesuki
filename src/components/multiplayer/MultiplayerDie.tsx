@@ -7,13 +7,17 @@ import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 import { getFaceRendererForShape } from '../../lib/faceRenderers'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
+import { type RenderDeviceTier, resolveDiceRenderLod } from '../../lib/renderLod'
+import type { DicePresentationMetadata } from '../../lib/multiplayerMessages'
 
 interface MultiplayerDieProps {
   dieId: string
   diceType: DiceShape
   color: string
+  presentation?: DicePresentationMetadata
   tRef: MutableRefObject<number>
   isOwnedByLocalPlayer: boolean
+  renderDeviceTier?: RenderDeviceTier
   onDragStart?: (event: ThreeEvent<PointerEvent>, dieId: string) => void
 }
 
@@ -21,8 +25,10 @@ export function MultiplayerDie({
   dieId,
   diceType,
   color,
+  presentation,
   tRef,
   isOwnedByLocalPlayer,
+  renderDeviceTier = 'high',
   onDragStart,
 }: MultiplayerDieProps) {
   const meshRef = useRef<THREE.Mesh>(null)
@@ -32,12 +38,24 @@ export function MultiplayerDie({
     [diceType],
   )
 
+  const lodPolicy = useMemo(
+    () => resolveDiceRenderLod({
+      context: 'tray',
+      deviceTier: renderDeviceTier,
+      isVisible: true,
+      isFocused: isOwnedByLocalPlayer,
+      isInteracting: true,
+    }),
+    [renderDeviceTier, isOwnedByLocalPlayer],
+  )
+
   const materials = useDiceMaterials({
     shape: diceType,
-    color,
+    color: presentation?.baseColor ?? color,
     roughness: 0.7,
     metalness: 0.1,
     faceRenderer: getFaceRendererForShape(diceType),
+    lodPolicy,
   })
 
   // Reusable objects — avoid allocation in render loop
@@ -81,13 +99,18 @@ export function MultiplayerDie({
     meshRef.current.quaternion.copy(interpQuat)
   })
 
+  if (lodPolicy.materialMode === 'hidden') {
+    return null
+  }
+
   return (
     <mesh
       ref={meshRef}
       geometry={geometry}
       material={materials}
-      castShadow
-      receiveShadow
+      castShadow={lodPolicy.castShadow}
+      receiveShadow={lodPolicy.receiveShadow}
+      userData={{ renderLod: lodPolicy, dicePresentation: presentation }}
       onPointerDown={isOwnedByLocalPlayer ? handlePointerDown : undefined}
       onPointerEnter={isOwnedByLocalPlayer ? handlePointerEnter : undefined}
       onPointerLeave={handlePointerLeave}
