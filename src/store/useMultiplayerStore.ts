@@ -5,6 +5,7 @@ import type {
   ServerMessage,
   PlayerInfo,
   DiceState,
+  DicePresentationMetadata,
   VelocityHistoryEntry,
 } from '../lib/multiplayerMessages'
 import { getWsServerUrl } from '../lib/multiplayerServer'
@@ -16,6 +17,7 @@ export interface MultiplayerDie {
   id: string
   ownerId: string
   diceType: DiceShape
+  presentation?: DicePresentationMetadata
   // Current rendered position (interpolated)
   position: [number, number, number]
   rotation: [number, number, number, number]
@@ -35,6 +37,7 @@ interface MultiplayerState {
   connectionStatus: ConnectionStatus
   socket: WebSocket | null
   serverUrl: string
+  connectionError: string | null
 
   // Room
   roomId: string | null
@@ -43,19 +46,20 @@ interface MultiplayerState {
 
   // Dice
   dice: Map<string, MultiplayerDie>
+  pendingInventoryDieIds: Set<string>
 
   // Snapshot interpolation
   lastSnapshotTime: number
   snapshotInterval: number // ms between snapshots (should match server SNAPSHOT_DIVISOR)
 
   // Actions
-  connect: (roomId: string, displayName: string, color: string) => void
+  connect: (roomId: string, displayName: string, color: string, serverUrl?: string) => void
   disconnect: () => void
   sendMessage: (msg: ClientMessage) => void
   handleServerMessage: (msg: ServerMessage) => void
 
   // Game actions
-  spawnDice: (diceType: DiceShape) => void
+  spawnDice: (diceType: DiceShape, presentation?: DicePresentationMetadata) => void
   removeDice: (diceIds: string[]) => void
   roll: () => void
   updateColor: (color: string) => void
@@ -77,10 +81,12 @@ const createInitialState = () => ({
   connectionStatus: 'disconnected' as ConnectionStatus,
   socket: null as WebSocket | null,
   serverUrl: getWsServerUrl(),
+  connectionError: null as string | null,
   roomId: null as string | null,
   players: new Map<string, PlayerInfo>(),
   localPlayerId: null as string | null,
   dice: new Map<string, MultiplayerDie>(),
+  pendingInventoryDieIds: new Set<string>(),
   lastSnapshotTime: 0,
   snapshotInterval: 1000 / 60, // ~16.67ms — must match server SNAPSHOT_DIVISOR=1 (60Hz)
   selectedPlayerId: null as string | null,
@@ -89,14 +95,23 @@ const createInitialState = () => ({
 export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   ...createInitialState(),
 
-  connect: (roomId: string, displayName: string, color: string) => {
-    const { serverUrl } = get()
-    set({ connectionStatus: 'connecting' })
+  connect: (roomId: string, displayName: string, color: string, serverUrlOverride?: string) => {
+    const { serverUrl, socket: existingSocket } = get()
+    if (existingSocket) {
+      existingSocket.close()
+    }
 
-    const wsUrl = `${serverUrl}/ws/${roomId}`
+    const activeServerUrl = serverUrlOverride || serverUrl
+
+    const wsUrl = `${activeServerUrl}/ws/${roomId}`
     const socket = new WebSocket(wsUrl)
+    set({ socket, connectionStatus: 'connecting', connectionError: null, serverUrl: activeServerUrl })
 
     socket.onopen = () => {
+      if (get().socket !== socket) {
+        socket.close()
+        return
+      }
       set({ socket, connectionStatus: 'connected', roomId })
       const joinMsg: ClientMessage = {
         type: 'join',
@@ -117,12 +132,20 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     }
 
     socket.onclose = () => {
-      set({ connectionStatus: 'disconnected', socket: null })
+      if (get().socket === socket) {
+        set({ connectionStatus: 'disconnected', socket: null })
+      }
     }
 
     socket.onerror = (error) => {
       console.error('[Multiplayer] WebSocket error:', error)
-      set({ connectionStatus: 'disconnected', socket: null })
+      if (get().socket === socket) {
+        set({
+          connectionStatus: 'disconnected',
+          connectionError: `Could not connect to ${activeServerUrl}. Verify the room server is running and this room still exists.`,
+          socket: null,
+        })
+      }
     }
   },
 
@@ -154,7 +177,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         }
         // The local player is the last one in the list (just joined)
         const localPlayerId = msg.players[msg.players.length - 1]?.id || null
-        set({ players, dice, localPlayerId })
+        const pendingInventoryDieIds = removeResolvedPendingInventoryIds(
+          get().pendingInventoryDieIds,
+          msg.dice,
+          localPlayerId,
+        )
+        set({ players, dice, pendingInventoryDieIds, localPlayerId })
         break
       }
 
@@ -180,7 +208,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         for (const d of msg.dice) {
           newDice.set(d.id, diceStateToMultiplayerDie(d))
         }
-        set({ dice: newDice })
+        const pendingInventoryDieIds = removeResolvedPendingInventoryIds(
+          get().pendingInventoryDieIds,
+          msg.dice,
+          get().localPlayerId,
+        )
+        set({ dice: newDice, pendingInventoryDieIds })
         break
       }
 
@@ -255,6 +288,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             msg.diceId,
             msg.faceValue,
             die.diceType,
+            die.presentation,
           )
         }
         break
@@ -270,6 +304,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             value: r.faceValue,
             type: r.diceType.toString(),
             settledAt: now,
+            presentation: r.presentation,
           }))
           const sum = dice.reduce((acc, d) => acc + d.value, 0)
 
@@ -289,17 +324,38 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
       case 'error': {
         console.error(`[Multiplayer] Server error: ${msg.code} - ${msg.message}`)
+        if (get().pendingInventoryDieIds.size > 0) {
+          set({ pendingInventoryDieIds: new Set<string>() })
+        }
         break
       }
     }
   },
 
-  spawnDice: (diceType: DiceShape) => {
-    const id = `${diceType}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-    get().sendMessage({
+  spawnDice: (diceType: DiceShape, presentation?: DicePresentationMetadata) => {
+    const { connectionStatus, dice, localPlayerId, pendingInventoryDieIds, socket } = get()
+    if (!socket || connectionStatus !== 'connected') {
+      return
+    }
+
+    const inventoryDieId = presentation?.inventoryDieId
+    if (inventoryDieId) {
+      const inventoryDieAlreadyOwned = Array.from(dice.values()).some((die) => (
+        die.presentation?.inventoryDieId === inventoryDieId
+        && (!localPlayerId || die.ownerId === localPlayerId)
+      ))
+      if (pendingInventoryDieIds.has(inventoryDieId) || inventoryDieAlreadyOwned) {
+        console.warn(`[Multiplayer] Inventory die ${inventoryDieId} is already pending or on the table`)
+        return
+      }
+      set({ pendingInventoryDieIds: new Set(pendingInventoryDieIds).add(inventoryDieId) })
+    }
+
+    const id = createDiceSpawnId(inventoryDieId ?? diceType)
+    socket.send(JSON.stringify({
       type: 'spawn_dice',
-      dice: [{ id, diceType }],
-    })
+      dice: [{ id, diceType, presentation }],
+    }))
   },
 
   removeDice: (diceIds: string[]) => {
@@ -343,11 +399,40 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   },
 }))
 
+function createDiceSpawnId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function removeResolvedPendingInventoryIds(
+  pendingInventoryDieIds: Set<string>,
+  dice: DiceState[],
+  localPlayerId: string | null,
+): Set<string> {
+  if (pendingInventoryDieIds.size === 0) {
+    return pendingInventoryDieIds
+  }
+
+  const resolvedInventoryDieIds = new Set(
+    dice
+      .filter((die) => !localPlayerId || die.ownerId === localPlayerId)
+      .map((die) => die.presentation?.inventoryDieId)
+      .filter((id): id is string => Boolean(id)),
+  )
+  if (resolvedInventoryDieIds.size === 0) {
+    return pendingInventoryDieIds
+  }
+
+  return new Set(
+    Array.from(pendingInventoryDieIds).filter((id) => !resolvedInventoryDieIds.has(id)),
+  )
+}
+
 function diceStateToMultiplayerDie(d: DiceState): MultiplayerDie {
   return {
     id: d.id,
     ownerId: d.ownerId,
     diceType: d.diceType,
+    presentation: d.presentation,
     position: d.position,
     rotation: d.rotation,
     targetPosition: d.position,

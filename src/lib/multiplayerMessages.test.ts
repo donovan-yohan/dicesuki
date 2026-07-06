@@ -29,6 +29,33 @@ describe('multiplayerMessages', () => {
       expect(msg.type).toBe('spawn_dice')
     })
 
+    it('should type-check a spawn_dice message with inventory presentation metadata', () => {
+      const msg: ClientMessage = {
+        type: 'spawn_dice',
+        dice: [
+          {
+            id: 'die_lucky_d20-1',
+            diceType: 'd20',
+            presentation: {
+              inventoryDieId: 'die_lucky_d20',
+              displayName: 'Lucky D20',
+              setId: 'starter',
+              rarity: 'rare',
+              baseColor: '#8b5cf6',
+              accentColor: '#ffffff',
+              material: 'plastic',
+              customAssetId: 'asset_lucky_d20',
+              customAssetName: 'Lucky Mesh',
+              unsupportedReason: 'Custom GLB assets are local-only in multiplayer; using generic server physics.',
+            },
+          },
+        ],
+      }
+
+      expect(msg.dice[0].presentation?.inventoryDieId).toBe('die_lucky_d20')
+      expect(msg.dice[0].presentation?.baseColor).toBe('#8b5cf6')
+    })
+
     it('should type-check a roll message', () => {
       const msg: ClientMessage = { type: 'roll' }
       expect(msg.type).toBe('roll')
@@ -87,6 +114,17 @@ describe('multiplayerMessages', () => {
       const json = '{"type":"roll_complete","playerId":"p1","results":[{"diceId":"d1","diceType":"d20","faceValue":17}],"total":17}'
       const msg: ServerMessage = JSON.parse(json)
       expect(msg.type).toBe('roll_complete')
+    })
+
+    it('should parse dice presentation metadata from server messages', () => {
+      const json = '{"type":"dice_spawned","ownerId":"p1","dice":[{"id":"d1","ownerId":"p1","diceType":"d20","position":[0,1,0],"rotation":[0,0,0,1],"presentation":{"inventoryDieId":"die_lucky_d20","displayName":"Lucky D20","baseColor":"#8b5cf6"}}]}'
+      const msg: ServerMessage = JSON.parse(json)
+
+      expect(msg.type).toBe('dice_spawned')
+      if (msg.type === 'dice_spawned') {
+        expect(msg.dice[0].presentation?.inventoryDieId).toBe('die_lucky_d20')
+        expect(msg.dice[0].presentation?.displayName).toBe('Lucky D20')
+      }
     })
   })
 })

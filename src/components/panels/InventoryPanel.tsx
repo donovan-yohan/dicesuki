@@ -10,6 +10,7 @@ import { BottomSheet } from './BottomSheet'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import { InventoryDie, DieRarity } from '../../types/inventory'
+import type { Theme } from '../../themes/tokens'
 
 interface InventoryPanelProps {
   isOpen: boolean
@@ -417,7 +418,7 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie }: InventoryPanelPr
 interface DieCardPlaceholderProps {
   die: InventoryDie
   onClick: () => void
-  theme: any
+  theme: Theme
 }
 
 function DieCardPlaceholder({ die, onClick, theme }: DieCardPlaceholderProps) {
@@ -492,7 +493,7 @@ function DieCardPlaceholder({ die, onClick, theme }: DieCardPlaceholderProps) {
 // Helper Functions
 // ============================================================================
 
-function getRarityColor(rarity: DieRarity, theme: any): string {
+function getRarityColor(rarity: DieRarity, theme: Theme): string {
   const rarityColors: Record<DieRarity, string> = {
     common: theme.tokens.colors.text.secondary,
     uncommon: '#1eff00',

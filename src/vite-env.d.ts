@@ -2,7 +2,10 @@
 
 interface ImportMetaEnv {
   readonly VITE_APP_TITLE: string
-  // Add other env variables here as needed
+  readonly VITE_MULTIPLAYER_SERVER_URL?: string
+  readonly VITE_MULTIPLAYER_SERVER_HTTP_URL?: string
+  readonly VITE_LOCAL_ROOM_SERVER_URL?: string
+  readonly VITE_LOCAL_ROOM_SERVER_HTTP_URL?: string
 }
 
 interface ImportMeta {

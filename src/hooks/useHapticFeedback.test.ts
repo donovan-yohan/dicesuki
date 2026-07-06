@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
+import { useUIStore } from '../store/useUIStore'
+import { HAPTIC_THROTTLE_MS } from '../config/physicsConfig'
 
 // Mock the haptics module before importing the hook
 const vibrateMock = vi.fn()
@@ -21,13 +23,14 @@ describe('useHapticFeedback', () => {
   beforeEach(() => {
     // Clear localStorage
     localStorage.clear()
+    useUIStore.setState({ hapticEnabled: true })
 
     // Reset mocks
     vibrateMock.mockClear()
     isHapticsSupportedMock.mockReturnValue(true)
 
     // Mock performance.now for throttling
-    vi.useFakeTimers({ toFake: ['performance'] })
+    vi.useFakeTimers()
   })
 
   afterEach(() => {
@@ -44,6 +47,7 @@ describe('useHapticFeedback', () => {
 
     it('should restore enabled state from localStorage', () => {
       localStorage.setItem('hapticFeedbackEnabled', 'false')
+      useUIStore.setState({ hapticEnabled: false })
 
       const { result } = renderHook(() => useHapticFeedback())
 
@@ -144,7 +148,7 @@ describe('useHapticFeedback', () => {
       expect(vibrateMock).not.toHaveBeenCalled()
     })
 
-    it('should throttle vibrations within 50ms', () => {
+    it('should throttle vibrations within the configured throttle window', () => {
       const { result } = renderHook(() => useHapticFeedback())
 
       act(() => {
@@ -167,9 +171,9 @@ describe('useHapticFeedback', () => {
 
       expect(vibrateMock).toHaveBeenCalledTimes(1)
 
-      // Advance time by 51ms (past throttle period)
+      // Advance past the configured throttle period
       act(() => {
-        vi.advanceTimersByTime(51)
+        vi.advanceTimersByTime(HAPTIC_THROTTLE_MS + 1)
       })
 
       act(() => {

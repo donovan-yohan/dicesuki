@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import React from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, type ThreeEvent } from '@react-three/fiber'
 import { useDiceInteraction } from './useDiceInteraction'
 import type { RapierRigidBody } from '@react-three/rapier'
 import * as THREE from 'three'
@@ -21,7 +21,7 @@ const createMockPointerEvent = (
   clientX: number,
   clientY: number,
   pointerId: number = 1
-): any => ({
+): ThreeEvent<PointerEvent> => ({
   clientX,
   clientY,
   pointerId,
@@ -41,7 +41,7 @@ const createMockPointerEvent = (
     }
   },
   stopPropagation: vi.fn()
-})
+} as unknown as ThreeEvent<PointerEvent>)
 
 // SKIPPED: These tests are for the old drag/throw mechanism.
 // The new implementation uses velocity-based following with:
@@ -354,7 +354,11 @@ describe.skip('useDiceInteraction', () => {
 
       const releasePointerCapture = vi.fn()
       const downEvent = createMockPointerEvent(100, 100, 1)
-      downEvent.nativeEvent.target.releasePointerCapture = releasePointerCapture
+      const target = downEvent.nativeEvent.target as (EventTarget & {
+        releasePointerCapture: (pointerId: number) => void
+      }) | null
+      if (!target) throw new Error('Expected mock pointer event target')
+      target.releasePointerCapture = releasePointerCapture
 
       act(() => {
         result.current.onPointerDown(downEvent, mockRigidBody, 'test-dice-1')

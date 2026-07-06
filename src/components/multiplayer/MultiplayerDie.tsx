@@ -8,11 +8,13 @@ import { getFaceRendererForShape } from '../../lib/faceRenderers'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { type RenderDeviceTier, resolveDiceRenderLod } from '../../lib/renderLod'
+import type { DicePresentationMetadata } from '../../lib/multiplayerMessages'
 
 interface MultiplayerDieProps {
   dieId: string
   diceType: DiceShape
   color: string
+  presentation?: DicePresentationMetadata
   tRef: MutableRefObject<number>
   isOwnedByLocalPlayer: boolean
   renderDeviceTier?: RenderDeviceTier
@@ -23,6 +25,7 @@ export function MultiplayerDie({
   dieId,
   diceType,
   color,
+  presentation,
   tRef,
   isOwnedByLocalPlayer,
   renderDeviceTier = 'high',
@@ -48,7 +51,7 @@ export function MultiplayerDie({
 
   const materials = useDiceMaterials({
     shape: diceType,
-    color,
+    color: presentation?.baseColor ?? color,
     roughness: 0.7,
     metalness: 0.1,
     faceRenderer: getFaceRendererForShape(diceType),
@@ -107,7 +110,7 @@ export function MultiplayerDie({
       material={materials}
       castShadow={lodPolicy.castShadow}
       receiveShadow={lodPolicy.receiveShadow}
-      userData={{ renderLod: lodPolicy }}
+      userData={{ renderLod: lodPolicy, dicePresentation: presentation }}
       onPointerDown={isOwnedByLocalPlayer ? handlePointerDown : undefined}
       onPointerEnter={isOwnedByLocalPlayer ? handlePointerEnter : undefined}
       onPointerLeave={handlePointerLeave}

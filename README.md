@@ -15,6 +15,12 @@ npm install
 # Start development server
 npm run dev
 
+# Start the app with the local loopback room server for offline solo play
+npm run dev:local-room
+
+# Run the local loopback browser smoke (starts the room server itself)
+npm run test:e2e:local-room
+
 # Build for production
 npm run build
 
@@ -118,6 +124,20 @@ daisu-app/
 - 30fps with 6 dice (max)
 
 ## 🔧 Development
+
+### Local Loopback Room Server
+
+`npm run dev:local-room` starts Vite, the dice manifest watcher, and the Rust room server on `127.0.0.1:8080` for the offline-equivalent solo path. In Settings, use **Open Local Solo Room**; the app checks `/health`, creates an implicit solo room, and auto-joins it.
+
+Room server config is split by mode:
+- Public multiplayer: `VITE_MULTIPLAYER_SERVER_URL` / `VITE_MULTIPLAYER_SERVER_HTTP_URL`
+- Local loopback: `VITE_LOCAL_ROOM_SERVER_URL` / `VITE_LOCAL_ROOM_SERVER_HTTP_URL`
+
+If the local server is not running or another process answers on the loopback port, the Settings panel shows the exact start command and retry path instead of leaving the user on a loader.
+
+### Local Loopback Browser Smoke
+
+`npm run test:e2e:local-room` runs `e2e/local-loopback-room.spec.ts` with Vite on `127.0.0.1:18181` and the room server pointed at `127.0.0.1:18180`. The spec first verifies the unavailable loopback UI from `/`, then starts the Rust room server on that port, creates a solo room through the Settings action, auto-joins over WebSocket, waits for `room_state`, and spawns one die through the multiplayer backend. Override `PLAYWRIGHT_TEST_PORT` if the Vite port is occupied; override `DICESUKI_ROOM_TEST_PORT` plus both `VITE_LOCAL_ROOM_SERVER_*` URLs together if `18180` is occupied.
 
 ### Performance Monitoring
 
