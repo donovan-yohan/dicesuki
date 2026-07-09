@@ -33,6 +33,7 @@ import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
+import { isDiceOutsideEscapeBounds } from '../../lib/diceEscapeBounds'
 import { getDiceFaceValue } from '../../lib/geometries'
 import { useUIStore } from '../../store/useUIStore'
 import { CustomDiceAsset } from '../../types/customDice'
@@ -133,38 +134,46 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
     const scale = metadata?.scale || 1.0
     const diceType = metadata?.diceType || 'd6'
 
+    const resetToInitialPosition = useCallback((randomizeRotation = false) => {
+      if (!rigidBodyRef.current) return
+
+      cancelDrag()
+
+      rigidBodyRef.current.setTranslation(
+        {
+          x: initialPositionRef.current[0],
+          y: initialPositionRef.current[1],
+          z: initialPositionRef.current[2],
+        },
+        true,
+      )
+
+      const quaternion = randomizeRotation
+        ? new THREE.Quaternion().setFromEuler(new THREE.Euler(
+            Math.random() * Math.PI * 2,
+            Math.random() * Math.PI * 2,
+            Math.random() * Math.PI * 2,
+          ))
+        : new THREE.Quaternion()
+
+      rigidBodyRef.current.setRotation(
+        { x: quaternion.x, y: quaternion.y, z: quaternion.z, w: quaternion.w },
+        true,
+      )
+      rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true)
+      rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true)
+
+      resetFaceDetection()
+      hasNotifiedRef.current = false
+      pendingNotificationRef.current = null
+    }, [cancelDrag, resetFaceDetection])
 
     // Expose imperative handle (same as standard Dice)
     useImperativeHandle(ref, () => ({
       applyImpulse: (impulse: THREE.Vector3) => {
         if (!rigidBodyRef.current) return
 
-        cancelDrag()
-
-        // Reset dice to initial position with random rotation
-        rigidBodyRef.current.setTranslation(
-          {
-            x: initialPositionRef.current[0],
-            y: initialPositionRef.current[1],
-            z: initialPositionRef.current[2],
-          },
-          true,
-        )
-
-        const randomRotation = new THREE.Euler(
-          Math.random() * Math.PI * 2,
-          Math.random() * Math.PI * 2,
-          Math.random() * Math.PI * 2,
-        )
-        const quaternion = new THREE.Quaternion().setFromEuler(randomRotation)
-
-        rigidBodyRef.current.setRotation(
-          { x: quaternion.x, y: quaternion.y, z: quaternion.z, w: quaternion.w },
-          true,
-        )
-
-        rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true)
-        rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true)
+        resetToInitialPosition(true)
 
         rigidBodyRef.current.applyImpulse(
           { x: impulse.x, y: impulse.y, z: impulse.z },
@@ -180,9 +189,6 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
           { x: angularImpulse.x, y: angularImpulse.y, z: angularImpulse.z },
           true,
         )
-
-        resetFaceDetection()
-        hasNotifiedRef.current = false
       },
 
       applyRollImpulse: (impulse: THREE.Vector3) => {
@@ -219,26 +225,9 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
       },
 
       reset: () => {
-        if (!rigidBodyRef.current) return
-
-        cancelDrag()
-
-        rigidBodyRef.current.setTranslation(
-          {
-            x: initialPositionRef.current[0],
-            y: initialPositionRef.current[1],
-            z: initialPositionRef.current[2],
-          },
-          true,
-        )
-        rigidBodyRef.current.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true)
-        rigidBodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true)
-        rigidBodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true)
-
-        resetFaceDetection()
-        hasNotifiedRef.current = false
+        resetToInitialPosition()
       },
-    }))
+    }), [diceType, faceNormals, resetFaceDetection, resetToInitialPosition])
 
     // Reset notification flag when dice moves
     useEffect(() => {
@@ -301,6 +290,12 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
     // Physics loop
     useFrame(() => {
       if (!rigidBodyRef.current) return
+
+      const position = rigidBodyRef.current.translation()
+      if (isDiceOutsideEscapeBounds(position)) {
+        resetToInitialPosition()
+        return
+      }
 
       const velocity = rigidBodyRef.current.linvel()
       const angularVelocity = rigidBodyRef.current.angvel()

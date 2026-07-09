@@ -45,11 +45,12 @@ import { useUIStore } from '../store/useUIStore'
 // Components
 import { CustomDice } from './dice/CustomDice'
 import { Dice, DiceHandle } from './dice/Dice'
-import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, RollTray, UIToggleMini, type RollTrayDie } from './layout'
+import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
 import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
 import { PlayerPanel } from './multiplayer/PlayerPanel'
 import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
+import type { TableDieSummary } from '../types/tableDice'
 
 /**
  * Shared styles for top-right corner buttons
@@ -90,12 +91,12 @@ function getRenderDeviceTierOverride(): RenderDeviceTier | null {
 function RenderLodDebugOverlay({
   isVisible,
   deviceTier,
-  trayDiceCount,
+  tableDiceCount,
   isMultiplayer,
 }: {
   isVisible: boolean
   deviceTier: RenderDeviceTier
-  trayDiceCount: number
+  tableDiceCount: number
   isMultiplayer: boolean
 }) {
   if (!isVisible) return null
@@ -116,7 +117,7 @@ function RenderLodDebugOverlay({
       style={{ pointerEvents: 'none' }}
     >
       <div className="mb-1 text-xs font-bold uppercase tracking-wide text-orange-300">
-        render lod · {deviceTier} · {isMultiplayer ? 'multiplayer' : 'local'} · tray {trayDiceCount}
+        render lod · {deviceTier} · {isMultiplayer ? 'multiplayer' : 'local'} · table {tableDiceCount}
       </div>
       <div className="grid grid-cols-[72px_1fr] gap-x-2 gap-y-0.5">
         {policies.map((policy) => {
@@ -328,7 +329,7 @@ function ViewportBoundaries() {
   const distance = camera.position.y || 15 // Camera height (dynamically read, fallback to 15)
   const { width, height } = getCameraFrustumDimensions(perspectiveCamera, distance, aspect)
 
-  // Tighter bounds - reduce margin to create a more confined dice tray
+  // Tighter bounds - reduce margin to create a more confined dice table
   const margin = -0.05 // Negative margin to make space tighter than viewport
   const bounds = {
     left: -(width / 2) * (1 + margin),
@@ -342,6 +343,7 @@ function ViewportBoundaries() {
   const wallThickness = 0.3
   const wallHeight = env.walls.height || 6 // Use theme's wall height or default to 6
   const wallY = wallHeight / 2 // Center Y position for walls
+  const ceilingY = Math.max(6, wallHeight + wallThickness / 2)
 
   return (
     <>
@@ -408,14 +410,21 @@ function ViewportBoundaries() {
         </>
       )}
 
-      {/* Ceiling - prevents dice from flying away when phone upside down */}
-      {env.ceiling.visible && (
-        <RigidBody type="fixed" position={[0, 6, 0]}>
-          <Box args={[bounds.width, wallThickness, bounds.height]}>
+      {/* Ceiling - always collides; only visible when a theme asks for it. */}
+      <RigidBody type="fixed" position={[0, ceilingY, 0]}>
+        <Box args={[bounds.width, wallThickness, bounds.height]}>
+          {env.ceiling.visible && env.ceiling.color ? (
+            <meshStandardMaterial
+              color={env.ceiling.color}
+              transparent
+              opacity={0.35}
+              depthWrite={false}
+            />
+          ) : (
             <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-          </Box>
-        </RigidBody>
-      )}
+          )}
+        </Box>
+      </RigidBody>
     </>
   )
 }
@@ -517,7 +526,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
   const { gravityRef } = useDeviceMotionRef()
   // Get requestPermission from state context
   const { requestPermission } = useDeviceMotionState()
-  const { isRolling, roll, onDiceRest, onDiceMoving } = useDiceRoll()
+  const { roll, onDiceRest, onDiceMoving } = useDiceRoll()
 
   // Subscribe to dice manager store (local physics dice)
   const dice = useDiceManagerStore((state) => state.dice)
@@ -550,7 +559,6 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isPlayerPanelOpen, setIsPlayerPanelOpen] = useState(false)
   const [inspectedInventoryDieId, setInspectedInventoryDieId] = useState<string | null>(null)
-  const [isInventoryDragActive, setIsInventoryDragActive] = useState(false)
   const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>('high')
   const [showRenderLodDebug, setShowRenderLodDebug] = useState(false)
   const detectedRenderDeviceTierRef = useRef<RenderDeviceTier | null>(null)
@@ -685,14 +693,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
     [activeBackend]
   )
 
-  const handleAddGenericDice = useCallback(
-    (type: DiceShape) => {
-      activeBackend.addGenericDie(type)
-    },
-    [activeBackend]
-  )
-
-  const trayDice = useMemo<RollTrayDie[]>(() => {
+  const tableDice = useMemo<TableDieSummary[]>(() => {
     if (isMultiplayer) {
       return Array.from(multiplayerDice.values())
         .filter((die) => !localPlayerId || die.ownerId === localPlayerId)
@@ -868,7 +869,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       <RenderLodDebugOverlay
         isVisible={showRenderLodDebug}
         deviceTier={renderDeviceTier}
-        trayDiceCount={isMultiplayer ? useMultiplayerStore.getState().dice.size : dice.length}
+        tableDiceCount={isMultiplayer ? useMultiplayerStore.getState().dice.size : dice.length}
         isMultiplayer={isMultiplayer}
       />
 
@@ -888,8 +889,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       {/* Center Roll Button - elevated above nav */}
       <CenterRollButton
         onClick={activeBackend.roll}
-        isRolling={isRolling}
-        disabled={trayDice.length === 0 || isRolling}
+        disabled={tableDice.length === 0}
       />
 
       {/* Top-Left Corner: Settings */}
@@ -902,35 +902,11 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
         ⚙️
       </CornerIcon>
 
-      {/* Top-Right (Upper): Inventory */}
+      {/* Top-Right: My Dice Rolls */}
       <div
         className="fixed z-40"
         style={{
           top: '16px',
-          right: '16px',
-          pointerEvents: isUIVisible ? 'auto' : 'none'
-        }}
-      >
-        <button
-          onClick={() => setIsInventoryOpen(true)}
-          className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
-          style={{
-            ...TOP_RIGHT_BUTTON_STYLES,
-            opacity: isUIVisible ? 1 : 0,
-            transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
-          }}
-          aria-label="Inventory"
-          title="Dice Collection"
-        >
-          💎
-        </button>
-      </div>
-
-      {/* Top-Right (Lower): My Dice Rolls */}
-      <div
-        className="fixed z-40"
-        style={{
-          top: '80px',
           right: '16px',
           pointerEvents: isUIVisible ? 'auto' : 'none'
         }}
@@ -955,7 +931,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
         <div
           className="fixed z-40"
           style={{
-            top: '144px',
+            top: '80px',
             right: '16px',
             pointerEvents: isUIVisible ? 'auto' : 'none'
           }}
@@ -983,18 +959,11 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       <DiceToolbar
         isOpen={isDiceManagerOpen}
         onAddDice={handleAddDice}
-        onClearAll={activeBackend.clearAll}
-      />
-
-      <RollTray
-        dice={trayDice}
-        isVisible={isUIVisible && !isSavedRollsOpen && (!isInventoryOpen || isInventoryDragActive)}
-        onAddGenericDie={handleAddGenericDice}
-        onAddSpecificDie={handleAddDice}
-        onRemoveDie={activeBackend.removeDie}
-        onClearAll={activeBackend.clearAll}
-        onOpenInventory={() => setIsInventoryOpen(true)}
-        onInspectDie={setInspectedInventoryDieId}
+        onClearAllDice={activeBackend.clearAll}
+        onOpenInventory={() => {
+          setIsInventoryOpen(true)
+          setIsDiceManagerOpen(false)
+        }}
       />
 
       {/* THEMED PANELS */}
@@ -1006,17 +975,15 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       <SavedRollsPanel
         isOpen={isSavedRollsOpen}
         onClose={() => setIsSavedRollsOpen(false)}
-        trayDice={trayDice}
+        tableDice={tableDice}
       />
 
       <InventoryPanel
         isOpen={isInventoryOpen}
         onClose={() => {
           setIsInventoryOpen(false)
-          setIsInventoryDragActive(false)
         }}
         onSpawnDie={handleAddDice}
-        onInventoryDragStateChange={setIsInventoryDragActive}
       />
 
       <SettingsPanel

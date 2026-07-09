@@ -122,23 +122,17 @@ fn get_dice_vertices(dice_type: DiceType) -> Vec<Point<f32>> {
             ]
         }
         DiceType::D10 => {
-            // Pentagonal trapezohedron (simplified as vertices)
-            let mut verts = Vec::new();
-            let top = s * 0.8;
-            let bot = -s * 0.8;
-            let mid_top = s * 0.3;
-            let mid_bot = -s * 0.3;
-            let r = s * 0.9;
-            for i in 0..5_i32 {
-                // i is in [0,4], f64::from is infallible; f64->f32 truncation is acceptable here
+            // Match the client pentagonal trapezohedron vertices in
+            // src/lib/geometries.ts so the server collider rests on the same
+            // face planes the client renders and labels.
+            let mut verts = vec![point![0.0, s, 0.0], point![0.0, -s, 0.0]];
+            let altitude = (std::f32::consts::PI / 10.0).tan().powi(2) * s;
+            for i in 0..10_i32 {
                 #[allow(clippy::cast_possible_truncation)]
-                let angle = (f64::from(i) as f32) * std::f32::consts::TAU / 5.0;
-                let offset_angle = angle + std::f32::consts::TAU / 10.0;
-                verts.push(point![angle.cos() * r, mid_top, angle.sin() * r]);
-                verts.push(point![offset_angle.cos() * r, mid_bot, offset_angle.sin() * r]);
+                let angle = (f64::from(i) as f32) * std::f32::consts::TAU / 10.0;
+                let y = if i % 2 == 0 { -altitude } else { altitude };
+                verts.push(point![-angle.cos() * s, y, -angle.sin() * s]);
             }
-            verts.push(point![0.0, top, 0.0]);
-            verts.push(point![0.0, bot, 0.0]);
             verts
         }
         DiceType::D12 => {
@@ -231,16 +225,16 @@ pub fn get_face_normals(dice_type: DiceType) -> Vec<DiceFace> {
             // Upper kites (0-4): values [0, 2, 4, 6, 8]
             // Lower kites (5-9): values [3, 1, 9, 7, 5]
             vec![
-                DiceFace { value: 0, normal: Vector3::new(-0.741_456, 0.671_001, -0.001_183).normalize() },
-                DiceFace { value: 2, normal: Vector3::new(-0.227_997, 0.671_001, -0.705_532).normalize() },
-                DiceFace { value: 4, normal: Vector3::new(0.600_546, 0.671_001, -0.434_860).normalize() },
-                DiceFace { value: 6, normal: Vector3::new(0.599_155, 0.671_001, 0.436_774).normalize() },
-                DiceFace { value: 8, normal: Vector3::new(-0.230_247, 0.671_001, 0.704_801).normalize() },
-                DiceFace { value: 3, normal: Vector3::new(-0.599_155, -0.671_001, -0.436_774).normalize() },
-                DiceFace { value: 1, normal: Vector3::new(0.230_247, -0.671_001, -0.704_801).normalize() },
-                DiceFace { value: 9, normal: Vector3::new(0.741_456, -0.671_001, 0.001_183).normalize() },
-                DiceFace { value: 7, normal: Vector3::new(0.227_997, -0.671_001, 0.705_532).normalize() },
-                DiceFace { value: 5, normal: Vector3::new(-0.600_546, -0.671_001, 0.434_860).normalize() },
+                DiceFace { value: 0, normal: Vector3::new(-0.741_629, 0.670_810, 0.0).normalize() },
+                DiceFace { value: 2, normal: Vector3::new(-0.229_176, 0.670_810, -0.705_331).normalize() },
+                DiceFace { value: 4, normal: Vector3::new(0.599_991, 0.670_810, -0.435_919).normalize() },
+                DiceFace { value: 6, normal: Vector3::new(0.599_991, 0.670_810, 0.435_919).normalize() },
+                DiceFace { value: 8, normal: Vector3::new(-0.229_176, 0.670_810, 0.705_331).normalize() },
+                DiceFace { value: 3, normal: Vector3::new(-0.599_991, -0.670_810, -0.435_919).normalize() },
+                DiceFace { value: 1, normal: Vector3::new(0.229_176, -0.670_810, -0.705_331).normalize() },
+                DiceFace { value: 9, normal: Vector3::new(0.741_629, -0.670_810, 0.0).normalize() },
+                DiceFace { value: 7, normal: Vector3::new(0.229_176, -0.670_810, 0.705_331).normalize() },
+                DiceFace { value: 5, normal: Vector3::new(-0.599_991, -0.670_810, 0.435_919).normalize() },
             ]
         }
         DiceType::D12 => {

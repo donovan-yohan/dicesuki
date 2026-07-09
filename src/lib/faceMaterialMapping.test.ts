@@ -244,6 +244,46 @@ describe('Face Material Mapping', () => {
       const usedIndices = new Set(declaredMapping)
       expect(usedIndices.size).toBe(10)
     })
+
+    it('d10 material groups are planar and match face detection normals', () => {
+      const geometry = createD10Geometry(1)
+      const posAttr = geometry.getAttribute('position')
+      const indexAttr = geometry.getIndex()
+      expect(indexAttr).not.toBeNull()
+
+      const faceNormals = getFaceNormals('d10')
+      const materialValueByKite = new Map<number, number>()
+      FACE_MATERIAL_MAPS.d10.forEach((kiteIndex, faceValue) => {
+        materialValueByKite.set(kiteIndex, faceValue)
+      })
+
+      for (let kiteIndex = 0; kiteIndex < 10; kiteIndex += 1) {
+        const triNormals: THREE.Vector3[] = []
+
+        for (let triangleOffset = 0; triangleOffset < 2; triangleOffset += 1) {
+          const triangleIndex = kiteIndex * 2 + triangleOffset
+          const i0 = indexAttr!.getX(triangleIndex * 3)
+          const i1 = indexAttr!.getX(triangleIndex * 3 + 1)
+          const i2 = indexAttr!.getX(triangleIndex * 3 + 2)
+          const v0 = new THREE.Vector3().fromBufferAttribute(posAttr, i0)
+          const v1 = new THREE.Vector3().fromBufferAttribute(posAttr, i1)
+          const v2 = new THREE.Vector3().fromBufferAttribute(posAttr, i2)
+          triNormals.push(
+            new THREE.Vector3()
+              .crossVectors(v1.clone().sub(v0), v2.clone().sub(v0))
+              .normalize()
+          )
+        }
+
+        expect(triNormals[0].dot(triNormals[1])).toBeGreaterThan(0.999)
+
+        const faceValue = materialValueByKite.get(kiteIndex)
+        expect(faceValue).toBeDefined()
+        const mappedFace = faceNormals.find(face => face.value === faceValue)
+        expect(mappedFace).toBeDefined()
+        expect(triNormals[0].dot(mappedFace!.normal)).toBeGreaterThan(0.999)
+      }
+    })
   })
 
   describe('Face normal rules (opposite faces sum)', () => {

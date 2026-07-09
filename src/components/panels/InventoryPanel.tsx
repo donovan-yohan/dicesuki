@@ -4,7 +4,7 @@
  * Main panel for viewing and managing the player's dice collection.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, ReactNode } from 'react'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload } from '../../lib/inventoryDrag'
@@ -14,6 +14,7 @@ import { useTheme } from '../../contexts/ThemeContext'
 import type { Theme } from '../../themes/tokens'
 import { BottomSheet } from './BottomSheet'
 import { HeroDieInspector } from './HeroDieInspector'
+import { SharedInventoryDicePreviewCanvas } from './SharedInventoryDicePreviewCanvas'
 
 interface InventoryPanelProps {
   isOpen: boolean
@@ -51,6 +52,8 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragSta
   const [hasHydratedInventory, setHasHydratedInventory] = useState(() => (
     useInventoryStore.persist.hasHydrated()
   ))
+  const previewHostRef = useRef<HTMLDivElement>(null)
+  const previewSlotRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   const { currentTheme } = useTheme()
   const { dice, getDevDice, removeAllDevDice } = useInventoryStore()
@@ -150,6 +153,14 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragSta
   const handleSpawnDie = (die: InventoryDie) => {
     onSpawnDie?.(die.type, die.id)
   }
+
+  const registerPreviewSlot = useCallback((dieId: string, element: HTMLElement | null) => {
+    if (element) {
+      previewSlotRefs.current.set(dieId, element)
+    } else {
+      previewSlotRefs.current.delete(dieId)
+    }
+  }, [])
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Dice Collection">
@@ -344,17 +355,25 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragSta
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-              {visibleDice.map(die => (
-                <InventoryDieCard
-                  key={die.id}
-                  die={die}
-                  theme={currentTheme}
-                  onSelect={() => setSelectedDie(die)}
-                  onSpawn={onSpawnDie ? () => handleSpawnDie(die) : undefined}
-                  onDragStateChange={onInventoryDragStateChange}
-                />
-              ))}
+            <div ref={previewHostRef} className="relative">
+              <SharedInventoryDicePreviewCanvas
+                dice={visibleDice}
+                hostRef={previewHostRef}
+                slotRefs={previewSlotRefs}
+              />
+              <div className="relative grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+                {visibleDice.map(die => (
+                  <InventoryDieCard
+                    key={die.id}
+                    die={die}
+                    theme={currentTheme}
+                    onSelect={() => setSelectedDie(die)}
+                    onSpawn={onSpawnDie ? () => handleSpawnDie(die) : undefined}
+                    onDragStateChange={onInventoryDragStateChange}
+                    registerPreviewSlot={registerPreviewSlot}
+                  />
+                ))}
+              </div>
             </div>
 
             {hasMoreDice && (
@@ -456,9 +475,17 @@ interface InventoryDieCardProps {
   onSelect: () => void
   onSpawn?: () => void
   onDragStateChange?: (isDragging: boolean) => void
+  registerPreviewSlot: (dieId: string, element: HTMLElement | null) => void
 }
 
-function InventoryDieCard({ die, theme, onSelect, onSpawn, onDragStateChange }: InventoryDieCardProps) {
+function InventoryDieCard({
+  die,
+  theme,
+  onSelect,
+  onSpawn,
+  onDragStateChange,
+  registerPreviewSlot,
+}: InventoryDieCardProps) {
   const rarityColor = getRarityColor(die.rarity, theme)
 
   return (
@@ -488,13 +515,20 @@ function InventoryDieCard({ die, theme, onSelect, onSpawn, onDragStateChange }: 
             border: `1px solid ${rarityColor}`,
           }}
         >
-          <InventoryDicePreview die={die} />
-          <div className="absolute left-2 top-2 flex gap-1">
+          <div
+            ref={(element) => registerPreviewSlot(die.id, element)}
+            data-testid="dice-preview"
+            data-preview-id={die.id}
+            role="img"
+            aria-label={`${die.name} 3D preview`}
+            className="absolute inset-0"
+          />
+          <div className="absolute left-2 top-2 z-20 flex gap-1">
             {die.isFavorite && <Badge label="Fav" theme={theme} />}
             {die.isLocked && <Badge label="Lock" theme={theme} />}
           </div>
           {die.isDev && (
-            <div className="absolute right-2 top-2">
+            <div className="absolute right-2 top-2 z-20">
               <Badge label="DEV" theme={theme} tone="danger" />
             </div>
           )}
@@ -548,49 +582,6 @@ function InventoryDieCard({ die, theme, onSelect, onSpawn, onDragStateChange }: 
         </div>
       )}
     </article>
-  )
-}
-
-function InventoryDicePreview({ die }: { die: InventoryDie }) {
-  const baseColor = normalizeHexColor(die.appearance.baseColor, '#f8fafc')
-  const accentColor = normalizeHexColor(die.appearance.accentColor, '#111827')
-  const highlightColor = shiftHexColor(baseColor, 46)
-  const shadowColor = shiftHexColor(baseColor, -54)
-  const midColor = shiftHexColor(baseColor, -18)
-  const gradientId = `inventory-die-gradient-${sanitizeSvgId(die.id)}`
-  const shadowId = `inventory-die-shadow-${sanitizeSvgId(die.id)}`
-
-  return (
-    <svg
-      data-testid="dice-preview"
-      role="img"
-      aria-label={`${die.name} preview`}
-      className="inventory-dice-preview-svg h-full w-full"
-      viewBox="0 0 120 120"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <defs>
-        <linearGradient id={gradientId} x1="22" y1="10" x2="98" y2="112" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor={highlightColor} />
-          <stop offset="52%" stopColor={baseColor} />
-          <stop offset="100%" stopColor={shadowColor} />
-        </linearGradient>
-        <filter id={shadowId} x="-30%" y="-30%" width="160%" height="160%">
-          <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="#000000" floodOpacity="0.35" />
-        </filter>
-      </defs>
-
-      <g className="inventory-dice-float" filter={`url(#${shadowId})`}>
-        {renderPreviewShape(die.type, {
-          gradientId,
-          accentColor,
-          highlightColor,
-          baseColor,
-          midColor,
-          shadowColor,
-        })}
-      </g>
-    </svg>
   )
 }
 
@@ -674,111 +665,6 @@ function handleInventoryDieDragStart(event: DragEvent<HTMLElement>, die: Invento
     name: die.name,
   }))
   event.dataTransfer.setData('text/plain', die.id)
-}
-
-interface PreviewShapeColors {
-  gradientId: string
-  accentColor: string
-  highlightColor: string
-  baseColor: string
-  midColor: string
-  shadowColor: string
-}
-
-function renderPreviewShape(shape: DiceShape, colors: PreviewShapeColors) {
-  const fill = `url(#${colors.gradientId})`
-  const stroke = colors.accentColor
-  const strokeProps = {
-    stroke,
-    strokeWidth: 2.4,
-    strokeLinejoin: 'round' as const,
-    strokeLinecap: 'round' as const,
-    vectorEffect: 'non-scaling-stroke' as const,
-  }
-
-  switch (shape) {
-    case 'd4':
-      return (
-        <>
-          <polygon points="60,14 104,98 16,98" fill={fill} {...strokeProps} />
-          <path d="M60 14 L60 98 M60 14 L38 98 M60 14 L82 98" fill="none" opacity="0.55" {...strokeProps} />
-          <polygon points="60,14 82,98 60,98" fill={colors.highlightColor} opacity="0.22" />
-        </>
-      )
-    case 'd6':
-      return (
-        <>
-          <polygon points="60,12 100,35 60,58 20,35" fill={colors.highlightColor} {...strokeProps} />
-          <polygon points="20,35 60,58 60,104 20,80" fill={colors.midColor} {...strokeProps} />
-          <polygon points="100,35 60,58 60,104 100,80" fill={colors.shadowColor} {...strokeProps} />
-          <path d="M60 12 L60 58 L60 104 M20 35 L60 58 L100 35" fill="none" opacity="0.42" {...strokeProps} />
-        </>
-      )
-    case 'd8':
-      return (
-        <>
-          <polygon points="60,10 106,60 60,110 14,60" fill={fill} {...strokeProps} />
-          <path d="M60 10 L60 110 M14 60 L106 60 M60 10 L88 60 L60 110 L32 60 Z" fill="none" opacity="0.48" {...strokeProps} />
-          <polygon points="60,10 106,60 60,60" fill={colors.highlightColor} opacity="0.28" />
-        </>
-      )
-    case 'd10':
-      return (
-        <>
-          <polygon points="60,8 96,34 92,80 60,112 28,80 24,34" fill={fill} {...strokeProps} />
-          <path d="M60 8 L60 112 M24 34 L60 56 L96 34 M28 80 L60 56 L92 80" fill="none" opacity="0.5" {...strokeProps} />
-          <polygon points="60,8 96,34 60,56 24,34" fill={colors.highlightColor} opacity="0.24" />
-        </>
-      )
-    case 'd12':
-      return (
-        <>
-          <polygon points="60,11 102,42 86,96 34,96 18,42" fill={fill} {...strokeProps} />
-          <polygon points="60,32 82,48 74,77 46,77 38,48" fill="none" opacity="0.62" {...strokeProps} />
-          <path d="M60 11 L60 32 M102 42 L82 48 M86 96 L74 77 M34 96 L46 77 M18 42 L38 48" fill="none" opacity="0.45" {...strokeProps} />
-        </>
-      )
-    case 'd20':
-      return (
-        <>
-          <polygon points="60,8 102,31 108,78 76,112 30,102 12,58 32,20" fill={fill} {...strokeProps} />
-          <path d="M60 8 L58 58 L102 31 M58 58 L108 78 M58 58 L76 112 M58 58 L30 102 M58 58 L12 58 M58 58 L32 20 M32 20 L102 31 M12 58 L30 102 L76 112 L108 78" fill="none" opacity="0.48" {...strokeProps} />
-          <polygon points="60,8 102,31 58,58 32,20" fill={colors.highlightColor} opacity="0.24" />
-        </>
-      )
-  }
-}
-
-function sanitizeSvgId(value: string) {
-  return value.replace(/[^a-zA-Z0-9_-]/g, '-')
-}
-
-function normalizeHexColor(value: string | undefined, fallback: string) {
-  if (!value) return fallback
-  const trimmed = value.trim()
-  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed
-  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
-    const [, r, g, b] = trimmed
-    return `#${r}${r}${g}${g}${b}${b}`
-  }
-  return fallback
-}
-
-function shiftHexColor(hex: string, amount: number) {
-  const normalized = normalizeHexColor(hex, '#ffffff').slice(1)
-  const value = Number.parseInt(normalized, 16)
-  const r = clampColor((value >> 16) + amount)
-  const g = clampColor(((value >> 8) & 0xff) + amount)
-  const b = clampColor((value & 0xff) + amount)
-  return `#${toHexPair(r)}${toHexPair(g)}${toHexPair(b)}`
-}
-
-function clampColor(value: number) {
-  return Math.max(0, Math.min(255, value))
-}
-
-function toHexPair(value: number) {
-  return value.toString(16).padStart(2, '0')
 }
 
 function getRarityColor(rarity: DieRarity, theme: Theme): string {

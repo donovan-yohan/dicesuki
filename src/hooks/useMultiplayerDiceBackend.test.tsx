@@ -53,6 +53,27 @@ describe('useMultiplayerDiceBackend', () => {
     expect(useMultiplayerStore.getState().pendingInventoryDieIds.has('owned-d20')).toBe(true)
   })
 
+  it('spawns a random available owned inventory die', () => {
+    addOwnedD20('owned-d20-a')
+    addOwnedD20('owned-d20-b')
+    vi.spyOn(Math, 'random').mockReturnValue(0.99)
+    const send = vi.fn()
+    useMultiplayerStore.setState({
+      connectionStatus: 'connected',
+      socket: { send } as unknown as WebSocket,
+      localPlayerId: 'p1',
+    })
+
+    const { result } = renderHook(() => useMultiplayerDiceBackend())
+
+    act(() => {
+      result.current.addDie('d20')
+    })
+
+    const payload = JSON.parse(send.mock.calls[0][0])
+    expect(payload.dice[0].presentation.inventoryDieId).toBe('owned-d20-b')
+  })
+
   it('blocks a rapid repeated explicit inventory die spawn before server acknowledgement', () => {
     addOwnedD20()
     const send = vi.fn()

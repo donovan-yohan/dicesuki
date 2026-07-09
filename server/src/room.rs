@@ -13,6 +13,7 @@ use crate::physics::{
     DRAG_FOLLOW_SPEED, DRAG_DISTANCE_BOOST, DRAG_DISTANCE_THRESHOLD,
     DRAG_ROLL_FACTOR, DRAG_SPIN_FACTOR,
     THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
+    ESCAPE_RESET_HALF_X, ESCAPE_RESET_HALF_Z, ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
 };
 use crate::dice::{create_dice_body, generate_roll_impulse, generate_roll_torque, generate_spawn_position};
 use crate::face_detection::detect_face_value;
@@ -131,6 +132,13 @@ impl From<(String, DiceType)> for DiceSpawnRequest {
             presentation: None,
         }
     }
+}
+
+fn is_outside_escape_bounds(position: [f32; 3]) -> bool {
+    position[0].abs() > ESCAPE_RESET_HALF_X
+        || position[2].abs() > ESCAPE_RESET_HALF_Z
+        || position[1] < ESCAPE_RESET_MIN_Y
+        || position[1] > ESCAPE_RESET_MAX_Y
 }
 
 pub struct Room {
@@ -389,7 +397,10 @@ impl Room {
         // 3. Clamp dice velocity (matching client MAX_DICE_VELOCITY)
         self.clamp_velocities();
 
-        // 4. Update cached positions/rotations from physics
+        // 4. Recover any dice that escaped the arena despite colliders/velocity caps
+        self.reset_escaped_dice();
+
+        // 5. Update cached positions/rotations from physics
         for die in self.dice.values_mut() {
             if let Some(handle) = die.body_handle {
                 if let Some(pos) = self.physics.get_position(handle) {
@@ -401,10 +412,10 @@ impl Room {
             }
         }
 
-        // 5. Build snapshot (snapshots sent every tick at 60Hz)
+        // 6. Build snapshot (snapshots sent every tick at 60Hz)
         let snapshot = self.build_physics_snapshot();
 
-        // 6. Check for newly settled dice
+        // 7. Check for newly settled dice
         let newly_settled = self.check_settled_dice();
 
         // Stop simulating if nothing is active
@@ -484,6 +495,32 @@ impl Room {
         for die in self.dice.values() {
             if let Some(handle) = die.body_handle {
                 self.physics.clamp_velocity(handle, MAX_DICE_VELOCITY);
+            }
+        }
+    }
+
+    /// Reset dice that tunnel far outside the arena back above the table.
+    fn reset_escaped_dice(&mut self) {
+        let escaped_ids: Vec<String> = self.dice.iter()
+            .filter_map(|(id, die)| {
+                let handle = die.body_handle?;
+                let position = self.physics.get_position(handle)?;
+                is_outside_escape_bounds(position).then(|| id.clone())
+            })
+            .collect();
+
+        for die_id in escaped_ids {
+            if let Some(die) = self.dice.get_mut(&die_id) {
+                let Some(handle) = die.body_handle else { continue };
+                let reset_position = generate_spawn_position();
+                self.physics.reset_body_to_position(handle, reset_position);
+                die.position = reset_position;
+                die.rotation = [0.0, 0.0, 0.0, 1.0];
+                die.face_value = None;
+                die.rest_start_tick = None;
+                die.drag_state = None;
+                die.is_rolling = true;
+                warn!("Reset escaped die {die_id} back into room {}", self.id);
             }
         }
     }
@@ -1191,6 +1228,29 @@ mod tests {
         // Snapshots are sent every tick at 60Hz
         let (snap1, _) = room.physics_tick();
         assert!(snap1.is_some(), "Every tick should produce a snapshot at 60Hz");
+    }
+
+    #[test]
+    fn test_physics_tick_resets_escaped_die() {
+        let mut room = Room::new("test".to_string());
+        let player = make_player("p1", "Gandalf");
+        room.add_player(player).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        room.physics.reset_body_to_position(handle, [ESCAPE_RESET_HALF_X + 1.0, 2.0, 0.0]);
+        room.dice.get_mut("d1").unwrap().position = [ESCAPE_RESET_HALF_X + 1.0, 2.0, 0.0];
+
+        let _ = room.physics_tick();
+
+        let die = room.dice.get("d1").unwrap();
+        assert!(
+            !is_outside_escape_bounds(die.position),
+            "Escaped die should be reset inside bounds, got {:?}",
+            die.position
+        );
+        assert!(die.is_rolling, "Reset die should continue through normal settling flow");
+        assert!(die.drag_state.is_none(), "Resetting an escaped die should cancel drag state");
     }
 
     #[test]

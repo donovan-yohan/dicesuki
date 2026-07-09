@@ -9,10 +9,11 @@ import { useState } from 'react'
 import { BottomSheet } from './BottomSheet'
 import { SavedRollCard } from './saved-rolls/SavedRollCard'
 import { RollBuilder } from './saved-rolls/RollBuilder'
-import type { RollTrayDie } from '../layout/RollTray'
+import type { TableDieSummary } from '../../types/tableDice'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
+import { createClientId } from '../../lib/clientId'
 import { spawnSpecificDie } from '../../lib/diceSpawner'
 import { expandDiceEntrySources } from '../../lib/rollSources'
 import { SavedRoll } from '../../types/savedRolls'
@@ -21,10 +22,10 @@ import { useTheme } from '../../contexts/ThemeContext'
 interface SavedRollsPanelProps {
   isOpen: boolean
   onClose: () => void
-  trayDice?: RollTrayDie[]
+  tableDice?: TableDieSummary[]
 }
 
-export function SavedRollsPanel({ isOpen, onClose, trayDice = [] }: SavedRollsPanelProps) {
+export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsPanelProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [view, setView] = useState<'list' | 'builder'>('list')
@@ -141,7 +142,7 @@ export function SavedRollsPanel({ isOpen, onClose, trayDice = [] }: SavedRollsPa
       // Create new roll
       addRoll({
         ...rollData,
-        id: crypto.randomUUID(),
+        id: createClientId('roll'),
         createdAt: Date.now(),
       })
     }
@@ -292,7 +293,7 @@ export function SavedRollsPanel({ isOpen, onClose, trayDice = [] }: SavedRollsPa
         // Builder View
         <RollBuilder
           initialRoll={editingRoll || undefined}
-          trayDice={trayDice}
+          tableDice={tableDice}
           onSave={handleSaveRoll}
           onCancel={handleCancelBuilder}
         />

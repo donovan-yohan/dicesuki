@@ -9,7 +9,7 @@ import { useInventoryStore } from '../../../store/useInventoryStore'
 import type { DiceShape } from '../../../types/diceShape'
 import type { NewInventoryDie } from '../../../types/inventory'
 import type { SavedRoll } from '../../../types/savedRolls'
-import type { RollTrayDie } from '../../layout/RollTray'
+import type { TableDieSummary } from '../../../types/tableDice'
 import { RollBuilder } from './RollBuilder'
 
 const makeDie = (overrides: Partial<NewInventoryDie> = {}): NewInventoryDie => ({
@@ -45,7 +45,7 @@ function makeDataTransfer(payload: string) {
 
 type SavedRollDraft = Omit<SavedRoll, 'id' | 'createdAt'>
 
-function renderBuilder(options: { initialRoll?: SavedRoll; trayDice?: RollTrayDie[] } = {}) {
+function renderBuilder(options: { initialRoll?: SavedRoll; tableDice?: TableDieSummary[] } = {}) {
   const onSave = vi.fn<(roll: SavedRollDraft) => void>()
   const onCancel = vi.fn()
 
@@ -103,19 +103,19 @@ describe('RollBuilder', () => {
     expect(getSpecificDieIds(saved.dice[0])).toEqual([die.id])
   })
 
-  it('imports current tray dice as grouped generic dice plus specific owned dice', () => {
+  it('imports current table dice as grouped generic dice plus specific owned dice', () => {
     const die = addNamedDie('Lucky D20', 'd20')
     const { onSave } = renderBuilder({
-      trayDice: [
+      tableDice: [
         { id: 'generic-d6-a', type: 'd6' },
         { id: 'generic-d6-b', type: 'd6' },
         { id: 'owned-d20', type: 'd20', inventoryDieId: die.id, displayName: die.name },
       ],
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /add tray/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add table/i }))
     fireEvent.change(screen.getByPlaceholderText(/roll name/i), {
-      target: { value: 'Tray recipe' },
+      target: { value: 'Table recipe' },
     })
     fireEvent.click(screen.getByRole('button', { name: /save roll/i }))
 
