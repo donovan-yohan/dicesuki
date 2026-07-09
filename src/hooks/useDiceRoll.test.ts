@@ -85,6 +85,28 @@ describe('useDiceRoll', () => {
       spy.mockRestore()
     })
 
+    it('preserves dice presentation metadata when a specific owned die settles', () => {
+      const { result } = renderHook(() => useDiceRoll())
+      const presentation = {
+        inventoryDieId: 'owned-d20',
+        displayName: 'Lucky D20',
+        setId: 'starter',
+        rarity: 'rare',
+      }
+
+      act(() => {
+        useDiceStore.getState().markDiceRolling(['dice-1'])
+      })
+
+      act(() => {
+        result.current.onDiceRest('dice-1', 20, 'd20', presentation)
+      })
+
+      const settled = useDiceStore.getState().settledDice.get('dice-1')
+      expect(settled?.presentation).toEqual(presentation)
+      expect(useDiceStore.getState().rollHistory[0].dice[0].presentation).toEqual(presentation)
+    })
+
     it('should add die to settledDice in the store', () => {
       const { result } = renderHook(() => useDiceRoll())
 

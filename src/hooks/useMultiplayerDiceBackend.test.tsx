@@ -71,4 +71,25 @@ describe('useMultiplayerDiceBackend', () => {
 
     expect(send).toHaveBeenCalledTimes(1)
   })
+
+  it('can spawn an anonymous generic die without inventory presentation metadata', () => {
+    const send = vi.fn()
+    useMultiplayerStore.setState({
+      connectionStatus: 'connected',
+      socket: { send } as unknown as WebSocket,
+      localPlayerId: 'p1',
+    })
+
+    const { result } = renderHook(() => useMultiplayerDiceBackend())
+
+    act(() => {
+      result.current.addGenericDie('d6')
+    })
+
+    expect(send).toHaveBeenCalledTimes(1)
+    const payload = JSON.parse(send.mock.calls[0][0])
+    expect(payload.dice[0].diceType).toBe('d6')
+    expect(payload.dice[0].presentation).toBeUndefined()
+    expect(useMultiplayerStore.getState().pendingInventoryDieIds.size).toBe(0)
+  })
 })

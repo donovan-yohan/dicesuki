@@ -1,8 +1,7 @@
 import { useCallback } from 'react'
 import type { DiceBackendState } from '../contexts/DiceBackendContext'
 import type { DiceShape } from '../lib/geometries'
-import type { DicePresentationMetadata } from '../lib/multiplayerMessages'
-import type { InventoryDie } from '../types/inventory'
+import { createDicePresentationMetadata } from '../lib/dicePresentation'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useDiceStore } from '../store/useDiceStore'
 import { useInventoryStore } from '../store/useInventoryStore'
@@ -59,6 +58,11 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
     spawnDice(inventoryDie?.type ?? type, inventoryDie ? createDicePresentationMetadata(inventoryDie) : undefined)
   }, [spawnDice])
 
+  const addGenericDie = useCallback((type: DiceShape) => {
+    useDiceStore.getState().clearActiveSavedRoll()
+    spawnDice(type)
+  }, [spawnDice])
+
   const removeDie = useCallback((id: string) => {
     mpRemoveDice([id])
   }, [mpRemoveDice])
@@ -80,6 +84,7 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
     mode: 'multiplayer',
     roll,
     addDie,
+    addGenericDie,
     removeDie,
     clearAll,
     rollHistory,
@@ -91,24 +96,4 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
       connectionStatus,
     } : null,
   }
-}
-
-function createDicePresentationMetadata(die: InventoryDie): DicePresentationMetadata {
-  const metadata: DicePresentationMetadata = {
-    inventoryDieId: die.id,
-    displayName: die.name,
-    setId: die.setId,
-    rarity: die.rarity,
-    baseColor: die.appearance.baseColor,
-    accentColor: die.appearance.accentColor,
-    material: die.appearance.material,
-  }
-
-  if (die.customAsset) {
-    metadata.customAssetId = die.customAsset.assetId ?? die.id
-    metadata.customAssetName = die.customAsset.metadata.name
-    metadata.unsupportedReason = 'Custom GLB assets are local-only in multiplayer; using preserved presentation metadata with generic server physics.'
-  }
-
-  return metadata
 }

@@ -6,7 +6,7 @@
  */
 
 import { FlyoutPanel } from './FlyoutPanel'
-import { useDiceStore, RollSnapshot } from '../../store/useDiceStore'
+import { useDiceStore, type RollSnapshot } from '../../store/useDiceStore'
 
 interface HistoryPanelProps {
   isOpen: boolean
@@ -155,12 +155,23 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
               backgroundColor: 'rgba(255, 255, 255, 0.05)',
             }}
           >
-            <span
-              className="text-sm font-medium"
-              style={{ color: 'var(--color-text-secondary)' }}
-            >
-              {die.type.toUpperCase()}
-            </span>
+            <div className="min-w-0">
+              <div
+                className="truncate text-sm font-medium"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                {getHistoryDieLabel(die)}
+              </div>
+              {die.presentation?.inventoryDieId && (
+                <div
+                  className="truncate text-xs"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  {die.type.toUpperCase()}
+                  {die.presentation.rarity ? ` · ${die.presentation.rarity}` : ''}
+                </div>
+              )}
+            </div>
             <span
               className="text-sm font-bold"
               style={{ color: 'var(--color-text-primary)' }}
@@ -172,4 +183,8 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
       </div>
     </div>
   )
+}
+
+function getHistoryDieLabel(die: RollSnapshot['dice'][number]) {
+  return die.presentation?.displayName ?? die.type.toUpperCase()
 }

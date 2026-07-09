@@ -23,6 +23,7 @@ import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
 
 // Utilities
 import { formatBonus } from '../lib/diceHelpers'
+import { createDicePresentationMetadata } from '../lib/dicePresentation'
 import { detectRenderDeviceTier } from '../lib/deviceDetection'
 import {
   type DiceRenderContext,
@@ -36,6 +37,7 @@ import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useDiceStore, type DieSettledState } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useInventoryStore } from '../store/useInventoryStore'
+import type { DiceShape } from '../types/diceShape'
 import type { InventoryDie } from '../types/inventory'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useUIStore } from '../store/useUIStore'
@@ -43,7 +45,7 @@ import { useUIStore } from '../store/useUIStore'
 // Components
 import { CustomDice } from './dice/CustomDice'
 import { Dice, DiceHandle } from './dice/Dice'
-import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
+import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, RollTray, UIToggleMini, type RollTrayDie } from './layout'
 import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
 import { PlayerPanel } from './multiplayer/PlayerPanel'
@@ -515,11 +517,13 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
   const { gravityRef } = useDeviceMotionRef()
   // Get requestPermission from state context
   const { requestPermission } = useDeviceMotionState()
-  const { roll, onDiceRest, onDiceMoving } = useDiceRoll()
+  const { isRolling, roll, onDiceRest, onDiceMoving } = useDiceRoll()
 
   // Subscribe to dice manager store (local physics dice)
   const dice = useDiceManagerStore((state) => state.dice)
   const addDice = useDiceManagerStore((state) => state.addDice)
+  const multiplayerDice = useMultiplayerStore((state) => state.dice)
+  const localPlayerId = useMultiplayerStore((state) => state.localPlayerId)
 
   // Subscribe to inventory dice for reactive lookup during render
   const inventoryDice = useInventoryStore((state) => state.dice)
@@ -614,8 +618,25 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
     }
   }, [addDice, currentTheme.id]) // Only run once on mount - ref guard prevents re-execution
 
+  const getLocalDicePresentation = useCallback((diceId: string) => {
+    const tableDie = useDiceManagerStore.getState().dice.find(die => die.id === diceId)
+    if (!tableDie?.inventoryDieId) return undefined
+
+    const inventoryDie = useInventoryStore.getState().dice.find(die => die.id === tableDie.inventoryDieId)
+    return inventoryDie ? createDicePresentationMetadata(inventoryDie) : undefined
+  }, [])
+
+  const handleLocalDiceRest = useCallback((
+    diceId: string,
+    faceValue: number,
+    diceType: string
+  ) => {
+    onDiceRest(diceId, faceValue, diceType, getLocalDicePresentation(diceId))
+  }, [getLocalDicePresentation, onDiceRest])
+
   const handleRollClick = useCallback(() => {
     const diceAtRollStart = useDiceManagerStore.getState().dice
+    if (diceAtRollStart.length === 0) return
 
     // Mark ALL dice as rolling
     useDiceStore.getState().markDiceRolling(diceAtRollStart.map(d => d.id))
@@ -641,11 +662,11 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
         if (!rollingDice.has(die.id)) return
         const faceValue = diceRefs.current.get(die.id)?.readCurrentFace()
         if (faceValue !== null && faceValue !== undefined) {
-          onDiceRest(die.id, faceValue, die.type)
+          handleLocalDiceRest(die.id, faceValue, die.type)
         }
       })
     }, 4000)
-  }, [roll, onDiceRest])
+  }, [roll, handleLocalDiceRest])
 
   // Keep the roll callback ref up to date so the Scene wrapper's local backend can call it
   rollCallbackRef.current = handleRollClick
@@ -657,10 +678,44 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
   // Delegate add/remove/clear through the active backend (works for both local and multiplayer)
   const handleAddDice = useCallback(
     (type: string, specificInventoryDieId?: string) => {
-      activeBackend.addDie(type as import('../lib/geometries').DiceShape, specificInventoryDieId)
+      activeBackend.addDie(type as DiceShape, specificInventoryDieId)
     },
     [activeBackend]
   )
+
+  const handleAddGenericDice = useCallback(
+    (type: DiceShape) => {
+      activeBackend.addGenericDie(type)
+    },
+    [activeBackend]
+  )
+
+  const trayDice = useMemo<RollTrayDie[]>(() => {
+    if (isMultiplayer) {
+      return Array.from(multiplayerDice.values())
+        .filter((die) => !localPlayerId || die.ownerId === localPlayerId)
+        .map((die) => ({
+          id: die.id,
+          type: die.diceType,
+          inventoryDieId: die.presentation?.inventoryDieId,
+          displayName: die.presentation?.displayName,
+          setId: die.presentation?.setId,
+          rarity: die.presentation?.rarity,
+        }))
+    }
+
+    return dice.map((die) => {
+      const inventoryDie = die.inventoryDieId ? inventoryDiceMap.get(die.inventoryDieId) : undefined
+      return {
+        id: die.id,
+        type: die.type,
+        inventoryDieId: die.inventoryDieId,
+        displayName: inventoryDie?.name,
+        setId: inventoryDie?.setId,
+        rarity: inventoryDie?.rarity,
+      }
+    })
+  }, [dice, inventoryDiceMap, isMultiplayer, localPlayerId, multiplayerDice])
 
   const handleToggleMotion = useCallback(async () => {
     if (!motionMode) {
@@ -751,7 +806,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
                       }
                     }}
                     position={die.position}
-                    onRest={onDiceRest}
+                    onRest={handleLocalDiceRest}
                     onMoving={onDiceMoving}
                   />
                 )
@@ -790,7 +845,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
                   renderContext="tray"
                   renderDeviceTier={renderDeviceTier}
                   isVisibleForLod
-                  onRest={onDiceRest}
+                  onRest={handleLocalDiceRest}
                   onMoving={onDiceMoving}
                 />
               )
@@ -826,7 +881,11 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       />
 
       {/* Center Roll Button - elevated above nav */}
-      <CenterRollButton onClick={activeBackend.roll} isRolling={false} />
+      <CenterRollButton
+        onClick={activeBackend.roll}
+        isRolling={isRolling}
+        disabled={trayDice.length === 0 || isRolling}
+      />
 
       {/* Top-Left Corner: Settings */}
       <CornerIcon
@@ -920,6 +979,16 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
         isOpen={isDiceManagerOpen}
         onAddDice={handleAddDice}
         onClearAll={activeBackend.clearAll}
+      />
+
+      <RollTray
+        dice={trayDice}
+        isVisible={isUIVisible}
+        onAddGenericDie={handleAddGenericDice}
+        onAddSpecificDie={handleAddDice}
+        onRemoveDie={activeBackend.removeDie}
+        onClearAll={activeBackend.clearAll}
+        onOpenInventory={() => setIsInventoryOpen(true)}
       />
 
       {/* THEMED PANELS */}
