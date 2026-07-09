@@ -13,6 +13,7 @@ import type { RollTrayDie } from '../layout/RollTray'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
+import { createClientId } from '../../lib/clientId'
 import { spawnSpecificDie } from '../../lib/diceSpawner'
 import { expandDiceEntrySources } from '../../lib/rollSources'
 import { SavedRoll } from '../../types/savedRolls'
@@ -141,7 +142,7 @@ export function SavedRollsPanel({ isOpen, onClose, trayDice = [] }: SavedRollsPa
       // Create new roll
       addRoll({
         ...rollData,
-        id: crypto.randomUUID(),
+        id: createClientId('roll'),
         createdAt: Date.now(),
       })
     }
