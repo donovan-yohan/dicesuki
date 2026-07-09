@@ -31,6 +31,11 @@ export function useLocalDiceBackend(onRoll: () => void): DiceBackendState {
     }
   }, [currentTheme.id])
 
+  const addGenericDie = useCallback((type: DiceShape) => {
+    useDiceStore.getState().clearActiveSavedRoll()
+    useDiceManagerStore.getState().addDice(type, currentTheme.id)
+  }, [currentTheme.id])
+
   const removeDie = useCallback((id: string) => {
     const store = useDiceStore.getState()
     store.removeDieState(id)
@@ -53,6 +58,7 @@ export function useLocalDiceBackend(onRoll: () => void): DiceBackendState {
     mode: 'local',
     roll: onRoll,
     addDie,
+    addGenericDie,
     removeDie,
     clearAll,
     rollHistory,

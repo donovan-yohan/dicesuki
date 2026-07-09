@@ -13,6 +13,7 @@ export interface DiceBackendState {
   /** Roll actions */
   roll: () => void
   addDie: (type: DiceShape, inventoryDieId?: string) => void
+  addGenericDie: (type: DiceShape) => void
   removeDie: (id: string) => void
   clearAll: () => void
 

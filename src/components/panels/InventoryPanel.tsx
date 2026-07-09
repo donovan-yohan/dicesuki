@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { DragEvent, ReactNode } from 'react'
 import { useInventoryStore } from '../../store/useInventoryStore'
+import { INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload } from '../../lib/inventoryDrag'
 import type { DiceShape } from '../../types/diceShape'
 import type { DieRarity, InventoryDie } from '../../types/inventory'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -26,8 +27,6 @@ const DICE_SHAPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
 const RARITY_DISPLAY: DieRarity[] = ['mythic', 'legendary', 'epic', 'rare', 'uncommon', 'common']
 const VISIBLE_DICE_BATCH_SIZE = 24
 const RECENT_ROLL_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
-const INVENTORY_DICE_DRAG_TYPE = 'application/dicesuki-inventory-die'
-
 const rarityOrder: Record<DieRarity, number> = {
   common: 0,
   uncommon: 1,
@@ -781,7 +780,7 @@ function isRecentlyRolled(die: InventoryDie) {
 
 function handleInventoryDieDragStart(event: DragEvent<HTMLElement>, die: InventoryDie) {
   event.dataTransfer.effectAllowed = 'copy'
-  event.dataTransfer.setData(INVENTORY_DICE_DRAG_TYPE, JSON.stringify({
+  event.dataTransfer.setData(INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload({
     inventoryDieId: die.id,
     type: die.type,
     name: die.name,

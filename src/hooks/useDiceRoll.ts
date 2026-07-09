@@ -6,12 +6,13 @@ import {
   ROLL_VERTICAL_MIN,
   ROLL_VERTICAL_MAX,
 } from '../config/physicsConfig'
+import type { DicePresentationMetadata } from '../lib/multiplayerMessages'
 import { useDiceStore } from '../store/useDiceStore'
 
 export interface DiceRollState {
   isRolling: boolean
   roll: () => THREE.Vector3
-  onDiceRest: (diceId: string, faceValue: number, diceType: string) => void
+  onDiceRest: (diceId: string, faceValue: number, diceType: string, presentation?: DicePresentationMetadata) => void
   onDiceMoving: (diceId: string) => void
   reset: () => void
 }
@@ -43,7 +44,17 @@ export function useDiceRoll(): DiceRollState {
     return generateImpulse()
   }, [generateImpulse])
 
-  const onDiceRest = useCallback((diceId: string, faceValue: number, diceType: string) => {
+  const onDiceRest = useCallback((
+    diceId: string,
+    faceValue: number,
+    diceType: string,
+    presentation?: DicePresentationMetadata
+  ) => {
+    if (presentation) {
+      useDiceStore.getState().recordDieSettled(diceId, faceValue, diceType, presentation)
+      return
+    }
+
     useDiceStore.getState().recordDieSettled(diceId, faceValue, diceType)
   }, [])
 
