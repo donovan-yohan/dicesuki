@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { POLYHEDRON_DETAIL_LEVEL } from '../config/physicsConfig'
 import type { DiceShape } from '../types/diceShape'
+import { getDiceShapeSize } from './diceShapeScale'
 
 // Re-export for backwards compatibility
 export type { DiceShape }
@@ -428,18 +429,20 @@ export function createD20Geometry(size: number = 1): THREE.IcosahedronGeometry {
  * without the full Dice component (e.g., MultiplayerDie).
  */
 export function createDiceGeometry(shape: DiceShape, size: number = 1): THREE.BufferGeometry {
+  const scaledSize = getDiceShapeSize(shape, size)
+
   switch (shape) {
     case 'd4':
-      return createD4Geometry(size)
+      return createD4Geometry(scaledSize)
     case 'd6':
-      return createD6Geometry(size)
+      return createD6Geometry(scaledSize)
     case 'd8':
-      return createD8Geometry(size)
+      return createD8Geometry(scaledSize)
     case 'd10':
-      return createD10Geometry(size)
+      return createD10Geometry(scaledSize)
     case 'd12':
-      return createD12Geometry(size)
+      return createD12Geometry(scaledSize)
     case 'd20':
-      return createD20Geometry(size)
+      return createD20Geometry(scaledSize)
   }
 }
