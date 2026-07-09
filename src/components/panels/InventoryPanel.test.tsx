@@ -135,7 +135,7 @@ describe('InventoryPanel', () => {
     renderInventory()
 
     expect(screen.getAllByTestId('dice-preview')).toHaveLength(24)
-    expect(screen.getByTestId('inventory-preview-canvas')).toHaveAttribute('data-preview-mode', 'shared-three')
+    expect(screen.getByTestId('inventory-preview-canvas')).toHaveAttribute('data-preview-mode', 'engine-textured-batched')
     expect(screen.getByText('Showing 24 of 30 dice')).toBeInTheDocument()
     expect(screen.queryByText('Batch Die 29')).not.toBeInTheDocument()
 
