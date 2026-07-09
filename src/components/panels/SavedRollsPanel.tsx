@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { BottomSheet } from './BottomSheet'
 import { SavedRollCard } from './saved-rolls/SavedRollCard'
 import { RollBuilder } from './saved-rolls/RollBuilder'
+import type { RollTrayDie } from '../layout/RollTray'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
@@ -20,9 +21,10 @@ import { useTheme } from '../../contexts/ThemeContext'
 interface SavedRollsPanelProps {
   isOpen: boolean
   onClose: () => void
+  trayDice?: RollTrayDie[]
 }
 
-export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
+export function SavedRollsPanel({ isOpen, onClose, trayDice = [] }: SavedRollsPanelProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [view, setView] = useState<'list' | 'builder'>('list')
@@ -74,12 +76,20 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
 
     roll.dice.forEach((entry) => {
       expandDiceEntrySources(entry).forEach((source) => {
-        const result = source.kind === 'specific'
+        let result = source.kind === 'specific'
           ? spawnSpecificDie(source.dieId, entry.type, currentTheme.id)
           : {
               success: true,
               diceInstanceId: useDiceManagerStore.getState().addDice(entry.type, currentTheme.id),
             }
+
+        if (!result.success && source.kind === 'specific') {
+          result = {
+            success: true,
+            diceInstanceId: useDiceManagerStore.getState().addDice(entry.type, currentTheme.id),
+          }
+          console.warn(`[SavedRolls] Missing specific die ${source.dieId}; rolling a generic ${entry.type} instead`)
+        }
 
         if (result.success && result.diceInstanceId) {
           if (entry.perDieBonus !== 0) {
@@ -282,6 +292,7 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
         // Builder View
         <RollBuilder
           initialRoll={editingRoll || undefined}
+          trayDice={trayDice}
           onSave={handleSaveRoll}
           onCancel={handleCancelBuilder}
         />

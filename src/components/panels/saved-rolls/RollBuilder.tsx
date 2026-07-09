@@ -1,12 +1,24 @@
-import { useState } from 'react'
+import { type DragEvent, useMemo, useState } from 'react'
 import { nanoid } from 'nanoid'
 import { DicePool } from './DicePool'
 import { DiceEntryCard } from './DiceEntryCard'
+import { useInventoryStore } from '../../../store/useInventoryStore'
+import { calculateSavedRollRange, formatSavedRoll } from '../../../lib/diceHelpers'
+import { parseInventoryDieDragPayload } from '../../../lib/inventoryDrag'
+import {
+  createAnonymousRollSource,
+  createSpecificDieRollSource,
+  withNormalizedRollSources,
+  withRollSources,
+} from '../../../lib/rollSources'
 import type { DiceEntry, SavedRoll } from '../../../types/savedRolls'
+import type { InventoryDie } from '../../../types/inventory'
 import type { DiceShape } from '../../../lib/geometries'
+import type { RollTrayDie } from '../../layout/RollTray'
 
 interface RollBuilderProps {
   initialRoll?: SavedRoll
+  trayDice?: RollTrayDie[]
   onSave: (roll: Omit<SavedRoll, 'id' | 'createdAt'>) => void
   onCancel: () => void
 }
@@ -15,25 +27,69 @@ interface RollBuilderProps {
  * Main roll builder component
  * Allows users to create custom dice rolls with bonuses
  */
-export function RollBuilder({ initialRoll, onSave, onCancel }: RollBuilderProps) {
+export function RollBuilder({ initialRoll, trayDice = [], onSave, onCancel }: RollBuilderProps) {
   const [name, setName] = useState(initialRoll?.name || '')
   const [description, setDescription] = useState(initialRoll?.description || '')
   const [dice, setDice] = useState<DiceEntry[]>(initialRoll?.dice || [])
   const [flatBonus, setFlatBonus] = useState(initialRoll?.flatBonus || 0)
+  const [ownedDiceFilter, setOwnedDiceFilter] = useState<DiceShape | 'all'>('all')
+  const [isDropActive, setIsDropActive] = useState(false)
+  const ownedDice = useInventoryStore((state) => state.dice)
 
-  const handleAddDice = (type: DiceShape) => {
-    const newEntry: DiceEntry = {
+  const inventoryDiceById = useMemo(() => {
+    const map = new Map<string, InventoryDie>()
+    for (const die of ownedDice) {
+      map.set(die.id, die)
+    }
+    return map
+  }, [ownedDice])
+
+  const visibleOwnedDice = useMemo(() => {
+    return [...ownedDice]
+      .filter((die) => ownedDiceFilter === 'all' || die.type === ownedDiceFilter)
+      .sort((a, b) => {
+        if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
+        return (b.lastRolledAt ?? b.acquiredAt) - (a.lastRolledAt ?? a.acquiredAt)
+      })
+      .slice(0, 12)
+  }, [ownedDice, ownedDiceFilter])
+
+  const handleAddDice = (type: DiceShape, quantity = 1) => {
+    const newEntry: DiceEntry = withRollSources({
       id: nanoid(),
       type,
+      quantity,
+      perDieBonus: 0,
+    }, [createAnonymousRollSource(quantity)])
+    setDice([...dice, newEntry])
+  }
+
+  const handleAddSpecificDie = (die: InventoryDie) => {
+    const newEntry: DiceEntry = withRollSources({
+      id: nanoid(),
+      type: die.type,
       quantity: 1,
       perDieBonus: 0,
-    }
+    }, [createSpecificDieRollSource(die.id)])
     setDice([...dice, newEntry])
+  }
+
+  const handleAddSpecificDieById = (dieId: string) => {
+    const die = inventoryDiceById.get(dieId)
+    if (die) {
+      handleAddSpecificDie(die)
+    }
+  }
+
+  const handleAddTrayDice = () => {
+    const trayEntries = createEntriesFromTrayDice(trayDice, inventoryDiceById)
+    if (trayEntries.length === 0) return
+    setDice([...dice, ...trayEntries])
   }
 
   const handleUpdateDice = (index: number, entry: DiceEntry) => {
     const newDice = [...dice]
-    newDice[index] = entry
+    newDice[index] = withNormalizedRollSources(entry)
     setDice(newDice)
   }
 
@@ -63,28 +119,31 @@ export function RollBuilder({ initialRoll, onSave, onCancel }: RollBuilderProps)
     })
   }
 
-  // Calculate preview range
-  const getPreviewRange = () => {
-    if (dice.length === 0) return { min: 0, max: 0, avg: 0 }
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDropActive(false)
 
-    let min = flatBonus
-    let max = flatBonus
-    let avg = flatBonus
+    const payload = parseInventoryDieDragPayload(event.dataTransfer)
+    if (!payload) return
 
-    dice.forEach((entry) => {
-      const diceMin = entry.quantity * (1 + entry.perDieBonus)
-      const diceMax = entry.quantity * (parseInt(entry.type.substring(1)) + entry.perDieBonus)
-      const diceAvg = entry.quantity * ((parseInt(entry.type.substring(1)) + 1) / 2 + entry.perDieBonus)
-
-      min += diceMin
-      max += diceMax
-      avg += diceAvg
-    })
-
-    return { min, max, avg: Math.round(avg * 10) / 10 }
+    handleAddSpecificDieById(payload.inventoryDieId)
   }
 
-  const preview = getPreviewRange()
+  const previewRoll: SavedRoll = {
+    id: initialRoll?.id ?? 'preview',
+    name: name.trim() || 'Unsaved roll',
+    description: description.trim() || undefined,
+    dice,
+    flatBonus,
+    createdAt: initialRoll?.createdAt ?? Date.now(),
+    isFavorite: initialRoll?.isFavorite,
+    tags: initialRoll?.tags,
+    damageType: initialRoll?.damageType,
+  }
+
+  const preview = calculateSavedRollRange(previewRoll)
+  const formula = formatSavedRoll(previewRoll)
+  const diceTypes: Array<DiceShape | 'all'> = ['all', 'd4', 'd6', 'd8', 'd10', 'd12', 'd20']
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto pb-20">
@@ -119,6 +178,102 @@ export function RollBuilder({ initialRoll, onSave, onCancel }: RollBuilderProps)
       {/* Dice Pool */}
       <DicePool onDiceSelect={handleAddDice} />
 
+      {/* Owned Dice */}
+      <div
+        className="flex flex-col gap-3 p-3 rounded-lg"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          border: isDropActive ? '2px solid var(--color-accent)' : '2px solid var(--color-border)',
+        }}
+        onDragOver={(event) => {
+          event.preventDefault()
+          setIsDropActive(true)
+        }}
+        onDragLeave={() => setIsDropActive(false)}
+        onDrop={handleDrop}
+        data-testid="roll-builder-owned-drop-zone"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            Owned Dice
+          </h3>
+          {trayDice.length > 0 && (
+            <button
+              type="button"
+              onClick={handleAddTrayDice}
+              className="h-8 px-3 rounded text-xs font-semibold"
+              style={{
+                backgroundColor: 'rgba(251, 146, 60, 0.16)',
+                color: 'var(--color-accent)',
+                border: '1px solid rgba(251, 146, 60, 0.28)',
+              }}
+            >
+              Add Tray ({trayDice.length})
+            </button>
+          )}
+        </div>
+
+        <div className="flex gap-1 overflow-x-auto pb-1" aria-label="Owned dice type filters">
+          {diceTypes.map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setOwnedDiceFilter(type)}
+              className="h-8 px-3 rounded-full text-xs font-semibold whitespace-nowrap"
+              style={{
+                backgroundColor: ownedDiceFilter === type
+                  ? 'var(--color-accent)'
+                  : 'rgba(255, 255, 255, 0.08)',
+                color: ownedDiceFilter === type ? '#ffffff' : 'var(--color-text-secondary)',
+                border: ownedDiceFilter === type ? 'none' : '1px solid var(--color-border)',
+              }}
+              aria-pressed={ownedDiceFilter === type}
+            >
+              {type === 'all' ? 'All' : type.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        {visibleOwnedDice.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {visibleOwnedDice.map((die) => (
+              <button
+                key={die.id}
+                type="button"
+                onClick={() => handleAddSpecificDie(die)}
+                className="min-h-14 rounded p-2 text-left transition-all hover:scale-[1.01]"
+                style={{
+                  backgroundColor: 'var(--color-background)',
+                  color: 'var(--color-text-primary)',
+                  border: '1px solid var(--color-border)',
+                }}
+                aria-label={`Add ${die.name} to roll`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-sm truncate">{die.name}</span>
+                  <span
+                    className="text-[11px] px-2 py-0.5 rounded-full uppercase"
+                    style={{
+                      backgroundColor: 'rgba(251, 146, 60, 0.16)',
+                      color: 'var(--color-accent)',
+                    }}
+                  >
+                    {die.type}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs capitalize truncate" style={{ color: 'var(--color-text-muted)' }}>
+                  {die.rarity} · {die.setId}
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            No owned dice match this filter.
+          </div>
+        )}
+      </div>
+
       {/* Added Dice */}
       {dice.length > 0 && (
         <div className="flex flex-col gap-2">
@@ -131,6 +286,7 @@ export function RollBuilder({ initialRoll, onSave, onCancel }: RollBuilderProps)
               entry={entry}
               onUpdate={(updated) => handleUpdateDice(index, updated)}
               onRemove={() => handleRemoveDice(index)}
+              inventoryDiceById={inventoryDiceById}
             />
           ))}
         </div>
@@ -193,17 +349,10 @@ export function RollBuilder({ initialRoll, onSave, onCancel }: RollBuilderProps)
         >
           <div className="text-sm font-semibold opacity-90">Preview</div>
           <div className="text-2xl font-bold">
-            {dice.map((entry, i) => (
-              <span key={entry.id}>
-                {i > 0 && ' + '}
-                {entry.quantity}{entry.type}
-                {entry.perDieBonus !== 0 && `(${entry.perDieBonus > 0 ? '+' : ''}${entry.perDieBonus})`}
-              </span>
-            ))}
-            {flatBonus !== 0 && ` ${flatBonus > 0 ? '+' : ''}${flatBonus}`}
+            {formula}
           </div>
           <div className="text-sm opacity-90">
-            Range: {preview.min} - {preview.max} (avg: {preview.avg})
+            Range: {preview.min} - {preview.max}
           </div>
         </div>
       )}
@@ -235,4 +384,37 @@ export function RollBuilder({ initialRoll, onSave, onCancel }: RollBuilderProps)
       </div>
     </div>
   )
+}
+
+function createEntriesFromTrayDice(
+  trayDice: RollTrayDie[],
+  inventoryDiceById: Map<string, InventoryDie>,
+): DiceEntry[] {
+  const genericCounts = new Map<DiceShape, number>()
+  const specificEntries: DiceEntry[] = []
+
+  for (const die of trayDice) {
+    if (die.inventoryDieId && inventoryDiceById.has(die.inventoryDieId)) {
+      specificEntries.push(withRollSources({
+        id: nanoid(),
+        type: die.type,
+        quantity: 1,
+        perDieBonus: 0,
+      }, [createSpecificDieRollSource(die.inventoryDieId)]))
+      continue
+    }
+
+    genericCounts.set(die.type, (genericCounts.get(die.type) ?? 0) + 1)
+  }
+
+  const genericEntries = Array.from(genericCounts.entries()).map(([type, quantity]) =>
+    withRollSources({
+      id: nanoid(),
+      type,
+      quantity,
+      perDieBonus: 0,
+    }, [createAnonymousRollSource(quantity)])
+  )
+
+  return [...genericEntries, ...specificEntries]
 }
