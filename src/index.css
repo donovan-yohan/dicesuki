@@ -72,3 +72,30 @@ canvas {
   -webkit-user-select: none;
   user-select: none;
 }
+
+.inventory-dice-preview-svg {
+  display: block;
+  overflow: visible;
+}
+
+.inventory-dice-float {
+  animation: inventory-dice-float 4.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes inventory-dice-float {
+  0%,
+  100% {
+    transform: translateY(2px) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inventory-dice-float {
+    animation: none;
+  }
+}
