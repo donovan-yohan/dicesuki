@@ -2,27 +2,22 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThemeContext } from '../../contexts/ThemeContext'
 import { INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload } from '../../lib/inventoryDrag'
+import { ROLL_TRAY_DIE_DRAG_TYPE } from '../../lib/rollTrayDrag'
 import { defaultTheme } from '../../themes/tokens'
 import type { DiceShape } from '../../types/diceShape'
 import { RollTray, type RollTrayDie } from './RollTray'
 
 function renderTray(overrides: {
   dice?: RollTrayDie[]
-  onAddGenericDie?: (type: DiceShape) => void
   onAddSpecificDie?: (type: DiceShape, inventoryDieId: string) => void
   onRemoveDie?: (id: string) => void
-  onClearAll?: () => void
-  onOpenInventory?: () => void
   onInspectDie?: (inventoryDieId: string) => void
 } = {}) {
   const props = {
     dice: overrides.dice ?? [],
     isVisible: true,
-    onAddGenericDie: overrides.onAddGenericDie ?? vi.fn(),
     onAddSpecificDie: overrides.onAddSpecificDie ?? vi.fn(),
     onRemoveDie: overrides.onRemoveDie ?? vi.fn(),
-    onClearAll: overrides.onClearAll ?? vi.fn(),
-    onOpenInventory: overrides.onOpenInventory ?? vi.fn(),
     onInspectDie: overrides.onInspectDie ?? vi.fn(),
   }
 
@@ -56,15 +51,6 @@ describe('RollTray', () => {
     vi.restoreAllMocks()
   })
 
-  it('adds generic dice through tap controls', () => {
-    const onAddGenericDie = vi.fn()
-    renderTray({ onAddGenericDie })
-
-    fireEvent.click(screen.getByRole('button', { name: /add generic d6 to tray/i }))
-
-    expect(onAddGenericDie).toHaveBeenCalledWith('d6')
-  })
-
   it('accepts a dragged owned inventory die payload', () => {
     const onAddSpecificDie = vi.fn()
     renderTray({ onAddSpecificDie })
@@ -80,7 +66,7 @@ describe('RollTray', () => {
     expect(onAddSpecificDie).toHaveBeenCalledWith('d20', 'owned-d20')
   })
 
-  it('removes and reorders selected dice in the tray', () => {
+  it('shows selected dice and removes tray dice through keyboard fallback', () => {
     const onRemoveDie = vi.fn()
     renderTray({
       onRemoveDie,
@@ -91,26 +77,13 @@ describe('RollTray', () => {
     })
 
     const selectedDice = screen.getByLabelText('Selected dice')
-    expect(within(selectedDice).getAllByRole('article')[0]).toHaveTextContent('D6')
-    expect(within(selectedDice).getAllByRole('article')[1]).toHaveTextContent('Lucky D20')
+    expect(within(selectedDice).getAllByTestId('roll-tray-die')[0]).toHaveTextContent('D6')
+    expect(within(selectedDice).getAllByTestId('roll-tray-die')[1]).toHaveTextContent('Lucky D20')
     expect(screen.getByText('1d6 + Lucky D20')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /move lucky d20 left/i }))
-
-    expect(within(selectedDice).getAllByRole('article')[0]).toHaveTextContent('Lucky D20')
-
-    fireEvent.click(screen.getByRole('button', { name: /remove lucky d20/i }))
+    fireEvent.keyDown(screen.getByLabelText('Lucky D20 tray die'), { key: 'Delete' })
 
     expect(onRemoveDie).toHaveBeenCalledWith('owned-d20-instance')
-  })
-
-  it('opens inventory as a tap fallback for selecting owned dice', () => {
-    const onOpenInventory = vi.fn()
-    renderTray({ onOpenInventory })
-
-    fireEvent.click(screen.getByRole('button', { name: /inventory/i }))
-
-    expect(onOpenInventory).toHaveBeenCalledOnce()
   })
 
   it('opens the inspector for a specific owned tray die', () => {
@@ -122,8 +95,29 @@ describe('RollTray', () => {
       ],
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /inspect lucky d20/i }))
+    fireEvent.click(screen.getByLabelText('Lucky D20 tray die'))
 
     expect(onInspectDie).toHaveBeenCalledWith('owned-d20')
+  })
+
+  it('serializes tray dice for the trash drop zone', () => {
+    renderTray({
+      dice: [
+        { id: 'owned-d20-instance', type: 'd20', inventoryDieId: 'owned-d20', displayName: 'Lucky D20', rarity: 'rare' },
+      ],
+    })
+
+    const dataTransfer = {
+      effectAllowed: 'copy',
+      setData: vi.fn(),
+    } as unknown as DataTransfer
+
+    fireEvent.dragStart(screen.getByLabelText('Lucky D20 tray die'), { dataTransfer })
+
+    expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', 'owned-d20-instance')
+    expect(dataTransfer.setData).toHaveBeenCalledWith(
+      ROLL_TRAY_DIE_DRAG_TYPE,
+      expect.stringContaining('owned-d20-instance'),
+    )
   })
 })

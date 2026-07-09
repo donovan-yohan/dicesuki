@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { DragEvent } from 'react'
+import type { DragEvent, KeyboardEvent } from 'react'
+
 import { useTheme } from '../../contexts/ThemeContext'
 import { parseInventoryDieDragPayload } from '../../lib/inventoryDrag'
+import { ROLL_TRAY_DIE_DRAG_TYPE, serializeRollTrayDieDragPayload } from '../../lib/rollTrayDrag'
+import { useDragStore } from '../../store/useDragStore'
 import type { DiceShape } from '../../types/diceShape'
 
 export interface RollTrayDie {
@@ -17,11 +20,8 @@ export interface RollTrayDie {
 interface RollTrayProps {
   dice: RollTrayDie[]
   isVisible: boolean
-  onAddGenericDie: (type: DiceShape) => void
   onAddSpecificDie: (type: DiceShape, inventoryDieId: string) => void
   onRemoveDie: (id: string) => void
-  onClearAll: () => void
-  onOpenInventory: () => void
   onInspectDie?: (inventoryDieId: string) => void
 }
 
@@ -30,14 +30,12 @@ const DICE_TYPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
 export function RollTray({
   dice,
   isVisible,
-  onAddGenericDie,
   onAddSpecificDie,
   onRemoveDie,
-  onClearAll,
-  onOpenInventory,
   onInspectDie,
 }: RollTrayProps) {
   const { currentTheme } = useTheme()
+  const setDraggedDiceId = useDragStore((state) => state.setDraggedDiceId)
   const [orderedIds, setOrderedIds] = useState<string[]>([])
   const [isDropActive, setIsDropActive] = useState(false)
 
@@ -60,21 +58,6 @@ export function RollTray({
   const rollExpression = useMemo(() => formatRollExpression(orderedDice), [orderedDice])
   const hasDice = orderedDice.length > 0
 
-  const moveDie = (id: string, offset: -1 | 1) => {
-    setOrderedIds((currentOrder) => {
-      const index = currentOrder.indexOf(id)
-      const nextIndex = index + offset
-      if (index < 0 || nextIndex < 0 || nextIndex >= currentOrder.length) {
-        return currentOrder
-      }
-
-      const nextOrder = [...currentOrder]
-      const [movedId] = nextOrder.splice(index, 1)
-      nextOrder.splice(nextIndex, 0, movedId)
-      return nextOrder
-    })
-  }
-
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setIsDropActive(false)
@@ -83,6 +66,30 @@ export function RollTray({
     if (!payload) return
 
     onAddSpecificDie(payload.type, payload.inventoryDieId)
+  }
+
+  const startTrayDieDrag = (event: DragEvent<HTMLElement>, die: RollTrayDie) => {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', die.id)
+    event.dataTransfer.setData(ROLL_TRAY_DIE_DRAG_TYPE, serializeRollTrayDieDragPayload(die.id))
+    setDraggedDiceId(die.id)
+  }
+
+  const finishTrayDieDrag = () => {
+    setDraggedDiceId(null)
+  }
+
+  const handleTrayDieKeyDown = (event: KeyboardEvent<HTMLElement>, die: RollTrayDie) => {
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault()
+      onRemoveDie(die.id)
+      return
+    }
+
+    if ((event.key === 'Enter' || event.key === ' ') && die.inventoryDieId && onInspectDie) {
+      event.preventDefault()
+      onInspectDie(die.inventoryDieId)
+    }
   }
 
   return (
@@ -113,7 +120,7 @@ export function RollTray({
         onDrop={handleDrop}
         data-testid="roll-tray-drop-zone"
       >
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold">Roll Tray</h2>
@@ -131,120 +138,47 @@ export function RollTray({
               {rollExpression}
             </p>
           </div>
-
-          <div className="flex shrink-0 flex-wrap gap-1.5">
-            {DICE_TYPES.map(type => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => onAddGenericDie(type)}
-                className="h-8 rounded-md px-2 text-xs font-semibold"
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                  color: currentTheme.tokens.colors.text.primary,
-                  border: `1px solid ${currentTheme.tokens.colors.text.muted}`,
-                }}
-                aria-label={`Add generic ${type.toUpperCase()} to tray`}
-              >
-                +{type.toUpperCase()}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={onOpenInventory}
-              className="h-8 rounded-md px-3 text-xs font-semibold"
-              style={{
-                backgroundColor: currentTheme.tokens.colors.accent,
-                color: currentTheme.tokens.colors.text.primary,
-              }}
-            >
-              Inventory
-            </button>
-          </div>
         </div>
 
         {hasDice ? (
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1" aria-label="Selected dice">
-            {orderedDice.map((die, index) => {
+            {orderedDice.map((die) => {
               const label = getTrayDieLabel(die)
+              const canInspect = Boolean(die.inventoryDieId && onInspectDie)
+
               return (
                 <article
                   key={die.id}
-                  className="min-h-[112px] w-[140px] shrink-0 rounded-md p-2"
+                  tabIndex={0}
+                  draggable
+                  onDragStart={(event) => startTrayDieDrag(event, die)}
+                  onDragEnd={finishTrayDieDrag}
+                  onClick={() => {
+                    if (die.inventoryDieId && onInspectDie) {
+                      onInspectDie(die.inventoryDieId)
+                    }
+                  }}
+                  onKeyDown={(event) => handleTrayDieKeyDown(event, die)}
+                  className="min-h-[88px] w-[132px] shrink-0 rounded-md p-2 outline-none transition-colors focus:ring-2"
                   style={{
                     backgroundColor: 'rgba(0, 0, 0, 0.22)',
                     border: `1px solid ${die.inventoryDieId ? currentTheme.tokens.colors.accent : 'rgba(255, 255, 255, 0.18)'}`,
+                    cursor: canInspect ? 'pointer' : 'grab',
                   }}
+                  aria-label={`${label} tray die`}
+                  data-testid="roll-tray-die"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">{label}</div>
-                      <div className="mt-0.5 text-xs" style={{ color: currentTheme.tokens.colors.text.secondary }}>
-                        {die.inventoryDieId ? 'Owned die' : 'Generic die'}
-                      </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold">{label}</div>
+                    <div className="mt-0.5 text-xs" style={{ color: currentTheme.tokens.colors.text.secondary }}>
+                      {die.inventoryDieId ? 'Owned die' : 'Generic die'}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onRemoveDie(die.id)}
-                      className="h-7 w-7 rounded text-sm font-bold"
-                      style={{
-                        backgroundColor: 'rgba(239, 68, 68, 0.18)',
-                        color: '#fecaca',
-                      }}
-                      aria-label={`Remove ${label}`}
-                    >
-                      x
-                    </button>
                   </div>
 
-                  <div className="mt-2 text-xs" style={{ color: currentTheme.tokens.colors.text.muted }}>
+                  <div className="mt-3 text-xs" style={{ color: currentTheme.tokens.colors.text.muted }}>
                     {die.type.toUpperCase()}
                     {die.rarity ? ` · ${die.rarity}` : ''}
                     {die.ownerName ? ` · ${die.ownerName}` : ''}
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-1">
-                    {die.inventoryDieId && onInspectDie && (
-                      <button
-                        type="button"
-                        onClick={() => onInspectDie(die.inventoryDieId as string)}
-                        className="col-span-2 h-7 rounded text-xs font-semibold"
-                        style={{
-                          backgroundColor: 'rgba(251, 146, 60, 0.16)',
-                          color: currentTheme.tokens.colors.accent,
-                          border: `1px solid ${currentTheme.tokens.colors.accent}`,
-                        }}
-                        aria-label={`Inspect ${label}`}
-                      >
-                        Inspect
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => moveDie(die.id, -1)}
-                      disabled={index === 0}
-                      className="h-7 rounded text-xs font-semibold disabled:opacity-40"
-                      style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                        color: currentTheme.tokens.colors.text.primary,
-                      }}
-                      aria-label={`Move ${label} left`}
-                    >
-                      Left
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveDie(die.id, 1)}
-                      disabled={index === orderedDice.length - 1}
-                      className="h-7 rounded text-xs font-semibold disabled:opacity-40"
-                      style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                        color: currentTheme.tokens.colors.text.primary,
-                      }}
-                      aria-label={`Move ${label} right`}
-                    >
-                      Right
-                    </button>
                   </div>
                 </article>
               )
@@ -260,23 +194,6 @@ export function RollTray({
             }}
           >
             Roll tray is empty
-          </div>
-        )}
-
-        {hasDice && (
-          <div className="mt-2 flex justify-end">
-            <button
-              type="button"
-              onClick={onClearAll}
-              className="h-8 rounded-md px-3 text-xs font-semibold"
-              style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.16)',
-                color: '#fecaca',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-              }}
-            >
-              Clear Tray
-            </button>
           </div>
         )}
       </div>

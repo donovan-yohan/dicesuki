@@ -1,23 +1,29 @@
 /**
  * Dice Toolbar Component
  *
- * A compact slide-out column of icon buttons for dice management.
- * Replaces the heavy DiceManagerPanel flyout with a simpler, more accessible UI.
+ * A compact game-HUD rail for adding dice, cycling favorite inventory dice, and
+ * removing active dice through the trash drop target.
  */
 
-import { motion, AnimatePresence } from 'framer-motion'
-import { useMemo } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { useMemo, useState } from 'react'
+import type { DragEvent } from 'react'
+
 import { buttonPressScale, shouldReduceMotion } from '../../animations/ui-transitions'
+import { useTheme } from '../../contexts/ThemeContext'
+import { parseRollTrayDieDragPayload } from '../../lib/rollTrayDrag'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDragStore } from '../../store/useDragStore'
 import { useInventoryStore } from '../../store/useInventoryStore'
-import { useTheme } from '../../contexts/ThemeContext'
-import { DiceShape } from '../../lib/geometries'
+import type { DiceShape } from '../../types/diceShape'
+import type { InventoryDie } from '../../types/inventory'
 
 interface DiceToolbarProps {
   isOpen: boolean
-  onAddDice: (type: string) => void
-  onClearAll: () => void
+  onAddGenericDie: (type: DiceShape) => void
+  onAddSpecificDie: (type: DiceShape, inventoryDieId: string) => void
+  onRemoveDie: (id: string) => void
+  onOpenInventory: () => void
 }
 
 const ALL_DICE_TYPES: Array<{ type: DiceShape; label: string }> = [
@@ -29,79 +35,145 @@ const ALL_DICE_TYPES: Array<{ type: DiceShape; label: string }> = [
   { type: 'd20', label: 'D20' },
 ]
 
-export function DiceToolbar({ isOpen, onAddDice, onClearAll }: DiceToolbarProps) {
+export function DiceToolbar({
+  isOpen,
+  onAddGenericDie,
+  onAddSpecificDie,
+  onRemoveDie,
+  onOpenInventory,
+}: DiceToolbarProps) {
   const reduceMotion = shouldReduceMotion()
   const { dice: inventoryDice } = useInventoryStore()
   const diceOnTable = useDiceManagerStore(state => state.dice)
+  const [favoriteSlotByType, setFavoriteSlotByType] = useState<Partial<Record<DiceShape, number>>>({})
 
-  // Get available dice types (owned - in use)
   const availableDiceTypes = useMemo(() => {
-    // Count owned dice by type
     const ownedCounts = new Map<DiceShape, number>()
     inventoryDice.forEach(die => {
-      const currentCount = ownedCounts.get(die.type) || 0
-      ownedCounts.set(die.type, currentCount + 1)
+      ownedCounts.set(die.type, (ownedCounts.get(die.type) ?? 0) + 1)
     })
 
-    // Count in-use dice by type
     const inUseCounts = new Map<DiceShape, number>()
     diceOnTable.forEach(tableDie => {
       if (tableDie.inventoryDieId) {
-        const currentCount = inUseCounts.get(tableDie.type) || 0
-        inUseCounts.set(tableDie.type, currentCount + 1)
+        inUseCounts.set(tableDie.type, (inUseCounts.get(tableDie.type) ?? 0) + 1)
       }
     })
 
-    // Calculate available counts - show all owned types even if 0 available
     return ALL_DICE_TYPES
       .filter(({ type }) => ownedCounts.has(type))
       .map(({ type, label }) => {
-        const owned = ownedCounts.get(type) || 0
-        const inUse = inUseCounts.get(type) || 0
+        const owned = ownedCounts.get(type) ?? 0
+        const inUse = inUseCounts.get(type) ?? 0
         return {
           type,
           label,
           available: owned - inUse,
-          total: owned
+          total: owned,
         }
       })
-  }, [inventoryDice, diceOnTable])
+  }, [diceOnTable, inventoryDice])
+
+  const favoriteDiceByType = useMemo(() => {
+    const inUseInventoryIds = new Set(
+      diceOnTable
+        .map(tableDie => tableDie.inventoryDieId)
+        .filter((inventoryDieId): inventoryDieId is string => Boolean(inventoryDieId)),
+    )
+    const grouped = new Map<DiceShape, InventoryDie[]>()
+
+    for (const die of inventoryDice) {
+      if (!die.isFavorite || inUseInventoryIds.has(die.id)) continue
+      const favoriteDice = grouped.get(die.type) ?? []
+      favoriteDice.push(die)
+      grouped.set(die.type, favoriteDice)
+    }
+
+    grouped.forEach((favoriteDice) => {
+      favoriteDice.sort((a, b) => b.acquiredAt - a.acquiredAt || a.name.localeCompare(b.name))
+    })
+
+    return grouped
+  }, [diceOnTable, inventoryDice])
+
+  const cycleFavorite = (type: DiceShape, direction: -1 | 1) => {
+    const favorites = favoriteDiceByType.get(type) ?? []
+    if (favorites.length === 0) return
+
+    setFavoriteSlotByType((currentSlots) => {
+      const slotCount = favorites.length + 1
+      const currentSlot = currentSlots[type] ?? 0
+      const nextSlot = (currentSlot + direction + slotCount) % slotCount
+      return {
+        ...currentSlots,
+        [type]: nextSlot,
+      }
+    })
+  }
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed left-4 z-30 flex flex-col gap-3"
+          className="fixed left-2 z-[65] flex flex-col gap-3 sm:left-4"
           style={{
-            bottom: '80px', // Position above bottom nav (56px nav + 24px gap)
+            bottom: '80px',
           }}
         >
-          {/* Dice Type Buttons - Show all owned types, disable if none available */}
-          {availableDiceTypes.map(({ type, label, available }, index) => (
-            <DiceButton
-              key={type}
-              onClick={() => onAddDice(type)}
-              label={label}
-              count={available}
-              index={index}
-              disabled={available === 0}
-            />
-          ))}
+          {availableDiceTypes.map(({ type, label, available }, index) => {
+            const favorites = favoriteDiceByType.get(type) ?? []
+            const selectedSlot = favoriteSlotByType[type] ?? 0
+            const selectedFavorite = selectedSlot > 0 ? favorites[selectedSlot - 1] : undefined
 
-          {/* Trash Button - Separated with some spacing */}
+            return (
+              <DiceQuickSlot
+                key={type}
+                type={type}
+                label={label}
+                count={available}
+                favoriteCount={favorites.length}
+                selectedFavorite={selectedFavorite}
+                index={index}
+                disabled={available === 0 && !selectedFavorite}
+                onAdd={() => {
+                  if (selectedFavorite) {
+                    onAddSpecificDie(type, selectedFavorite.id)
+                  } else {
+                    onAddGenericDie(type)
+                  }
+                }}
+                onCycleLeft={() => cycleFavorite(type, -1)}
+                onCycleRight={() => cycleFavorite(type, 1)}
+              />
+            )
+          })}
+
           <motion.div
-            className="mt-2"
+            initial={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
+            animate={!reduceMotion ? { x: 0, opacity: 1 } : { opacity: 1 }}
+            exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
+            transition={{
+              duration: 0.3,
+              delay: availableDiceTypes.length * 0.05,
+              ease: 'easeOut',
+            }}
+          >
+            <InventoryButton onClick={onOpenInventory} />
+          </motion.div>
+
+          <motion.div
+            className="mt-1"
             id="trash-drop-zone"
             initial={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
             animate={!reduceMotion ? { x: 0, opacity: 1 } : { opacity: 1 }}
             exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
             transition={{
               duration: 0.3,
-              delay: availableDiceTypes.length * 0.05, // Animate after all dice buttons
+              delay: (availableDiceTypes.length + 1) * 0.05,
               ease: 'easeOut',
             }}
           >
-            <TrashButton onClearAll={onClearAll} />
+            <TrashButton onRemoveDie={onRemoveDie} />
           </motion.div>
         </motion.div>
       )}
@@ -109,113 +181,213 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAll }: DiceToolbarProps)
   )
 }
 
-// ============================================================================
-// Dice Button Component
-// ============================================================================
-
-interface DiceButtonProps {
-  onClick: () => void
+interface DiceQuickSlotProps {
+  type: DiceShape
   label: string
   count: number
+  favoriteCount: number
+  selectedFavorite?: InventoryDie
   index: number
   disabled?: boolean
+  onAdd: () => void
+  onCycleLeft: () => void
+  onCycleRight: () => void
 }
 
-function DiceButton({ onClick, label, count, index, disabled = false }: DiceButtonProps) {
+function DiceQuickSlot({
+  type,
+  label,
+  count,
+  favoriteCount,
+  selectedFavorite,
+  index,
+  disabled = false,
+  onAdd,
+  onCycleLeft,
+  onCycleRight,
+}: DiceQuickSlotProps) {
   const reduceMotion = shouldReduceMotion()
   const { currentTheme } = useTheme()
   const accentColor = currentTheme.tokens.colors.accent
   const surfaceColor = currentTheme.tokens.colors.surface
+  const hasFavorites = favoriteCount > 0
+  const title = selectedFavorite
+    ? `Add ${selectedFavorite.name}`
+    : `Add generic ${label}`
 
   return (
-    <motion.button
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      className="flex flex-col items-center justify-center rounded-xl font-bold text-sm relative"
-      style={{
-        width: '48px',
-        height: '48px',
-        backgroundColor: disabled ? `${accentColor}40` : accentColor, // Reduced opacity when disabled
-        border: 'none',
-        color: disabled ? `${surfaceColor}60` : surfaceColor, // Reduced opacity when disabled
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.5 : 1,
-      }}
-      // Staggered slide-in animation from left
+    <motion.div
+      className="flex items-center gap-1"
       initial={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
       animate={!reduceMotion ? { x: 0, opacity: 1 } : { opacity: 1 }}
       exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
       transition={{
         duration: 0.3,
-        delay: index * 0.05, // Stagger by 50ms per button
+        delay: index * 0.05,
         ease: 'easeOut',
       }}
-      whileHover={
-        !reduceMotion && !disabled
-          ? {
-              backgroundColor: currentTheme.tokens.colors.dice.highlight, // Theme dice highlight on hover
-              scale: 1.1,
-              transition: { duration: 0.15 }, // Fast hover transition
-            }
-          : undefined
-      }
-      whileTap={!reduceMotion && !disabled ? buttonPressScale : undefined}
-      aria-label={disabled ? `No ${label} available` : `Add ${label} (${count} available)`}
-      title={disabled ? `No ${label} available` : `Add ${label} (${count} available)`}
     >
-      <span>{label}</span>
-      {/* Count badge */}
-      <span
-        className="absolute top-0 right-0 flex items-center justify-center text-xs font-bold rounded-full"
+      <FavoriteCycleButton
+        direction="left"
+        disabled={!hasFavorites}
+        onClick={onCycleLeft}
+        label={`Previous favorite ${label}`}
+      />
+      <motion.button
+        type="button"
+        onClick={disabled ? undefined : onAdd}
+        disabled={disabled}
+        className="relative flex flex-col items-center justify-center rounded-xl text-sm font-bold"
         style={{
-          width: '18px',
-          height: '18px',
-          backgroundColor: surfaceColor,
-          color: accentColor,
-          border: `2px solid ${accentColor}`,
-          transform: 'translate(25%, -25%)'
+          width: '48px',
+          height: '48px',
+          backgroundColor: disabled ? `${accentColor}40` : selectedFavorite ? currentTheme.tokens.colors.dice.highlight : accentColor,
+          border: selectedFavorite ? `2px solid ${accentColor}` : 'none',
+          color: disabled ? `${surfaceColor}60` : surfaceColor,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
         }}
+        whileHover={
+          !reduceMotion && !disabled
+            ? {
+                backgroundColor: currentTheme.tokens.colors.dice.highlight,
+                scale: 1.08,
+                transition: { duration: 0.15 },
+              }
+            : undefined
+        }
+        whileTap={!reduceMotion && !disabled ? buttonPressScale : undefined}
+        aria-label={title}
+        title={title}
+        data-testid={`dice-quick-slot-${type}`}
       >
-        {count}
-      </span>
+        <span>{label}</span>
+        {selectedFavorite && (
+          <span
+            className="absolute bottom-0 right-0 flex items-center justify-center rounded-full text-[10px] font-bold"
+            style={{
+              width: '18px',
+              height: '18px',
+              backgroundColor: surfaceColor,
+              color: accentColor,
+              border: `2px solid ${accentColor}`,
+              transform: 'translate(25%, 25%)',
+            }}
+            aria-hidden="true"
+          >
+            ★
+          </span>
+        )}
+        <span
+          className="absolute right-0 top-0 flex items-center justify-center rounded-full text-xs font-bold"
+          style={{
+            width: '18px',
+            height: '18px',
+            backgroundColor: surfaceColor,
+            color: accentColor,
+            border: `2px solid ${accentColor}`,
+            transform: 'translate(25%, -25%)',
+          }}
+          aria-hidden="true"
+        >
+          {count}
+        </span>
+      </motion.button>
+      <FavoriteCycleButton
+        direction="right"
+        disabled={!hasFavorites}
+        onClick={onCycleRight}
+        label={`Next favorite ${label}`}
+      />
+    </motion.div>
+  )
+}
+
+interface FavoriteCycleButtonProps {
+  direction: 'left' | 'right'
+  disabled: boolean
+  onClick: () => void
+  label: string
+}
+
+function FavoriteCycleButton({ direction, disabled, onClick, label }: FavoriteCycleButtonProps) {
+  const { currentTheme } = useTheme()
+
+  return (
+    <button
+      type="button"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className="flex h-8 w-5 items-center justify-center rounded-md text-xs font-bold transition-colors disabled:opacity-0"
+      style={{
+        backgroundColor: 'rgba(31, 41, 55, 0.72)',
+        color: currentTheme.tokens.colors.text.primary,
+        border: `1px solid ${currentTheme.tokens.colors.text.muted}`,
+      }}
+      aria-label={label}
+      title={label}
+      tabIndex={disabled ? -1 : 0}
+    >
+      {direction === 'left' ? '<' : '>'}
+    </button>
+  )
+}
+
+function InventoryButton({ onClick }: { onClick: () => void }) {
+  const reduceMotion = shouldReduceMotion()
+  const { currentTheme } = useTheme()
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      className="flex h-12 w-12 items-center justify-center rounded-xl text-xs font-bold"
+      style={{
+        backgroundColor: 'rgba(31, 41, 55, 0.9)',
+        color: currentTheme.tokens.colors.text.primary,
+        border: `1px solid ${currentTheme.tokens.colors.accent}`,
+      }}
+      whileHover={!reduceMotion ? { scale: 1.08 } : undefined}
+      whileTap={!reduceMotion ? buttonPressScale : undefined}
+      aria-label="Open full dice inventory"
+      title="Open full dice inventory"
+    >
+      INV
     </motion.button>
   )
 }
 
-// ============================================================================
-// Trash Button Component
-// ============================================================================
-
-interface TrashButtonProps {
-  onClearAll: () => void
-}
-
-function TrashButton({ onClearAll }: TrashButtonProps) {
+function TrashButton({ onRemoveDie }: { onRemoveDie: (id: string) => void }) {
   const reduceMotion = shouldReduceMotion()
   const draggedDiceId = useDragStore((state) => state.draggedDiceId)
+  const setDraggedDiceId = useDragStore((state) => state.setDraggedDiceId)
   const isDragging = draggedDiceId !== null
   const { currentTheme } = useTheme()
+  const trashColor = '#ef4444'
 
-  // Use a red color for trash - fallback to a standard red if theme doesn't define it
-  const trashColor = '#ef4444' // red-500
+  const handleDrop = (event: DragEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    const trayDieId = parseRollTrayDieDragPayload(event.dataTransfer)
+      ?? event.dataTransfer.getData('text/plain')
 
-  const handleClick = () => {
-    // Only clear all if not currently dragging (click to clear all)
-    if (!isDragging) {
-      console.log('[TrashButton] Clearing all dice')
-      onClearAll()
+    if (trayDieId) {
+      onRemoveDie(trayDieId)
     }
+    setDraggedDiceId(null)
   }
 
   return (
     <motion.button
-      onClick={handleClick}
-      className="flex items-center justify-center rounded-xl transition-all cursor-pointer"
+      type="button"
+      onDragOver={(event) => {
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+      }}
+      onDrop={handleDrop}
+      className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl transition-all"
       style={{
-        width: '48px',
-        height: '48px',
-        backgroundColor: isDragging ? `${trashColor}cc` : `${trashColor}99`, // Opacity variants
-        border: `2px dashed ${isDragging ? `${trashColor}` : `${trashColor}bb`}`,
+        backgroundColor: isDragging ? `${trashColor}cc` : `${trashColor}99`,
+        border: `2px dashed ${isDragging ? trashColor : `${trashColor}bb`}`,
         color: currentTheme.tokens.colors.text.primary,
         fontSize: '24px',
       }}
@@ -236,13 +408,13 @@ function TrashButton({ onClearAll }: TrashButtonProps) {
       whileHover={
         !reduceMotion
           ? {
-              backgroundColor: `${trashColor}bb`, // Brighter on hover
-              scale: 1.1,
+              backgroundColor: `${trashColor}bb`,
+              scale: 1.08,
             }
           : undefined
       }
-      aria-label={isDragging ? "Drop dice to delete" : "Click to clear all dice"}
-      title={isDragging ? "Drop dice here to delete" : "Click to clear all dice"}
+      aria-label={isDragging ? 'Drop die to remove from tray' : 'Trash drop zone'}
+      title={isDragging ? 'Drop die here to remove it from the table' : 'Trash drop zone'}
     >
       🗑️
     </motion.button>

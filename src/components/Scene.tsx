@@ -685,13 +685,6 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
     [activeBackend]
   )
 
-  const handleAddGenericDice = useCallback(
-    (type: DiceShape) => {
-      activeBackend.addGenericDie(type)
-    },
-    [activeBackend]
-  )
-
   const trayDice = useMemo<RollTrayDie[]>(() => {
     if (isMultiplayer) {
       return Array.from(multiplayerDice.values())
@@ -902,35 +895,11 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
         ⚙️
       </CornerIcon>
 
-      {/* Top-Right (Upper): Inventory */}
+      {/* Top-Right: My Dice Rolls */}
       <div
         className="fixed z-40"
         style={{
           top: '16px',
-          right: '16px',
-          pointerEvents: isUIVisible ? 'auto' : 'none'
-        }}
-      >
-        <button
-          onClick={() => setIsInventoryOpen(true)}
-          className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
-          style={{
-            ...TOP_RIGHT_BUTTON_STYLES,
-            opacity: isUIVisible ? 1 : 0,
-            transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
-          }}
-          aria-label="Inventory"
-          title="Dice Collection"
-        >
-          💎
-        </button>
-      </div>
-
-      {/* Top-Right (Lower): My Dice Rolls */}
-      <div
-        className="fixed z-40"
-        style={{
-          top: '80px',
           right: '16px',
           pointerEvents: isUIVisible ? 'auto' : 'none'
         }}
@@ -955,7 +924,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
         <div
           className="fixed z-40"
           style={{
-            top: '144px',
+            top: '80px',
             right: '16px',
             pointerEvents: isUIVisible ? 'auto' : 'none'
           }}
@@ -982,18 +951,20 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       {/* DICE TOOLBAR - Compact slide-out dice management */}
       <DiceToolbar
         isOpen={isDiceManagerOpen}
-        onAddDice={handleAddDice}
-        onClearAll={activeBackend.clearAll}
+        onAddGenericDie={activeBackend.addGenericDie}
+        onAddSpecificDie={handleAddDice}
+        onRemoveDie={activeBackend.removeDie}
+        onOpenInventory={() => {
+          setIsInventoryOpen(true)
+          setIsDiceManagerOpen(false)
+        }}
       />
 
       <RollTray
         dice={trayDice}
         isVisible={isUIVisible && !isSavedRollsOpen && (!isInventoryOpen || isInventoryDragActive)}
-        onAddGenericDie={handleAddGenericDice}
         onAddSpecificDie={handleAddDice}
         onRemoveDie={activeBackend.removeDie}
-        onClearAll={activeBackend.clearAll}
-        onOpenInventory={() => setIsInventoryOpen(true)}
         onInspectDie={setInspectedInventoryDieId}
       />
 
