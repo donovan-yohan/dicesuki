@@ -49,7 +49,7 @@ import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, RollTray, UIToggl
 import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
 import { PlayerPanel } from './multiplayer/PlayerPanel'
-import { HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
+import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
 
 /**
  * Shared styles for top-right corner buttons
@@ -549,6 +549,8 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
   const [isInventoryOpen, setIsInventoryOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isPlayerPanelOpen, setIsPlayerPanelOpen] = useState(false)
+  const [inspectedInventoryDieId, setInspectedInventoryDieId] = useState<string | null>(null)
+  const [isInventoryDragActive, setIsInventoryDragActive] = useState(false)
   const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>('high')
   const [showRenderLodDebug, setShowRenderLodDebug] = useState(false)
   const detectedRenderDeviceTierRef = useRef<RenderDeviceTier | null>(null)
@@ -716,6 +718,9 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       }
     })
   }, [dice, inventoryDiceMap, isMultiplayer, localPlayerId, multiplayerDice])
+  const inspectedInventoryDie = inspectedInventoryDieId
+    ? inventoryDiceMap.get(inspectedInventoryDieId)
+    : undefined
 
   const handleToggleMotion = useCallback(async () => {
     if (!motionMode) {
@@ -983,12 +988,13 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
 
       <RollTray
         dice={trayDice}
-        isVisible={isUIVisible && !isSavedRollsOpen}
+        isVisible={isUIVisible && !isSavedRollsOpen && (!isInventoryOpen || isInventoryDragActive)}
         onAddGenericDie={handleAddGenericDice}
         onAddSpecificDie={handleAddDice}
         onRemoveDie={activeBackend.removeDie}
         onClearAll={activeBackend.clearAll}
         onOpenInventory={() => setIsInventoryOpen(true)}
+        onInspectDie={setInspectedInventoryDieId}
       />
 
       {/* THEMED PANELS */}
@@ -1005,14 +1011,30 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
 
       <InventoryPanel
         isOpen={isInventoryOpen}
-        onClose={() => setIsInventoryOpen(false)}
+        onClose={() => {
+          setIsInventoryOpen(false)
+          setIsInventoryDragActive(false)
+        }}
         onSpawnDie={handleAddDice}
+        onInventoryDragStateChange={setIsInventoryDragActive}
       />
 
       <SettingsPanel
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
       />
+
+      {inspectedInventoryDie && (
+        <HeroDieInspector
+          die={inspectedInventoryDie}
+          theme={currentTheme}
+          onClose={() => setInspectedInventoryDieId(null)}
+          onSpawn={() => {
+            handleAddDice(inspectedInventoryDie.type, inspectedInventoryDie.id)
+            setInspectedInventoryDieId(null)
+          }}
+        />
+      )}
 
       {/* Multiplayer player panel */}
       {isMultiplayer && (
