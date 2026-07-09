@@ -13,6 +13,7 @@ function renderTray(overrides: {
   onRemoveDie?: (id: string) => void
   onClearAll?: () => void
   onOpenInventory?: () => void
+  onInspectDie?: (inventoryDieId: string) => void
 } = {}) {
   const props = {
     dice: overrides.dice ?? [],
@@ -22,6 +23,7 @@ function renderTray(overrides: {
     onRemoveDie: overrides.onRemoveDie ?? vi.fn(),
     onClearAll: overrides.onClearAll ?? vi.fn(),
     onOpenInventory: overrides.onOpenInventory ?? vi.fn(),
+    onInspectDie: overrides.onInspectDie ?? vi.fn(),
   }
 
   render(
@@ -109,5 +111,19 @@ describe('RollTray', () => {
     fireEvent.click(screen.getByRole('button', { name: /inventory/i }))
 
     expect(onOpenInventory).toHaveBeenCalledOnce()
+  })
+
+  it('opens the inspector for a specific owned tray die', () => {
+    const onInspectDie = vi.fn()
+    renderTray({
+      onInspectDie,
+      dice: [
+        { id: 'owned-d20-instance', type: 'd20', inventoryDieId: 'owned-d20', displayName: 'Lucky D20', rarity: 'rare' },
+      ],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /inspect lucky d20/i }))
+
+    expect(onInspectDie).toHaveBeenCalledWith('owned-d20')
   })
 })

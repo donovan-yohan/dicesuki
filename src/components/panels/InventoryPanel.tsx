@@ -13,11 +13,13 @@ import type { DieRarity, InventoryDie } from '../../types/inventory'
 import { useTheme } from '../../contexts/ThemeContext'
 import type { Theme } from '../../themes/tokens'
 import { BottomSheet } from './BottomSheet'
+import { HeroDieInspector } from './HeroDieInspector'
 
 interface InventoryPanelProps {
   isOpen: boolean
   onClose: () => void
   onSpawnDie?: (dieType: string, inventoryDieId?: string) => void
+  onInventoryDragStateChange?: (isDragging: boolean) => void
 }
 
 type StatusFilter = 'all' | 'favorites' | 'recent'
@@ -36,7 +38,7 @@ const rarityOrder: Record<DieRarity, number> = {
   mythic: 5,
 }
 
-export function InventoryPanel({ isOpen, onClose, onSpawnDie }: InventoryPanelProps) {
+export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragStateChange }: InventoryPanelProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [shapeFilter, setShapeFilter] = useState<'all' | DiceShape>('all')
   const [rarityFilter, setRarityFilter] = useState<'all' | DieRarity>('all')
@@ -96,6 +98,10 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie }: InventoryPanelPr
   const visibleDice = useMemo(() => {
     return filteredDice.slice(0, visibleCount)
   }, [filteredDice, visibleCount])
+  const selectedInventoryDie = useMemo(() => {
+    if (!selectedDie) return null
+    return dice.find(die => die.id === selectedDie.id) ?? null
+  }, [dice, selectedDie])
 
   const hasMoreDice = visibleDice.length < filteredDice.length
   const hasActiveFilters =
@@ -121,10 +127,10 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie }: InventoryPanelPr
   }, [])
 
   useEffect(() => {
-    if (selectedDie && !dice.some(die => die.id === selectedDie.id)) {
+    if (selectedDie && !selectedInventoryDie) {
       setSelectedDie(null)
     }
-  }, [dice, selectedDie])
+  }, [selectedDie, selectedInventoryDie])
 
   const handleRemoveDevDice = async () => {
     if (confirm(`Remove all ${devDice.length} dev/test dice?`)) {
@@ -148,7 +154,7 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie }: InventoryPanelPr
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Dice Collection">
       <div
-        className="space-y-5"
+        className="space-y-5 pb-52 md:pb-0"
         style={{
           color: currentTheme.tokens.colors.text.primary,
         }}
@@ -346,6 +352,7 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie }: InventoryPanelPr
                   theme={currentTheme}
                   onSelect={() => setSelectedDie(die)}
                   onSpawn={onSpawnDie ? () => handleSpawnDie(die) : undefined}
+                  onDragStateChange={onInventoryDragStateChange}
                 />
               ))}
             </div>
@@ -370,13 +377,13 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie }: InventoryPanelPr
         )}
       </div>
 
-      {selectedDie && (
-        <DieDetailDialog
-          die={selectedDie}
+      {selectedInventoryDie && (
+        <HeroDieInspector
+          die={selectedInventoryDie}
           theme={currentTheme}
           onClose={() => setSelectedDie(null)}
           onSpawn={onSpawnDie ? () => {
-            handleSpawnDie(selectedDie)
+            handleSpawnDie(selectedInventoryDie)
             setSelectedDie(null)
             onClose()
           } : undefined}
@@ -448,25 +455,30 @@ interface InventoryDieCardProps {
   theme: Theme
   onSelect: () => void
   onSpawn?: () => void
+  onDragStateChange?: (isDragging: boolean) => void
 }
 
-function InventoryDieCard({ die, theme, onSelect, onSpawn }: InventoryDieCardProps) {
+function InventoryDieCard({ die, theme, onSelect, onSpawn, onDragStateChange }: InventoryDieCardProps) {
   const rarityColor = getRarityColor(die.rarity, theme)
 
   return (
     <article
-      className="group relative overflow-hidden rounded-lg"
+      className="group relative scroll-mb-56 overflow-hidden rounded-lg md:scroll-mb-0"
       style={{
         backgroundColor: theme.tokens.colors.surface,
         border: `1px solid ${rarityColor}`,
       }}
       draggable
-      onDragStart={(event) => handleInventoryDieDragStart(event, die)}
+      onDragStart={(event) => {
+        onDragStateChange?.(true)
+        handleInventoryDieDragStart(event, die)
+      }}
+      onDragEnd={() => onDragStateChange?.(false)}
     >
       <button
         type="button"
         onClick={onSelect}
-        className="block w-full p-3 text-left"
+        className="block w-full scroll-mb-56 p-3 text-left md:scroll-mb-0"
         aria-label={`Inspect ${die.name}`}
       >
         <div
@@ -628,130 +640,6 @@ function EmptyState({ title, description, theme, action }: EmptyStateProps) {
         {description}
       </p>
       {action}
-    </div>
-  )
-}
-
-interface DieDetailDialogProps {
-  die: InventoryDie
-  theme: Theme
-  onClose: () => void
-  onSpawn?: () => void
-}
-
-function DieDetailDialog({ die, theme, onClose, onSpawn }: DieDetailDialogProps) {
-  const rarityColor = getRarityColor(die.rarity, theme)
-
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-60 p-4"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${die.name} details`}
-        className="grid max-h-[88vh] w-full max-w-2xl gap-4 overflow-y-auto rounded-lg p-4 md:grid-cols-[220px_1fr] md:p-5"
-        style={{
-          backgroundColor: theme.tokens.colors.surface,
-          color: theme.tokens.colors.text.primary,
-          border: `1px solid ${rarityColor}`,
-        }}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="aspect-square overflow-hidden rounded-lg" style={{ backgroundColor: 'rgba(0, 0, 0, 0.28)' }}>
-          <InventoryDicePreview die={die} />
-        </div>
-
-        <div className="space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className="text-xl font-bold">{die.name}</h3>
-              <p className="mt-1 text-sm" style={{ color: theme.tokens.colors.text.secondary }}>
-                {die.type.toUpperCase()} · <span style={{ color: rarityColor }}>{capitalize(die.rarity)}</span> · {die.setId}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-8 w-8 rounded-full text-lg"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                color: theme.tokens.colors.text.secondary,
-              }}
-              aria-label="Close die details"
-            >
-              x
-            </button>
-          </div>
-
-          {die.description && (
-            <p className="text-sm" style={{ color: theme.tokens.colors.text.secondary }}>
-              {die.description}
-            </p>
-          )}
-
-          <dl className="grid grid-cols-2 gap-3 text-sm">
-            <DetailStat label="Rolls" value={die.stats.timesRolled.toString()} theme={theme} />
-            <DetailStat label="Highest" value={die.stats.highestRoll?.toString() ?? '-'} theme={theme} />
-            <DetailStat label="Source" value={die.source} theme={theme} />
-            <DetailStat label="Acquired" value={new Date(die.acquiredAt).toLocaleDateString()} theme={theme} />
-          </dl>
-
-          {die.tags && die.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {die.tags.map(tag => (
-                <span
-                  key={tag}
-                  className="rounded px-2 py-1 text-xs"
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                    color: theme.tokens.colors.text.secondary,
-                  }}
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <p className="break-all text-xs" style={{ color: theme.tokens.colors.text.muted }}>
-            ID: {die.id}
-          </p>
-
-          {onSpawn && (
-            <button
-              type="button"
-              onClick={onSpawn}
-              className="h-11 w-full rounded-md text-sm font-semibold"
-              style={{
-                backgroundColor: theme.tokens.colors.accent,
-                color: theme.tokens.colors.text.primary,
-              }}
-            >
-              Add to Table
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DetailStat({ label, value, theme }: { label: string; value: string; theme: Theme }) {
-  return (
-    <div
-      className="rounded-md p-3"
-      style={{
-        backgroundColor: 'rgba(0, 0, 0, 0.18)',
-        border: `1px solid ${theme.tokens.colors.text.muted}`,
-      }}
-    >
-      <dt className="text-xs uppercase tracking-normal" style={{ color: theme.tokens.colors.text.muted }}>
-        {label}
-      </dt>
-      <dd className="mt-1 truncate font-semibold">{value}</dd>
     </div>
   )
 }

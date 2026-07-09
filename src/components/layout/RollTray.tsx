@@ -22,6 +22,7 @@ interface RollTrayProps {
   onRemoveDie: (id: string) => void
   onClearAll: () => void
   onOpenInventory: () => void
+  onInspectDie?: (inventoryDieId: string) => void
 }
 
 const DICE_TYPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
@@ -34,6 +35,7 @@ export function RollTray({
   onRemoveDie,
   onClearAll,
   onOpenInventory,
+  onInspectDie,
 }: RollTrayProps) {
   const { currentTheme } = useTheme()
   const [orderedIds, setOrderedIds] = useState<string[]>([])
@@ -202,6 +204,21 @@ export function RollTray({
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-1">
+                    {die.inventoryDieId && onInspectDie && (
+                      <button
+                        type="button"
+                        onClick={() => onInspectDie(die.inventoryDieId as string)}
+                        className="col-span-2 h-7 rounded text-xs font-semibold"
+                        style={{
+                          backgroundColor: 'rgba(251, 146, 60, 0.16)',
+                          color: currentTheme.tokens.colors.accent,
+                          border: `1px solid ${currentTheme.tokens.colors.accent}`,
+                        }}
+                        aria-label={`Inspect ${label}`}
+                      >
+                        Inspect
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => moveDie(die.id, -1)}
