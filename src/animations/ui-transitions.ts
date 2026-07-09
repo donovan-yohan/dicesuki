@@ -247,7 +247,7 @@ export const softSpringConfig: Transition = {
  * Check if user prefers reduced motion
  */
 export function shouldReduceMotion(): boolean {
-  if (typeof window.matchMedia !== 'function') return false
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 

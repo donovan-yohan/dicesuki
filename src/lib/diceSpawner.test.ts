@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { spawnDiceFromToolbar } from './diceSpawner'
+import { spawnDiceFromToolbar, spawnSpecificDie } from './diceSpawner'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useInventoryStore } from '../store/useInventoryStore'
 import type { DiceShape } from '../types/diceShape'
@@ -62,5 +62,17 @@ describe('spawnDiceFromToolbar', () => {
     expect(secondSpawn.success).toBe(false)
     expect(secondSpawn.error).toBe('All D6 dice are in use')
     expect(useDiceManagerStore.getState().dice).toHaveLength(1)
+  })
+
+  it('uses the inventory die type as source of truth for explicit spawns', () => {
+    const d20 = addOwnedDie('Specific D20', 'd20')
+
+    const result = spawnSpecificDie(d20.id, 'd6', 'default')
+
+    expect(result.success).toBe(true)
+    expect(useDiceManagerStore.getState().dice[0]).toMatchObject({
+      type: 'd20',
+      inventoryDieId: d20.id,
+    })
   })
 })

@@ -171,7 +171,7 @@ export function spawnDiceFromInventory(options: SpawnDiceOptions): SpawnResult {
   console.log(`  - Is Dev: ${selectedInventoryDie.isDev}`)
   // Spawn the die
   const diceInstanceId = diceManagerStore.addDice(
-    type,
+    selectedInventoryDie.type,
     themeId,
     undefined, // auto-generate dice instance ID
     selectedInventoryDie.id // link to inventory die

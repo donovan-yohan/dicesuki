@@ -138,6 +138,8 @@ export function SharedInventoryDicePreviewCanvas({
   }, [])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -173,7 +175,7 @@ export function SharedInventoryDicePreviewCanvas({
     let frameId = 0
     let width = 0
     let height = 0
-    const reducedMotion = typeof window.matchMedia === 'function'
+    const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
       ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
       : false
 
@@ -185,18 +187,21 @@ export function SharedInventoryDicePreviewCanvas({
       }
 
       const hostRect = host.getBoundingClientRect()
-      width = Math.max(1, hostRect.width)
-      height = Math.max(1, hostRect.height)
-      renderer.setSize(width, height, false)
+      const nextWidth = Math.max(1, hostRect.width)
+      const nextHeight = Math.max(1, hostRect.height)
+      if (nextWidth !== width || nextHeight !== height) {
+        width = nextWidth
+        height = nextHeight
+        renderer.setSize(width, height, false)
+      }
       renderer.clear()
 
       const elapsed = time / 1000
       const entries = entriesRef.current
 
-      for (const die of dice) {
-        const entry = entries.get(die.id)
-        const slot = slotRefs.current.get(die.id)
-        if (!entry || !slot) continue
+      for (const [dieId, entry] of entries) {
+        const slot = slotRefs.current.get(dieId)
+        if (!slot) continue
 
         const slotRect = slot.getBoundingClientRect()
         if (slotRect.width <= 0 || slotRect.height <= 0) continue
@@ -237,7 +242,7 @@ export function SharedInventoryDicePreviewCanvas({
       window.cancelAnimationFrame(frameId)
       renderer.dispose()
     }
-  }, [dice, hostRef, slotRefs])
+  }, [hostRef, slotRefs])
 
   return (
     <canvas
