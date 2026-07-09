@@ -9,7 +9,6 @@ import { motion } from 'framer-motion'
 import {
   buttonPressScale,
   rollButtonDisabledVariants,
-  rollButtonRollingVariants,
   shouldReduceMotion,
 } from '../../animations/ui-transitions'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -18,13 +17,11 @@ import { hasAsset } from '../../lib/themeHelpers'
 interface CenterRollButtonProps {
   onClick: () => void
   disabled?: boolean
-  isRolling: boolean
 }
 
 export function CenterRollButton({
   onClick,
   disabled = false,
-  isRolling,
 }: CenterRollButtonProps) {
   const { currentTheme } = useTheme()
   const rollIcon = currentTheme.assets.icons.roll
@@ -54,19 +51,13 @@ export function CenterRollButton({
         zIndex: 45, // Above nav bar (40)
       }}
       // Animations - only on interaction
-      variants={
-        disabled
-          ? rollButtonDisabledVariants
-          : isRolling
-          ? rollButtonRollingVariants
-          : undefined
-      }
+      variants={disabled ? rollButtonDisabledVariants : undefined}
       initial="idle"
-      animate={disabled ? 'disabled' : isRolling && !reduceMotion ? 'spinning' : 'idle'}
+      animate={disabled ? 'disabled' : 'idle'}
       whileTap={!disabled && !reduceMotion ? buttonPressScale : undefined}
       // Accessibility
-      aria-label={isRolling ? 'Rolling dice' : disabled ? 'Cannot roll' : 'Roll dice'}
-      title={isRolling ? 'Rolling...' : disabled ? 'Add dice to roll' : 'Roll Dice'}
+      aria-label={disabled ? 'Cannot roll' : 'Roll dice'}
+      title={disabled ? 'Add dice to roll' : 'Roll Dice'}
     >
       {/* Icon or Text */}
       {hasAsset(rollIcon) ? (
@@ -80,7 +71,7 @@ export function CenterRollButton({
         />
       ) : (
         <span className="text-sm font-bold select-none uppercase tracking-wider">
-          {isRolling ? 'Rolling' : 'Roll'}
+          Roll
         </span>
       )}
     </motion.button>

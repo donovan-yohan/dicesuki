@@ -32,11 +32,15 @@ pub const MAX_DICE_VELOCITY: f32 = 25.0;
 
 /// Viewport bounds — fixed 9:16 portrait arena for multiplayer
 pub const GROUND_Y: f32 = -0.5;
-pub const CEILING_Y: f32 = 15.0;
+pub const CEILING_Y: f32 = 6.0;
 pub const WALL_HALF_X: f32 = 4.5;   // 9 units wide total
 pub const WALL_HALF_Z: f32 = 8.0;   // 16 units deep total
 pub const WALL_HEIGHT: f32 = 8.0;
 pub const WALL_THICKNESS: f32 = 0.5;
+pub const ESCAPE_RESET_HALF_X: f32 = WALL_HALF_X + 8.0;
+pub const ESCAPE_RESET_HALF_Z: f32 = WALL_HALF_Z + 8.0;
+pub const ESCAPE_RESET_MIN_Y: f32 = GROUND_Y - 8.0;
+pub const ESCAPE_RESET_MAX_Y: f32 = CEILING_Y + 8.0;
 
 pub struct PhysicsWorld {
     pub(crate) rigid_body_set: RigidBodySet,
@@ -232,6 +236,16 @@ impl PhysicsWorld {
             if speed > max_speed {
                 rb.set_linvel(vel * (max_speed / speed), true);
             }
+        }
+    }
+
+    /// Move a body back into the arena and stop its current motion.
+    pub fn reset_body_to_position(&mut self, handle: RigidBodyHandle, position: [f32; 3]) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            rb.set_translation(vector![position[0], position[1], position[2]], true);
+            rb.set_rotation(Rotation::identity(), true);
+            rb.set_linvel(vector![0.0, 0.0, 0.0], true);
+            rb.set_angvel(vector![0.0, 0.0, 0.0], true);
         }
     }
 

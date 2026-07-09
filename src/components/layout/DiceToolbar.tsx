@@ -21,6 +21,7 @@ import { SharedInventoryDicePreviewCanvas } from '../panels/SharedInventoryDiceP
 interface DiceToolbarProps {
   isOpen: boolean
   onAddDice: (type: DiceShape, inventoryDieId?: string) => void
+  onClearAllDice: () => void
   onOpenInventory: () => void
 }
 
@@ -33,7 +34,7 @@ const ALL_DICE_TYPES: Array<{ type: DiceShape; label: string }> = [
   { type: 'd20', label: 'D20' },
 ]
 
-export function DiceToolbar({ isOpen, onAddDice, onOpenInventory }: DiceToolbarProps) {
+export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory }: DiceToolbarProps) {
   const reduceMotion = shouldReduceMotion()
   const { dice: inventoryDice } = useInventoryStore()
   const localDiceOnTable = useDiceManagerStore(state => state.dice)
@@ -153,7 +154,7 @@ export function DiceToolbar({ isOpen, onAddDice, onOpenInventory }: DiceToolbarP
               ease: 'easeOut',
             }}
           >
-            <TrashButton />
+            <TrashButton onClick={onClearAllDice} />
           </motion.div>
         </motion.div>
       )}
@@ -366,7 +367,7 @@ function InventoryButton({ onClick }: { onClick: () => void }) {
   )
 }
 
-function TrashButton() {
+function TrashButton({ onClick }: { onClick: () => void }) {
   const reduceMotion = shouldReduceMotion()
   const draggedDiceId = useDragStore((state) => state.draggedDiceId)
   const isDragging = draggedDiceId !== null
@@ -377,6 +378,7 @@ function TrashButton() {
     <motion.button
       id="trash-drop-zone"
       type="button"
+      onClick={onClick}
       className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl transition-all"
       style={{
         backgroundColor: isDragging ? `${trashColor}cc` : `${trashColor}99`,
@@ -406,8 +408,8 @@ function TrashButton() {
             }
           : undefined
       }
-      aria-label={isDragging ? 'Drop die to remove from table' : 'Trash drop zone'}
-      title={isDragging ? 'Drop die here to remove it from the table' : 'Trash drop zone'}
+      aria-label={isDragging ? 'Drop die to remove from table' : 'Clear all dice'}
+      title={isDragging ? 'Drop die here to remove it from the table' : 'Clear all dice'}
     >
       🗑️
     </motion.button>

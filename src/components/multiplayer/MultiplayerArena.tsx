@@ -58,16 +58,15 @@ export function MultiplayerArena() {
         </Box>
       ))}
 
-      {/* Ceiling */}
-      {env.ceiling.visible && (
-        <Box args={[MULTIPLAYER_ARENA_HALF_X * 2 + 2, 0.5, MULTIPLAYER_ARENA_HALF_Z * 2 + 2]} position={[0, CEILING_Y, 0]}>
-          <meshStandardMaterial
-            color={env.ceiling.color || env.walls.color}
-            transparent
-            opacity={env.ceiling.color ? 1 : 0}
-          />
-        </Box>
-      )}
+      {/* Ceiling: server physics always collides here; keep it invisible unless themed. */}
+      <Box args={[MULTIPLAYER_ARENA_HALF_X * 2 + 2, 0.5, MULTIPLAYER_ARENA_HALF_Z * 2 + 2]} position={[0, CEILING_Y, 0]}>
+        <meshStandardMaterial
+          color={env.ceiling.color || env.walls.color}
+          transparent
+          opacity={env.ceiling.visible && env.ceiling.color ? 0.35 : 0}
+          depthWrite={false}
+        />
+      </Box>
     </>
   )
 }

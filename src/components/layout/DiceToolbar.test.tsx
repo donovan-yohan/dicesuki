@@ -69,11 +69,13 @@ function makeMultiplayerDie(overrides: Partial<MultiplayerDie>): MultiplayerDie 
 
 function renderToolbar(overrides: {
   onAddDice?: (type: DiceShape, inventoryDieId?: string) => void
+  onClearAllDice?: () => void
   onOpenInventory?: () => void
 } = {}) {
   const props = {
     isOpen: true,
     onAddDice: overrides.onAddDice ?? vi.fn(),
+    onClearAllDice: overrides.onClearAllDice ?? vi.fn(),
     onOpenInventory: overrides.onOpenInventory ?? vi.fn(),
   }
 
@@ -185,11 +187,22 @@ describe('DiceToolbar', () => {
     expect(onOpenInventory).toHaveBeenCalledOnce()
   })
 
+  it('clears all table dice when the trash target is clicked directly', () => {
+    addNamedDie('Starter D8', 'd8', 'common')
+    const onClearAllDice = vi.fn()
+
+    renderToolbar({ onClearAllDice })
+
+    fireEvent.click(screen.getByRole('button', { name: /clear all dice/i }))
+
+    expect(onClearAllDice).toHaveBeenCalledOnce()
+  })
+
   it('keeps the trash target aligned in the rail for scene-level drag deletion', () => {
     addNamedDie('Starter D8', 'd8', 'common')
 
     renderToolbar()
 
-    expect(screen.getByRole('button', { name: /trash drop zone/i })).toHaveAttribute('id', 'trash-drop-zone')
+    expect(screen.getByRole('button', { name: /clear all dice/i })).toHaveAttribute('id', 'trash-drop-zone')
   })
 })

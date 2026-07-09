@@ -343,6 +343,7 @@ function ViewportBoundaries() {
   const wallThickness = 0.3
   const wallHeight = env.walls.height || 6 // Use theme's wall height or default to 6
   const wallY = wallHeight / 2 // Center Y position for walls
+  const ceilingY = Math.max(6, wallHeight + wallThickness / 2)
 
   return (
     <>
@@ -409,14 +410,21 @@ function ViewportBoundaries() {
         </>
       )}
 
-      {/* Ceiling - prevents dice from flying away when phone upside down */}
-      {env.ceiling.visible && (
-        <RigidBody type="fixed" position={[0, 6, 0]}>
-          <Box args={[bounds.width, wallThickness, bounds.height]}>
+      {/* Ceiling - always collides; only visible when a theme asks for it. */}
+      <RigidBody type="fixed" position={[0, ceilingY, 0]}>
+        <Box args={[bounds.width, wallThickness, bounds.height]}>
+          {env.ceiling.visible && env.ceiling.color ? (
+            <meshStandardMaterial
+              color={env.ceiling.color}
+              transparent
+              opacity={0.35}
+              depthWrite={false}
+            />
+          ) : (
             <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-          </Box>
-        </RigidBody>
-      )}
+          )}
+        </Box>
+      </RigidBody>
     </>
   )
 }
@@ -518,7 +526,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
   const { gravityRef } = useDeviceMotionRef()
   // Get requestPermission from state context
   const { requestPermission } = useDeviceMotionState()
-  const { isRolling, roll, onDiceRest, onDiceMoving } = useDiceRoll()
+  const { roll, onDiceRest, onDiceMoving } = useDiceRoll()
 
   // Subscribe to dice manager store (local physics dice)
   const dice = useDiceManagerStore((state) => state.dice)
@@ -881,8 +889,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       {/* Center Roll Button - elevated above nav */}
       <CenterRollButton
         onClick={activeBackend.roll}
-        isRolling={isRolling}
-        disabled={tableDice.length === 0 || isRolling}
+        disabled={tableDice.length === 0}
       />
 
       {/* Top-Left Corner: Settings */}
@@ -952,6 +959,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       <DiceToolbar
         isOpen={isDiceManagerOpen}
         onAddDice={handleAddDice}
+        onClearAllDice={activeBackend.clearAll}
         onOpenInventory={() => {
           setIsInventoryOpen(true)
           setIsDiceManagerOpen(false)
