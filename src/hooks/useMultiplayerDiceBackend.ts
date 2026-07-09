@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import type { DiceBackendState } from '../contexts/DiceBackendContext'
 import type { DiceShape } from '../lib/geometries'
 import { createDicePresentationMetadata } from '../lib/dicePresentation'
+import { selectRandomAvailableDie } from '../lib/diceSelection'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useDiceStore } from '../store/useDiceStore'
 import { useInventoryStore } from '../store/useInventoryStore'
@@ -38,7 +39,7 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
     const inventoryCandidates = inventoryStore.getDiceByType(type)
     const inventoryDie = inventoryDieId
       ? inventoryStore.dice.find((die) => die.id === inventoryDieId)
-      : inventoryCandidates.find((die) => !inUseInventoryIds.has(die.id))
+      : selectRandomAvailableDie(inventoryCandidates, inUseInventoryIds)
 
     if (inventoryDieId && !inventoryDie) {
       console.warn(`[useMultiplayerDiceBackend] Inventory die ${inventoryDieId} not found; not spawning`)

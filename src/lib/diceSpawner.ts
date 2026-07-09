@@ -14,7 +14,7 @@
  *
  * ## Usage Patterns
  *
- * ### From DiceToolbar (spawn first available)
+ * ### From DiceToolbar (spawn random available owned die)
  * ```ts
  * import { spawnDiceFromToolbar } from '../lib/diceSpawner'
  *
@@ -48,6 +48,7 @@
  */
 
 import { DiceShape } from './geometries'
+import { selectRandomAvailableDie } from './diceSelection'
 import { useInventoryStore } from '../store/useInventoryStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 export interface SpawnDiceOptions {
@@ -59,7 +60,7 @@ export interface SpawnDiceOptions {
   /**
    * Optional: Specific inventory die ID to spawn
    * If provided, will spawn this exact die from inventory
-   * If not provided, will find first available die of the specified type
+   * If not provided, will select a random available die of the specified type
    */
   inventoryDieId?: string
 
@@ -129,7 +130,7 @@ export function spawnDiceFromInventory(options: SpawnDiceOptions): SpawnResult {
 
     console.log(`[DiceSpawner] Spawning SPECIFIC die: ${selectedInventoryDie.name}`)
   } else {
-    // Spawning from toolbar - find first available die of this type
+    // Spawning from toolbar - select a random available owned die of this type
     const inventoryDice = inventoryStore.getDiceByType(type)
 
     if (inventoryDice.length === 0) {
@@ -140,8 +141,7 @@ export function spawnDiceFromInventory(options: SpawnDiceOptions): SpawnResult {
       }
     }
 
-    // Find first available die (owned but not in use)
-    selectedInventoryDie = inventoryDice.find(die => !inUseDiceIds.includes(die.id))
+    selectedInventoryDie = selectRandomAvailableDie(inventoryDice, new Set(inUseDiceIds))
 
     if (!selectedInventoryDie) {
       const ownedCount = inventoryDice.length
@@ -153,7 +153,7 @@ export function spawnDiceFromInventory(options: SpawnDiceOptions): SpawnResult {
       }
     }
 
-    console.log(`[DiceSpawner] Spawning first available die: ${selectedInventoryDie.name}`)
+    console.log(`[DiceSpawner] Spawning random available die: ${selectedInventoryDie.name}`)
   }
 
   // Clear existing dice if requested
@@ -211,4 +211,3 @@ export function spawnSpecificDie(
     clearExisting: false
   })
 }
-

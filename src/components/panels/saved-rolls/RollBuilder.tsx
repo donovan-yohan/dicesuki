@@ -14,11 +14,11 @@ import {
 import type { DiceEntry, SavedRoll } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
 import type { DiceShape } from '../../../lib/geometries'
-import type { RollTrayDie } from '../../layout/RollTray'
+import type { TableDieSummary } from '../../../types/tableDice'
 
 interface RollBuilderProps {
   initialRoll?: SavedRoll
-  trayDice?: RollTrayDie[]
+  tableDice?: TableDieSummary[]
   onSave: (roll: Omit<SavedRoll, 'id' | 'createdAt'>) => void
   onCancel: () => void
 }
@@ -27,7 +27,7 @@ interface RollBuilderProps {
  * Main roll builder component
  * Allows users to create custom dice rolls with bonuses
  */
-export function RollBuilder({ initialRoll, trayDice = [], onSave, onCancel }: RollBuilderProps) {
+export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: RollBuilderProps) {
   const [name, setName] = useState(initialRoll?.name || '')
   const [description, setDescription] = useState(initialRoll?.description || '')
   const [dice, setDice] = useState<DiceEntry[]>(initialRoll?.dice || [])
@@ -81,10 +81,10 @@ export function RollBuilder({ initialRoll, trayDice = [], onSave, onCancel }: Ro
     }
   }
 
-  const handleAddTrayDice = () => {
-    const trayEntries = createEntriesFromTrayDice(trayDice, inventoryDiceById)
-    if (trayEntries.length === 0) return
-    setDice([...dice, ...trayEntries])
+  const handleAddTableDice = () => {
+    const tableEntries = createEntriesFromTableDice(tableDice, inventoryDiceById)
+    if (tableEntries.length === 0) return
+    setDice([...dice, ...tableEntries])
   }
 
   const handleUpdateDice = (index: number, entry: DiceEntry) => {
@@ -197,10 +197,10 @@ export function RollBuilder({ initialRoll, trayDice = [], onSave, onCancel }: Ro
           <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             Owned Dice
           </h3>
-          {trayDice.length > 0 && (
+          {tableDice.length > 0 && (
             <button
               type="button"
-              onClick={handleAddTrayDice}
+              onClick={handleAddTableDice}
               className="h-8 px-3 rounded text-xs font-semibold"
               style={{
                 backgroundColor: 'rgba(251, 146, 60, 0.16)',
@@ -208,7 +208,7 @@ export function RollBuilder({ initialRoll, trayDice = [], onSave, onCancel }: Ro
                 border: '1px solid rgba(251, 146, 60, 0.28)',
               }}
             >
-              Add Tray ({trayDice.length})
+              Add Table ({tableDice.length})
             </button>
           )}
         </div>
@@ -386,14 +386,14 @@ export function RollBuilder({ initialRoll, trayDice = [], onSave, onCancel }: Ro
   )
 }
 
-function createEntriesFromTrayDice(
-  trayDice: RollTrayDie[],
+function createEntriesFromTableDice(
+  tableDice: TableDieSummary[],
   inventoryDiceById: Map<string, InventoryDie>,
 ): DiceEntry[] {
   const genericCounts = new Map<DiceShape, number>()
   const specificEntries: DiceEntry[] = []
 
-  for (const die of trayDice) {
+  for (const die of tableDice) {
     if (die.inventoryDieId && inventoryDiceById.has(die.inventoryDieId)) {
       specificEntries.push(withRollSources({
         id: nanoid(),
