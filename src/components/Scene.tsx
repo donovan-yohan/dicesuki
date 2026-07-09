@@ -33,7 +33,7 @@ import {
 } from '../lib/renderLod'
 
 // Stores
-import { useDiceManagerStore } from '../store/useDiceManagerStore'
+import { useDiceManagerStore, type DiceInstance } from '../store/useDiceManagerStore'
 import { useDiceStore, type DieSettledState } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useInventoryStore } from '../store/useInventoryStore'
@@ -983,7 +983,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
 
       <RollTray
         dice={trayDice}
-        isVisible={isUIVisible}
+        isVisible={isUIVisible && !isSavedRollsOpen}
         onAddGenericDie={handleAddGenericDice}
         onAddSpecificDie={handleAddDice}
         onRemoveDie={activeBackend.removeDie}
@@ -1000,6 +1000,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       <SavedRollsPanel
         isOpen={isSavedRollsOpen}
         onClose={() => setIsSavedRollsOpen(false)}
+        trayDice={trayDice}
       />
 
       <InventoryPanel
@@ -1069,7 +1070,9 @@ function DiceChip({ label, children, variant = 'solid', className = '' }: {
 }) {
   return (
     <div className={`flex flex-col items-center gap-1 ${className}`}>
-      <span className="text-[8px] text-gray-400 uppercase font-semibold">{label}</span>
+      <span className="max-w-20 truncate text-[8px] text-gray-400 uppercase font-semibold" title={label}>
+        {label}
+      </span>
       <div
         className="backdrop-blur-sm px-3 py-1.5 rounded min-w-[40px] flex items-center justify-center"
         style={CHIP_STYLES[variant]}
@@ -1089,6 +1092,14 @@ function ResultDisplay() {
   const rollingDice = useDiceStore((s) => s.rollingDice)
   const activeSavedRoll = useDiceStore((s) => s.activeSavedRoll)
   const dice = useDiceManagerStore((s) => s.dice)
+  const inventoryDice = useInventoryStore((s) => s.dice)
+  const inventoryDiceById = useMemo(() => {
+    const map = new Map<string, InventoryDie>()
+    for (const die of inventoryDice) {
+      map.set(die.id, die)
+    }
+    return map
+  }, [inventoryDice])
 
   // Per-player filtering (multiplayer only)
   const selectedPlayerId = useMultiplayerStore((s) => s.selectedPlayerId)
@@ -1186,7 +1197,7 @@ function ResultDisplay() {
           {settledArray.map((die) => {
             const bonusStr = formatBonus(activeSavedRoll?.perDieBonuses.get(die.diceId) ?? 0)
             return (
-              <DiceChip key={die.diceId} label={die.type}>
+              <DiceChip key={die.diceId} label={getResultDieLabel(die)}>
                 <span className="text-lg font-bold">{die.value}</span>
                 {bonusStr && (
                   <span className="text-sm font-semibold ml-0.5" style={{ color: 'var(--color-accent)' }}>
@@ -1198,7 +1209,7 @@ function ResultDisplay() {
           })}
           {/* Rolling dice */}
           {rollingDiceOnTable.map((die) => (
-            <DiceChip key={`rolling-${die.id}`} label={die.type} variant="muted" className="animate-pulse">
+            <DiceChip key={`rolling-${die.id}`} label={getRollingDieLabel(die, inventoryDiceById)} variant="muted" className="animate-pulse">
               <span className="text-lg font-bold">?</span>
             </DiceChip>
           ))}
@@ -1214,6 +1225,15 @@ function ResultDisplay() {
       </div>
     </div>
   )
+}
+
+function getResultDieLabel(die: DieSettledState) {
+  return die.presentation?.displayName ?? die.type.toUpperCase()
+}
+
+function getRollingDieLabel(die: DiceInstance, inventoryDiceById: Map<string, InventoryDie>) {
+  if (!die.inventoryDieId) return die.type.toUpperCase()
+  return inventoryDiceById.get(die.inventoryDieId)?.name ?? die.type.toUpperCase()
 }
 
 export default Scene
