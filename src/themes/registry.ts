@@ -33,6 +33,27 @@ export function getThemeById(id: string): Theme | undefined {
 }
 
 /**
+ * Resolve the theme a client should apply to the room ENVIRONMENT (scene
+ * background, lighting, floor/walls, tray). In a multiplayer room the host sets
+ * a shared `themeId`; every client renders the room's environment from it while
+ * their personal dice skins (inventory identity) stay per-player (#75).
+ *
+ * - `roomThemeId == null` (host hasn't chosen one — includes solo rooms and
+ *   fresh multiplayer rooms): fall back to the player's own `personalTheme`.
+ * - `roomThemeId` is a known theme: use it.
+ * - `roomThemeId` is unknown (not in the registry): fall back to the default
+ *   theme gracefully rather than erroring, so a newer/removed theme id from
+ *   another client never breaks the scene.
+ */
+export function resolveRoomEnvironmentTheme(
+  roomThemeId: string | null | undefined,
+  personalTheme: Theme
+): Theme {
+  if (!roomThemeId) return personalTheme
+  return getThemeById(roomThemeId) ?? defaultTheme
+}
+
+/**
  * Get all free themes
  */
 export function getFreeThemes(): Theme[] {

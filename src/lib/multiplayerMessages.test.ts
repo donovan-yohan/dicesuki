@@ -12,6 +12,8 @@ import {
   DEFAULT_MOTION_CONTROL,
   getRoller,
   setRoller,
+  getRoomThemeId,
+  setRoomThemeId,
 } from './multiplayerMessages'
 
 describe('multiplayerMessages', () => {
@@ -230,6 +232,35 @@ describe('multiplayerMessages', () => {
       const cleared = setRoller(assigned, null)
       expect(cleared).toEqual({ version: 1, playerCap: 4, motionControl: 'room' })
       expect('roller' in cleared).toBe(false)
+      // Never mutates the input.
+      expect(original).toEqual({ version: 1, playerCap: 4, motionControl: 'room' })
+      expect(assigned).not.toBe(original)
+    })
+  })
+
+  describe('room theme protocol', () => {
+    it('getRoomThemeId reads the theme id and returns null when absent/invalid', () => {
+      expect(getRoomThemeId({ version: 1 })).toBeNull()
+      expect(getRoomThemeId({ version: 1, themeId: 'neon-cyber-city' })).toBe('neon-cyber-city')
+      expect(getRoomThemeId(null)).toBeNull()
+      // Non-string / empty values mean "no room theme" (players keep their own).
+      expect(getRoomThemeId({ version: 1, themeId: '' })).toBeNull()
+      expect(getRoomThemeId({ version: 1, themeId: 42 })).toBeNull()
+    })
+
+    it('setRoomThemeId assigns and clears while preserving other fields', () => {
+      const original = { version: 1, playerCap: 4, motionControl: 'room' }
+      const assigned = setRoomThemeId(original, 'fantasy')
+      expect(assigned).toEqual({
+        version: 1,
+        playerCap: 4,
+        motionControl: 'room',
+        themeId: 'fantasy',
+      })
+      // Clearing removes the key entirely, keeping everything else.
+      const cleared = setRoomThemeId(assigned, null)
+      expect(cleared).toEqual({ version: 1, playerCap: 4, motionControl: 'room' })
+      expect('themeId' in cleared).toBe(false)
       // Never mutates the input.
       expect(original).toEqual({ version: 1, playerCap: 4, motionControl: 'room' })
       expect(assigned).not.toBe(original)

@@ -14,6 +14,7 @@ import {
   getMotionControl,
   setMotionControl as withMotionControl,
   setRoller as withRoller,
+  setRoomThemeId as withRoomTheme,
 } from '../lib/multiplayerMessages'
 import { MOTION_IMPULSE_MIN_INTERVAL_MS } from '../config/physicsConfig'
 import { getWsServerUrl } from '../lib/multiplayerServer'
@@ -100,6 +101,12 @@ interface MultiplayerState {
    * non-hosts; the server re-validates.
    */
   setRoller: (playerId: string | null) => void
+  /**
+   * Host-only: set (or, with `null`, clear) the room's shared visual theme — the
+   * environment/tray look every client applies from room settings (#75). No-op
+   * for non-hosts; the server re-validates. Personal dice skins are unaffected.
+   */
+  setRoomTheme: (themeId: string | null) => void
   /**
    * Send a device-motion (shake/gravity) impulse. Policy-aware: silently drops
    * when motion is disabled (`off`) and throttles to `MOTION_IMPULSE_MIN_INTERVAL_MS`.
@@ -594,6 +601,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     // host-controlled fields (motionControl, playerCap, ...) are preserved.
     if (!get().isHost) return
     get().updateSettings(withRoller(get().roomSettings, playerId))
+  },
+
+  setRoomTheme: (themeId: string | null) => {
+    // Host-only; the server re-validates. Merge into existing settings so other
+    // host-controlled fields (motionControl, roller, ...) are preserved.
+    if (!get().isHost) return
+    get().updateSettings(withRoomTheme(get().roomSettings, themeId))
   },
 
   sendMotionImpulse: (impulse: [number, number, number]) => {

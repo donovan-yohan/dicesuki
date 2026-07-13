@@ -3,7 +3,8 @@ import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { connectionIndicator } from './connectionIndicator'
-import { getMotionControl, getRoller } from '../../lib/multiplayerMessages'
+import { getMotionControl, getRoller, getRoomThemeId } from '../../lib/multiplayerMessages'
+import { THEME_REGISTRY } from '../../themes/registry'
 import {
   MOTION_CONTROL_LABELS,
   MOTION_CONTROL_DESCRIPTIONS,
@@ -26,11 +27,13 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
   const roomSettings = useMultiplayerStore((s) => s.roomSettings)
   const setMotionControl = useMultiplayerStore((s) => s.setMotionControl)
   const setRoller = useMultiplayerStore((s) => s.setRoller)
+  const setRoomTheme = useMultiplayerStore((s) => s.setRoomTheme)
   const reduceMotion = shouldReduceMotion()
   const { currentTheme } = useTheme()
   const colors = currentTheme.tokens.colors
   const motionControl = getMotionControl(roomSettings)
   const rollerId = getRoller(roomSettings)
+  const roomThemeId = getRoomThemeId(roomSettings)
 
   // Host first, then the rest in join order.
   const playersArray = Array.from(players.values()).sort((a, b) => {
@@ -262,6 +265,58 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
 
             <span className="text-xs" style={{ color: colors.text.muted, lineHeight: 1.35 }}>
               {MOTION_CONTROL_DESCRIPTIONS[motionControl]}
+            </span>
+          </div>
+
+          {/* Room theme: host picks the shared environment/tray look everyone
+              sees; each player's personal dice skins stay their own (#75). */}
+          <div
+            className="flex flex-col gap-1.5 px-3 py-2.5"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
+            data-testid="room-theme-control"
+          >
+            <div className="flex items-center justify-between">
+              <span
+                className="text-xs font-semibold uppercase"
+                style={{ letterSpacing: '0.06em', color: colors.text.secondary }}
+              >
+                Room Theme
+              </span>
+              {!isHost && (
+                <span className="text-xs" style={{ color: colors.text.muted }}>
+                  Host controls
+                </span>
+              )}
+            </div>
+
+            <select
+              aria-label="Room theme"
+              data-testid="room-theme-select"
+              disabled={!isHost}
+              value={roomThemeId ?? ''}
+              onChange={(e) => {
+                if (!isHost) return
+                setRoomTheme(e.target.value === '' ? null : e.target.value)
+              }}
+              className="w-full rounded-lg px-2 py-1.5 text-sm"
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.06)',
+                color: colors.text.primary,
+                border: '1px solid rgba(255,255,255,0.12)',
+                cursor: isHost ? 'pointer' : 'default',
+                opacity: isHost ? 1 : 0.6,
+              }}
+            >
+              <option value="">Each player's own</option>
+              {THEME_REGISTRY.map((theme) => (
+                <option key={theme.id} value={theme.id}>
+                  {theme.name}
+                </option>
+              ))}
+            </select>
+
+            <span className="text-xs" style={{ color: colors.text.muted, lineHeight: 1.35 }}>
+              Sets the shared table look. Your dice skins stay your own.
             </span>
           </div>
         </motion.div>

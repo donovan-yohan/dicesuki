@@ -250,3 +250,74 @@ describe('PlayerPanel delegated roller', () => {
     ).not.toBeInTheDocument()
   })
 })
+
+describe('PlayerPanel room theme', () => {
+  beforeEach(() => {
+    useMultiplayerStore.getState().reset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('lets the host pick a shared room theme and sends it to the server', () => {
+    // Arrange
+    const send = vi.fn()
+    setRoster([player('a', 'Alice')], { localPlayerId: 'a', hostId: 'a' })
+    useMultiplayerStore.setState({
+      isHost: true,
+      roomSettings: { version: 1 },
+      socket: { send } as unknown as WebSocket,
+    })
+    renderPanel()
+
+    // Act: host selects the neon theme.
+    fireEvent.change(screen.getByTestId('room-theme-select'), {
+      target: { value: 'neon-cyber-city' },
+    })
+
+    // Assert: the choice goes out as a host settings mutation.
+    expect(send).toHaveBeenCalledTimes(1)
+    const payload = JSON.parse(send.mock.calls[0][0])
+    expect(payload).toEqual({
+      type: 'update_settings',
+      settings: { version: 1, themeId: 'neon-cyber-city' },
+    })
+  })
+
+  it('reflects the active room theme and clears back to per-player', () => {
+    const send = vi.fn()
+    setRoster([player('a', 'Alice')], { localPlayerId: 'a', hostId: 'a' })
+    useMultiplayerStore.setState({
+      isHost: true,
+      roomSettings: { version: 1, themeId: 'fantasy-earth' },
+      socket: { send } as unknown as WebSocket,
+    })
+    renderPanel()
+
+    const select = screen.getByTestId('room-theme-select') as HTMLSelectElement
+    expect(select.value).toBe('fantasy-earth')
+
+    // Act: clear back to "each player's own".
+    fireEvent.change(select, { target: { value: '' } })
+    const payload = JSON.parse(send.mock.calls[0][0])
+    expect(payload).toEqual({ type: 'update_settings', settings: { version: 1 } })
+  })
+
+  it('disables the theme selector for non-hosts', () => {
+    setRoster([player('a', 'Alice'), player('b', 'Bob')], {
+      localPlayerId: 'b',
+      hostId: 'a',
+    })
+    useMultiplayerStore.setState({
+      isHost: false,
+      roomSettings: { version: 1, themeId: 'neon-cyber-city' },
+    })
+    renderPanel()
+
+    const select = screen.getByTestId('room-theme-select') as HTMLSelectElement
+    expect(select.disabled).toBe(true)
+    // Non-hosts still see the room's current theme reflected.
+    expect(select.value).toBe('neon-cyber-city')
+  })
+})

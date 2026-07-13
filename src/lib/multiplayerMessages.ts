@@ -160,6 +160,37 @@ export function setRoller(settings: RoomSettings, playerId: string | null): Room
 }
 
 /**
+ * Settings key holding the room's shared visual theme id (environment + tray).
+ * Kept in sync with the server `THEME_SETTING` constant (server/src/room.rs, #75).
+ */
+export const THEME_SETTING = 'themeId'
+
+/**
+ * Read the room's shared theme id from settings, or `null` when the host has not
+ * set one. The value is opaque here — the environment layer resolves it against
+ * the client theme registry and falls back to the default theme for an unknown
+ * id (#75). `null` means clients keep their own personal theme.
+ */
+export function getRoomThemeId(settings: RoomSettings | null | undefined): string | null {
+  const raw = settings?.[THEME_SETTING]
+  return typeof raw === 'string' && raw.length > 0 ? raw : null
+}
+
+/**
+ * Return a new {@link RoomSettings} with the shared theme set to `themeId`
+ * (or cleared when `null`), preserving all other fields. Never mutates the input.
+ */
+export function setRoomThemeId(settings: RoomSettings, themeId: string | null): RoomSettings {
+  const next = { ...settings }
+  if (themeId) {
+    next[THEME_SETTING] = themeId
+  } else {
+    delete next[THEME_SETTING]
+  }
+  return next
+}
+
+/**
  * Device-motion (shake/gravity) input. `impulse` is a world-space vector the
  * server applies to the dice the sender may affect under the room's
  * `motionControl` policy. Rate-limited and magnitude-clamped server-side.

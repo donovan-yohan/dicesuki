@@ -253,6 +253,57 @@ describe('useMultiplayerStore', () => {
     })
   })
 
+  describe('room theme', () => {
+    it('host setRoomTheme sends update_settings preserving other fields', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: true,
+        roomSettings: { version: 1, playerCap: 4, motionControl: 'room' },
+      })
+
+      useMultiplayerStore.getState().setRoomTheme('neon-cyber-city')
+
+      expect(send).toHaveBeenCalledTimes(1)
+      const payload = JSON.parse(send.mock.calls[0][0])
+      expect(payload).toEqual({
+        type: 'update_settings',
+        settings: { version: 1, playerCap: 4, motionControl: 'room', themeId: 'neon-cyber-city' },
+      })
+    })
+
+    it('host setRoomTheme(null) clears the shared theme field', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: true,
+        roomSettings: { version: 1, themeId: 'fantasy-earth' },
+      })
+
+      useMultiplayerStore.getState().setRoomTheme(null)
+
+      expect(send).toHaveBeenCalledTimes(1)
+      const payload = JSON.parse(send.mock.calls[0][0])
+      expect(payload).toEqual({ type: 'update_settings', settings: { version: 1 } })
+    })
+
+    it('non-host setRoomTheme is a no-op (server also enforces)', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: false,
+        roomSettings: { version: 1 },
+      })
+
+      useMultiplayerStore.getState().setRoomTheme('neon-cyber-city')
+
+      expect(send).not.toHaveBeenCalled()
+    })
+  })
+
   describe('reconnect & lifecycle', () => {
     it('uses the server-echoed localPlayerId even when not last in the list', () => {
       // Simulates a graceful rejoin: the reclaimed player (p1) is not last.
