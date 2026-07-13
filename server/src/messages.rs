@@ -78,6 +78,13 @@ pub enum ClientMessage {
     UpdateSettings {
         settings: RoomSettings,
     },
+    /// Device-motion (shake/gravity) input. The `impulse` is a world-space
+    /// vector applied to the dice the sender is allowed to affect under the
+    /// room's `motionControl` policy. Rate-limited and magnitude-clamped
+    /// server-side. Which dice it touches is decided by `Room::can_apply_motion`.
+    MotionImpulse {
+        impulse: [f32; 3],
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -468,6 +475,19 @@ mod tests {
                 assert_eq!(velocity_history[0].position, [1.0, 2.0, 3.0]);
             }
             _ => panic!("Expected DragEnd message"),
+        }
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn test_deserialize_motion_impulse() {
+        let json = r#"{"type":"motion_impulse","impulse":[1.5,-2.0,0.5]}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::MotionImpulse { impulse } => {
+                assert_eq!(impulse, [1.5, -2.0, 0.5]);
+            }
+            _ => panic!("Expected MotionImpulse message"),
         }
     }
 

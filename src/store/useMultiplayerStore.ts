@@ -8,7 +8,13 @@ import type {
   DicePresentationMetadata,
   RoomSettings,
   VelocityHistoryEntry,
+  MotionControl,
 } from '../lib/multiplayerMessages'
+import {
+  getMotionControl,
+  setMotionControl as withMotionControl,
+} from '../lib/multiplayerMessages'
+import { MOTION_IMPULSE_MIN_INTERVAL_MS } from '../config/physicsConfig'
 import { getWsServerUrl } from '../lib/multiplayerServer'
 import { triggerCollisionFeedback } from '../lib/collisionFeedback'
 import { useDiceStore } from './useDiceStore'
@@ -85,6 +91,15 @@ interface MultiplayerState {
   roll: () => void
   updateColor: (color: string) => void
   updateSettings: (settings: RoomSettings) => void
+  /** Host-only: set the room's device-motion policy. No-op for non-hosts. */
+  setMotionControl: (mode: MotionControl) => void
+  /**
+   * Send a device-motion (shake/gravity) impulse. Policy-aware: silently drops
+   * when motion is disabled (`off`) and throttles to `MOTION_IMPULSE_MIN_INTERVAL_MS`.
+   * The server remains authoritative over which dice the impulse affects.
+   * The DeviceMotion sensor that feeds this lands in #74.
+   */
+  sendMotionImpulse: (impulse: [number, number, number]) => void
 
   // Drag actions
   startDrag: (dieId: string, grabOffset: [number, number, number], worldPosition: [number, number, number]) => void
@@ -133,6 +148,10 @@ const ROOM_CLOSED_MESSAGE =
   'Lost connection to this room. It may have been closed after a period of inactivity. Rejoin to start again.'
 
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+/** Timestamp (performance.now) of the last sent motion impulse, for throttling.
+ *  Starts at -Infinity so the first impulse always passes the throttle. */
+let lastMotionImpulseSentAt = Number.NEGATIVE_INFINITY
 
 function clearReconnectTimer() {
   if (reconnectTimer !== null) {
@@ -554,6 +573,27 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     // Server authoritatively rejects non-host mutations; gate optimistically
     // in the UI via `isHost`, but the server remains the source of truth.
     get().sendMessage({ type: 'update_settings', settings })
+  },
+
+  setMotionControl: (mode: MotionControl) => {
+    // Host-only; the server enforces this too. Merge into the existing settings
+    // so other host-controlled fields (playerCap, ...) are preserved.
+    if (!get().isHost) return
+    get().updateSettings(withMotionControl(get().roomSettings, mode))
+  },
+
+  sendMotionImpulse: (impulse: [number, number, number]) => {
+    // Optimistic policy gate: when motion is disabled room-wide there is nothing
+    // to send. The server re-checks the policy and ownership authoritatively.
+    if (getMotionControl(get().roomSettings) === 'off') return
+
+    // Throttle to the shared rate limit so the server never rejects our own
+    // impulses for arriving too fast.
+    const now = performance.now()
+    if (now - lastMotionImpulseSentAt < MOTION_IMPULSE_MIN_INTERVAL_MS) return
+    lastMotionImpulseSentAt = now
+
+    get().sendMessage({ type: 'motion_impulse', impulse })
   },
 
   startDrag: (dieId, grabOffset, worldPosition) => {

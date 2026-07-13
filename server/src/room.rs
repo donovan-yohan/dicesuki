@@ -14,6 +14,7 @@ use crate::physics::{
     DRAG_ROLL_FACTOR, DRAG_SPIN_FACTOR,
     THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
     ESCAPE_RESET_HALF_X, ESCAPE_RESET_HALF_Z, ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
+    MOTION_IMPULSE_MIN_INTERVAL_MS, MOTION_IMPULSE_MAX_MAGNITUDE,
 };
 use crate::dice::{create_dice_body, generate_roll_impulse, generate_roll_torque, generate_spawn_position};
 use crate::face_detection::detect_face_value;
@@ -44,6 +45,11 @@ pub enum RoomError {
     DuplicateDiceId,
     DuplicateInventoryDie,
     NotHost,
+    /// A `motion_impulse` arrived before the per-player rate-limit window elapsed.
+    MotionRateLimited,
+    /// Device-motion input is disabled for this room (`motionControl == off`), or
+    /// the sender is not permitted to affect any dice under the current policy.
+    MotionNotAllowed,
 }
 
 impl RoomError {
@@ -64,6 +70,8 @@ impl RoomError {
             RoomError::DuplicateDiceId => "DUPLICATE_DICE_ID",
             RoomError::DuplicateInventoryDie => "DUPLICATE_INVENTORY_DIE",
             RoomError::NotHost => "NOT_HOST",
+            RoomError::MotionRateLimited => "MOTION_RATE_LIMITED",
+            RoomError::MotionNotAllowed => "MOTION_NOT_ALLOWED",
         }
     }
 }
@@ -83,6 +91,8 @@ impl std::fmt::Display for RoomError {
             RoomError::DuplicateDiceId => "Duplicate dice ID in spawn request",
             RoomError::DuplicateInventoryDie => "That inventory die is already on the table",
             RoomError::NotHost => "Only the host can change room settings",
+            RoomError::MotionRateLimited => "Motion input is being sent too quickly",
+            RoomError::MotionNotAllowed => "Motion input is not allowed in this room",
         };
         write!(f, "{msg}")
     }
@@ -100,6 +110,55 @@ pub const SNAPSHOT_DIVISOR: u64 = 1; // 1 = every tick (60Hz), 2 = 30Hz, 3 = 20H
 pub const RECONNECT_GRACE_SECS: u64 = 120; // 2 minutes
 /// Settings key holding the host-configurable player cap.
 pub const PLAYER_CAP_SETTING: &str = "playerCap";
+/// Settings key holding the host-configurable device-motion policy. Value is one
+/// of `off` / `own_dice` / `room` (see [`MotionControl`]).
+pub const MOTION_CONTROL_SETTING: &str = "motionControl";
+
+/// Host-controlled policy governing which dice a player's device-motion
+/// (shake/gravity) input may affect. Stored in [`RoomSettings`] under
+/// [`MOTION_CONTROL_SETTING`] and enforced server-side by
+/// [`Room::apply_motion_impulse`] via [`Room::can_apply_motion`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MotionControl {
+    /// Motion input is disabled room-wide; no dice respond to shake/gravity.
+    Off,
+    /// A player's motion input affects only the dice they own.
+    OwnDice,
+    /// A player's motion input affects every die on the table. Pairs with the
+    /// delegated-roller role (#73), which will further narrow *who* may drive
+    /// room-wide motion; until then any player's motion moves all dice.
+    Room,
+}
+
+impl MotionControl {
+    /// The default policy for a fresh room: motion is scoped to your own dice.
+    /// The least-surprising middle ground — shake works, but never disturbs
+    /// another player's dice unless the host opts into room-wide motion.
+    pub const DEFAULT: Self = Self::OwnDice;
+
+    /// Parse the wire value (`off` / `own_dice` / `room`). Unknown/malformed
+    /// values fall back to [`MotionControl::DEFAULT`] so a newer client's value
+    /// never crashes an older server.
+    #[must_use]
+    pub fn from_wire(value: Option<&str>) -> Self {
+        match value {
+            Some("off") => Self::Off,
+            Some("own_dice") => Self::OwnDice,
+            Some("room") => Self::Room,
+            _ => Self::DEFAULT,
+        }
+    }
+
+    /// The wire value for this policy.
+    #[must_use]
+    pub fn as_wire(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::OwnDice => "own_dice",
+            Self::Room => "room",
+        }
+    }
+}
 
 /// Outcome of a successful [`Room::join`]: the effective player id to use for
 /// the rest of the connection and whether this reclaimed a held seat.
@@ -173,6 +232,18 @@ impl From<(String, DiceType)> for DiceSpawnRequest {
     }
 }
 
+/// Clamp an impulse vector to at most `max_magnitude` world units, preserving
+/// direction. Vectors already within bounds (and the zero vector) pass through.
+fn clamp_impulse(impulse: [f32; 3], max_magnitude: f32) -> [f32; 3] {
+    let mag = impulse[0].mul_add(impulse[0], impulse[1].mul_add(impulse[1], impulse[2] * impulse[2])).sqrt();
+    if mag > max_magnitude && mag > 0.0 {
+        let scale = max_magnitude / mag;
+        [impulse[0] * scale, impulse[1] * scale, impulse[2] * scale]
+    } else {
+        impulse
+    }
+}
+
 fn is_outside_escape_bounds(position: [f32; 3]) -> bool {
     position[0].abs() > ESCAPE_RESET_HALF_X
         || position[2].abs() > ESCAPE_RESET_HALF_Z
@@ -241,6 +312,98 @@ impl Room {
             .and_then(serde_json::Value::as_u64)
             .and_then(|n| usize::try_from(n).ok())
             .map_or(MAX_PLAYERS, |n| n.clamp(1, MAX_PLAYERS))
+    }
+
+    /// The room's current device-motion policy, read from settings (defaults to
+    /// [`MotionControl::DEFAULT`] when unset or malformed).
+    #[must_use]
+    pub fn motion_control(&self) -> MotionControl {
+        MotionControl::from_wire(
+            self.settings.fields.get(MOTION_CONTROL_SETTING)
+                .and_then(serde_json::Value::as_str),
+        )
+    }
+
+    /// Policy check: may `player_id`'s device-motion input affect `die` right now?
+    ///
+    /// This is the single seam the delegated-roller role (#73) will extend: today
+    /// `Room` mode lets any player move any die; #73 will narrow room-wide motion
+    /// to the delegated roller here without touching callers.
+    #[must_use]
+    pub fn can_apply_motion(&self, player_id: &str, die: &ServerDie) -> bool {
+        match self.motion_control() {
+            MotionControl::Off => false,
+            MotionControl::OwnDice => die.owner_id == player_id,
+            MotionControl::Room => true,
+        }
+    }
+
+    /// Apply a device-motion impulse from `player_id` to every die the sender is
+    /// allowed to affect under the room's `motionControl` policy.
+    ///
+    /// The impulse is clamped to `MOTION_IMPULSE_MAX_MAGNITUDE` and accepted at
+    /// most once per `MOTION_IMPULSE_MIN_INTERVAL_MS` per player. Affected dice
+    /// re-enter the settle pipeline so their authoritative face rebroadcasts.
+    /// Returns the ids of the dice that were nudged (may be empty).
+    ///
+    /// # Errors
+    ///
+    /// - `PlayerNotFound` if `player_id` is not in the room.
+    /// - `MotionNotAllowed` if motion is disabled room-wide (`motionControl == off`).
+    /// - `MotionRateLimited` if called again within the rate-limit window.
+    pub fn apply_motion_impulse(
+        &mut self,
+        player_id: &str,
+        impulse: [f32; 3],
+    ) -> Result<Vec<String>, RoomError> {
+        if !self.players.contains_key(player_id) {
+            return Err(RoomError::PlayerNotFound);
+        }
+        if self.motion_control() == MotionControl::Off {
+            return Err(RoomError::MotionNotAllowed);
+        }
+
+        // Per-player rate limit.
+        let now = Instant::now();
+        let last = self.players.get(player_id)
+            .expect("player exists: contains_key checked above")
+            .last_motion_impulse_at;
+        if let Some(last) = last {
+            if now.duration_since(last) < Duration::from_millis(MOTION_IMPULSE_MIN_INTERVAL_MS) {
+                return Err(RoomError::MotionRateLimited);
+            }
+        }
+
+        // Clamp magnitude so a shake can never launch dice out of the arena.
+        let clamped = clamp_impulse(impulse, MOTION_IMPULSE_MAX_MAGNITUDE);
+
+        // Every die the sender may affect under the current policy.
+        let target_ids: Vec<String> = self.dice.iter()
+            .filter(|(_, die)| self.can_apply_motion(player_id, die))
+            .map(|(id, _)| id.clone())
+            .collect();
+
+        for die_id in &target_ids {
+            if let Some(die) = self.dice.get_mut(die_id) {
+                if let Some(handle) = die.body_handle {
+                    self.physics.apply_impulse(handle, clamped);
+                }
+                // Re-wake the die so it re-enters the settle pipeline and its
+                // authoritative face rebroadcasts once it comes to rest.
+                die.is_rolling = true;
+                die.face_value = None;
+                die.rest_start_tick = None;
+            }
+        }
+
+        if let Some(player) = self.players.get_mut(player_id) {
+            player.last_motion_impulse_at = Some(now);
+        }
+        if !target_ids.is_empty() {
+            self.is_simulating = true;
+        }
+        self.touch();
+        Ok(target_ids)
     }
 
     /// Full when occupied seats (connected players **and** seats held during the
@@ -1929,6 +2092,146 @@ mod tests {
             }
             _ => panic!("Expected room state"),
         }
+    }
+
+    // ── Motion control: host physics-mode policy + server enforcement ────────
+
+    fn set_motion_control(room: &mut Room, mode: MotionControl) {
+        room.settings.fields.insert(
+            MOTION_CONTROL_SETTING.to_string(),
+            serde_json::json!(mode.as_wire()),
+        );
+    }
+
+    /// Two players (p1 host, p2 guest) each owning one die (d1 / d2).
+    fn make_two_player_room_with_dice() -> Room {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Host")).unwrap();
+        room.add_player(make_player("p2", "Guest")).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D20)]).unwrap();
+        room.spawn_dice("p2", vec![("d2".to_string(), DiceType::D6)]).unwrap();
+        room
+    }
+
+    #[test]
+    fn test_motion_control_defaults_to_own_dice() {
+        let room = Room::new("test".to_string());
+        assert_eq!(room.motion_control(), MotionControl::OwnDice);
+        assert_eq!(MotionControl::DEFAULT, MotionControl::OwnDice);
+    }
+
+    #[test]
+    fn test_motion_control_reads_setting_and_falls_back() {
+        let mut room = Room::new("test".to_string());
+        set_motion_control(&mut room, MotionControl::Off);
+        assert_eq!(room.motion_control(), MotionControl::Off);
+        set_motion_control(&mut room, MotionControl::Room);
+        assert_eq!(room.motion_control(), MotionControl::Room);
+        // Unknown/malformed value falls back to the default policy.
+        room.settings.fields.insert(MOTION_CONTROL_SETTING.to_string(), serde_json::json!("bogus"));
+        assert_eq!(room.motion_control(), MotionControl::DEFAULT);
+    }
+
+    #[test]
+    fn test_motion_control_wire_roundtrip() {
+        for mode in [MotionControl::Off, MotionControl::OwnDice, MotionControl::Room] {
+            assert_eq!(MotionControl::from_wire(Some(mode.as_wire())), mode);
+        }
+    }
+
+    #[test]
+    fn test_can_apply_motion_off_denies_everyone() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::Off);
+        let own = &room.dice["d1"];
+        let other = &room.dice["d2"];
+        assert!(!room.can_apply_motion("p1", own));
+        assert!(!room.can_apply_motion("p1", other));
+    }
+
+    #[test]
+    fn test_can_apply_motion_own_dice_scopes_to_owner() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        assert!(room.can_apply_motion("p1", &room.dice["d1"]));
+        assert!(!room.can_apply_motion("p1", &room.dice["d2"]));
+        assert!(room.can_apply_motion("p2", &room.dice["d2"]));
+    }
+
+    #[test]
+    fn test_can_apply_motion_room_allows_any_die() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::Room);
+        assert!(room.can_apply_motion("p1", &room.dice["d1"]));
+        assert!(room.can_apply_motion("p1", &room.dice["d2"]));
+    }
+
+    #[test]
+    fn test_apply_motion_impulse_off_is_rejected() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::Off);
+        assert_eq!(
+            room.apply_motion_impulse("p1", [1.0, 0.0, 0.0]).unwrap_err(),
+            RoomError::MotionNotAllowed,
+        );
+    }
+
+    #[test]
+    fn test_apply_motion_impulse_own_dice_affects_only_own() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        let affected = room.apply_motion_impulse("p1", [1.0, 2.0, 0.0]).unwrap();
+        assert_eq!(affected, vec!["d1".to_string()]);
+        // The affected die is re-woken so its face rebroadcasts.
+        assert!(room.dice["d1"].is_rolling);
+        assert!(!room.dice["d2"].is_rolling);
+    }
+
+    #[test]
+    fn test_apply_motion_impulse_room_affects_all_dice() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::Room);
+        let mut affected = room.apply_motion_impulse("p2", [0.0, 1.0, 0.0]).unwrap();
+        affected.sort();
+        assert_eq!(affected, vec!["d1".to_string(), "d2".to_string()]);
+    }
+
+    #[test]
+    fn test_apply_motion_impulse_is_rate_limited_per_player() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::Room);
+        assert!(room.apply_motion_impulse("p1", [1.0, 0.0, 0.0]).is_ok());
+        // Immediate second impulse from the same player is inside the window.
+        assert_eq!(
+            room.apply_motion_impulse("p1", [1.0, 0.0, 0.0]).unwrap_err(),
+            RoomError::MotionRateLimited,
+        );
+        // A different player is tracked independently and is not blocked.
+        assert!(room.apply_motion_impulse("p2", [1.0, 0.0, 0.0]).is_ok());
+    }
+
+    #[test]
+    fn test_apply_motion_impulse_unknown_player() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::Room);
+        assert_eq!(
+            room.apply_motion_impulse("ghost", [1.0, 0.0, 0.0]).unwrap_err(),
+            RoomError::PlayerNotFound,
+        );
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn test_clamp_impulse_preserves_small_and_scales_large() {
+        // Within bounds: unchanged.
+        assert_eq!(clamp_impulse([1.0, 2.0, 2.0], 30.0), [1.0, 2.0, 2.0]);
+        // Zero vector: unchanged (no divide-by-zero).
+        assert_eq!(clamp_impulse([0.0, 0.0, 0.0], 30.0), [0.0, 0.0, 0.0]);
+        // Over the cap: scaled to exactly the max magnitude, direction preserved.
+        let clamped = clamp_impulse([100.0, 0.0, 0.0], 30.0);
+        assert!((clamped[0] - 30.0).abs() < 1e-4);
+        assert_eq!(clamped[1], 0.0);
+        assert_eq!(clamped[2], 0.0);
     }
 
     // ── Room lifecycle: player cap, grace rejoin, host reclaim ───────────────

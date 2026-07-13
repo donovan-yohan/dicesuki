@@ -23,6 +23,9 @@ pub struct Player {
     /// When the connection dropped, used to expire the grace window. `None`
     /// while connected.
     pub disconnected_at: Option<Instant>,
+    /// Timestamp of the last accepted `motion_impulse` from this player, used to
+    /// rate-limit device-motion input. `None` until the first impulse.
+    pub last_motion_impulse_at: Option<Instant>,
 }
 
 impl Player {
@@ -38,6 +41,7 @@ impl Player {
             reconnect_token: String::new(),
             connected: true,
             disconnected_at: None,
+            last_motion_impulse_at: None,
         }
     }
 

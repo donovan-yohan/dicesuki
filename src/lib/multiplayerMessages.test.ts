@@ -6,6 +6,7 @@ import type {
   PhysicsSnapshotMessage,
   DiceKnockedMessage,
 } from './multiplayerMessages'
+import { getMotionControl, setMotionControl, DEFAULT_MOTION_CONTROL } from './multiplayerMessages'
 
 describe('multiplayerMessages', () => {
   describe('ClientMessage types', () => {
@@ -171,6 +172,32 @@ describe('multiplayerMessages', () => {
         expect(msg.dice[0].presentation?.inventoryDieId).toBe('die_lucky_d20')
         expect(msg.dice[0].presentation?.displayName).toBe('Lucky D20')
       }
+    })
+  })
+
+  describe('motion control protocol', () => {
+    it('type-checks a motion_impulse message', () => {
+      const msg: ClientMessage = { type: 'motion_impulse', impulse: [1, -2, 0.5] }
+      expect(msg.type).toBe('motion_impulse')
+    })
+
+    it('getMotionControl reads the setting and defaults when absent/invalid', () => {
+      expect(getMotionControl({ version: 1 })).toBe(DEFAULT_MOTION_CONTROL)
+      expect(getMotionControl({ version: 1 })).toBe('own_dice')
+      expect(getMotionControl({ version: 1, motionControl: 'off' })).toBe('off')
+      expect(getMotionControl({ version: 1, motionControl: 'room' })).toBe('room')
+      // Unknown/malformed value falls back to the default.
+      expect(getMotionControl({ version: 1, motionControl: 'bogus' })).toBe('own_dice')
+      expect(getMotionControl(null)).toBe('own_dice')
+    })
+
+    it('setMotionControl returns a new object preserving other fields', () => {
+      const original = { version: 1, playerCap: 4 }
+      const next = setMotionControl(original, 'room')
+      expect(next).toEqual({ version: 1, playerCap: 4, motionControl: 'room' })
+      // Never mutates the input.
+      expect(original).toEqual({ version: 1, playerCap: 4 })
+      expect(next).not.toBe(original)
     })
   })
 })

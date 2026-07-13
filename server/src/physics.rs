@@ -41,6 +41,18 @@ pub const MAX_THROW_SPEED: f32 = 20.0;
 // Velocity clamping (matching client physicsConfig.ts)
 pub const MAX_DICE_VELOCITY: f32 = 25.0;
 
+// Motion control (host physics-mode policy — matching client physicsConfig.ts)
+/// Minimum interval (ms) between accepted `motion_impulse` messages per player.
+/// Device-motion input arriving faster than this is dropped so a shaking phone
+/// cannot flood the physics loop. Mirrors `MOTION_IMPULSE_MIN_INTERVAL_MS` in
+/// `src/config/physicsConfig.ts` (Shared-ADR-003).
+pub const MOTION_IMPULSE_MIN_INTERVAL_MS: u64 = 50;
+/// Maximum magnitude (world units) of a single motion impulse. Every incoming
+/// impulse is clamped to this length so a malicious/miscalibrated client cannot
+/// launch dice out of the arena. Mirrors `MOTION_IMPULSE_MAX_MAGNITUDE` in
+/// `src/config/physicsConfig.ts` (Shared-ADR-003).
+pub const MOTION_IMPULSE_MAX_MAGNITUDE: f32 = 30.0;
+
 /// Viewport bounds — fixed 9:16 portrait arena for multiplayer
 pub const GROUND_Y: f32 = -0.5;
 pub const CEILING_Y: f32 = 6.0;

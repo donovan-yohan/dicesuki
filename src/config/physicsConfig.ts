@@ -488,6 +488,30 @@ export const MULTIPLAYER_ARENA_HALF_Z = 8.0
 export const MULTIPLAYER_DRAG_THROTTLE_MS = 33
 
 // ============================================================================
+// MULTIPLAYER MOTION CONTROL (Host physics-mode policy)
+// ============================================================================
+
+/**
+ * Minimum interval (ms) between `motion_impulse` messages a client may send,
+ * and the window the server uses to reject impulses that arrive too fast.
+ * Rate-limits device-motion input so a shaking phone cannot flood the room.
+ * - 50ms ≈ 20Hz — responsive shake without spamming the physics loop.
+ * - Recommended range: 33ms (30Hz) – 100ms (10Hz).
+ * - MUST match `MOTION_IMPULSE_MIN_INTERVAL_MS` in server/src/physics.rs (Shared-ADR-003).
+ */
+export const MOTION_IMPULSE_MIN_INTERVAL_MS = 50
+
+/**
+ * Maximum magnitude (world units) of a single `motion_impulse` vector. The
+ * server clamps every incoming impulse to this length so a malicious or
+ * miscalibrated client cannot launch dice out of the arena.
+ * - 30: a firm shake; comfortably above a roll impulse but below escape velocity.
+ * - Recommended range: 15 (gentle) – 40 (energetic).
+ * - MUST match `MOTION_IMPULSE_MAX_MAGNITUDE` in server/src/physics.rs (Shared-ADR-003).
+ */
+export const MOTION_IMPULSE_MAX_MAGNITUDE = 30
+
+// ============================================================================
 // PRESETS (Quick configs for different feels)
 // ============================================================================
 
