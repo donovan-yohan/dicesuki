@@ -13,6 +13,7 @@
 //! - **Output**: the [`sink::MessageSink`] trait — the server wraps a tokio mpsc
 //!   sender; a future worker wraps `postMessage`.
 
+pub mod config;
 pub mod dice;
 pub mod face_detection;
 pub mod messages;

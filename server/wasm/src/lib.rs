@@ -24,8 +24,21 @@ pub mod host;
 #[cfg(target_arch = "wasm32")]
 mod wasm {
     use crate::host::RoomHost;
+    use dicesuki_core::config::EngineConfig;
     use js_sys::{Array, Function};
     use wasm_bindgen::prelude::*;
+
+    /// The engine physics constants, as a JSON string, from the SAME
+    /// `dicesuki-core` build that runs the room. This is the single-source
+    /// surface for values the browser needs *before* a room exists (e.g. arena
+    /// bounds for an initial camera fit); once a room is joined the identical
+    /// config also rides on every `room_state` message. Never a copied literal
+    /// (epic #111, Shared-ADR-007).
+    #[wasm_bindgen(js_name = engineConfigJson)]
+    #[must_use]
+    pub fn engine_config_json() -> String {
+        EngineConfig::current_json()
+    }
 
     /// A solo in-browser room: `dicesuki-core` compiled to wasm, driven by the
     /// Web Worker host shim. One instance per worker.

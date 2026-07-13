@@ -9,6 +9,7 @@ import type {
   RoomSettings,
   VelocityHistoryEntry,
   MotionControl,
+  EngineConfig,
 } from '../lib/multiplayerMessages'
 import {
   getMotionControl,
@@ -118,6 +119,12 @@ interface MultiplayerState {
   hostId: string | null
   isHost: boolean
   roomSettings: RoomSettings
+  /**
+   * Engine physics constants the room delivered via `room_state.config` — the
+   * single source of truth from `dicesuki-core` (Shared-ADR-007). `null` until a
+   * room is joined. Read through `src/config/engineConfig.ts`, not a local literal.
+   */
+  engineConfig: EngineConfig | null
 
   // Dice
   dice: Map<string, MultiplayerDie>
@@ -197,6 +204,7 @@ const createInitialState = () => ({
   hostId: null as string | null,
   isHost: false,
   roomSettings: { version: 1 } as RoomSettings,
+  engineConfig: null as EngineConfig | null,
   dice: new Map<string, MultiplayerDie>(),
   pendingInventoryDieIds: new Set<string>(),
   lastSnapshotTime: 0,
@@ -438,6 +446,10 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           hostId,
           isHost: localPlayerId !== null && localPlayerId === hostId,
           roomSettings: msg.settings,
+          // Engine constants from the room's dicesuki-core build. Older servers
+          // that predate Shared-ADR-007 omit this; keep any prior value rather
+          // than clobbering it with null.
+          ...(msg.config ? { engineConfig: msg.config } : {}),
         })
         break
       }

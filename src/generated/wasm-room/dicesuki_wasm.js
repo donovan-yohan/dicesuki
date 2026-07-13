@@ -68,6 +68,32 @@ export class WasmRoom {
 }
 if (Symbol.dispose) WasmRoom.prototype[Symbol.dispose] = WasmRoom.prototype.free;
 
+/**
+ * The engine physics constants, as a JSON string, from the SAME
+ * `dicesuki-core` build that runs the room. This is the single-source
+ * surface for values the browser needs *before* a room exists (e.g. arena
+ * bounds for an initial camera fit); once a room is joined the identical
+ * config also rides on every `room_state` message. Never a copied literal
+ * (epic #111, Shared-ADR-007).
+ * @returns {string}
+ */
+export function engineConfigJson() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.engineConfigJson(retptr);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred1_0 = r0;
+        deferred1_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export2(deferred1_0, deferred1_1, 1);
+    }
+}
+
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
