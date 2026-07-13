@@ -511,6 +511,39 @@ export const MOTION_IMPULSE_MIN_INTERVAL_MS = 50
  */
 export const MOTION_IMPULSE_MAX_MAGNITUDE = 30
 
+/**
+ * Upward (world +Y) component of a shake-to-roll impulse in a room. On the
+ * rising edge of a detected shake we send a mostly-upward "toss" so dice hop
+ * off the table and tumble, mirroring the lively feel of the single-player
+ * shake torque.
+ * - Sized within the roll vertical range (ROLL_VERTICAL_MIN..MAX = 3..5).
+ * - Recommended range: 3 (gentle hop) – 6 (energetic toss).
+ * - 4: a firm toss that clears the tray without launching dice.
+ */
+export const SHAKE_IMPULSE_VERTICAL = 4
+
+/**
+ * Scale applied to the sensor's effective-gravity horizontal (X/Z) components
+ * when mapping a shake to a world-space impulse. The effective-gravity vector
+ * from `useDeviceMotion` already folds in tilt plus the shake pseudo-force
+ * (ACCELERATION_SCALE), so a fraction of it gives horizontal energy in the
+ * shake direction without exceeding the arena.
+ * - Effective-gravity horizontals span roughly ±15 (tilt) and more mid-shake;
+ *   0.3 keeps typical horizontal impulse near a roll (1..3) and relies on the
+ *   server clamp (MOTION_IMPULSE_MAX_MAGNITUDE) for extreme shakes.
+ * - Recommended range: 0.2 (subtle) – 0.5 (skittery).
+ */
+export const SHAKE_IMPULSE_HORIZONTAL_SCALE = 0.3
+
+/**
+ * Peak random horizontal jitter (world units) added to each shake impulse so
+ * identically-stacked dice scatter instead of translating in lockstep. Matches
+ * the ±1.5 spread of the single-player shake torque.
+ * - Applied as `(rng() - 0.5) * 2 * SHAKE_IMPULSE_JITTER` on X and Z.
+ * - Recommended range: 0 (deterministic) – 3 (chaotic).
+ */
+export const SHAKE_IMPULSE_JITTER = 1.5
+
 // ============================================================================
 // PRESETS (Quick configs for different feels)
 // ============================================================================
