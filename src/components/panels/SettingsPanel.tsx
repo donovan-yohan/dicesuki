@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
+import { useOnlineStatus } from '../../hooks/useOnlineStatus'
 import { useCreateRoom, type CreateRoomError } from '../../hooks/useCreateRoom'
 import { ThemeSelector } from '../ThemeSelector'
 import { RoomThemePicker } from '../multiplayer/RoomThemePicker'
@@ -29,6 +30,9 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
   const navigate = useNavigate()
   const publicRoom = useCreateRoom({ themeId: roomThemeId })
+  // Multiplayer needs the network; solo does not. When offline we disable the
+  // multiplayer entry points and explain why rather than let them time out (#116).
+  const isOnline = useOnlineStatus()
 
   return (
     <>
@@ -72,15 +76,31 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             </p>
           </div>
 
+          {!isOnline && (
+            <p
+              role="status"
+              className="mt-3 text-xs rounded-lg p-3"
+              style={{
+                color: 'var(--color-text-muted)',
+                backgroundColor: 'rgba(148, 163, 184, 0.12)',
+                border: '1px solid rgba(148, 163, 184, 0.25)',
+              }}
+            >
+              You're offline. Solo dice still roll — reconnect to create or join
+              multiplayer rooms.
+            </p>
+          )}
+
           <button
             onClick={publicRoom.createRoom}
-            disabled={publicRoom.isCreating}
+            disabled={publicRoom.isCreating || !isOnline}
+            title={!isOnline ? 'Unavailable offline' : undefined}
             className="mt-3 w-full flex items-center justify-between p-4 rounded-lg transition-all"
             style={{
               backgroundColor: 'rgba(59, 130, 246, 0.1)',
               border: '1px solid rgba(59, 130, 246, 0.3)',
-              cursor: publicRoom.isCreating ? 'wait' : 'pointer',
-              opacity: publicRoom.isCreating ? 0.6 : 1,
+              cursor: !isOnline ? 'not-allowed' : publicRoom.isCreating ? 'wait' : 'pointer',
+              opacity: !isOnline || publicRoom.isCreating ? 0.6 : 1,
             }}
           >
             <div className="flex items-center gap-3">
@@ -111,10 +131,14 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
 
           <button
             onClick={() => navigate('/rooms')}
+            disabled={!isOnline}
+            title={!isOnline ? 'Unavailable offline' : undefined}
             className="mt-3 w-full flex items-center justify-between p-4 rounded-lg transition-all"
             style={{
               backgroundColor: 'rgba(34, 197, 94, 0.1)',
               border: '1px solid rgba(34, 197, 94, 0.3)',
+              cursor: !isOnline ? 'not-allowed' : 'pointer',
+              opacity: !isOnline ? 0.6 : 1,
             }}
           >
             <div className="flex items-center gap-3">

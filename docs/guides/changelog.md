@@ -2,6 +2,29 @@
 
 > Part of the [Harness documentation system](../../CLAUDE.md). Edit this file for recent updates and changes.
 
+## 2026-07-13: PWA offline support (#116)
+- **Installable + offline solo** — `vite-plugin-pwa` (Workbox `generateSW`) adds a
+  web app manifest (`vite.config.ts`) and a service worker that precaches the app
+  shell + the WASM room worker chunk and its `.wasm` (`maximumFileSizeToCacheInBytes`
+  raised to 4 MiB). Since solo runs entirely in-browser (#114), the installed app
+  loads and rolls dice with the network fully offline. Verified end-to-end with a
+  headless Chromium: load `/` online, `context.setOffline(true)`, reload → solo room
+  reconnects from cache and rolls a die.
+- **Dice-themed icons** — `scripts/generate-pwa-icons.js` renders 192/512/512-maskable
+  PNGs (+ apple-touch, favicon.svg) with zero native deps (pure-Node PNG encoder), so
+  CI needs no ImageMagick/sharp. Output in `public/icons/`.
+- **Update strategy** — `registerType: 'autoUpdate'` with `skipWaiting` + `clientsClaim`
+  + `cleanupOutdatedCaches`: a new deploy's SW activates immediately and reloads open
+  clients, deliberately avoiding the "stale bundle forever" trap. Precache is generated
+  from real build output, so sibling bundle changes are picked up automatically.
+- **OG unfurl (#108) protected** — `navigateFallbackDenylist` excludes `/room/:id`,
+  `/rooms`, and `/api/`, so the SW never shadows the Vercel `/room/:id → api/og.js`
+  rewrite and those routes stay network-only (crawlers don't run SWs regardless).
+- **Multiplayer/Supabase stay network-only** — no runtime-caching rule matches `/api/`,
+  WebSocket, or Supabase. Big dice GLBs (~18 MB) use a `CacheFirst` runtime rule
+  (cached on first use, not precached). Offline, multiplayer entry points in the
+  Settings panel disable with a clear message (`useOnlineStatus` hook).
+
 ## 2026-07-13: Discord as the front door (#84, #85)
 - **Discord room bot (#84)** — `server/src/discord.rs` advertises each public room
   as an auto-updating channel embed (name, theme, player count) with a link-button
