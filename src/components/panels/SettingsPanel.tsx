@@ -12,6 +12,7 @@ import { useCreateRoom, type CreateRoomError } from '../../hooks/useCreateRoom'
 import { ThemeSelector } from '../ThemeSelector'
 import { RoomThemePicker } from '../multiplayer/RoomThemePicker'
 import { FlyoutPanel } from './FlyoutPanel'
+import { AccountSection } from './AccountSection'
 import { ArtistTestingPanel } from './artist-tools/ArtistTestingPanel'
 
 interface SettingsPanelProps {
@@ -39,6 +40,9 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         position="left"
         width="360px"
       >
+        {/* Account Section (#81) — hidden entirely when Supabase is unconfigured */}
+        <AccountSection />
+
         {/* Multiplayer Section */}
         <div className="mb-8">
           <h3
