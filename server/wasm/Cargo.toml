@@ -1,0 +1,29 @@
+[package]
+name = "dicesuki-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "wasm-bindgen host that runs dicesuki-core as an in-browser room worker (issue #113). Thin platform glue only — the game engine is dicesuki-core compiled to wasm, never re-implemented here."
+license = "MIT"
+publish = false
+
+[lib]
+# cdylib for the wasm-bindgen browser module; rlib so the pure-Rust RoomHost
+# orchestration is unit-testable on the native target without wasm.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The SAME engine crate the native server links (epic #111 anti-drift guardrail):
+# physics, dice, room simulation, protocol, face detection — compiled here to wasm.
+dicesuki-core = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# wasm-bindgen glue only lives on the wasm target; the native rlib build (used by
+# the RoomHost unit tests) never pulls the JS-interop crates.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+# Surface Rust panics as readable JS console errors during development.
+console_error_panic_hook = "0.1"
+# rand 0.8 -> getrandom 0.2 needs the browser Crypto backend on wasm (matches core).
+getrandom = { version = "0.2", features = ["js"] }
