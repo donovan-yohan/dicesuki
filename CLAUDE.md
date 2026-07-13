@@ -6,7 +6,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `npm test` | Run unit tests (Vitest) — 380 passing, 3 known failures |
+| `npm test` | Run unit tests (Vitest) — 465 passing, 16 skipped, 0 failing |
 | `npm run build` | Production build |
 | `npm run dev` | Start dev server |
 | `~/.cargo/bin/cargo test` | Run server tests (from server/ directory) — 76 total |
@@ -49,7 +49,6 @@ docs/exec-plans/ → Execution plans (active + completed)
 - axum 0.7.x uses `:param` path syntax (NOT `{param}` which is 0.8+) — wrong syntax silently never matches
 - Zustand Map/Set updates require new instances (shallow equality) — never mutate in place
 - Selective git commits: verify committed files don't import uncommitted code (local build passes, CI fails)
-- 3 pre-existing test failures in `useHapticFeedback.test.ts` — don't fix unless asked
 - All dice spawning goes through `src/lib/diceSpawner.ts` (single source of truth)
 
 ## Workflow
