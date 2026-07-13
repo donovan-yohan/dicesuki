@@ -161,6 +161,14 @@ const RECONNECT_MAX_DELAY_MS = 8000
 const ROOM_CLOSED_MESSAGE =
   'Lost connection to this room. It may have been closed after a period of inactivity. Rejoin to start again.'
 
+/**
+ * Server `error` codes that can only occur while attempting to join (before a
+ * `room_state` arrives). These are terminal for the join attempt — retrying with
+ * the same input will not help — so we surface them on the join form instead of
+ * silently swallowing the error or auto-reconnecting.
+ */
+const JOIN_ERROR_CODES = new Set(['ROOM_FULL', 'INVALID_NAME', 'INVALID_COLOR', 'ALREADY_JOINED'])
+
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
 /** Timestamp (performance.now) of the last sent motion impulse, for throttling.
@@ -539,6 +547,21 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         console.error(`[Multiplayer] Server error: ${msg.code} - ${msg.message}`)
         if (get().pendingInventoryDieIds.size > 0) {
           set({ pendingInventoryDieIds: new Set<string>() })
+        }
+        // A join-phase rejection (e.g. room full) arrives on an open socket but
+        // before `room_state`. Surface it on the join form and stop the socket so
+        // auto-reconnect doesn't hammer a room that will keep rejecting us.
+        if (JOIN_ERROR_CODES.has(msg.code) && get().localPlayerId === null) {
+          clearReconnectTimer()
+          const socket = get().socket
+          set({
+            intentionalDisconnect: true,
+            connectionError: msg.message,
+            connectionStatus: 'disconnected',
+            lastJoin: null,
+          })
+          if (socket) socket.close()
+          set({ socket: null })
         }
         break
       }
