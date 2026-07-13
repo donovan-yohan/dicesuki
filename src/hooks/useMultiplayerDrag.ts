@@ -8,6 +8,7 @@ import {
   MULTIPLAYER_DRAG_THROTTLE_MS,
 } from '../config/physicsConfig'
 import type { VelocityHistoryEntry } from '../lib/multiplayerMessages'
+import { getRoller } from '../lib/multiplayerMessages'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useDragStore } from '../store/useDragStore'
 
@@ -20,6 +21,7 @@ export function useMultiplayerDrag() {
   const { camera, gl, size } = useThree()
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
   const dice = useMultiplayerStore((s) => s.dice)
+  const roomSettings = useMultiplayerStore((s) => s.roomSettings)
   const startDrag = useMultiplayerStore((s) => s.startDrag)
   const moveDrag = useMultiplayerStore((s) => s.moveDrag)
   const endDrag = useMultiplayerStore((s) => s.endDrag)
@@ -53,9 +55,12 @@ export function useMultiplayerDrag() {
   }, [camera, gl.domElement, size.width, size.height])
 
   const onPointerDown = useCallback((event: ThreeEvent<PointerEvent>, dieId: string) => {
-    // Check ownership
+    // Only the die's owner may drag it — unless the local player is the room's
+    // delegated roller, who controls every die on the table (#73).
     const die = dice.get(dieId)
-    if (!die || die.ownerId !== localPlayerId) return
+    if (!die) return
+    const isRoller = getRoller(roomSettings) === localPlayerId
+    if (die.ownerId !== localPlayerId && !isRoller) return
 
     event.stopPropagation()
     currentPointerIdRef.current = event.pointerId
@@ -86,7 +91,7 @@ export function useMultiplayerDrag() {
     lastSendTimeRef.current = dragStartTimeRef.current
 
     startDrag(dieId, grabOff, pos)
-  }, [dice, localPlayerId, getPointerWorldPosition, startDrag, setDraggedDiceId])
+  }, [dice, roomSettings, localPlayerId, getPointerWorldPosition, startDrag, setDraggedDiceId])
 
   const onPointerMove = useCallback((event: PointerEvent) => {
     if (!isDraggingRef.current || event.pointerId !== currentPointerIdRef.current) return

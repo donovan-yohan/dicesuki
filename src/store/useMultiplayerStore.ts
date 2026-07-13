@@ -13,6 +13,7 @@ import type {
 import {
   getMotionControl,
   setMotionControl as withMotionControl,
+  setRoller as withRoller,
 } from '../lib/multiplayerMessages'
 import { MOTION_IMPULSE_MIN_INTERVAL_MS } from '../config/physicsConfig'
 import { getWsServerUrl } from '../lib/multiplayerServer'
@@ -93,6 +94,12 @@ interface MultiplayerState {
   updateSettings: (settings: RoomSettings) => void
   /** Host-only: set the room's device-motion policy. No-op for non-hosts. */
   setMotionControl: (mode: MotionControl) => void
+  /**
+   * Host-only: delegate (or, with `null`, revoke) the roller role — the single
+   * player who controls every die on the table (drag + motion). No-op for
+   * non-hosts; the server re-validates.
+   */
+  setRoller: (playerId: string | null) => void
   /**
    * Send a device-motion (shake/gravity) impulse. Policy-aware: silently drops
    * when motion is disabled (`off`) and throttles to `MOTION_IMPULSE_MIN_INTERVAL_MS`.
@@ -580,6 +587,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     // so other host-controlled fields (playerCap, ...) are preserved.
     if (!get().isHost) return
     get().updateSettings(withMotionControl(get().roomSettings, mode))
+  },
+
+  setRoller: (playerId: string | null) => {
+    // Host-only; the server re-validates. Merge into existing settings so other
+    // host-controlled fields (motionControl, playerCap, ...) are preserved.
+    if (!get().isHost) return
+    get().updateSettings(withRoller(get().roomSettings, playerId))
   },
 
   sendMotionImpulse: (impulse: [number, number, number]) => {

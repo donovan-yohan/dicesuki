@@ -113,6 +113,10 @@ pub const PLAYER_CAP_SETTING: &str = "playerCap";
 /// Settings key holding the host-configurable device-motion policy. Value is one
 /// of `off` / `own_dice` / `room` (see [`MotionControl`]).
 pub const MOTION_CONTROL_SETTING: &str = "motionControl";
+/// Settings key holding the id of the delegated roller — the single player the
+/// host grants control of every die on the table (drag and motion). Absent (or
+/// null) means no active roller. Host-only, like every setting (#73).
+pub const ROLLER_SETTING: &str = "roller";
 
 /// Host-controlled policy governing which dice a player's device-motion
 /// (shake/gravity) input may affect. Stored in [`RoomSettings`] under
@@ -324,16 +328,37 @@ impl Room {
         )
     }
 
+    /// The id of the currently delegated roller, if one is assigned **and** still
+    /// present in the room. Resolving through the live player set makes the role
+    /// hold through a disconnected roller's reconnect grace window (their seat is
+    /// retained for [`RECONNECT_GRACE_SECS`]) yet auto-revert the instant that
+    /// seat is finally removed — no extra bookkeeping, and a stale/unknown id
+    /// therefore grants control to nobody.
+    #[must_use]
+    pub fn roller_id(&self) -> Option<&str> {
+        self.settings.fields.get(ROLLER_SETTING)
+            .and_then(serde_json::Value::as_str)
+            .filter(|id| self.players.contains_key(*id))
+    }
+
+    /// True when `player_id` is the active delegated roller (#73).
+    #[must_use]
+    pub fn is_roller(&self, player_id: &str) -> bool {
+        self.roller_id() == Some(player_id)
+    }
+
     /// Policy check: may `player_id`'s device-motion input affect `die` right now?
     ///
-    /// This is the single seam the delegated-roller role (#73) will extend: today
-    /// `Room` mode lets any player move any die; #73 will narrow room-wide motion
-    /// to the delegated roller here without touching callers.
+    /// The delegated roller (#73) controls every die on the table, so under the
+    /// `own_dice` policy they are additionally granted room-wide motion. A room
+    /// with motion `off` still wins over the roller — that channel is disabled
+    /// for everyone. Delegation is additive: a die's owner never loses control of
+    /// their own dice.
     #[must_use]
     pub fn can_apply_motion(&self, player_id: &str, die: &ServerDie) -> bool {
         match self.motion_control() {
             MotionControl::Off => false,
-            MotionControl::OwnDice => die.owner_id == player_id,
+            MotionControl::OwnDice => self.is_roller(player_id) || die.owner_id == player_id,
             MotionControl::Room => true,
         }
     }
@@ -1192,7 +1217,8 @@ impl Room {
         (results, total)
     }
 
-    /// Start dragging a die. Only the owner can drag their own dice.
+    /// Start dragging a die. Only the die's owner — or the delegated roller
+    /// (#73), who controls every die on the table — may start a drag.
     ///
     /// # Errors
     ///
@@ -1211,7 +1237,7 @@ impl Room {
         // Validate ownership and drag state before mutating
         {
             let die = self.dice.get(die_id).ok_or(RoomError::DieNotFound)?;
-            if die.owner_id != player_id {
+            if die.owner_id != player_id && !self.is_roller(player_id) {
                 return Err(RoomError::NotOwner);
             }
             if die.drag_state.is_some() {
@@ -2218,6 +2244,153 @@ mod tests {
             room.apply_motion_impulse("ghost", [1.0, 0.0, 0.0]).unwrap_err(),
             RoomError::PlayerNotFound,
         );
+    }
+
+    // ── Delegated roller: host-granted control of every die (#73) ────────────
+
+    fn set_roller(room: &mut Room, player_id: Option<&str>) {
+        match player_id {
+            Some(id) => {
+                room.settings.fields
+                    .insert(ROLLER_SETTING.to_string(), serde_json::json!(id));
+            }
+            None => {
+                room.settings.fields.remove(ROLLER_SETTING);
+            }
+        }
+    }
+
+    #[test]
+    fn test_roller_none_by_default() {
+        let room = make_two_player_room_with_dice();
+        assert_eq!(room.roller_id(), None);
+        assert!(!room.is_roller("p1"));
+    }
+
+    #[test]
+    fn test_roller_reads_setting_and_requires_presence() {
+        let mut room = make_two_player_room_with_dice();
+        set_roller(&mut room, Some("p2"));
+        assert_eq!(room.roller_id(), Some("p2"));
+        assert!(room.is_roller("p2"));
+        assert!(!room.is_roller("p1"));
+        // An id for nobody in the room grants control to no one.
+        set_roller(&mut room, Some("ghost"));
+        assert_eq!(room.roller_id(), None);
+    }
+
+    #[test]
+    fn test_roller_can_apply_motion_to_all_under_own_dice() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        set_roller(&mut room, Some("p2"));
+        // p2 is the roller: controls every die, including p1's.
+        assert!(room.can_apply_motion("p2", &room.dice["d1"]));
+        assert!(room.can_apply_motion("p2", &room.dice["d2"]));
+        // p1 is not the roller: still scoped to their own dice (additive).
+        assert!(room.can_apply_motion("p1", &room.dice["d1"]));
+        assert!(!room.can_apply_motion("p1", &room.dice["d2"]));
+    }
+
+    #[test]
+    fn test_roller_motion_still_blocked_when_off() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::Off);
+        set_roller(&mut room, Some("p2"));
+        assert!(!room.can_apply_motion("p2", &room.dice["d1"]));
+        assert_eq!(
+            room.apply_motion_impulse("p2", [1.0, 0.0, 0.0]).unwrap_err(),
+            RoomError::MotionNotAllowed,
+        );
+    }
+
+    #[test]
+    fn test_roller_motion_impulse_affects_all_under_own_dice() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        set_roller(&mut room, Some("p2"));
+        let mut affected = room.apply_motion_impulse("p2", [0.0, 1.0, 0.0]).unwrap();
+        affected.sort();
+        assert_eq!(affected, vec!["d1".to_string(), "d2".to_string()]);
+    }
+
+    #[test]
+    fn test_roller_can_drag_another_players_die() {
+        let mut room = make_two_player_room_with_dice();
+        set_roller(&mut room, Some("p2"));
+        // p2 drags p1's die d1 — allowed because p2 holds the roller role.
+        assert!(room.start_drag("p2", "d1", [0.0; 3], [0.0; 3]).is_ok());
+        assert!(room.dice["d1"].drag_state.is_some());
+    }
+
+    #[test]
+    fn test_non_roller_cannot_drag_another_players_die() {
+        let mut room = make_two_player_room_with_dice();
+        // No roller assigned: p2 cannot drag p1's die.
+        assert_eq!(
+            room.start_drag("p2", "d1", [0.0; 3], [0.0; 3]).unwrap_err(),
+            RoomError::NotOwner,
+        );
+    }
+
+    #[test]
+    fn test_revoking_roller_restores_normal_policy() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        set_roller(&mut room, Some("p2"));
+        assert!(room.start_drag("p2", "d1", [0.0; 3], [0.0; 3]).is_ok());
+        room.end_drag("p2", "d1", &[]).unwrap();
+        // Host revokes the role.
+        set_roller(&mut room, None);
+        assert_eq!(room.roller_id(), None);
+        // p2 can no longer control p1's die by drag or motion.
+        assert_eq!(
+            room.start_drag("p2", "d1", [0.0; 3], [0.0; 3]).unwrap_err(),
+            RoomError::NotOwner,
+        );
+        assert!(!room.can_apply_motion("p2", &room.dice["d1"]));
+    }
+
+    #[test]
+    fn test_roller_role_holds_through_disconnect_grace() {
+        let mut room = make_two_player_room_with_dice();
+        set_roller(&mut room, Some("p2"));
+        // p2 drops but their seat is held for the reconnect grace window.
+        room.mark_disconnected("p2");
+        assert!(room.is_roller("p2"), "roller held while seat survives grace");
+        assert!(room.start_drag("p2", "d1", [0.0; 3], [0.0; 3]).is_ok());
+    }
+
+    #[test]
+    fn test_roller_role_reverts_when_seat_removed() {
+        let mut room = make_two_player_room_with_dice();
+        set_roller(&mut room, Some("p2"));
+        // Seat finally removed (grace expired / left): the role auto-reverts.
+        room.remove_player("p2");
+        assert_eq!(room.roller_id(), None);
+        assert!(!room.is_roller("p2"));
+    }
+
+    #[test]
+    fn test_non_host_cannot_assign_roller() {
+        let mut room = make_two_player_room_with_dice();
+        let mut settings = room.settings.clone();
+        settings.fields.insert(ROLLER_SETTING.to_string(), serde_json::json!("p2"));
+        // p2 (guest) cannot mutate settings to make themselves the roller.
+        assert_eq!(
+            room.update_settings("p2", settings).unwrap_err(),
+            RoomError::NotHost,
+        );
+        assert_eq!(room.roller_id(), None);
+    }
+
+    #[test]
+    fn test_host_can_assign_roller_via_settings() {
+        let mut room = make_two_player_room_with_dice();
+        let mut settings = room.settings.clone();
+        settings.fields.insert(ROLLER_SETTING.to_string(), serde_json::json!("p2"));
+        room.update_settings("p1", settings).unwrap();
+        assert!(room.is_roller("p2"));
     }
 
     #[test]

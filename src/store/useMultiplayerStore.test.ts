@@ -202,6 +202,57 @@ describe('useMultiplayerStore', () => {
     })
   })
 
+  describe('delegated roller', () => {
+    it('host setRoller sends update_settings preserving other fields', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: true,
+        roomSettings: { version: 1, playerCap: 4, motionControl: 'room' },
+      })
+
+      useMultiplayerStore.getState().setRoller('p2')
+
+      expect(send).toHaveBeenCalledTimes(1)
+      const payload = JSON.parse(send.mock.calls[0][0])
+      expect(payload).toEqual({
+        type: 'update_settings',
+        settings: { version: 1, playerCap: 4, motionControl: 'room', roller: 'p2' },
+      })
+    })
+
+    it('host setRoller(null) revokes by clearing the roller field', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: true,
+        roomSettings: { version: 1, roller: 'p2' },
+      })
+
+      useMultiplayerStore.getState().setRoller(null)
+
+      expect(send).toHaveBeenCalledTimes(1)
+      const payload = JSON.parse(send.mock.calls[0][0])
+      expect(payload).toEqual({ type: 'update_settings', settings: { version: 1 } })
+    })
+
+    it('non-host setRoller is a no-op (server also enforces)', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: false,
+        roomSettings: { version: 1 },
+      })
+
+      useMultiplayerStore.getState().setRoller('p2')
+
+      expect(send).not.toHaveBeenCalled()
+    })
+  })
+
   describe('reconnect & lifecycle', () => {
     it('uses the server-echoed localPlayerId even when not last in the list', () => {
       // Simulates a graceful rejoin: the reclaimed player (p1) is not last.

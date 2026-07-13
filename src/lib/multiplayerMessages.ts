@@ -132,6 +132,33 @@ export function setMotionControl(settings: RoomSettings, mode: MotionControl): R
   return { ...settings, [MOTION_CONTROL_SETTING]: mode }
 }
 
+/** Settings key holding the delegated roller's player id (absent for none). */
+export const ROLLER_SETTING = 'roller'
+
+/**
+ * Read the delegated roller's player id from settings, or `null` when no roller
+ * is assigned. The roller (set by the host) controls every die on the table —
+ * drag and motion — until the host revokes or reassigns the role (#73).
+ */
+export function getRoller(settings: RoomSettings | null | undefined): string | null {
+  const raw = settings?.[ROLLER_SETTING]
+  return typeof raw === 'string' && raw.length > 0 ? raw : null
+}
+
+/**
+ * Return a new {@link RoomSettings} with the delegated roller set to `playerId`
+ * (or cleared when `null`), preserving all other fields. Never mutates the input.
+ */
+export function setRoller(settings: RoomSettings, playerId: string | null): RoomSettings {
+  const next = { ...settings }
+  if (playerId) {
+    next[ROLLER_SETTING] = playerId
+  } else {
+    delete next[ROLLER_SETTING]
+  }
+  return next
+}
+
 /**
  * Device-motion (shake/gravity) input. `impulse` is a world-space vector the
  * server applies to the dice the sender may affect under the room's

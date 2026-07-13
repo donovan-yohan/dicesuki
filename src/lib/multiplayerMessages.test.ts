@@ -6,7 +6,13 @@ import type {
   PhysicsSnapshotMessage,
   DiceKnockedMessage,
 } from './multiplayerMessages'
-import { getMotionControl, setMotionControl, DEFAULT_MOTION_CONTROL } from './multiplayerMessages'
+import {
+  getMotionControl,
+  setMotionControl,
+  DEFAULT_MOTION_CONTROL,
+  getRoller,
+  setRoller,
+} from './multiplayerMessages'
 
 describe('multiplayerMessages', () => {
   describe('ClientMessage types', () => {
@@ -198,6 +204,35 @@ describe('multiplayerMessages', () => {
       // Never mutates the input.
       expect(original).toEqual({ version: 1, playerCap: 4 })
       expect(next).not.toBe(original)
+    })
+  })
+
+  describe('delegated roller protocol', () => {
+    it('getRoller reads the roller id and returns null when absent/invalid', () => {
+      expect(getRoller({ version: 1 })).toBeNull()
+      expect(getRoller({ version: 1, roller: 'p2' })).toBe('p2')
+      expect(getRoller(null)).toBeNull()
+      // Non-string / empty values are treated as no roller.
+      expect(getRoller({ version: 1, roller: '' })).toBeNull()
+      expect(getRoller({ version: 1, roller: 42 })).toBeNull()
+    })
+
+    it('setRoller assigns and clears while preserving other fields', () => {
+      const original = { version: 1, playerCap: 4, motionControl: 'room' }
+      const assigned = setRoller(original, 'p2')
+      expect(assigned).toEqual({
+        version: 1,
+        playerCap: 4,
+        motionControl: 'room',
+        roller: 'p2',
+      })
+      // Clearing removes the key entirely, keeping everything else.
+      const cleared = setRoller(assigned, null)
+      expect(cleared).toEqual({ version: 1, playerCap: 4, motionControl: 'room' })
+      expect('roller' in cleared).toBe(false)
+      // Never mutates the input.
+      expect(original).toEqual({ version: 1, playerCap: 4, motionControl: 'room' })
+      expect(assigned).not.toBe(original)
     })
   })
 })

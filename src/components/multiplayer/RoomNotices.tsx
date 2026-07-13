@@ -3,6 +3,7 @@ import { useTheme } from '../../contexts/ThemeContext'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { useRoomPresenceNotices } from '../../hooks/useRoomPresenceNotices'
 import { useRoomMotionNotices } from '../../hooks/useRoomMotionNotices'
+import { useRoomRollerNotices } from '../../hooks/useRoomRollerNotices'
 
 const NOTICE_STYLE = {
   padding: '0.4rem 0.85rem',
@@ -19,6 +20,7 @@ const NOTICE_STYLE = {
 export function RoomNotices() {
   const { notices, dismiss } = useRoomPresenceNotices()
   const { notices: motionNotices, dismiss: dismissMotion } = useRoomMotionNotices()
+  const { notices: rollerNotices, dismiss: dismissRoller } = useRoomRollerNotices()
   const { currentTheme } = useTheme()
   const reduceMotion = shouldReduceMotion()
   const colors = currentTheme.tokens.colors
@@ -77,6 +79,23 @@ export function RoomNotices() {
             transition={{ duration: 0.25, ease: 'easeOut' }}
           >
             <span aria-hidden>🎲</span>
+            <span>{notice.message}</span>
+          </motion.button>
+        ))}
+        {rollerNotices.map((notice) => (
+          <motion.button
+            key={notice.id}
+            type="button"
+            onClick={() => dismissRoller(notice.id)}
+            className="pointer-events-auto flex items-center gap-2 rounded-full text-sm font-medium"
+            style={{ ...NOTICE_STYLE, color: colors.text.primary }}
+            data-testid="roller-notice"
+            initial={enter}
+            animate={shown}
+            exit={enter}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+          >
+            <span aria-hidden>🖐️</span>
             <span>{notice.message}</span>
           </motion.button>
         ))}
