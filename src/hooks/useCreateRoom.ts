@@ -7,7 +7,7 @@ import {
   type RoomServerReadinessState,
 } from '../lib/multiplayerServer'
 
-type CreateRoomPhase = 'idle' | 'checking' | 'creating'
+type CreateRoomPhase = 'idle' | 'checking' | 'waking' | 'creating'
 
 export interface CreateRoomError {
   kind: Exclude<RoomServerReadinessState, 'ready'> | 'create-failed'
@@ -32,6 +32,11 @@ interface UseCreateRoomOptions {
 interface UseCreateRoomResult {
   phase: CreateRoomPhase
   isCreating: boolean
+  /**
+   * User-facing "server waking up, retrying…" message while readiness retries a
+   * cold-starting public server (#109); null otherwise.
+   */
+  wakingMessage: string | null
   error: CreateRoomError | null
   createRoom: () => Promise<void>
   clearError: () => void
@@ -44,6 +49,7 @@ interface UseCreateRoomResult {
 export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoomResult {
   const navigate = useNavigate()
   const [phase, setPhase] = useState<CreateRoomPhase>('idle')
+  const [wakingMessage, setWakingMessage] = useState<string | null>(null)
   const [error, setError] = useState<CreateRoomError | null>(null)
   const mode = options.mode || 'public'
   const config = getRoomServerConfig(mode)
@@ -51,9 +57,19 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
 
   async function createRoom(): Promise<void> {
     setPhase('checking')
+    setWakingMessage(null)
     setError(null)
     try {
-      const readiness = await checkRoomServerReadiness(config)
+      const readiness = await checkRoomServerReadiness(config, {
+        // Surface the cold-start wait instead of a silent spinner (#109).
+        onRetry: ({ attempt, maxRetries }) => {
+          setPhase('waking')
+          setWakingMessage(
+            `${config.label} is waking up, retrying… (attempt ${attempt} of ${maxRetries})`,
+          )
+        },
+      })
+      setWakingMessage(null)
       if (!readiness.ok) {
         const kind = readiness.state === 'ready' ? 'unavailable' : readiness.state
         setError({
@@ -98,6 +114,7 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
       })
     } finally {
       setPhase('idle')
+      setWakingMessage(null)
     }
   }
 
@@ -105,5 +122,5 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
     setError(null)
   }
 
-  return { phase, isCreating, error, createRoom, clearError }
+  return { phase, isCreating, wakingMessage, error, createRoom, clearError }
 }

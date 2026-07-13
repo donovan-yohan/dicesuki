@@ -124,13 +124,17 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   className="font-semibold text-sm"
                   style={{ color: 'var(--color-text-primary)' }}
                 >
-                  {publicRoom.isCreating ? 'Creating Room...' : 'Create Multiplayer Room'}
+                  {publicRoom.phase === 'waking'
+                    ? 'Server waking up, retrying…'
+                    : publicRoom.isCreating
+                      ? 'Creating Room...'
+                      : 'Create Multiplayer Room'}
                 </div>
                 <div
                   className="text-xs"
                   style={{ color: 'var(--color-text-muted)' }}
                 >
-                  Roll dice with friends in real-time
+                  {publicRoom.wakingMessage ?? 'Roll dice with friends in real-time'}
                 </div>
               </div>
             </div>
