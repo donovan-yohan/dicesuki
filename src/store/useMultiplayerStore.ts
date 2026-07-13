@@ -15,7 +15,10 @@ import {
   setMotionControl as withMotionControl,
   setRoller as withRoller,
   setRoomThemeId as withRoomTheme,
+  setVisibility as withVisibility,
+  setRoomName as withRoomName,
 } from '../lib/multiplayerMessages'
+import type { RoomVisibility } from '../lib/multiplayerMessages'
 import { MOTION_IMPULSE_MIN_INTERVAL_MS } from '../config/physicsConfig'
 import { getWsServerUrl } from '../lib/multiplayerServer'
 import { triggerCollisionFeedback } from '../lib/collisionFeedback'
@@ -101,6 +104,10 @@ interface MultiplayerState {
    * non-hosts; the server re-validates.
    */
   setRoller: (playerId: string | null) => void
+  /** Host-only: mark the room public or unlisted in the browser (#79). */
+  setVisibility: (visibility: RoomVisibility) => void
+  /** Host-only: set the room's display name for the public browser (#79). */
+  setRoomName: (name: string) => void
   /**
    * Host-only: set (or, with `null`, clear) the room's shared visual theme — the
    * environment/tray look every client applies from room settings (#75). No-op
@@ -631,6 +638,18 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     // host-controlled fields (motionControl, roller, ...) are preserved.
     if (!get().isHost) return
     get().updateSettings(withRoomTheme(get().roomSettings, themeId))
+  },
+
+  setVisibility: (visibility: RoomVisibility) => {
+    // Host-only; the server re-validates. Merge so other settings are preserved.
+    if (!get().isHost) return
+    get().updateSettings(withVisibility(get().roomSettings, visibility))
+  },
+
+  setRoomName: (name: string) => {
+    // Host-only; the server sanitizes and re-validates. Merge to preserve others.
+    if (!get().isHost) return
+    get().updateSettings(withRoomName(get().roomSettings, name))
   },
 
   sendMotionImpulse: (impulse: [number, number, number]) => {

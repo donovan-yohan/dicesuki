@@ -24,7 +24,7 @@ pub static INSTANCE_ID: LazyLock<String> = LazyLock::new(|| nanoid::nanoid!(8));
 pub fn build_app(room_manager: SharedRoomManager) -> Router {
     Router::new()
         .route("/health", get(routes::health))
-        .route("/api/rooms", post(routes::create_room))
+        .route("/api/rooms", post(routes::create_room).get(routes::list_rooms))
         .route("/api/rooms/:room_id", get(routes::get_room_info))
         .route("/ws/:room_id", get(routes::ws_upgrade))
         .fallback(routes::fallback)

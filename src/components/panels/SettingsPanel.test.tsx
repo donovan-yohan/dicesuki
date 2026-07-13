@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useCreateRoom, type CreateRoomError } from '../../hooks/useCreateRoom'
 import { SettingsPanel } from './SettingsPanel'
 
+const navigateMock = vi.hoisted(() => vi.fn())
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
+  return { ...actual, useNavigate: () => navigateMock }
+})
+
 vi.mock('../../hooks/useHapticFeedback', () => ({
   useHapticFeedback: () => ({
     isEnabled: false,

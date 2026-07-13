@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { useCreateRoom, type CreateRoomError } from '../../hooks/useCreateRoom'
 import { ThemeSelector } from '../ThemeSelector'
@@ -25,6 +26,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   // means "each player's own" — no shared room theme is applied.
   const [roomThemeId, setRoomThemeId] = useState<string | null>(null)
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
+  const navigate = useNavigate()
   const publicRoom = useCreateRoom({ themeId: roomThemeId })
   const localSoloRoom = useCreateRoom({ mode: 'local-loopback', solo: true })
 
@@ -132,6 +134,34 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           </button>
 
           <RoomErrorMessage error={publicRoom.error} onDismiss={publicRoom.clearError} />
+
+          <button
+            onClick={() => navigate('/rooms')}
+            className="mt-3 w-full flex items-center justify-between p-4 rounded-lg transition-all"
+            style={{
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.3)',
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔍</span>
+              <div className="text-left">
+                <div
+                  className="font-semibold text-sm"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  Browse Public Rooms
+                </div>
+                <div
+                  className="text-xs"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  Find and join open tables
+                </div>
+              </div>
+            </div>
+            <span style={{ color: 'var(--color-accent)' }}>→</span>
+          </button>
         </div>
 
         {/* Theme Section */}

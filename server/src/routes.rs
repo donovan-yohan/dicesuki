@@ -1,15 +1,58 @@
 use axum::{
-    extract::{Path, Request, State},
+    extract::{Path, Query, Request, State},
     http::StatusCode,
     middleware::Next,
     response::IntoResponse,
     Json,
 };
 use axum::http::{HeaderValue, Method};
+use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 use log::info;
 
+use crate::room::RoomListing;
 use crate::{SharedRoomManager, INSTANCE_ID};
+
+/// Default page size for the public room listing when the client omits one.
+const DEFAULT_PAGE_SIZE: usize = 20;
+/// Hard ceiling on `pageSize` so a single request can never demand an unbounded
+/// number of rooms.
+const MAX_PAGE_SIZE: usize = 100;
+
+/// Query parameters for the paginated public room listing (`GET /api/rooms`).
+#[derive(Debug, Deserialize)]
+pub struct ListRoomsQuery {
+    /// Zero-based page index. Defaults to 0.
+    pub page: Option<usize>,
+    /// Rooms per page. Defaults to [`DEFAULT_PAGE_SIZE`], clamped to
+    /// `1..=MAX_PAGE_SIZE`.
+    #[serde(rename = "pageSize")]
+    pub page_size: Option<usize>,
+}
+
+/// Apply pagination to an already-filtered, sorted list of public rooms.
+/// Returns the requested page slice alongside the effective (clamped) page and
+/// page size and the total number of public rooms. Kept pure so the
+/// slice/clamp arithmetic is unit-testable without a running server.
+#[must_use]
+pub fn paginate_listings(
+    mut listings: Vec<RoomListing>,
+    page: Option<usize>,
+    page_size: Option<usize>,
+) -> (Vec<RoomListing>, usize, usize, usize) {
+    // Deterministic ordering so pagination is stable across requests.
+    listings.sort_by(|a, b| a.room_id.cmp(&b.room_id));
+    let total = listings.len();
+    let page = page.unwrap_or(0);
+    let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
+    let start = page.saturating_mul(page_size);
+    let paged = listings
+        .into_iter()
+        .skip(start)
+        .take(page_size)
+        .collect::<Vec<_>>();
+    (paged, page, page_size, total)
+}
 
 /// Middleware that logs every incoming request and its response status.
 pub async fn log_requests(req: Request, next: Next) -> impl IntoResponse {
@@ -64,6 +107,45 @@ pub async fn create_room(State(mgr): State<SharedRoomManager>) -> impl IntoRespo
         StatusCode::CREATED,
         Json(serde_json::json!({"roomId": room_id, "instanceId": *INSTANCE_ID})),
     )
+}
+
+/// `GET /api/rooms` — the public room browser listing (#79). Returns only rooms
+/// the host has marked `visibility = "public"`, each with its id, optional name,
+/// current player count, and optional theme id, paginated. Unlisted rooms (the
+/// default) never appear.
+pub async fn list_rooms(
+    State(mgr): State<SharedRoomManager>,
+    Query(query): Query<ListRoomsQuery>,
+) -> impl IntoResponse {
+    // Snapshot the room handles, then release the manager lock before taking any
+    // per-room read lock (avoids holding both locks at once).
+    let rooms = {
+        let mgr = mgr.read().await;
+        mgr.rooms_snapshot()
+    };
+
+    let mut listings = Vec::new();
+    for room in &rooms {
+        if let Some(listing) = room.read().await.public_listing() {
+            listings.push(listing);
+        }
+    }
+
+    let (paged, page, page_size, total) =
+        paginate_listings(listings, query.page, query.page_size);
+
+    info!(
+        "[{}] GET /api/rooms (public: {}, page: {}, pageSize: {})",
+        *INSTANCE_ID, total, page, page_size
+    );
+
+    Json(serde_json::json!({
+        "rooms": paged,
+        "page": page,
+        "pageSize": page_size,
+        "total": total,
+        "instanceId": *INSTANCE_ID,
+    }))
 }
 
 pub async fn get_room_info(
@@ -142,5 +224,69 @@ pub async fn ws_upgrade(
             *INSTANCE_ID, room_id
         );
         (StatusCode::BAD_REQUEST, "WebSocket upgrade required").into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::room::RoomListing;
+
+    fn listing(id: &str) -> RoomListing {
+        RoomListing {
+            room_id: id.to_string(),
+            name: None,
+            player_count: 0,
+            theme_id: None,
+        }
+    }
+
+    #[test]
+    fn paginate_defaults_to_page_zero_size_twenty() {
+        let listings: Vec<RoomListing> = (0..5).map(|i| listing(&format!("r{i}"))).collect();
+        let (paged, page, page_size, total) = paginate_listings(listings, None, None);
+        assert_eq!(page, 0);
+        assert_eq!(page_size, DEFAULT_PAGE_SIZE);
+        assert_eq!(total, 5);
+        assert_eq!(paged.len(), 5);
+    }
+
+    #[test]
+    fn paginate_slices_requested_page() {
+        let listings: Vec<RoomListing> = (0..10).map(|i| listing(&format!("r{i:02}"))).collect();
+        let (paged, page, page_size, total) = paginate_listings(listings, Some(1), Some(3));
+        assert_eq!((page, page_size, total), (1, 3, 10));
+        // Sorted ascending, page 1 of size 3 => r03, r04, r05.
+        let ids: Vec<&str> = paged.iter().map(|l| l.room_id.as_str()).collect();
+        assert_eq!(ids, ["r03", "r04", "r05"]);
+    }
+
+    #[test]
+    fn paginate_clamps_page_size_to_max() {
+        let listings: Vec<RoomListing> = (0..3).map(|i| listing(&format!("r{i}"))).collect();
+        let (_, _, page_size, _) = paginate_listings(listings, None, Some(9999));
+        assert_eq!(page_size, MAX_PAGE_SIZE);
+    }
+
+    #[test]
+    fn paginate_page_size_never_zero() {
+        let (_, _, page_size, _) = paginate_listings(vec![], None, Some(0));
+        assert_eq!(page_size, 1, "pageSize is clamped to at least 1");
+    }
+
+    #[test]
+    fn paginate_page_past_end_is_empty() {
+        let listings: Vec<RoomListing> = (0..3).map(|i| listing(&format!("r{i}"))).collect();
+        let (paged, _, _, total) = paginate_listings(listings, Some(50), Some(10));
+        assert!(paged.is_empty());
+        assert_eq!(total, 3, "Total still reflects all public rooms");
+    }
+
+    #[test]
+    fn paginate_sorts_deterministically() {
+        let listings = vec![listing("zeta"), listing("alpha"), listing("mike")];
+        let (paged, _, _, _) = paginate_listings(listings, None, None);
+        let ids: Vec<&str> = paged.iter().map(|l| l.room_id.as_str()).collect();
+        assert_eq!(ids, ["alpha", "mike", "zeta"]);
     }
 }

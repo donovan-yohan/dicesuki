@@ -86,6 +86,61 @@ export function getHttpServerUrl(mode: RoomServerMode = 'public'): string {
   return getRoomServerConfig(mode).httpUrl
 }
 
+/**
+ * A single public room as returned by the server's `GET /api/rooms` listing (#79).
+ * `name` and `themeId` are null when the host has not set them.
+ */
+export interface PublicRoomEntry {
+  roomId: string
+  name: string | null
+  playerCount: number
+  themeId: string | null
+}
+
+/** The paginated public room listing response shape. */
+export interface PublicRoomsPage {
+  rooms: PublicRoomEntry[]
+  page: number
+  pageSize: number
+  total: number
+}
+
+interface FetchPublicRoomsOptions {
+  page?: number
+  pageSize?: number
+  fetchImpl?: typeof fetch
+  signal?: AbortSignal
+}
+
+/**
+ * Fetch a page of public rooms from the room server's listing endpoint. Returns
+ * a normalized {@link PublicRoomsPage}; throws on network error or non-OK status
+ * so callers can surface an actionable message.
+ */
+export async function fetchPublicRooms(
+  config: RoomServerConfig,
+  options: FetchPublicRoomsOptions = {},
+): Promise<PublicRoomsPage> {
+  const fetchImpl = options.fetchImpl || fetch
+  const params = new URLSearchParams()
+  if (options.page !== undefined) params.set('page', String(options.page))
+  if (options.pageSize !== undefined) params.set('pageSize', String(options.pageSize))
+  const query = params.toString()
+  const url = `${config.httpUrl}/api/rooms${query ? `?${query}` : ''}`
+
+  const response = await fetchImpl(url, { method: 'GET', signal: options.signal })
+  if (!response.ok) {
+    throw new Error(`Room listing request failed with HTTP ${response.status}`)
+  }
+  const body = await response.json() as Partial<PublicRoomsPage>
+  return {
+    rooms: Array.isArray(body.rooms) ? body.rooms : [],
+    page: typeof body.page === 'number' ? body.page : 0,
+    pageSize: typeof body.pageSize === 'number' ? body.pageSize : 0,
+    total: typeof body.total === 'number' ? body.total : 0,
+  }
+}
+
 export async function checkRoomServerReadiness(
   config: RoomServerConfig,
   options: ReadinessOptions = {},

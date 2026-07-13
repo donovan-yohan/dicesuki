@@ -304,6 +304,56 @@ describe('useMultiplayerStore', () => {
     })
   })
 
+  describe('room discovery (#79)', () => {
+    it('host setVisibility sends update_settings preserving other fields', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: true,
+        roomSettings: { version: 1, playerCap: 4 },
+      })
+
+      useMultiplayerStore.getState().setVisibility('public')
+
+      expect(send).toHaveBeenCalledTimes(1)
+      const payload = JSON.parse(send.mock.calls[0][0])
+      expect(payload).toEqual({
+        type: 'update_settings',
+        settings: { version: 1, playerCap: 4, visibility: 'public' },
+      })
+    })
+
+    it('host setRoomName sanitizes and sends the name', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: true,
+        roomSettings: { version: 1, visibility: 'public' },
+      })
+
+      useMultiplayerStore.getState().setRoomName('  Taco   Tuesday  ')
+
+      const payload = JSON.parse(send.mock.calls[0][0])
+      expect(payload.settings.roomName).toBe('Taco Tuesday')
+    })
+
+    it('non-host setVisibility is a no-op (server also enforces)', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: false,
+        roomSettings: { version: 1 },
+      })
+
+      useMultiplayerStore.getState().setVisibility('public')
+
+      expect(send).not.toHaveBeenCalled()
+    })
+  })
+
   describe('reconnect & lifecycle', () => {
     it('uses the server-echoed localPlayerId even when not last in the list', () => {
       // Simulates a graceful rejoin: the reclaimed player (p1) is not last.

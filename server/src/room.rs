@@ -123,8 +123,54 @@ pub const ROLLER_SETTING: &str = "roller";
 /// Host-only, like every setting (#75). The value is an opaque theme id resolved
 /// against the client-side theme registry; the server does not know the theme
 /// catalog, so validation — and graceful fallback for an unknown id — is
-/// client-side. Absent means clients keep their own personal theme.
+/// client-side. Absent means clients keep their own personal theme. Also surfaced
+/// in the public room listing (#79) as `themeId`.
 pub const THEME_SETTING: &str = "themeId";
+/// Settings key holding the room's discovery visibility (#79). Value is the wire
+/// string `public` or `unlisted`; anything else (including absent) is treated as
+/// `unlisted`, so a room is private-by-default and never appears in the public
+/// listing until the host explicitly opts in.
+pub const VISIBILITY_SETTING: &str = "visibility";
+/// Wire value marking a room as publicly discoverable via `GET /api/rooms`.
+pub const VISIBILITY_PUBLIC: &str = "public";
+/// Settings key holding the host-chosen display name shown in the public room
+/// browser (#79). Optional; sanitized and length-capped on read.
+pub const ROOM_NAME_SETTING: &str = "roomName";
+/// Maximum number of characters retained from a host-supplied room name. Longer
+/// names are truncated on read so the listing can never be spammed with an
+/// oversized string.
+pub const ROOM_NAME_MAX_LEN: usize = 40;
+
+/// A single entry in the public room browser listing (`GET /api/rooms`, #79).
+/// Serialized with camelCase field names per the JSON protocol convention.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct RoomListing {
+    #[serde(rename = "roomId")]
+    pub room_id: String,
+    /// Host-chosen display name, or `null` when unset (client falls back to id).
+    pub name: Option<String>,
+    #[serde(rename = "playerCount")]
+    pub player_count: usize,
+    /// Active theme id, or `null` when the host has not set one.
+    #[serde(rename = "themeId")]
+    pub theme_id: Option<String>,
+}
+
+/// Sanitize a host-supplied room name for the public listing: strip control
+/// characters, collapse to a single trimmed line, and truncate to
+/// [`ROOM_NAME_MAX_LEN`] characters (on a char boundary).
+#[must_use]
+pub fn sanitize_room_name(raw: &str) -> String {
+    raw.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(ROOM_NAME_MAX_LEN)
+        .collect()
+}
 
 /// Host-controlled policy governing which dice a player's device-motion
 /// (shake/gravity) input may affect. Stored in [`RoomSettings`] under
@@ -355,15 +401,56 @@ impl Room {
         self.roller_id() == Some(player_id)
     }
 
+    /// Whether this room is publicly discoverable via `GET /api/rooms` (#79).
+    /// Rooms are unlisted by default; only a host who sets `visibility = "public"`
+    /// opts in.
+    #[must_use]
+    pub fn is_public(&self) -> bool {
+        self.settings
+            .fields
+            .get(VISIBILITY_SETTING)
+            .and_then(serde_json::Value::as_str)
+            == Some(VISIBILITY_PUBLIC)
+    }
+
+    /// The host-chosen display name for the public browser, sanitized (control
+    /// characters stripped, trimmed) and truncated to [`ROOM_NAME_MAX_LEN`]
+    /// characters. Returns `None` when unset or empty after sanitizing, in which
+    /// case the client falls back to the room id.
+    #[must_use]
+    pub fn room_name(&self) -> Option<String> {
+        self.settings
+            .fields
+            .get(ROOM_NAME_SETTING)
+            .and_then(serde_json::Value::as_str)
+            .map(sanitize_room_name)
+            .filter(|name| !name.is_empty())
+    }
+
     /// The room's shared visual theme id, if the host has set one (#75). Opaque
     /// to the server — resolved against the client theme registry — so any
     /// non-empty string round-trips. `None` (absent or empty) means clients use
-    /// their own personal theme.
+    /// their own personal theme. Also surfaced in the public listing (#79).
     #[must_use]
     pub fn theme_id(&self) -> Option<&str> {
         self.settings.fields.get(THEME_SETTING)
             .and_then(serde_json::Value::as_str)
             .filter(|id| !id.is_empty())
+    }
+
+    /// Build a public-listing entry for this room, or `None` when the room is
+    /// unlisted. Player count and theme reflect current room state at call time.
+    #[must_use]
+    pub fn public_listing(&self) -> Option<RoomListing> {
+        if !self.is_public() {
+            return None;
+        }
+        Some(RoomListing {
+            room_id: self.id.clone(),
+            name: self.room_name(),
+            player_count: self.player_count(),
+            theme_id: self.theme_id().map(str::to_string),
+        })
     }
 
     /// Policy check: may `player_id`'s device-motion input affect `die` right now?
@@ -2705,6 +2792,71 @@ mod tests {
         let new_pos = room.dice.get("d1").unwrap().position;
         // Die should have moved toward the target (X increased)
         assert!(new_pos[0] > initial_pos[0], "Die should move toward drag target");
+    }
+
+    // ── Public room browser: visibility, naming, listing (#79) ──────────────
+
+    fn set_field(room: &mut Room, key: &str, value: serde_json::Value) {
+        room.settings.fields.insert(key.to_string(), value);
+    }
+
+    #[test]
+    fn test_room_unlisted_by_default() {
+        let room = Room::new("test".to_string());
+        assert!(!room.is_public(), "Rooms must be unlisted (private) by default");
+        assert!(room.public_listing().is_none(), "Unlisted rooms produce no listing");
+    }
+
+    #[test]
+    fn test_room_public_when_host_opts_in() {
+        let mut room = Room::new("abc123".to_string());
+        set_field(&mut room, VISIBILITY_SETTING, serde_json::json!("public"));
+        assert!(room.is_public());
+        let listing = room.public_listing().expect("Public room yields a listing");
+        assert_eq!(listing.room_id, "abc123");
+        assert_eq!(listing.player_count, 0);
+        assert_eq!(listing.name, None, "No name set falls back to None");
+        assert_eq!(listing.theme_id, None);
+    }
+
+    #[test]
+    fn test_unknown_visibility_value_is_unlisted() {
+        let mut room = Room::new("test".to_string());
+        set_field(&mut room, VISIBILITY_SETTING, serde_json::json!("secret"));
+        assert!(!room.is_public(), "Unknown visibility values stay unlisted");
+    }
+
+    #[test]
+    fn test_listing_reflects_player_count_name_and_theme() {
+        let mut room = Room::new("room42".to_string());
+        set_field(&mut room, VISIBILITY_SETTING, serde_json::json!("public"));
+        set_field(&mut room, ROOM_NAME_SETTING, serde_json::json!("  Taco Tuesday  "));
+        set_field(&mut room, THEME_SETTING, serde_json::json!("neon"));
+        room.add_player(make_player("p1", "Alice")).unwrap();
+        room.add_player(make_player("p2", "Bob")).unwrap();
+
+        let listing = room.public_listing().unwrap();
+        assert_eq!(listing.player_count, 2, "Count reflects current room state");
+        assert_eq!(listing.name.as_deref(), Some("Taco Tuesday"), "Name is trimmed");
+        assert_eq!(listing.theme_id.as_deref(), Some("neon"));
+    }
+
+    #[test]
+    fn test_room_name_sanitized_and_capped() {
+        // Control characters become spaces, runs collapse, length is capped.
+        let dirty = "Bad\nName\t\tWith   Control\u{0007}Chars And A Very Long Tail Beyond Forty";
+        let clean = sanitize_room_name(dirty);
+        assert!(clean.chars().count() <= ROOM_NAME_MAX_LEN);
+        assert!(!clean.contains('\n') && !clean.contains('\t') && !clean.contains('\u{0007}'));
+        assert!(!clean.contains("  "), "No double spaces after collapse");
+    }
+
+    #[test]
+    fn test_blank_room_name_yields_none() {
+        let mut room = Room::new("test".to_string());
+        set_field(&mut room, VISIBILITY_SETTING, serde_json::json!("public"));
+        set_field(&mut room, ROOM_NAME_SETTING, serde_json::json!("   \t  "));
+        assert_eq!(room.room_name(), None, "Whitespace-only name sanitizes to None");
     }
 }
 
