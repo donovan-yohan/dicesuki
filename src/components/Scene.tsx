@@ -49,6 +49,7 @@ import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } fr
 import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
 import { PlayerPanel } from './multiplayer/PlayerPanel'
+import { RoomNotices } from './multiplayer/RoomNotices'
 import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
 import type { TableDieSummary } from '../types/tableDice'
 
@@ -1003,9 +1004,12 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
         />
       )}
 
-      {/* Multiplayer player panel */}
+      {/* Multiplayer player panel + join/leave notices */}
       {isMultiplayer && (
-        <PlayerPanel isOpen={isPlayerPanelOpen} />
+        <>
+          <PlayerPanel isOpen={isPlayerPanelOpen} />
+          <RoomNotices />
+        </>
       )}
 
     </>
