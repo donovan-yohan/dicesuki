@@ -5,7 +5,7 @@ import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { connectionIndicator } from './connectionIndicator'
 import { RoomShare } from './RoomShare'
 import { getMotionControl, getRoller, getRoomThemeId } from '../../lib/multiplayerMessages'
-import { THEME_REGISTRY } from '../../themes/registry'
+import { RoomThemePicker } from './RoomThemePicker'
 import {
   MOTION_CONTROL_LABELS,
   MOTION_CONTROL_DESCRIPTIONS,
@@ -293,31 +293,15 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
               )}
             </div>
 
-            <select
-              aria-label="Room theme"
-              data-testid="room-theme-select"
-              disabled={!isHost}
-              value={roomThemeId ?? ''}
-              onChange={(e) => {
+            <RoomThemePicker
+              value={roomThemeId}
+              onChange={(themeId) => {
                 if (!isHost) return
-                setRoomTheme(e.target.value === '' ? null : e.target.value)
+                setRoomTheme(themeId)
               }}
-              className="w-full rounded-lg px-2 py-1.5 text-sm"
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.06)',
-                color: colors.text.primary,
-                border: '1px solid rgba(255,255,255,0.12)',
-                cursor: isHost ? 'pointer' : 'default',
-                opacity: isHost ? 1 : 0.6,
-              }}
-            >
-              <option value="">Each player's own</option>
-              {THEME_REGISTRY.map((theme) => (
-                <option key={theme.id} value={theme.id}>
-                  {theme.name}
-                </option>
-              ))}
-            </select>
+              disabled={!isHost}
+              label="Room theme"
+            />
 
             <span className="text-xs" style={{ color: colors.text.muted, lineHeight: 1.35 }}>
               Sets the shared table look. Your dice skins stay your own.

@@ -271,10 +271,8 @@ describe('PlayerPanel room theme', () => {
     })
     renderPanel()
 
-    // Act: host selects the neon theme.
-    fireEvent.change(screen.getByTestId('room-theme-select'), {
-      target: { value: 'neon-cyber-city' },
-    })
+    // Act: host selects the neon theme preview card.
+    fireEvent.click(screen.getByTestId('room-theme-card-neon-cyber-city'))
 
     // Assert: the choice goes out as a host settings mutation.
     expect(send).toHaveBeenCalledTimes(1)
@@ -295,11 +293,14 @@ describe('PlayerPanel room theme', () => {
     })
     renderPanel()
 
-    const select = screen.getByTestId('room-theme-select') as HTMLSelectElement
-    expect(select.value).toBe('fantasy-earth')
+    // The active theme card is marked selected.
+    expect(screen.getByTestId('room-theme-card-fantasy-earth')).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
 
     // Act: clear back to "each player's own".
-    fireEvent.change(select, { target: { value: '' } })
+    fireEvent.click(screen.getByTestId('room-theme-card-none'))
     const payload = JSON.parse(send.mock.calls[0][0])
     expect(payload).toEqual({ type: 'update_settings', settings: { version: 1 } })
   })
@@ -315,9 +316,9 @@ describe('PlayerPanel room theme', () => {
     })
     renderPanel()
 
-    const select = screen.getByTestId('room-theme-select') as HTMLSelectElement
-    expect(select.disabled).toBe(true)
+    const card = screen.getByTestId('room-theme-card-neon-cyber-city') as HTMLButtonElement
+    expect(card.disabled).toBe(true)
     // Non-hosts still see the room's current theme reflected.
-    expect(select.value).toBe('neon-cyber-city')
+    expect(card).toHaveAttribute('aria-checked', 'true')
   })
 })

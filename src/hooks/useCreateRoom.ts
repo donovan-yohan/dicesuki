@@ -20,6 +20,13 @@ interface UseCreateRoomOptions {
   mode?: RoomServerMode
   solo?: boolean
   displayName?: string
+  /**
+   * Optional shared room environment theme chosen at creation time (#76).
+   * The room creator becomes the host, so we carry the choice to the room via a
+   * `theme` query param and apply it host-side after join (see MultiplayerRoom);
+   * `POST /api/rooms` stays theme-agnostic, keeping the server untouched.
+   */
+  themeId?: string | null
 }
 
 interface UseCreateRoomResult {
@@ -75,6 +82,9 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
       if (options.solo) {
         params.set('solo', '1')
         params.set('name', options.displayName || 'Solo Player')
+      }
+      if (options.themeId) {
+        params.set('theme', options.themeId)
       }
       const query = params.toString()
       navigate(`/room/${data.roomId}${query ? `?${query}` : ''}`)

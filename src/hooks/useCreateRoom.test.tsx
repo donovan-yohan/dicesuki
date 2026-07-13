@@ -53,6 +53,38 @@ describe('useCreateRoom', () => {
     expect(result.current.error).toBeNull()
   })
 
+  it('carries a chosen room theme to the room via the theme query param', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ status: 'ok', instanceId: 'srv123' }))
+      .mockResolvedValueOnce(jsonResponse({ roomId: 'ABC123' }, { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { result } = renderHook(() => useCreateRoom({ themeId: 'neon-cyber-city' }))
+
+    await act(async () => {
+      await result.current.createRoom()
+    })
+
+    expect(navigateMock).toHaveBeenCalledWith('/room/ABC123?theme=neon-cyber-city')
+  })
+
+  it('omits the theme param when no theme is chosen', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ status: 'ok', instanceId: 'srv123' }))
+      .mockResolvedValueOnce(jsonResponse({ roomId: 'ABC123' }, { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { result } = renderHook(() => useCreateRoom({ themeId: null }))
+
+    await act(async () => {
+      await result.current.createRoom()
+    })
+
+    expect(navigateMock).toHaveBeenCalledWith('/room/ABC123')
+  })
+
   it('keeps users on the panel with an actionable port-conflict error', async () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({ status: 'ok' }),
