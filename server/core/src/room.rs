@@ -1,13 +1,15 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+// Clock seam (epic #111): std::time::Instant panics at runtime on wasm; web-time
+// re-exports std on native and uses the Performance API on wasm.
+use web_time::Instant;
 use rapier3d::prelude::RigidBodyHandle;
-use tokio::sync::RwLock;
 use crate::messages::{
     DicePresentationMetadata, DiceSnapshot, DiceState, DiceType, DieResult, RoomSettings,
     ServerMessage, SpawnDiceEntry, VelocityHistoryEntry,
 };
-use crate::player::{Player, PlayerSender};
+use crate::player::Player;
+use crate::sink::MessageSink;
 use crate::physics::{
     PhysicsWorld, REST_DURATION_MS, MAX_DICE_VELOCITY,
     DRAG_FOLLOW_SPEED, DRAG_DISTANCE_BOOST, DRAG_DISTANCE_THRESHOLD,
@@ -19,9 +21,6 @@ use crate::physics::{
 use crate::dice::{create_dice_body, generate_roll_impulse, generate_roll_torque, generate_spawn_position};
 use crate::face_detection::detect_face_value;
 use log::warn;
-
-/// A reference-counted, async-read/write-locked room handle.
-pub type SharedRoom = Arc<RwLock<Room>>;
 
 /// Result of a single [`Room::physics_tick`]: `(snapshot, newly_settled, knocked)`.
 /// - `snapshot`: the physics snapshot to broadcast this tick (if any dice qualify).
@@ -645,7 +644,7 @@ impl Room {
         candidate_id: String,
         display_name: String,
         color: String,
-        sender: PlayerSender,
+        sender: impl MessageSink + 'static,
         reconnect_token: Option<&str>,
         user_id: Option<String>,
     ) -> Result<JoinResult, RoomError> {
@@ -657,7 +656,7 @@ impl Room {
             {
                 let player = self.players.get_mut(&existing_id)
                     .expect("player exists: id was just read from self.players");
-                player.sender = sender;
+                player.sender = Box::new(sender);
                 player.connected = true;
                 player.disconnected_at = None;
                 // Refresh the auth binding: a player may sign in (or out) between
@@ -1218,88 +1217,6 @@ impl Room {
         newly_settled
     }
 
-    /// Check if the simulation loop needs to start, and start it if so.
-    /// Must be called while holding the room lock.
-    pub fn maybe_start_simulation(room_guard: &mut Room, room: SharedRoom) {
-        if room_guard.is_simulating && !room_guard.is_sim_running {
-            room_guard.is_sim_running = true;
-            Room::start_simulation_loop(room);
-        }
-    }
-
-    /// Start the physics simulation loop for a room.
-    /// Runs at 60Hz, broadcasts snapshots at 60Hz, detects settlements.
-    pub fn start_simulation_loop(room: SharedRoom) {
-        tokio::spawn(async move {
-            let tick_duration = std::time::Duration::from_micros(16_667); // ~60Hz
-
-            loop {
-                tokio::time::sleep(tick_duration).await;
-
-                let mut room_guard = room.write().await;
-
-                if !room_guard.is_simulating {
-                    room_guard.is_sim_running = false;
-                    break;
-                }
-
-                let (snapshot, newly_settled, knocked) = room_guard.physics_tick();
-
-                // Broadcast physics snapshot
-                if let Some(snap) = snapshot {
-                    room_guard.broadcast(&snap);
-                }
-
-                // Broadcast a collision signal for each settled die knocked back into
-                // motion this tick, so clients can fire haptics/SFX at the impact site.
-                for (dice_id, impact_speed) in &knocked {
-                    if let Some(die) = room_guard.dice.get(dice_id) {
-                        room_guard.broadcast(&ServerMessage::DiceKnocked {
-                            dice_id: dice_id.clone(),
-                            position: die.position,
-                            impact_speed: *impact_speed,
-                        });
-                    }
-                }
-
-                // Handle newly settled dice
-                for (dice_id, face_value) in &newly_settled {
-                    if let Some(die) = room_guard.dice.get(dice_id) {
-                        room_guard.broadcast(&ServerMessage::DieSettled {
-                            dice_id: dice_id.clone(),
-                            face_value: *face_value,
-                            position: die.position,
-                            rotation: die.rotation,
-                        });
-                    }
-                }
-
-                // Check if any player's full roll is complete
-                if !newly_settled.is_empty() {
-                    let player_ids: Vec<String> = room_guard.players.keys().cloned().collect();
-                    for pid in player_ids {
-                        let player_has_dice = room_guard.dice.values().any(|d| d.owner_id == pid);
-                        if player_has_dice && room_guard.is_player_roll_complete(&pid) {
-                            let (results, total) = room_guard.get_player_results(&pid);
-                            if !results.is_empty() {
-                                let has_new = results
-                                    .iter()
-                                    .any(|r| newly_settled.iter().any(|(id, _)| *id == r.dice_id));
-                                if has_new {
-                                    room_guard.broadcast(&ServerMessage::RollComplete {
-                                        player_id: pid,
-                                        results,
-                                        total,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
     /// Check if a full roll is complete for a player (all their dice settled)
     #[must_use]
     pub fn is_player_roll_complete(&self, player_id: &str) -> bool {
@@ -1577,7 +1494,7 @@ impl Room {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::sync::mpsc;
+    use crate::sink::testing as mpsc;
 
     fn make_player(id: &str, name: &str) -> Player {
         let (tx, _rx) = mpsc::unbounded_channel();
@@ -2579,7 +2496,7 @@ mod tests {
 
     // ── Room lifecycle: player cap, grace rejoin, host reclaim ───────────────
 
-    fn make_sender() -> PlayerSender {
+    fn make_sender() -> crate::sink::testing::TestSink {
         let (tx, _rx) = mpsc::unbounded_channel();
         tx
     }
@@ -2868,7 +2785,7 @@ mod tests {
 #[cfg(test)]
 mod physics_cleanup_tests {
     use super::*;
-    use tokio::sync::mpsc;
+    use crate::sink::testing as mpsc;
 
     fn make_player(id: &str, name: &str) -> Player {
         let (tx, _rx) = mpsc::unbounded_channel();
@@ -2951,7 +2868,7 @@ mod physics_cleanup_tests {
 #[cfg(test)]
 mod physics_tick_helper_tests {
     use super::*;
-    use tokio::sync::mpsc;
+    use crate::sink::testing as mpsc;
 
     fn make_room_with_player_and_die(die_id: &str) -> Room {
         let (tx, _rx) = mpsc::unbounded_channel();

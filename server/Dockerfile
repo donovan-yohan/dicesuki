@@ -16,17 +16,22 @@ WORKDIR /app
 
 # Copy manifests first so the dependency layer is cached independently of
 # source changes. dicesuki-server is a lib + bin crate, so both src/lib.rs
-# and src/main.rs must exist for `cargo build` to resolve the manifest.
+# and src/main.rs must exist for `cargo build` to resolve the manifest. The
+# workspace also has the `dicesuki-core` member (issue #112), so its manifest
+# and a stub lib must be present for the workspace to resolve.
 COPY Cargo.toml Cargo.lock* ./
-RUN mkdir src \
+COPY core/Cargo.toml core/Cargo.toml
+RUN mkdir src core/src \
     && echo 'fn main() {}' > src/main.rs \
     && echo '// dependency-cache stub' > src/lib.rs \
+    && echo '// dependency-cache stub' > core/src/lib.rs \
     && cargo build --release || true
 
 # Copy the real source and build the release binary. Touching the sources
-# invalidates the stub fingerprint so the crate itself is recompiled.
+# invalidates the stub fingerprint so the crates themselves are recompiled.
 COPY src/ src/
-RUN touch src/main.rs src/lib.rs && cargo build --release
+COPY core/src/ core/src/
+RUN touch src/main.rs src/lib.rs core/src/lib.rs && cargo build --release
 
 # ---- Runtime stage -------------------------------------------------------
 FROM debian:bookworm-slim AS runtime

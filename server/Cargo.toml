@@ -1,3 +1,14 @@
+# Cargo workspace (issue #112): the server is the root package; `dicesuki-core`
+# (pure game engine, wasm-buildable) is a member at `core/`. Building/testing
+# from `server/` covers both; `cargo build --release` still yields the server
+# binary exactly as before.
+[workspace]
+members = ["core"]
+# Make a bare `cargo build`/`cargo test` from `server/` cover the root server
+# package AND the core crate (a root-package workspace otherwise defaults to the
+# root package only). `cargo build --release` still targets the server binary.
+default-members = [".", "core"]
+
 [package]
 name = "dicesuki-server"
 version = "0.1.0"
@@ -10,6 +21,8 @@ keywords = ["dice", "multiplayer", "physics", "websocket"]
 categories = ["games", "web-programming"]
 
 [dependencies]
+# Pure game engine (physics, dice, room sim, protocol, face detection).
+dicesuki-core = { path = "core" }
 tokio = { version = "1", features = ["full"] }
 rapier3d = "0.22"
 serde = { version = "1", features = ["derive"] }

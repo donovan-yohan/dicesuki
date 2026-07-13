@@ -1,14 +1,15 @@
+// Pure game engine (physics, dice, room simulation, protocol, face detection)
+// now lives in the `dicesuki-core` crate (issue #112). Re-exported so existing
+// `crate::messages::*`, `crate::room::*`, etc. paths across the server keep
+// resolving unchanged.
+pub use dicesuki_core::{dice, face_detection, messages, physics, player, room, sink};
+
 pub mod auth;
-pub mod dice;
 pub mod discord;
-pub mod face_detection;
-pub mod messages;
-pub mod physics;
-pub mod player;
 pub mod registry;
-pub mod room;
 pub mod room_manager;
 pub mod routes;
+pub mod simulation;
 pub mod ws_handler;
 
 use std::sync::{Arc, LazyLock};
