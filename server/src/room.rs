@@ -647,6 +647,7 @@ impl Room {
         color: String,
         sender: PlayerSender,
         reconnect_token: Option<&str>,
+        user_id: Option<String>,
     ) -> Result<JoinResult, RoomError> {
         // Graceful rejoin: reclaim a held seat matching the token.
         if let Some(token) = reconnect_token.filter(|t| !t.is_empty()) {
@@ -659,7 +660,10 @@ impl Room {
                 player.sender = sender;
                 player.connected = true;
                 player.disconnected_at = None;
-                // Identity (name/color/dice/host) is intentionally preserved.
+                // Refresh the auth binding: a player may sign in (or out) between
+                // sessions and reconnect with a different token. Identity
+                // (name/color/dice/host) is otherwise preserved.
+                player.user_id = user_id;
                 self.touch();
                 return Ok(JoinResult { player_id: existing_id, reconnected: true });
             }
@@ -676,6 +680,7 @@ impl Room {
         player.join_order = self.next_join_seq;
         self.next_join_seq += 1;
         player.reconnect_token = reconnect_token.unwrap_or_default().to_string();
+        player.user_id = user_id;
         player.connected = true;
         if self.host_id.is_none() {
             self.host_id = Some(candidate_id.clone());
@@ -2608,11 +2613,11 @@ mod tests {
         let mut room = Room::new("test".to_string());
         set_player_cap(&mut room, 2);
 
-        assert!(room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), None).is_ok());
-        assert!(room.join("p2".into(), "Bob".into(), "#FFF".into(), make_sender(), None).is_ok());
+        assert!(room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), None, None).is_ok());
+        assert!(room.join("p2".into(), "Bob".into(), "#FFF".into(), make_sender(), None, None).is_ok());
         assert!(room.is_full());
 
-        let third = room.join("p3".into(), "Carol".into(), "#FFF".into(), make_sender(), None);
+        let third = room.join("p3".into(), "Carol".into(), "#FFF".into(), make_sender(), None, None);
         assert_eq!(third.unwrap_err(), RoomError::RoomFull);
     }
 
@@ -2620,11 +2625,11 @@ mod tests {
     fn test_held_seat_counts_toward_cap() {
         let mut room = Room::new("test".to_string());
         set_player_cap(&mut room, 1);
-        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1")).unwrap();
+        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1"), None).unwrap();
         // p1 drops but holds the seat during grace — room stays full.
         room.mark_disconnected("p1");
         assert!(room.is_full(), "A grace-held seat still counts against the cap");
-        let other = room.join("p2".into(), "Bob".into(), "#FFF".into(), make_sender(), None);
+        let other = room.join("p2".into(), "Bob".into(), "#FFF".into(), make_sender(), None, None);
         assert_eq!(other.unwrap_err(), RoomError::RoomFull);
     }
 
@@ -2632,7 +2637,7 @@ mod tests {
     fn test_rejoin_within_grace_preserves_identity_and_dice() {
         let mut room = Room::new("test".to_string());
         let result = room
-            .join("p1".into(), "Alice".into(), "#AABBCC".into(), make_sender(), Some("tok1"))
+            .join("p1".into(), "Alice".into(), "#AABBCC".into(), make_sender(), Some("tok1"), None)
             .unwrap();
         assert!(!result.reconnected);
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D20)]).unwrap();
@@ -2644,7 +2649,7 @@ mod tests {
 
         // Rejoin within grace with the same token — identity reclaimed.
         let rejoin = room
-            .join("brand-new-id".into(), "Changed".into(), "#000000".into(), make_sender(), Some("tok1"))
+            .join("brand-new-id".into(), "Changed".into(), "#000000".into(), make_sender(), Some("tok1"), None)
             .unwrap();
         assert!(rejoin.reconnected, "Same token within grace reclaims the seat");
         assert_eq!(rejoin.player_id, "p1", "Reclaims the original player id");
@@ -2661,7 +2666,7 @@ mod tests {
     #[test]
     fn test_rejoin_after_grace_is_a_new_player() {
         let mut room = Room::new("test".to_string());
-        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1")).unwrap();
+        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1"), None).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         room.mark_disconnected("p1");
 
@@ -2674,7 +2679,7 @@ mod tests {
 
         // Rejoin with the same token now seats a brand-new player.
         let rejoin = room
-            .join("p2".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1"))
+            .join("p2".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1"), None)
             .unwrap();
         assert!(!rejoin.reconnected, "After grace, the token no longer matches a held seat");
         assert_eq!(rejoin.player_id, "p2");
@@ -2683,7 +2688,7 @@ mod tests {
     #[test]
     fn test_expire_respects_grace_window() {
         let mut room = Room::new("test".to_string());
-        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1")).unwrap();
+        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1"), None).unwrap();
         room.mark_disconnected("p1");
 
         // A generous window means the just-dropped player is NOT expired.
@@ -2695,8 +2700,8 @@ mod tests {
     #[test]
     fn test_expire_keeps_connected_players() {
         let mut room = Room::new("test".to_string());
-        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), None).unwrap();
-        room.join("p2".into(), "Bob".into(), "#FFF".into(), make_sender(), Some("tok2")).unwrap();
+        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), None, None).unwrap();
+        room.join("p2".into(), "Bob".into(), "#FFF".into(), make_sender(), Some("tok2"), None).unwrap();
         room.mark_disconnected("p2");
 
         let expiry = room.expire_grace_players(Duration::ZERO);
@@ -2708,7 +2713,7 @@ mod tests {
     #[test]
     fn test_host_reclaimed_on_rejoin_when_sole_occupant() {
         let mut room = Room::new("test".to_string());
-        room.join("p1".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1")).unwrap();
+        room.join("p1".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1"), None).unwrap();
         assert!(room.is_host("p1"));
 
         // Sole occupant drops — nobody to hand host to, so the seat keeps it.
@@ -2718,7 +2723,7 @@ mod tests {
 
         // Rejoin within grace — host is reclaimed.
         let rejoin = room
-            .join("new".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1"))
+            .join("new".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1"), None)
             .unwrap();
         assert!(rejoin.reconnected);
         assert!(room.is_host("p1"), "Returning sole host reclaims host status");
@@ -2727,8 +2732,8 @@ mod tests {
     #[test]
     fn test_host_transfers_on_disconnect_and_is_not_reclaimed() {
         let mut room = Room::new("test".to_string());
-        room.join("p1".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1")).unwrap();
-        room.join("p2".into(), "Guest".into(), "#FFF".into(), make_sender(), None).unwrap();
+        room.join("p1".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1"), None).unwrap();
+        room.join("p2".into(), "Guest".into(), "#FFF".into(), make_sender(), None, None).unwrap();
         assert!(room.is_host("p1"));
 
         // Host drops while a connected player remains — host transfers to p2.
@@ -2739,7 +2744,7 @@ mod tests {
         // Original host rejoins within grace — the active host (p2) keeps it;
         // no host thrash.
         let rejoin = room
-            .join("new".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1"))
+            .join("new".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1"), None)
             .unwrap();
         assert!(rejoin.reconnected);
         assert!(room.is_host("p2"), "An active host is not usurped by a returning player");

@@ -72,6 +72,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 display_name,
                 color,
                 reconnect_token,
+                auth_token,
                 ..
             } => {
                 if is_joined {
@@ -90,6 +91,24 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                     continue;
                 }
 
+                // Optional Supabase auth (ADR 006): absent → guest; valid →
+                // bind to the Supabase user id; invalid/expired → reject so a
+                // stale token fails loudly rather than silently downgrading.
+                let user_id = match crate::auth::verifier()
+                    .authenticate(auth_token.as_deref())
+                    .await
+                {
+                    Ok(crate::auth::AuthOutcome::Guest) => None,
+                    Ok(crate::auth::AuthOutcome::Authenticated { user_id }) => Some(user_id),
+                    Err(err) => {
+                        let _ = tx.send(ServerMessage::Error {
+                            code: err.code().to_string(),
+                            message: err.message(),
+                        });
+                        continue;
+                    }
+                };
+
                 let mut room_guard = room.write().await;
 
                 match room_guard.join(
@@ -98,6 +117,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                     color.clone(),
                     tx.clone(),
                     reconnect_token.as_deref(),
+                    user_id.clone(),
                 ) {
                     Ok(result) => {
                         is_joined = true;
@@ -105,13 +125,21 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                         player_id = result.player_id.clone();
                         if result.reconnected {
                             info!(
-                                "Player '{}' ({}) rejoined room {} within grace window",
-                                display_name, player_id, room_guard.id
+                                "Player '{}' ({}) rejoined room {} within grace window{}",
+                                display_name, player_id, room_guard.id,
+                                match &user_id {
+                                    Some(uid) => format!(" [auth user {uid}]"),
+                                    None => " [guest]".to_string(),
+                                }
                             );
                         } else {
                             info!(
-                                "Player '{}' ({}) joined room {}",
-                                display_name, player_id, room_guard.id
+                                "Player '{}' ({}) joined room {}{}",
+                                display_name, player_id, room_guard.id,
+                                match &user_id {
+                                    Some(uid) => format!(" [auth user {uid}]"),
+                                    None => " [guest]".to_string(),
+                                }
                             );
                         }
 

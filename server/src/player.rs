@@ -17,6 +17,10 @@ pub struct Player {
     /// Stable, client-supplied token used to reclaim this seat on graceful
     /// rejoin. Empty for players that joined without one (no reconnect support).
     pub reconnect_token: String,
+    /// Supabase user id (`sub` claim) this seat is bound to, when the player
+    /// joined with a valid auth token. `None` for guest players (auth is
+    /// optional per ADR 006). Reserved for future ownership features.
+    pub user_id: Option<String>,
     /// Whether this player currently has a live WebSocket connection.
     /// A `false` value means the seat is held during the reconnect grace window.
     pub connected: bool,
@@ -39,6 +43,7 @@ impl Player {
             dice_ids: Vec::new(),
             join_order: 0,
             reconnect_token: String::new(),
+            user_id: None,
             connected: true,
             disconnected_at: None,
             last_motion_impulse_at: None,

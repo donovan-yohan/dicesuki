@@ -42,6 +42,11 @@ pub enum ClientMessage {
         /// dropped connection (graceful rejoin). Absent for brand-new clients.
         #[serde(rename = "reconnectToken", default)]
         reconnect_token: Option<String>,
+        /// Optional Supabase access token (JWT). Auth is optional: guest players
+        /// omit it (silent guest). A valid token binds the seat to the player's
+        /// Supabase user id; an invalid/expired token is rejected (ADR 006).
+        #[serde(rename = "authToken", default)]
+        auth_token: Option<String>,
     },
     SpawnDice {
         dice: Vec<SpawnDiceEntry>,
@@ -271,11 +276,12 @@ mod tests {
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
             #[allow(clippy::used_underscore_binding)]
-            ClientMessage::Join { _room_id, display_name, color, reconnect_token } => {
+            ClientMessage::Join { _room_id, display_name, color, reconnect_token, auth_token } => {
                 assert_eq!(_room_id, "abc123");
                 assert_eq!(display_name, "Gandalf");
                 assert_eq!(color, "#8B5CF6");
                 assert_eq!(reconnect_token, None);
+                assert_eq!(auth_token, None);
             }
             _ => panic!("Expected Join message"),
         }
@@ -288,6 +294,19 @@ mod tests {
         match msg {
             ClientMessage::Join { reconnect_token, .. } => {
                 assert_eq!(reconnect_token.as_deref(), Some("tok-xyz"));
+            }
+            _ => panic!("Expected Join message"),
+        }
+    }
+
+    #[test]
+    fn test_deserialize_join_with_auth_token() {
+        let json = r##"{"type":"join","roomId":"abc123","displayName":"Gandalf","color":"#8B5CF6","authToken":"jwt.abc.def"}"##;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::Join { auth_token, reconnect_token, .. } => {
+                assert_eq!(auth_token.as_deref(), Some("jwt.abc.def"));
+                assert_eq!(reconnect_token, None, "auth and reconnect tokens are independent");
             }
             _ => panic!("Expected Join message"),
         }
