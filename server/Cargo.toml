@@ -3,10 +3,17 @@
 # from `server/` covers both; `cargo build --release` still yields the server
 # binary exactly as before.
 [workspace]
-members = ["core"]
+# `core` = pure engine (dicesuki-core); `wasm` = the wasm-bindgen host that
+# compiles that engine to an in-browser room worker (issue #113). `wasm` is a
+# cdylib and is excluded from `default-members` so a bare `cargo test` from
+# `server/` does not try to link the wasm crate against a non-wasm target's
+# js-sys glue — build it explicitly via `npm run build:wasm-room`.
+members = ["core", "wasm"]
 # Make a bare `cargo build`/`cargo test` from `server/` cover the root server
 # package AND the core crate (a root-package workspace otherwise defaults to the
 # root package only). `cargo build --release` still targets the server binary.
+# The `wasm` crate's native-target RoomHost unit tests are reached explicitly
+# with `cargo test -p dicesuki-wasm`.
 default-members = [".", "core"]
 
 [package]
@@ -55,3 +62,14 @@ tokio-tungstenite = "0.24"
 [profile.release]
 opt-level = 3
 lto = true
+
+# Size-first profile for the wasm room module (issue #113). Cargo profiles are
+# workspace-global, so the wasm crate cannot carry its own `[profile.release]`;
+# `npm run build:wasm-room` builds with `--profile wasm-release` to get an
+# `opt-level = "z"` + LTO + stripped `.wasm` without shrinking the native
+# server binary (which stays on `opt-level = 3` above).
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = true
+strip = true
