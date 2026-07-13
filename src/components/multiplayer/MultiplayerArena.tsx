@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Box } from '@react-three/drei'
-import { useTheme } from '../../contexts/ThemeContext'
+import { useEnvironmentTheme } from '../../hooks/useEnvironmentTheme'
 import {
   MULTIPLAYER_ARENA_HALF_X,
   MULTIPLAYER_ARENA_HALF_Z,
@@ -17,7 +17,7 @@ const CEILING_Y = 6
  * Matches the themed appearance of single-player ViewportBoundaries.
  */
 export function MultiplayerArena() {
-  const { currentTheme } = useTheme()
+  const currentTheme = useEnvironmentTheme()
   const env = currentTheme.environment
 
   const walls = useMemo(() => [

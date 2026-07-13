@@ -16,6 +16,7 @@ import { useTheme } from '../contexts/ThemeContext'
 
 // Hooks
 import { useDiceRoll } from '../hooks/useDiceRoll'
+import { useEnvironmentTheme } from '../hooks/useEnvironmentTheme'
 import { useLocalDiceBackend } from '../hooks/useLocalDiceBackend'
 import { PerformanceOverlay } from './effects/PerformanceOverlay'
 import { useMultiplayerDrag } from '../hooks/useMultiplayerDrag'
@@ -193,7 +194,7 @@ function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<
  */
 function ThemedBackground() {
   const { scene } = useThree()
-  const { currentTheme } = useTheme()
+  const currentTheme = useEnvironmentTheme()
   const bgColor = currentTheme.environment.background.color
 
   useEffect(() => {
@@ -211,7 +212,7 @@ function ThemedBackground() {
  * Uses theme's lighting configuration for ambient and directional lights
  */
 function ThemedLighting() {
-  const { currentTheme } = useTheme()
+  const currentTheme = useEnvironmentTheme()
   const lighting = currentTheme.environment.lighting
   const { size } = useThree()
 
@@ -313,7 +314,7 @@ function ThemedLighting() {
  */
 function ViewportBoundaries() {
   const { camera, size } = useThree()
-  const { currentTheme } = useTheme()
+  const currentTheme = useEnvironmentTheme()
   const env = currentTheme.environment
 
   const perspectiveCamera = camera as THREE.PerspectiveCamera

@@ -117,6 +117,14 @@ pub const MOTION_CONTROL_SETTING: &str = "motionControl";
 /// host grants control of every die on the table (drag and motion). Absent (or
 /// null) means no active roller. Host-only, like every setting (#73).
 pub const ROLLER_SETTING: &str = "roller";
+/// Settings key holding the room's shared visual theme id — the environment
+/// (floor/walls/lighting) and tray look every client applies from `room_state`.
+/// Personal dice skins (inventory identity) stay per-player and are unaffected.
+/// Host-only, like every setting (#75). The value is an opaque theme id resolved
+/// against the client-side theme registry; the server does not know the theme
+/// catalog, so validation — and graceful fallback for an unknown id — is
+/// client-side. Absent means clients keep their own personal theme.
+pub const THEME_SETTING: &str = "themeId";
 
 /// Host-controlled policy governing which dice a player's device-motion
 /// (shake/gravity) input may affect. Stored in [`RoomSettings`] under
@@ -345,6 +353,17 @@ impl Room {
     #[must_use]
     pub fn is_roller(&self, player_id: &str) -> bool {
         self.roller_id() == Some(player_id)
+    }
+
+    /// The room's shared visual theme id, if the host has set one (#75). Opaque
+    /// to the server — resolved against the client theme registry — so any
+    /// non-empty string round-trips. `None` (absent or empty) means clients use
+    /// their own personal theme.
+    #[must_use]
+    pub fn theme_id(&self) -> Option<&str> {
+        self.settings.fields.get(THEME_SETTING)
+            .and_then(serde_json::Value::as_str)
+            .filter(|id| !id.is_empty())
     }
 
     /// Policy check: may `player_id`'s device-motion input affect `die` right now?
@@ -2391,6 +2410,65 @@ mod tests {
         settings.fields.insert(ROLLER_SETTING.to_string(), serde_json::json!("p2"));
         room.update_settings("p1", settings).unwrap();
         assert!(room.is_roller("p2"));
+    }
+
+    // ── Room theme: host-only shared visual theme id (#75) ───────────────────
+
+    #[test]
+    fn test_theme_id_none_by_default() {
+        let room = Room::new("test".to_string());
+        assert_eq!(room.theme_id(), None);
+    }
+
+    #[test]
+    fn test_host_can_set_room_theme() {
+        let mut room = make_two_player_room_with_dice();
+        let mut settings = room.settings.clone();
+        settings
+            .fields
+            .insert(THEME_SETTING.to_string(), serde_json::json!("neon-cyber-city"));
+        room.update_settings("p1", settings).unwrap();
+        assert_eq!(room.theme_id(), Some("neon-cyber-city"));
+    }
+
+    #[test]
+    fn test_non_host_cannot_set_room_theme() {
+        let mut room = make_two_player_room_with_dice();
+        let mut settings = room.settings.clone();
+        settings
+            .fields
+            .insert(THEME_SETTING.to_string(), serde_json::json!("neon-cyber-city"));
+        // p2 (guest) cannot change the room's shared theme.
+        assert_eq!(
+            room.update_settings("p2", settings).unwrap_err(),
+            RoomError::NotHost,
+        );
+        assert_eq!(room.theme_id(), None);
+    }
+
+    #[test]
+    fn test_room_theme_is_opaque_to_server() {
+        // The server does not know the theme catalog: any non-empty string is
+        // stored and round-trips. Validation / fallback for unknown ids is the
+        // client's job (resolved against its theme registry).
+        let mut room = make_two_player_room_with_dice();
+        let mut settings = room.settings.clone();
+        settings
+            .fields
+            .insert(THEME_SETTING.to_string(), serde_json::json!("totally-made-up"));
+        room.update_settings("p1", settings).unwrap();
+        assert_eq!(room.theme_id(), Some("totally-made-up"));
+    }
+
+    #[test]
+    fn test_room_theme_empty_string_is_none() {
+        let mut room = make_two_player_room_with_dice();
+        let mut settings = room.settings.clone();
+        settings
+            .fields
+            .insert(THEME_SETTING.to_string(), serde_json::json!(""));
+        room.update_settings("p1", settings).unwrap();
+        assert_eq!(room.theme_id(), None);
     }
 
     #[test]
