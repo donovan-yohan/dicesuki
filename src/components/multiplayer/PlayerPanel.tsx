@@ -1,10 +1,18 @@
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { connectionIndicator } from './connectionIndicator'
 import { RoomShare } from './RoomShare'
-import { getMotionControl, getRoller, getRoomThemeId } from '../../lib/multiplayerMessages'
+import {
+  getMotionControl,
+  getRoller,
+  getRoomThemeId,
+  getRoomName,
+  isRoomPublic,
+  ROOM_NAME_MAX_LEN,
+} from '../../lib/multiplayerMessages'
 import { RoomThemePicker } from './RoomThemePicker'
 import {
   MOTION_CONTROL_LABELS,
@@ -29,12 +37,30 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
   const setMotionControl = useMultiplayerStore((s) => s.setMotionControl)
   const setRoller = useMultiplayerStore((s) => s.setRoller)
   const setRoomTheme = useMultiplayerStore((s) => s.setRoomTheme)
+  const setVisibility = useMultiplayerStore((s) => s.setVisibility)
+  const setRoomName = useMultiplayerStore((s) => s.setRoomName)
   const reduceMotion = shouldReduceMotion()
   const { currentTheme } = useTheme()
   const colors = currentTheme.tokens.colors
   const motionControl = getMotionControl(roomSettings)
   const rollerId = getRoller(roomSettings)
   const roomThemeId = getRoomThemeId(roomSettings)
+  const roomIsPublic = isRoomPublic(roomSettings)
+  const roomName = getRoomName(roomSettings)
+
+  // Local draft for the room-name input so we only push an update_settings on
+  // commit (blur/Enter), not on every keystroke. Re-seed when the authoritative
+  // name changes (e.g. another host action or reconnect).
+  const [nameDraft, setNameDraft] = useState(roomName ?? '')
+  useEffect(() => {
+    setNameDraft(roomName ?? '')
+  }, [roomName])
+
+  const commitRoomName = () => {
+    if ((roomName ?? '') !== nameDraft.trim()) {
+      setRoomName(nameDraft)
+    }
+  }
 
   // Host first, then the rest in join order.
   const playersArray = Array.from(players.values()).sort((a, b) => {
@@ -208,6 +234,100 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                 </div>
               )
             })}
+          </div>
+
+          {/* Room visibility: host opts the room into the public browser (#79).
+              Everyone sees the current state; only the host can change it. */}
+          <div
+            className="flex flex-col gap-1.5 px-3 py-2.5"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
+            data-testid="room-visibility"
+          >
+            <div className="flex items-center justify-between">
+              <span
+                className="text-xs font-semibold uppercase"
+                style={{ letterSpacing: '0.06em', color: colors.text.secondary }}
+              >
+                Discovery
+              </span>
+              {!isHost && (
+                <span className="text-xs" style={{ color: colors.text.muted }}>
+                  Host controls
+                </span>
+              )}
+            </div>
+
+            <div
+              role="radiogroup"
+              aria-label="Room visibility"
+              className="flex rounded-lg overflow-hidden"
+              style={{ border: '1px solid rgba(255,255,255,0.12)' }}
+            >
+              {(['unlisted', 'public'] as const).map((mode, index) => {
+                const isActive = mode === (roomIsPublic ? 'public' : 'unlisted')
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    disabled={!isHost}
+                    onClick={() => isHost && setVisibility(mode)}
+                    data-testid={`visibility-${mode}`}
+                    className="flex-1 px-1.5 py-1.5 text-xs font-medium transition-colors"
+                    style={{
+                      backgroundColor: isActive ? 'rgba(139, 92, 246, 0.55)' : 'transparent',
+                      color: isActive ? '#fff' : colors.text.secondary,
+                      cursor: isHost ? 'pointer' : 'default',
+                      opacity: !isHost && !isActive ? 0.5 : 1,
+                      borderLeft: index > 0 ? '1px solid rgba(255,255,255,0.12)' : 'none',
+                    }}
+                  >
+                    {mode === 'public' ? 'Public' : 'Unlisted'}
+                  </button>
+                )
+              })}
+            </div>
+
+            <span className="text-xs" style={{ color: colors.text.muted, lineHeight: 1.35 }}>
+              {roomIsPublic
+                ? 'Anyone can find and join this room from the browser.'
+                : 'Only people with the code can join. Hidden from the browser.'}
+            </span>
+
+            {/* Room name — shown in the public browser. Editable by the host once
+                the room is public. */}
+            {roomIsPublic && (
+              isHost ? (
+                <input
+                  type="text"
+                  value={nameDraft}
+                  maxLength={ROOM_NAME_MAX_LEN}
+                  placeholder="Name this room"
+                  aria-label="Public room name"
+                  data-testid="room-name-input"
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onBlur={commitRoomName}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur()
+                    }
+                  }}
+                  className="mt-1 w-full rounded-md px-2 py-1.5 text-sm"
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: colors.text.primary,
+                  }}
+                />
+              ) : (
+                roomName && (
+                  <span className="mt-1 text-sm" style={{ color: colors.text.primary }}>
+                    {roomName}
+                  </span>
+                )
+              )
+            )}
           </div>
 
           {/* Motion control: host sets the room's device-motion policy; everyone

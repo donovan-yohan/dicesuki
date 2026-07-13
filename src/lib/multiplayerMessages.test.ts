@@ -14,6 +14,14 @@ import {
   setRoller,
   getRoomThemeId,
   setRoomThemeId,
+  getVisibility,
+  isRoomPublic,
+  setVisibility,
+  DEFAULT_VISIBILITY,
+  getRoomName,
+  setRoomName,
+  sanitizeRoomName,
+  ROOM_NAME_MAX_LEN,
 } from './multiplayerMessages'
 
 describe('multiplayerMessages', () => {
@@ -264,6 +272,50 @@ describe('multiplayerMessages', () => {
       // Never mutates the input.
       expect(original).toEqual({ version: 1, playerCap: 4, motionControl: 'room' })
       expect(assigned).not.toBe(original)
+    })
+  })
+
+  describe('room discovery / visibility (#79)', () => {
+    it('defaults to unlisted and reads public when set', () => {
+      expect(DEFAULT_VISIBILITY).toBe('unlisted')
+      expect(getVisibility({ version: 1 })).toBe('unlisted')
+      expect(getVisibility(null)).toBe('unlisted')
+      expect(getVisibility({ version: 1, visibility: 'public' })).toBe('public')
+      // Unknown values fall back to unlisted.
+      expect(getVisibility({ version: 1, visibility: 'secret' })).toBe('unlisted')
+      expect(isRoomPublic({ version: 1, visibility: 'public' })).toBe(true)
+      expect(isRoomPublic({ version: 1 })).toBe(false)
+    })
+
+    it('setVisibility preserves other fields and never mutates', () => {
+      const original = { version: 1, playerCap: 4 }
+      const next = setVisibility(original, 'public')
+      expect(next).toEqual({ version: 1, playerCap: 4, visibility: 'public' })
+      expect(original).toEqual({ version: 1, playerCap: 4 })
+    })
+
+    it('sanitizeRoomName strips control chars, collapses whitespace, caps length', () => {
+      expect(sanitizeRoomName('  Taco   Tuesday  ')).toBe('Taco Tuesday')
+      expect(sanitizeRoomName('a\nb\tc')).toBe('a b c')
+      const long = 'x'.repeat(100)
+      expect(sanitizeRoomName(long).length).toBe(ROOM_NAME_MAX_LEN)
+    })
+
+    it('getRoomName returns null when blank/unset, sanitized string otherwise', () => {
+      expect(getRoomName({ version: 1 })).toBeNull()
+      expect(getRoomName({ version: 1, roomName: '   ' })).toBeNull()
+      expect(getRoomName({ version: 1, roomName: '  Game Night ' })).toBe('Game Night')
+      expect(getRoomName({ version: 1, roomName: 42 })).toBeNull()
+    })
+
+    it('setRoomName sets sanitized name and clears when blank', () => {
+      const original = { version: 1, visibility: 'public' }
+      const named = setRoomName(original, '  My Room  ')
+      expect(named).toEqual({ version: 1, visibility: 'public', roomName: 'My Room' })
+      const cleared = setRoomName(named, '   ')
+      expect('roomName' in cleared).toBe(false)
+      // Never mutates the input.
+      expect(original).toEqual({ version: 1, visibility: 'public' })
     })
   })
 })

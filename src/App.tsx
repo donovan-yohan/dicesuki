@@ -7,6 +7,7 @@ import { ThemeProvider } from './contexts/ThemeProvider'
 import { useInventoryStore } from './store/useInventoryStore'
 import DiceFaceTestHarness from './components/test/DiceFaceTestHarness'
 import { MultiplayerRoom } from './components/multiplayer/MultiplayerRoom'
+import { RoomBrowser } from './components/multiplayer/RoomBrowser'
 
 function MainApp() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
@@ -70,6 +71,12 @@ function App() {
       <Routes>
         {/* Dev-only test harness — bypasses device check and providers */}
         <Route path="/test/dice-faces" element={<DiceFaceTestHarness />} />
+        {/* Public room browser route (#79) */}
+        <Route path="/rooms" element={
+          <ThemeProvider>
+            <RoomBrowser />
+          </ThemeProvider>
+        } />
         {/* Multiplayer room route */}
         <Route path="/room/:roomId" element={
           <ThemeProvider>

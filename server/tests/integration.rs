@@ -920,6 +920,110 @@ async fn non_host_settings_mutation_rejected() {
     assert_eq!(err["code"], "NOT_HOST");
 }
 
+// ─── Public Room Browser Listing (#79) ───────────────────────────
+
+type TestWs = tokio_tungstenite::WebSocketStream<
+    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+>;
+
+/// Join a room as host over WS and mark it public, with an optional display name
+/// and theme. Returns the open socket so the caller keeps the host connected
+/// (and the room's player count non-zero) for the duration of the assertions.
+async fn make_room_public(
+    addr: &SocketAddr,
+    room_id: &str,
+    name: Option<&str>,
+    theme: Option<&str>,
+) -> TestWs {
+    let url = format!("ws://{addr}/ws/{room_id}");
+    let (mut ws, _) = connect_async(&url).await.unwrap();
+    ws.send(Message::Text(
+        json!({"type": "join", "roomId": room_id, "displayName": "Host", "color": "#FF0000"})
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws).await; // room_state
+
+    let mut settings = json!({"version": 1, "visibility": "public"});
+    if let Some(n) = name {
+        settings["roomName"] = json!(n);
+    }
+    if let Some(t) = theme {
+        settings["themeId"] = json!(t);
+    }
+    ws.send(Message::Text(
+        json!({"type": "update_settings", "settings": settings}).to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws).await; // settings_updated
+    ws
+}
+
+#[tokio::test]
+async fn list_rooms_excludes_unlisted_and_reports_state() {
+    let addr = start_server().await;
+    // One room stays unlisted (the default); one is marked public.
+    let _unlisted = api_create_room(&addr).await;
+    let public_id = api_create_room(&addr).await;
+    let _ws = make_room_public(&addr, &public_id, Some("Poker Night"), Some("neon")).await;
+
+    let resp = reqwest::get(format!("http://{addr}/api/rooms"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    let body: Value = resp.json().await.unwrap();
+
+    let rooms = body["rooms"].as_array().unwrap();
+    assert_eq!(rooms.len(), 1, "Only the public room is listed");
+    assert_eq!(body["total"], 1);
+    assert_eq!(rooms[0]["roomId"], public_id);
+    assert_eq!(rooms[0]["name"], "Poker Night");
+    assert_eq!(rooms[0]["themeId"], "neon");
+    assert_eq!(rooms[0]["playerCount"], 1, "Count reflects the connected host");
+}
+
+#[tokio::test]
+async fn list_rooms_empty_when_no_public_rooms() {
+    let addr = start_server().await;
+    let _ = api_create_room(&addr).await; // unlisted by default
+
+    let resp = reqwest::get(format!("http://{addr}/api/rooms"))
+        .await
+        .unwrap();
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(body["total"], 0);
+    assert!(body["rooms"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn list_rooms_paginates() {
+    let addr = start_server().await;
+    let mut sockets = Vec::new();
+    for i in 0..3 {
+        let id = api_create_room(&addr).await;
+        sockets.push(make_room_public(&addr, &id, Some(&format!("Room {i}")), None).await);
+    }
+
+    // Page 0, size 2 => 2 of the 3 public rooms.
+    let resp = reqwest::get(format!("http://{addr}/api/rooms?page=0&pageSize=2"))
+        .await
+        .unwrap();
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(body["total"], 3);
+    assert_eq!(body["pageSize"], 2);
+    assert_eq!(body["page"], 0);
+    assert_eq!(body["rooms"].as_array().unwrap().len(), 2);
+
+    // Page 1, size 2 => the remaining 1.
+    let resp = reqwest::get(format!("http://{addr}/api/rooms?page=1&pageSize=2"))
+        .await
+        .unwrap();
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(body["rooms"].as_array().unwrap().len(), 1);
+}
+
 #[tokio::test]
 async fn host_transfers_to_next_player_on_disconnect() {
     let addr = start_server().await;

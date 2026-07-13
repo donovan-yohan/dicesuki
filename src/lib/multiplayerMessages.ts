@@ -191,6 +191,87 @@ export function setRoomThemeId(settings: RoomSettings, themeId: string | null): 
 }
 
 /**
+ * Room discovery visibility (#79). Kept in sync with the server (server/src/room.rs):
+ * - `public`: the room appears in the public browser (`GET /api/rooms`).
+ * - `unlisted`: the room is reachable only by code and never listed (default).
+ */
+export type RoomVisibility = 'public' | 'unlisted'
+
+/** Settings key holding the room's {@link RoomVisibility}. */
+export const VISIBILITY_SETTING = 'visibility'
+
+/** Wire value marking a room as publicly discoverable. */
+export const VISIBILITY_PUBLIC: RoomVisibility = 'public'
+
+/**
+ * Default visibility for a fresh room — unlisted (private). Rooms only appear in
+ * the public browser after a host explicitly opts in.
+ */
+export const DEFAULT_VISIBILITY: RoomVisibility = 'unlisted'
+
+/** Settings key holding the host-chosen display name for the public browser. */
+export const ROOM_NAME_SETTING = 'roomName'
+
+/** Maximum characters retained from a host-supplied room name (matches server). */
+export const ROOM_NAME_MAX_LEN = 40
+
+/** Read the room's {@link RoomVisibility}, falling back to the default (unlisted). */
+export function getVisibility(settings: RoomSettings | null | undefined): RoomVisibility {
+  return settings?.[VISIBILITY_SETTING] === VISIBILITY_PUBLIC ? 'public' : DEFAULT_VISIBILITY
+}
+
+/** True when the room is publicly discoverable. */
+export function isRoomPublic(settings: RoomSettings | null | undefined): boolean {
+  return getVisibility(settings) === 'public'
+}
+
+/**
+ * Return a new {@link RoomSettings} with visibility set to `visibility`,
+ * preserving all other fields. Never mutates the input.
+ */
+export function setVisibility(settings: RoomSettings, visibility: RoomVisibility): RoomSettings {
+  return { ...settings, [VISIBILITY_SETTING]: visibility }
+}
+
+/**
+ * Sanitize a host-supplied room name for display/transport: strip control
+ * characters, collapse whitespace runs, trim, and cap length. Mirrors the
+ * server's `sanitize_room_name` so the client shows what the server will store.
+ */
+export function sanitizeRoomName(raw: string): string {
+  return raw
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(' ')
+    .slice(0, ROOM_NAME_MAX_LEN)
+}
+
+/** Read the host-chosen room name, or `null` when unset/blank after sanitizing. */
+export function getRoomName(settings: RoomSettings | null | undefined): string | null {
+  const raw = settings?.[ROOM_NAME_SETTING]
+  if (typeof raw !== 'string') return null
+  const clean = sanitizeRoomName(raw)
+  return clean.length > 0 ? clean : null
+}
+
+/**
+ * Return a new {@link RoomSettings} with the room name set (sanitized) or cleared
+ * when blank, preserving all other fields. Never mutates the input.
+ */
+export function setRoomName(settings: RoomSettings, name: string): RoomSettings {
+  const clean = sanitizeRoomName(name)
+  const next = { ...settings }
+  if (clean.length > 0) {
+    next[ROOM_NAME_SETTING] = clean
+  } else {
+    delete next[ROOM_NAME_SETTING]
+  }
+  return next
+}
+
+/**
  * Device-motion (shake/gravity) input. `impulse` is a world-space vector the
  * server applies to the dice the sender may affect under the room's
  * `motionControl` policy. Rate-limited and magnitude-clamped server-side.

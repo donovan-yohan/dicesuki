@@ -48,6 +48,15 @@ impl RoomManager {
         self.rooms.len()
     }
 
+    /// A snapshot of every room's shared handle. Callers clone the `Arc`s so they
+    /// can release the manager lock before acquiring per-room read locks (matching
+    /// the lock-ordering discipline in the HTTP handlers). Used by the public room
+    /// browser listing (`GET /api/rooms`, #79).
+    #[must_use]
+    pub fn rooms_snapshot(&self) -> Vec<SharedRoom> {
+        self.rooms.values().cloned().collect()
+    }
+
     /// Periodic room maintenance, run by the background task:
     /// 1. Expire disconnected players whose reconnect grace window has elapsed,
     ///    broadcasting the resulting dice/player/host changes to each room.
