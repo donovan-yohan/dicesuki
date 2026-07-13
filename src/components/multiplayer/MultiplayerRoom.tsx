@@ -37,8 +37,10 @@ export function MultiplayerRoom() {
   const playerCount = useMultiplayerStore((s) => s.players.size)
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
   const diceCount = useMultiplayerStore((s) => s.dice.size)
+  const isHost = useMultiplayerStore((s) => s.isHost)
   const connect = useMultiplayerStore((s) => s.connect)
   const disconnect = useMultiplayerStore((s) => s.disconnect)
+  const setRoomTheme = useMultiplayerStore((s) => s.setRoomTheme)
 
   const navigate = useNavigate()
   const rememberedName = usePlayerIdentityStore((s) => s.displayName)
@@ -52,6 +54,9 @@ export function MultiplayerRoom() {
   // then the player's last-used identity (issue #78).
   const initialDisplayName =
     searchParams.get('name') || (isSoloRoom ? 'Solo Player' : rememberedName)
+  // Theme chosen in the creation flow (#76). We apply it once the room creator
+  // has been confirmed as host by `room_state`; setRoomTheme is host-gated.
+  const initialThemeId = searchParams.get('theme')
 
   const [displayName, setDisplayName] = useState(initialDisplayName)
   const [color, setColor] = useState(rememberedColor)
@@ -81,6 +86,15 @@ export function MultiplayerRoom() {
     connect(roomId, initialDisplayName || 'Solo Player', color, serverConfig.wsUrl)
     setHasJoined(true)
   }, [color, connect, connectionStatus, initialDisplayName, isSoloRoom, roomId, serverConfig.wsUrl])
+
+  // Apply the creation-time theme once, after the creator is confirmed host.
+  const appliedThemeRef = useRef(false)
+  useEffect(() => {
+    if (appliedThemeRef.current) return
+    if (!initialThemeId || !isHost || connectionStatus !== 'connected') return
+    appliedThemeRef.current = true
+    setRoomTheme(initialThemeId)
+  }, [initialThemeId, isHost, connectionStatus, setRoomTheme])
 
   const handleJoin = async () => {
     if (!roomId || !displayName.trim() || isChecking) return

@@ -63,10 +63,25 @@ describe('SettingsPanel room server actions', () => {
     fireEvent.click(screen.getByRole('button', { name: /open local solo room/i }))
     fireEvent.click(screen.getByRole('button', { name: /create multiplayer room/i }))
 
-    expect(useCreateRoomMock).toHaveBeenNthCalledWith(1)
+    expect(useCreateRoomMock).toHaveBeenNthCalledWith(1, { themeId: null })
     expect(useCreateRoomMock).toHaveBeenNthCalledWith(2, { mode: 'local-loopback', solo: true })
     expect(createLocalSoloRoom).toHaveBeenCalledOnce()
     expect(createPublicRoom).toHaveBeenCalledOnce()
+  })
+
+  it('passes the theme chosen from the preview cards to the multiplayer room create hook', () => {
+    useCreateRoomMock.mockReturnValue(roomHook())
+
+    render(<SettingsPanel isOpen onClose={vi.fn()} />)
+
+    // Default: no shared room theme picked.
+    expect(useCreateRoomMock).toHaveBeenCalledWith({ themeId: null })
+
+    // Act: host picks a theme preview card in the creation flow.
+    fireEvent.click(screen.getByTestId('room-theme-card-neon-cyber-city'))
+
+    // The public-room create hook now receives the chosen theme id.
+    expect(useCreateRoomMock).toHaveBeenCalledWith({ themeId: 'neon-cyber-city' })
   })
 
   it('shows actionable local loopback startup guidance when readiness fails', () => {

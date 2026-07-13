@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { useCreateRoom, type CreateRoomError } from '../../hooks/useCreateRoom'
 import { ThemeSelector } from '../ThemeSelector'
+import { RoomThemePicker } from '../multiplayer/RoomThemePicker'
 import { FlyoutPanel } from './FlyoutPanel'
 import { ArtistTestingPanel } from './artist-tools/ArtistTestingPanel'
 
@@ -20,8 +21,11 @@ interface SettingsPanelProps {
 export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showThemeSelector, setShowThemeSelector] = useState(false)
   const [showArtistPanel, setShowArtistPanel] = useState(false)
+  // Shared room theme chosen before creating a multiplayer room (#76). null
+  // means "each player's own" — no shared room theme is applied.
+  const [roomThemeId, setRoomThemeId] = useState<string | null>(null)
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
-  const publicRoom = useCreateRoom()
+  const publicRoom = useCreateRoom({ themeId: roomThemeId })
   const localSoloRoom = useCreateRoom({ mode: 'local-loopback', solo: true })
 
   return (
@@ -74,6 +78,27 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           </button>
 
           <RoomErrorMessage error={localSoloRoom.error} onDismiss={localSoloRoom.clearError} />
+
+          {/* Room theme picker: choose the shared table look before creating a
+              multiplayer room. Applied host-side right after join (#76). */}
+          <div className="mt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <span
+                className="text-xs font-semibold uppercase"
+                style={{ letterSpacing: '0.06em', color: 'var(--color-text-secondary)' }}
+              >
+                Room Theme
+              </span>
+            </div>
+            <RoomThemePicker
+              value={roomThemeId}
+              onChange={setRoomThemeId}
+              label="Room theme for new multiplayer room"
+            />
+            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              Sets the shared table look everyone sees. You can change it live later.
+            </p>
+          </div>
 
           <button
             onClick={publicRoom.createRoom}
