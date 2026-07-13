@@ -55,8 +55,9 @@ describe('MultiplayerRoom join deep-link flow (#78)', () => {
   })
 
   it('shows a server-down notice when the room server is unreachable', async () => {
+    // Local loopback fast-fails (no retries), keeping this deterministic (#109).
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
-    renderRoom()
+    renderRoom('/room/ROOM42?server=local')
 
     fireEvent.change(screen.getByPlaceholderText('Display name'), {
       target: { value: 'Sam' },

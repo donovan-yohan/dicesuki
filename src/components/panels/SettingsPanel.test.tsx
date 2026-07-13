@@ -44,6 +44,7 @@ function roomHook(overrides: RoomHookState = {}): ReturnType<typeof useCreateRoo
   return {
     phase: overrides.isCreating ? 'checking' : 'idle',
     isCreating: overrides.isCreating ?? false,
+    wakingMessage: null,
     error: overrides.error ?? null,
     createRoom: overrides.createRoom ?? vi.fn(async () => undefined),
     clearError: overrides.clearError ?? vi.fn(),

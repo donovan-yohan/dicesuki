@@ -6,27 +6,9 @@ import { DiceBackendProvider } from '../../contexts/DiceBackendProvider'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore } from '../../store/useDiceStore'
 import { usePlayerIdentityStore } from '../../store/usePlayerIdentityStore'
-import { getRoomServerConfig, type RoomServerMode } from '../../lib/multiplayerServer'
+import { getRoomServerConfig, READINESS_MAX_RETRIES, type RoomServerMode } from '../../lib/multiplayerServer'
+import { preflightRoom, type PreflightResult } from '../../lib/roomPreflight'
 import Scene from '../Scene'
-
-/**
- * Preflight a room link before opening a WebSocket (issue #78). A `404` means the
- * room is gone (expired/cleaned up); a network failure means the server is
- * unreachable. Catching these here gives a fast, kind message instead of waiting
- * out the WS reconnect backoff. `'ok'` means the room exists and we may connect.
- */
-type PreflightResult = 'ok' | 'room-gone' | 'server-down'
-
-async function preflightRoom(httpUrl: string, roomId: string): Promise<PreflightResult> {
-  try {
-    const response = await fetch(`${httpUrl}/api/rooms/${encodeURIComponent(roomId)}`)
-    if (response.status === 404) return 'room-gone'
-    if (!response.ok) return 'server-down'
-    return 'ok'
-  } catch {
-    return 'server-down'
-  }
-}
 
 export function MultiplayerRoom() {
   const { roomId } = useParams<{ roomId: string }>()
@@ -64,6 +46,9 @@ export function MultiplayerRoom() {
   // Deep-link preflight state: the room may be gone or the server unreachable.
   const [preflightNotice, setPreflightNotice] = useState<PreflightResult | null>(null)
   const [isChecking, setIsChecking] = useState(false)
+  // Interim "server waking up, retrying…" message while a cold-starting public
+  // server is retried during preflight (#109); null when not retrying.
+  const [wakingNotice, setWakingNotice] = useState<string | null>(null)
   const autoJoinAttemptsRef = useRef(0)
 
   const multiplayerBackend = useMultiplayerDiceBackend()
@@ -103,11 +88,19 @@ export function MultiplayerRoom() {
     // Remember the identity for next time before we do anything else (issue #78).
     setIdentity({ displayName: trimmedName, color })
     setPreflightNotice(null)
+    setWakingNotice(null)
 
-    // Preflight the room so a dead link fails fast and kindly.
+    // Preflight the room so a dead link fails fast and kindly. Public servers
+    // retry through cold starts; local loopback fast-fails (#109).
     setIsChecking(true)
-    const result = await preflightRoom(serverConfig.httpUrl, roomId)
+    const result = await preflightRoom(serverConfig.httpUrl, roomId, {
+      maxRetries: serverMode === 'local-loopback' ? 0 : READINESS_MAX_RETRIES,
+      onRetry: ({ attempt, maxRetries }) => {
+        setWakingNotice(`Server waking up, retrying… (attempt ${attempt} of ${maxRetries})`)
+      },
+    })
     setIsChecking(false)
+    setWakingNotice(null)
     if (result !== 'ok') {
       setPreflightNotice(result)
       return
@@ -175,6 +168,24 @@ export function MultiplayerRoom() {
                 Start the local server with <code>{serverConfig.startCommand}</code>, then try again.
               </div>
             )}
+          </div>
+        )}
+        {wakingNotice && (
+          <div
+            role="status"
+            data-testid="join-waking-notice"
+            style={{
+              maxWidth: '28rem',
+              padding: '0.875rem 1rem',
+              borderRadius: '10px',
+              border: '1px solid rgba(96, 165, 250, 0.45)',
+              background: 'rgba(30, 58, 138, 0.45)',
+              color: '#bfdbfe',
+              fontSize: '0.9rem',
+              lineHeight: 1.4,
+            }}
+          >
+            <strong>Server waking up.</strong> {wakingNotice.replace(/^Server waking up, /, '')}
           </div>
         )}
         {preflightNotice && (
@@ -268,7 +279,13 @@ export function MultiplayerRoom() {
             cursor: displayName.trim() && !isChecking ? 'pointer' : 'not-allowed',
           }}
         >
-          {isChecking ? 'Checking…' : showConnectionError || preflightNotice ? 'Try Again' : 'Join'}
+          {isChecking
+            ? wakingNotice
+              ? 'Waking server…'
+              : 'Checking…'
+            : showConnectionError || preflightNotice
+              ? 'Try Again'
+              : 'Join'}
         </button>
       </div>
     )
