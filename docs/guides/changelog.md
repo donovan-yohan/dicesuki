@@ -2,6 +2,19 @@
 
 > Part of the [Harness documentation system](../../CLAUDE.md). Edit this file for recent updates and changes.
 
+## 2026-07-13: Discord as the front door (#84, #85)
+- **Discord room bot (#84)** — `server/src/discord.rs` advertises each public room
+  as an auto-updating channel embed (name, theme, player count) with a link-button
+  Join. Feature-gated on `DISCORD_BOT_TOKEN` + `DISCORD_CHANNEL_ID` + `APP_BASE_URL`;
+  off/no-op when unset. REST-only (no gateway); pure `plan_actions` reconciler is
+  unit-tested. Chosen over per-user Rich Presence, which a pure web app cannot do
+  (RPC = desktop-only; browser presence needs the Activity — deferred, spike #86).
+- **Join from Discord (#85)** — `/room/:id` links now unfurl: `vercel.json` rewrites
+  to `api/og.js`, which injects room OpenGraph tags into the real app shell (humans
+  still get the SPA). Default OG tags added to `index.html`. Reuses the existing
+  deep-link join flow + room-full/room-gone handling (no new join screen).
+- See [docs/guides/discord.md](discord.md) for the mechanism and owner setup checklist.
+
 ## 2025-11-17: Custom Dice Persistence Fixes
 - **IndexedDB Transaction Timing Bug Fixed**
   - Root cause: `await fileData.arrayBuffer()` called AFTER opening transaction

@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod dice;
+pub mod discord;
 pub mod face_detection;
 pub mod messages;
 pub mod physics;
