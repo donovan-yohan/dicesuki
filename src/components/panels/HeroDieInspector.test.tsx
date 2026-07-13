@@ -5,24 +5,14 @@ import { defaultTheme } from '../../themes/tokens'
 import type { NewInventoryDie } from '../../types/inventory'
 import { HeroDieInspector } from './HeroDieInspector'
 
+// Canvas is mocked so the static preview meshes (StandardHeroDie / CustomHeroDie)
+// never mount in jsdom; this keeps the test focused on the inspector's form logic.
 vi.mock('@react-three/fiber', () => ({
   Canvas: () => <div data-testid="mock-canvas" />,
 }))
 
 vi.mock('@react-three/drei', () => ({
   Environment: () => null,
-}))
-
-vi.mock('@react-three/rapier', () => ({
-  Physics: () => null,
-}))
-
-vi.mock('../dice/Dice', () => ({
-  Dice: () => <div data-testid="mock-dice" />,
-}))
-
-vi.mock('../dice/CustomDice', () => ({
-  CustomDice: () => <div data-testid="mock-custom-dice" />,
 }))
 
 const makeDie = (overrides: Partial<NewInventoryDie> = {}): NewInventoryDie => ({
