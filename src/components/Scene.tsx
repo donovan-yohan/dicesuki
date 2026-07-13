@@ -1,30 +1,25 @@
 // External libraries
-import { Box, Environment } from '@react-three/drei'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Physics, RigidBody, useRapier } from '@react-three/rapier'
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Environment } from '@react-three/drei'
+import { Canvas, useThree } from '@react-three/fiber'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
-import { GRAVITY, MULTIPLAYER_ARENA_HALF_X, MULTIPLAYER_ARENA_HALF_Z } from '../config/physicsConfig'
+import { MULTIPLAYER_ARENA_HALF_X, MULTIPLAYER_ARENA_HALF_Z } from '../config/physicsConfig'
 
 // Contexts
-import { DiceBackendContext, useDiceBackend } from '../contexts/DiceBackendContext'
-import { DiceBackendProvider } from '../contexts/DiceBackendProvider'
-import { useDeviceMotionRef, useDeviceMotionState } from '../contexts/DeviceMotionContext'
+import { useDiceBackend } from '../contexts/DiceBackendContext'
+import { useDeviceMotionState } from '../contexts/DeviceMotionContext'
 import { useTheme } from '../contexts/ThemeContext'
 
 // Hooks
-import { useDiceRoll } from '../hooks/useDiceRoll'
 import { useEnvironmentTheme } from '../hooks/useEnvironmentTheme'
-import { useLocalDiceBackend } from '../hooks/useLocalDiceBackend'
 import { PerformanceOverlay } from './effects/PerformanceOverlay'
 import { useMultiplayerDrag } from '../hooks/useMultiplayerDrag'
 import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
 
 // Utilities
 import { formatBonus } from '../lib/diceHelpers'
-import { createDicePresentationMetadata } from '../lib/dicePresentation'
 import { detectRenderDeviceTier } from '../lib/deviceDetection'
 import {
   type DiceRenderContext,
@@ -44,8 +39,6 @@ import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useUIStore } from '../store/useUIStore'
 
 // Components
-import { CustomDice } from './dice/CustomDice'
-import { Dice, DiceHandle } from './dice/Dice'
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
 import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
@@ -154,38 +147,6 @@ function getCameraFrustumDimensions(
   const height = 2 * Math.tan(vFOV / 2) * distance
   const width = height * aspect
   return { width, height }
-}
-
-/**
- * Component to dynamically update physics gravity based on device motion
- * Uses R3F's useFrame hook - runs every frame (~60fps) synchronized with Three.js rendering
- * Reads from gravityRef without triggering any React re-renders
- */
-function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<THREE.Vector3> }) {
-  const { world } = useRapier()
-  const motionMode = useUIStore((state) => state.motionMode)
-
-  // Log when motion mode changes
-  useEffect(() => {
-    console.log('PhysicsController: Motion mode changed to:', motionMode)
-  }, [motionMode])
-
-  // useFrame runs every frame, synchronized with Three.js render loop
-  // This is the correct way to update physics in R3F - no useEffect, no requestAnimationFrame
-  useFrame(() => {
-    if (world) {
-      if (motionMode) {
-        // Use device motion gravity when motion mode is enabled
-        const gravity = gravityRef.current
-        world.gravity = { x: gravity.x, y: gravity.y, z: gravity.z }
-      } else {
-        // Use standard downward gravity when motion mode is disabled
-        world.gravity = { x: 0, y: GRAVITY, z: 0 }
-      }
-    }
-  })
-
-  return null
 }
 
 /**
@@ -306,150 +267,6 @@ function ThemedLighting() {
 }
 
 /**
- * Viewport-aligned boundaries component
- * Calculates frustum dimensions and renders ground, walls, and ceiling
- * Updates automatically on window resize via useThree's size reactivity
- *
- * Lives INSIDE Canvas context - keeps Scene component pure (no re-renders)
- */
-function ViewportBoundaries() {
-  const { camera, size } = useThree()
-  const currentTheme = useEnvironmentTheme()
-  const env = currentTheme.environment
-
-  const perspectiveCamera = camera as THREE.PerspectiveCamera
-
-  // Ensure camera FOV is set (default to 40 if not yet configured)
-  // Default Three.js PerspectiveCamera FOV is 50, our setup sets it to 40
-  useLayoutEffect(() => {
-    if (!perspectiveCamera.fov || perspectiveCamera.fov === 50) {
-      perspectiveCamera.fov = 40
-      perspectiveCamera.updateProjectionMatrix()
-    }
-  }, [perspectiveCamera])
-
-  // Calculate viewport bounds based on camera frustum at ground level (y=0)
-  const aspect = size.width / size.height
-  const distance = camera.position.y || 15 // Camera height (dynamically read, fallback to 15)
-  const { width, height } = getCameraFrustumDimensions(perspectiveCamera, distance, aspect)
-
-  // Tighter bounds - reduce margin to create a more confined dice table
-  const margin = -0.05 // Negative margin to make space tighter than viewport
-  const bounds = {
-    left: -(width / 2) * (1 + margin),
-    right: (width / 2) * (1 + margin),
-    top: (height / 2) * (1 + margin),
-    bottom: -(height / 2) * (1 + margin),
-    width: width * (1 + margin),
-    height: height * (1 + margin)
-  }
-
-  const wallThickness = 0.3
-  const wallHeight = env.walls.height || 6 // Use theme's wall height or default to 6
-  const wallY = wallHeight / 2 // Center Y position for walls
-  const ceilingY = Math.max(6, wallHeight + wallThickness / 2)
-
-  return (
-    <>
-      {/* Ground Plane - sized to viewport */}
-      <RigidBody type="fixed" position={[0, -0.5, 0]}>
-        <Box
-          args={[bounds.width, 1, bounds.height]}
-          receiveShadow={env.floor.receiveShadow !== false}
-        >
-          <meshStandardMaterial
-            color={env.floor.color}
-            roughness={env.floor.material.roughness}
-            metalness={env.floor.material.metalness}
-          />
-        </Box>
-      </RigidBody>
-
-      {/* Walls - only render if visible */}
-      {env.walls.visible && (
-        <>
-          {/* Top wall (positive Z) */}
-          <RigidBody type="fixed" position={[0, wallY, bounds.top]}>
-            <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
-              <meshStandardMaterial
-                color={env.walls.color}
-                roughness={env.walls.material.roughness}
-                metalness={env.walls.material.metalness}
-              />
-            </Box>
-          </RigidBody>
-
-          {/* Bottom wall (negative Z) */}
-          <RigidBody type="fixed" position={[0, wallY, bounds.bottom]}>
-            <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
-              <meshStandardMaterial
-                color={env.walls.color}
-                roughness={env.walls.material.roughness}
-                metalness={env.walls.material.metalness}
-              />
-            </Box>
-          </RigidBody>
-
-          {/* Right wall (positive X) */}
-          <RigidBody type="fixed" position={[bounds.right, wallY, 0]}>
-            <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
-              <meshStandardMaterial
-                color={env.walls.color}
-                roughness={env.walls.material.roughness}
-                metalness={env.walls.material.metalness}
-              />
-            </Box>
-          </RigidBody>
-
-          {/* Left wall (negative X) */}
-          <RigidBody type="fixed" position={[bounds.left, wallY, 0]}>
-            <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
-              <meshStandardMaterial
-                color={env.walls.color}
-                roughness={env.walls.material.roughness}
-                metalness={env.walls.material.metalness}
-              />
-            </Box>
-          </RigidBody>
-        </>
-      )}
-
-      {/* Ceiling - always collides; only visible when a theme asks for it. */}
-      <RigidBody type="fixed" position={[0, ceilingY, 0]}>
-        <Box args={[bounds.width, wallThickness, bounds.height]}>
-          {env.ceiling.visible && env.ceiling.color ? (
-            <meshStandardMaterial
-              color={env.ceiling.color}
-              transparent
-              opacity={0.35}
-              depthWrite={false}
-            />
-          ) : (
-            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-          )}
-        </Box>
-      </RigidBody>
-    </>
-  )
-}
-
-function LocalCamera() {
-  const { camera } = useThree()
-
-  useEffect(() => {
-    if (!('fov' in camera)) return
-    const perspectiveCamera = camera as THREE.PerspectiveCamera
-
-    perspectiveCamera.position.set(0, 15, 0)
-    perspectiveCamera.up.set(0, 0, -1)
-    perspectiveCamera.lookAt(0, 0, 0)
-    perspectiveCamera.updateProjectionMatrix()
-  }, [camera])
-
-  return null
-}
-
-/**
  * Renders multiplayer dice with interpolation (no physics).
  * Used inside Canvas when mode === 'multiplayer'.
  */
@@ -514,27 +331,22 @@ function MultiplayerCamera() {
 
 /**
  * Main 3D scene content — must be rendered inside a DiceBackendProvider.
- * Sets up React Three Fiber Canvas with Rapier physics
+ *
+ * All dice play (solo and multiplayer) flows through the room backend: dice are
+ * rendered as positioned meshes driven by snapshot interpolation, never local
+ * `<Physics>` bodies. The server (native for multiplayer, the in-browser WASM
+ * room worker for solo) owns physics and face detection.
  *
  * CRITICAL ARCHITECTURE:
- * - Physics world (Canvas) must NEVER re-render due to UI state changes
+ * - The Canvas must NEVER re-render due to UI state changes
  * - UI state (settledDice, rollHistory) is in Zustand store
  * - Only UI components subscribe to store, not the Scene component
- * - Device motion updates physics gravity in real-time for tilt-based interaction
  */
-function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => void } }) {
-  // Create refs for ALL dice (not just the first one)
-  const diceRefs = useRef<Map<string, DiceHandle>>(new Map())
-
-  // Only subscribe to RefContext - STABLE, never causes re-renders
-  const { gravityRef } = useDeviceMotionRef()
+function SceneContent() {
   // Get requestPermission from state context
   const { requestPermission } = useDeviceMotionState()
-  const { roll, onDiceRest, onDiceMoving } = useDiceRoll()
 
-  // Subscribe to dice manager store (local physics dice)
-  const dice = useDiceManagerStore((state) => state.dice)
-  const addDice = useDiceManagerStore((state) => state.addDice)
+  // Room-authoritative dice (positioned meshes, snapshot-interpolated)
   const multiplayerDice = useMultiplayerStore((state) => state.dice)
   const localPlayerId = useMultiplayerStore((state) => state.localPlayerId)
 
@@ -566,7 +378,6 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
   const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>('high')
   const [showRenderLodDebug, setShowRenderLodDebug] = useState(false)
   const detectedRenderDeviceTierRef = useRef<RenderDeviceTier | null>(null)
-  const rollTimeoutRef = useRef<number | null>(null)
 
   // Detect if mobile
   const [isMobile, setIsMobile] = useState(false)
@@ -597,10 +408,6 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
     return () => {
       isCancelled = true
       window.removeEventListener('resize', checkMobile)
-      if (rollTimeoutRef.current !== null) {
-        window.clearTimeout(rollTimeoutRef.current)
-        rollTimeoutRef.current = null
-      }
     }
   }, [])
 
@@ -610,86 +417,11 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
     useInventoryStore.getState().initializeStarterDice()
   }, [])
 
-  // Spawn initial d20 from inventory on first load
-  const hasSpawnedInitialDie = useRef(false)
-  useEffect(() => {
-    // Only spawn once, ever
-    if (!hasSpawnedInitialDie.current) {
-      hasSpawnedInitialDie.current = true
-
-      // Get first d20 from inventory
-      const inventoryDice = useInventoryStore.getState().getDiceByType('d20')
-      if (inventoryDice.length > 0) {
-        const firstD20 = inventoryDice[0]
-        console.log(`Spawning initial d20 from inventory: ${firstD20.name}`)
-        addDice(
-          'd20',
-          currentTheme.id,
-          undefined, // auto-generate dice instance ID
-          firstD20.id // link to inventory die
-        )
-      }
-    }
-  }, [addDice, currentTheme.id]) // Only run once on mount - ref guard prevents re-execution
-
-  const getLocalDicePresentation = useCallback((diceId: string) => {
-    const tableDie = useDiceManagerStore.getState().dice.find(die => die.id === diceId)
-    if (!tableDie?.inventoryDieId) return undefined
-
-    const inventoryDie = useInventoryStore.getState().dice.find(die => die.id === tableDie.inventoryDieId)
-    return inventoryDie ? createDicePresentationMetadata(inventoryDie) : undefined
-  }, [])
-
-  const handleLocalDiceRest = useCallback((
-    diceId: string,
-    faceValue: number,
-    diceType: string
-  ) => {
-    onDiceRest(diceId, faceValue, diceType, getLocalDicePresentation(diceId))
-  }, [getLocalDicePresentation, onDiceRest])
-
-  const handleRollClick = useCallback(() => {
-    const diceAtRollStart = useDiceManagerStore.getState().dice
-    if (diceAtRollStart.length === 0) return
-
-    // Mark ALL dice as rolling
-    useDiceStore.getState().markDiceRolling(diceAtRollStart.map(d => d.id))
-
-    // Generate and apply impulse
-    const impulse = roll()
-    diceRefs.current.forEach((diceHandle) => {
-      if (diceHandle) {
-        diceHandle.applyRollImpulse(impulse)
-      }
-    })
-
-    if (rollTimeoutRef.current !== null) {
-      window.clearTimeout(rollTimeoutRef.current)
-    }
-
-    rollTimeoutRef.current = window.setTimeout(() => {
-      rollTimeoutRef.current = null
-      const { rollingDice } = useDiceStore.getState()
-      if (rollingDice.size === 0) return
-
-      useDiceManagerStore.getState().dice.forEach((die) => {
-        if (!rollingDice.has(die.id)) return
-        const faceValue = diceRefs.current.get(die.id)?.readCurrentFace()
-        if (faceValue !== null && faceValue !== undefined) {
-          handleLocalDiceRest(die.id, faceValue, die.type)
-        }
-      })
-    }, 4000)
-  }, [roll, handleLocalDiceRest])
-
-  // Keep the roll callback ref up to date so the Scene wrapper's local backend can call it
-  rollCallbackRef.current = handleRollClick
-
-  // Get the active backend — always provided by the Scene wrapper
+  // Get the active backend — always provided by SoloRoom / MultiplayerRoom
   const activeBackend = useDiceBackend()
   const isMultiplayer = activeBackend.mode === 'multiplayer'
 
-  // Delegate add/remove/clear through the active backend (works for both local and multiplayer)
+  // Delegate add/remove/clear through the active room backend
   const handleAddDice = useCallback(
     (type: string, specificInventoryDieId?: string) => {
       activeBackend.addDie(type as DiceShape, specificInventoryDieId)
@@ -698,31 +430,17 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
   )
 
   const tableDice = useMemo<TableDieSummary[]>(() => {
-    if (isMultiplayer) {
-      return Array.from(multiplayerDice.values())
-        .filter((die) => !localPlayerId || die.ownerId === localPlayerId)
-        .map((die) => ({
-          id: die.id,
-          type: die.diceType,
-          inventoryDieId: die.presentation?.inventoryDieId,
-          displayName: die.presentation?.displayName,
-          setId: die.presentation?.setId,
-          rarity: die.presentation?.rarity,
-        }))
-    }
-
-    return dice.map((die) => {
-      const inventoryDie = die.inventoryDieId ? inventoryDiceMap.get(die.inventoryDieId) : undefined
-      return {
+    return Array.from(multiplayerDice.values())
+      .filter((die) => !localPlayerId || die.ownerId === localPlayerId)
+      .map((die) => ({
         id: die.id,
-        type: die.type,
-        inventoryDieId: die.inventoryDieId,
-        displayName: inventoryDie?.name,
-        setId: inventoryDie?.setId,
-        rarity: inventoryDie?.rarity,
-      }
-    })
-  }, [dice, inventoryDiceMap, isMultiplayer, localPlayerId, multiplayerDice])
+        type: die.diceType,
+        inventoryDieId: die.presentation?.inventoryDieId,
+        displayName: die.presentation?.displayName,
+        setId: die.presentation?.setId,
+        rarity: die.presentation?.rarity,
+      }))
+  }, [localPlayerId, multiplayerDice])
   const inspectedInventoryDie = inspectedInventoryDieId
     ? inventoryDiceMap.get(inspectedInventoryDieId)
     : undefined
@@ -773,96 +491,11 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
         {/* Themed Lighting */}
         <ThemedLighting />
 
-        {/* Conditional rendering: physics (local) vs interpolated (multiplayer) */}
-        {isMultiplayer ? (
-          <>
-            <MultiplayerCamera />
-            <MultiplayerArena />
-            <MultiplayerDiceRenderer renderDeviceTier={renderDeviceTier} />
-            <MultiplayerMotionController />
-          </>
-        ) : (
-          <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
-            <LocalCamera />
-            <PhysicsController gravityRef={gravityRef} />
-
-            {/* Viewport-aligned boundaries (ground, walls, ceiling) */}
-            <ViewportBoundaries />
-
-            {/* Render all dice from store */}
-            {dice.map((die) => {
-              // Get inventory die to check for custom asset
-              const inventoryDie = die.inventoryDieId
-                ? inventoryDiceMap.get(die.inventoryDieId)
-                : null
-
-              // Render CustomDice if inventory die has customAsset, otherwise standard Dice
-              if (inventoryDie?.customAsset) {
-                const customAsset = {
-                  id: inventoryDie.id,
-                  metadata: inventoryDie.customAsset.metadata,
-                  modelUrl: inventoryDie.customAsset.modelUrl,
-                }
-
-                return (
-                  <CustomDice
-                    key={die.id}
-                    id={die.id}
-                    asset={customAsset}
-                    ref={(el) => {
-                      if (el) {
-                        diceRefs.current.set(die.id, el)
-                      } else {
-                        diceRefs.current.delete(die.id)
-                      }
-                    }}
-                    position={die.position}
-                    onRest={handleLocalDiceRest}
-                    onMoving={onDiceMoving}
-                  />
-                )
-              }
-
-              // Standard dice rendering
-              // Use inventory die's appearance color if available, otherwise fallback to theme color
-              const diceColor = inventoryDie?.appearance?.baseColor || die.color
-
-              // Debug color selection
-              if (inventoryDie && inventoryDie.isDev) {
-                console.log(`[Scene Render] Dev die ${die.id}:`, {
-                  inventoryDieId: inventoryDie.id,
-                  baseColor: inventoryDie.appearance?.baseColor,
-                  dieColor: die.color,
-                  finalColor: diceColor
-                })
-              }
-
-              return (
-                <Dice
-                  key={die.id}
-                  id={die.id}
-                  shape={die.type}
-                  ref={(el) => {
-                    if (el) {
-                      diceRefs.current.set(die.id, el)
-                    } else {
-                      diceRefs.current.delete(die.id)
-                    }
-                  }}
-                  position={die.position}
-                  rotation={die.rotation}
-                  size={0.67}
-                  color={diceColor}
-                  renderContext="tray"
-                  renderDeviceTier={renderDeviceTier}
-                  isVisibleForLod
-                  onRest={handleLocalDiceRest}
-                  onMoving={onDiceMoving}
-                />
-              )
-            })}
-          </Physics>
-        )}
+        {/* Room dice: positioned meshes driven by snapshot interpolation. */}
+        <MultiplayerCamera />
+        <MultiplayerArena />
+        <MultiplayerDiceRenderer renderDeviceTier={renderDeviceTier} />
+        <MultiplayerMotionController />
 
         {/* Performance monitoring */}
         <PerformanceOverlay />
@@ -874,7 +507,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
       <RenderLodDebugOverlay
         isVisible={showRenderLodDebug}
         deviceTier={renderDeviceTier}
-        tableDiceCount={isMultiplayer ? useMultiplayerStore.getState().dice.size : dice.length}
+        tableDiceCount={useMultiplayerStore.getState().dice.size}
         isMultiplayer={isMultiplayer}
       />
 
@@ -1024,23 +657,12 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
 }
 
 /**
- * Scene entry point.
- * Wraps SceneContent in a local DiceBackendProvider when not already inside one
- * (multiplayer wraps Scene externally with its own provider).
+ * Scene entry point. Must be rendered inside a DiceBackendProvider — SoloRoom
+ * (WASM worker room) and MultiplayerRoom (network room) each supply their own
+ * room backend before mounting Scene.
  */
 function Scene() {
-  const rollCallbackRef = useRef<() => void>(() => {})
-  const existingBackend = useContext(DiceBackendContext)
-  const localBackend = useLocalDiceBackend(() => rollCallbackRef.current())
-
-  if (existingBackend) {
-    return <SceneContent rollCallbackRef={rollCallbackRef} />
-  }
-  return (
-    <DiceBackendProvider value={localBackend}>
-      <SceneContent rollCallbackRef={rollCallbackRef} />
-    </DiceBackendProvider>
-  )
+  return <SceneContent />
 }
 
 /**

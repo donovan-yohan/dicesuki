@@ -1,9 +1,11 @@
 import { Environment } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-import { Physics } from '@react-three/rapier'
-import { useEffect, useMemo, useState } from 'react'
-import { Dice } from '../dice/Dice'
-import { CustomDice } from '../dice/CustomDice'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
+import { useDiceMaterials } from '../../hooks/useDiceMaterials'
+import { getFaceRendererForShape } from '../../lib/faceRenderers'
+import { createDiceGeometry } from '../../lib/geometries'
+import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 import {
   resolveDiceRenderLod,
   resolveRenderDeviceTier,
@@ -13,6 +15,9 @@ import {
 import { useInventoryStore } from '../../store/useInventoryStore'
 import type { InventoryDie } from '../../types/inventory'
 import type { Theme } from '../../themes/tokens'
+
+/** Static tilt applied to the previewed die so faces read clearly. */
+const HERO_DIE_ROTATION: [number, number, number] = [0.45, 0.6, 0.2]
 
 interface HeroDieInspectorProps {
   die: InventoryDie
@@ -261,35 +266,79 @@ function HeroDieStage({
         <ambientLight intensity={1.1} />
         <directionalLight position={[3, 5, 4]} intensity={2.4} castShadow />
         <directionalLight position={[-4, 2, -3]} intensity={0.8} />
-        <Physics gravity={[0, 0, 0]}>
-          {die.customAsset ? (
-            <CustomDice
-              id={`hero-${die.id}`}
-              asset={{
-                id: die.customAsset.assetId ?? die.id,
-                modelUrl: die.customAsset.modelUrl,
-                metadata: die.customAsset.metadata,
-              }}
-              position={[0, 0, 0]}
-            />
-          ) : (
-            <Dice
-              id={`hero-${die.id}`}
-              shape={die.type}
-              position={[0, 0, 0]}
-              rotation={[0.45, 0.6, 0.2]}
-              size={1.75}
-              color={die.appearance.baseColor}
-              renderContext="hero"
-              renderDeviceTier={heroLod.deviceTier}
-              isFocusedForLod
-            />
-          )}
-        </Physics>
+        {/* Static preview — no physics. The die is a positioned mesh, matching the
+            room-authoritative rendering model (issue #115). */}
+        {die.customAsset ? (
+          <Suspense fallback={null}>
+            <CustomHeroDie die={die} />
+          </Suspense>
+        ) : (
+          <StandardHeroDie die={die} theme={theme} heroLod={heroLod} />
+        )}
         <Environment preset="city" />
       </Canvas>
     </div>
   )
+}
+
+/**
+ * Static standard-die preview: a positioned, textured mesh (no physics body).
+ */
+function StandardHeroDie({
+  die,
+  theme,
+  heroLod,
+}: {
+  die: InventoryDie
+  theme: Theme
+  heroLod: DiceRenderLodPolicy
+}) {
+  const geometry = useMemo(
+    () => prepareGeometryForTexturing(createDiceGeometry(die.type, 1.75), die.type),
+    [die.type],
+  )
+
+  const diceMats = theme.dice.materials
+  const materials = useDiceMaterials({
+    shape: die.type,
+    color: die.appearance.baseColor,
+    roughness: diceMats.roughness,
+    metalness: diceMats.metalness,
+    emissiveIntensity: diceMats.emissiveIntensity,
+    faceRenderer: getFaceRendererForShape(die.type),
+    lodPolicy: heroLod,
+  })
+
+  return (
+    <mesh
+      geometry={geometry}
+      material={materials}
+      rotation={HERO_DIE_ROTATION}
+      castShadow
+      receiveShadow
+    />
+  )
+}
+
+/**
+ * Static custom-model preview: the loaded GLB scene as a positioned mesh.
+ */
+function CustomHeroDie({ die }: { die: InventoryDie }) {
+  const asset = useMemo(
+    () => ({
+      id: die.customAsset?.assetId ?? die.id,
+      modelUrl: die.customAsset!.modelUrl,
+      metadata: die.customAsset!.metadata,
+    }),
+    [die],
+  )
+
+  const { scene, metadata } = useCustomDiceLoader(asset)
+  const scale = metadata?.scale ?? 1.0
+
+  if (!scene) return null
+
+  return <primitive object={scene} scale={scale} rotation={HERO_DIE_ROTATION} />
 }
 
 function DetailStat({ label, value, theme }: { label: string; value: string; theme: Theme }) {
