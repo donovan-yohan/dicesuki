@@ -6,15 +6,15 @@
 
 | Command | Description |
 |---------|-------------|
-| `npm test` | Run unit tests (Vitest) — 465 passing, 16 skipped, 0 failing |
+| `npm test` | Run unit tests (Vitest) — 666 passing, 0 failing |
 | `npm run build` | Production build |
 | `npm run dev` | Start dev server |
-| `~/.cargo/bin/cargo test` | Run server tests (from server/ directory) — 76 total |
+| `~/.cargo/bin/cargo test` | Run server tests (from server/ directory) — 221 total |
 
 ## Architecture
 
-React 19 + Three.js + Rapier physics (WASM client / native Rust server). Zustand for state.
-Dual physics: client-side for single-player, server-authoritative for multiplayer (20Hz snapshots).
+React 19 + Three.js + Rapier physics from one Rust core (`dicesuki-core`), compiled to a native multiplayer server and an in-browser wasm room worker. Zustand for state.
+One engine everywhere: solo runs the wasm room in a Web Worker, multiplayer runs the native server; both stream server-authoritative snapshots (60Hz) over the same room protocol.
 
 ```
 src/           → React frontend (components, hooks, stores, lib, config, themes)
