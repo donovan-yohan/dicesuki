@@ -1,0 +1,39 @@
+[package]
+name = "dicesuki-core-spike"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "WASM feasibility spike: reuses server physics/dice/face_detection/messages verbatim via #[path] and compiles them to wasm32-unknown-unknown."
+
+# Standalone crate (intentionally NOT a member of any workspace) so the spike
+# never perturbs the real server build. It pulls in the ACTUAL server source
+# files (../src/*.rs) unmodified through #[path] module declarations in lib.rs.
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Same versions as server/Cargo.toml so we measure the real deps.
+rapier3d = "0.22"
+nalgebra = "0.33"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.8"
+
+# WASM gotcha #1: rand 0.8 -> getrandom 0.2. On wasm32-unknown-unknown getrandom
+# has NO default backend and fails to compile unless the `js` feature selects the
+# browser Crypto.getRandomValues backend. Enabling it here via feature unification
+# makes the whole dependency tree buildable for wasm.
+getrandom = { version = "0.2", features = ["js"] }
+
+# Provides the JS-interop glue getrandom's `js` backend links against, and the
+# entry point the Web Worker would call.
+wasm-bindgen = "0.2"
+
+# Aggressive size profile for the wasm-size measurement.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
