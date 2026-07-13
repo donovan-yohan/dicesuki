@@ -17,23 +17,24 @@ function statusResponse(status: number): Response {
 }
 
 describe('multiplayerServer config', () => {
-  it('keeps public multiplayer and local loopback config separate', () => {
+  it('resolves the public multiplayer room server config', () => {
     expect(getWsServerUrl('public')).toBe('ws://localhost:8080')
     expect(getHttpServerUrl('public')).toBe('http://localhost:8080')
 
-    expect(getWsServerUrl('local-loopback')).toBe('ws://127.0.0.1:8080')
-    expect(getHttpServerUrl('local-loopback')).toBe('http://127.0.0.1:8080')
-    expect(getRoomServerConfig('local-loopback').startCommand).toBe('npm run dev:local-room')
+    const config = getRoomServerConfig('public')
+    expect(config.mode).toBe('public')
+    expect(config.label).toBe('Public multiplayer server')
+    expect(config.startCommand).toBeNull()
   })
 })
 
 describe('checkRoomServerReadiness', () => {
   const config: RoomServerConfig = {
-    mode: 'local-loopback',
-    label: 'Local loopback room server',
-    wsUrl: 'ws://127.0.0.1:8080',
-    httpUrl: 'http://127.0.0.1:8080',
-    startCommand: 'npm run dev:local-room',
+    mode: 'public',
+    label: 'Public multiplayer server',
+    wsUrl: 'ws://localhost:8080',
+    httpUrl: 'http://localhost:8080',
+    startCommand: null,
   }
 
   it('reports ready when the Dicesuki health payload responds', async () => {
@@ -47,10 +48,10 @@ describe('checkRoomServerReadiness', () => {
       ok: true,
       state: 'ready',
     })
-    expect(fetchImpl).toHaveBeenCalledWith('http://127.0.0.1:8080/health', expect.objectContaining({ method: 'GET' }))
+    expect(fetchImpl).toHaveBeenCalledWith('http://localhost:8080/health', expect.objectContaining({ method: 'GET' }))
   })
 
-  it('reports a port conflict when another service answers on the loopback port', async () => {
+  it('reports a port conflict when another service answers on the port', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue({
       ok: true,
       status: 200,
@@ -60,24 +61,24 @@ describe('checkRoomServerReadiness', () => {
     await expect(checkRoomServerReadiness(config, { fetchImpl })).resolves.toMatchObject({
       ok: false,
       state: 'port-conflict',
-      command: 'npm run dev:local-room',
+      command: null,
     })
   })
 
   it('reports unavailable when the server cannot be reached', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'))
 
-    await expect(checkRoomServerReadiness(config, { fetchImpl })).resolves.toMatchObject({
+    await expect(checkRoomServerReadiness(config, { fetchImpl, maxRetries: 0 })).resolves.toMatchObject({
       ok: false,
       state: 'unavailable',
-      command: 'npm run dev:local-room',
+      command: null,
     })
   })
 
-  it('does not retry in local-loopback mode (fast-fail preserved, #109)', async () => {
+  it('does not retry when maxRetries is 0 (fast-fail, #109)', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'))
 
-    await expect(checkRoomServerReadiness(config, { fetchImpl })).resolves.toMatchObject({
+    await expect(checkRoomServerReadiness(config, { fetchImpl, maxRetries: 0 })).resolves.toMatchObject({
       ok: false,
       state: 'unavailable',
     })

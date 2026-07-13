@@ -12,14 +12,11 @@ A mobile-optimized 3D dice rolling simulator built with React Three Fiber and Ra
 # Install dependencies
 npm install
 
-# Start development server
+# Start development server (solo runs entirely in-browser via the WASM room worker)
 npm run dev
 
-# Start the app with the local loopback room server for offline solo play
-npm run dev:local-room
-
-# Run the local loopback browser smoke (starts the room server itself)
-npm run test:e2e:local-room
+# Run the solo worker-room browser smoke (no native server needed)
+npm run test:e2e:solo
 
 # Build for production
 npm run build
@@ -125,19 +122,17 @@ daisu-app/
 
 ## 🔧 Development
 
-### Local Loopback Room Server
+### Solo Room (in-browser WASM worker)
 
-`npm run dev:local-room` starts Vite, the dice manifest watcher, and the Rust room server on `127.0.0.1:8080` for the offline-equivalent solo path. In Settings, use **Open Local Solo Room**; the app checks `/health`, creates an implicit solo room, and auto-joins it.
+The default `/` route opens a one-player room hosted by the in-browser **WASM room worker** — the SAME `dicesuki-core` engine, constants, and settings the native multiplayer server links, compiled to WASM and driven inside a Web Worker over `postMessage`. `npm run dev` is all that solo needs: **no native room server, no health check, no network**. Multiplayer still connects over WebSocket through the same store transport abstraction (`RoomSocket`), unchanged for users.
 
-Room server config is split by mode:
-- Public multiplayer: `VITE_MULTIPLAYER_SERVER_URL` / `VITE_MULTIPLAYER_SERVER_HTTP_URL`
-- Local loopback: `VITE_LOCAL_ROOM_SERVER_URL` / `VITE_LOCAL_ROOM_SERVER_HTTP_URL`
+Public multiplayer server config: `VITE_MULTIPLAYER_SERVER_URL` / `VITE_MULTIPLAYER_SERVER_HTTP_URL`.
 
-If the local server is not running or another process answers on the loopback port, the Settings panel shows the exact start command and retry path instead of leaving the user on a loader.
+To rebuild the committed WASM room artifacts after changing `server/core` or `server/wasm`, run `npm run build:wasm-room`.
 
-### Local Loopback Browser Smoke
+### Solo Browser Smoke
 
-`npm run test:e2e:local-room` runs `e2e/local-loopback-room.spec.ts` with Vite on `127.0.0.1:18181` and the room server pointed at `127.0.0.1:18180`. The spec first verifies the unavailable loopback UI from `/`, then starts the Rust room server on that port, creates a solo room through the Settings action, auto-joins over WebSocket, waits for `room_state`, and spawns one die through the multiplayer backend. Override `PLAYWRIGHT_TEST_PORT` if the Vite port is occupied; override `DICESUKI_ROOM_TEST_PORT` plus both `VITE_LOCAL_ROOM_SERVER_*` URLs together if `18180` is occupied.
+`npm run test:e2e:solo` runs `e2e/solo-wasm-room.spec.ts` against Vite alone (no Rust server). It loads `/`, waits for the solo room to reach `connected` via the worker, and asserts no network room WebSocket was opened. Override `PLAYWRIGHT_TEST_PORT` if the Vite port is occupied.
 
 ### Performance Monitoring
 

@@ -58,21 +58,19 @@ describe('SettingsPanel room server actions', () => {
     useCreateRoomMock.mockReset()
   })
 
-  it('separates local solo and public multiplayer room actions', () => {
+  it('exposes only the public multiplayer create action (solo is the default route)', () => {
     const createPublicRoom = vi.fn()
-    const createLocalSoloRoom = vi.fn()
-    useCreateRoomMock
-      .mockReturnValueOnce(roomHook({ createRoom: createPublicRoom }))
-      .mockReturnValueOnce(roomHook({ createRoom: createLocalSoloRoom }))
+    useCreateRoomMock.mockReturnValue(roomHook({ createRoom: createPublicRoom }))
 
     render(<SettingsPanel isOpen onClose={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /open local solo room/i }))
+    // The retired local-loopback solo action is gone; solo now lives on `/`.
+    expect(screen.queryByRole('button', { name: /open local solo room/i })).toBeNull()
+
     fireEvent.click(screen.getByRole('button', { name: /create multiplayer room/i }))
 
-    expect(useCreateRoomMock).toHaveBeenNthCalledWith(1, { themeId: null })
-    expect(useCreateRoomMock).toHaveBeenNthCalledWith(2, { mode: 'local-loopback', solo: true })
-    expect(createLocalSoloRoom).toHaveBeenCalledOnce()
+    // The public-room hook is the only room hook, created with the chosen theme.
+    expect(useCreateRoomMock).toHaveBeenCalledWith({ themeId: null })
     expect(createPublicRoom).toHaveBeenCalledOnce()
   })
 
@@ -91,21 +89,19 @@ describe('SettingsPanel room server actions', () => {
     expect(useCreateRoomMock).toHaveBeenCalledWith({ themeId: 'neon-cyber-city' })
   })
 
-  it('shows actionable local loopback startup guidance when readiness fails', () => {
-    useCreateRoomMock
-      .mockReturnValueOnce(roomHook())
-      .mockReturnValueOnce(roomHook({
-        error: {
-          kind: 'unavailable',
-          title: 'Room server unavailable',
-          message: 'Local loopback room server is not reachable at http://127.0.0.1:8080.',
-          command: 'npm run dev:local-room',
-        },
-      }))
+  it('surfaces an actionable error when public room creation fails', () => {
+    useCreateRoomMock.mockReturnValue(roomHook({
+      error: {
+        kind: 'unavailable',
+        title: 'Room server unavailable',
+        message: 'Public multiplayer server is not reachable at http://localhost:8080.',
+        command: null,
+      },
+    }))
 
     render(<SettingsPanel isOpen onClose={vi.fn()} />)
 
     expect(screen.getByRole('alert')).toHaveTextContent('Room server unavailable')
-    expect(screen.getByRole('alert')).toHaveTextContent('npm run dev:local-room')
+    expect(screen.getByRole('alert')).toHaveTextContent('http://localhost:8080')
   })
 })

@@ -414,7 +414,7 @@ describe('useMultiplayerStore', () => {
         reconnectAttempts: 4,
         intentionalDisconnect: true,
         reconnectToken: 'tok',
-        lastJoin: { roomId: 'r', displayName: 'n', color: '#fff', serverUrl: 'ws://x', token: 'tok' },
+        lastJoin: { roomId: 'r', displayName: 'n', color: '#fff', serverUrl: 'ws://x', token: 'tok', transport: 'websocket' },
       })
 
       useMultiplayerStore.getState().reset()

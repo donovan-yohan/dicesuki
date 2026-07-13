@@ -2,16 +2,14 @@
  * Canonical room links + sharing helpers (issue #77).
  *
  * A room's canonical URL is `${origin}/room/${roomId}`, matching the
- * `/room/:roomId` route in `src/App.tsx`. When the room is running against the
- * local loopback server we preserve `?server=local` so a copied link keeps
- * pointing at the same server; the public server needs no query string.
+ * `/room/:roomId` route in `src/App.tsx`. All rooms are public multiplayer rooms
+ * on the shared server, so no query string is needed. (Solo play is served
+ * in-browser by the WASM room worker and is not a shareable link — issue #114.)
  */
 
 export interface BuildRoomUrlOptions {
   /** Origin to build against. Defaults to `window.location.origin`. */
   origin?: string
-  /** When true, append `?server=local` so the link targets the loopback server. */
-  local?: boolean
 }
 
 /**
@@ -27,8 +25,7 @@ export function buildRoomUrl(roomId: string, options: BuildRoomUrlOptions = {}):
   const origin =
     options.origin ??
     (typeof window !== 'undefined' ? window.location.origin : '')
-  const base = `${origin.replace(/\/$/, '')}/room/${encodeURIComponent(trimmed)}`
-  return options.local ? `${base}?server=local` : base
+  return `${origin.replace(/\/$/, '')}/room/${encodeURIComponent(trimmed)}`
 }
 
 export type ShareOutcome = 'shared' | 'copied' | 'dismissed' | 'error'

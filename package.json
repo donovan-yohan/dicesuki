@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -n vite,dice -c blue,yellow \"vite\" \"node scripts/watch-dice-manifest.js\"",
-    "dev:local-room": "concurrently -n server,vite,dice -c green,blue,yellow \"npm run dev:server\" \"vite\" \"node scripts/watch-dice-manifest.js\"",
     "dev:server": "cd server && PORT=8080 ~/.cargo/bin/cargo run",
     "dev:vite": "vite",
     "build:wasm-room": "bash scripts/build-wasm-room.sh",
@@ -14,7 +13,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:e2e:local-room": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18181} DICESUKI_ROOM_TEST_PORT=${DICESUKI_ROOM_TEST_PORT:-18180} VITE_LOCAL_ROOM_SERVER_URL=${VITE_LOCAL_ROOM_SERVER_URL:-ws://127.0.0.1:${DICESUKI_ROOM_TEST_PORT:-18180}} VITE_LOCAL_ROOM_SERVER_HTTP_URL=${VITE_LOCAL_ROOM_SERVER_HTTP_URL:-http://127.0.0.1:${DICESUKI_ROOM_TEST_PORT:-18180}} playwright test e2e/local-loopback-room.spec.ts",
+    "test:e2e:solo": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18181} playwright test e2e/solo-wasm-room.spec.ts",
     "test:coverage": "vitest --coverage",
     "generate-dice-manifest": "node scripts/generate-dice-manifest.js"
   },

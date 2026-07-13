@@ -33,19 +33,14 @@ Frontend build-time env vars (baked into the bundle, `src/lib/multiplayerServer.
 
 | Env var | Default | Used by |
 |---------|---------|---------|
-| `VITE_MULTIPLAYER_SERVER_URL` | `ws://localhost:8080` | Public multiplayer mode (default). `.env.production` sets the Render URL. |
-| `VITE_MULTIPLAYER_SERVER_HTTP_URL` | derived from WS URL | Optional; REST base for public mode. |
-| `VITE_LOCAL_ROOM_SERVER_URL` | `ws://127.0.0.1:8080` | Local-loopback mode (`?server=local` query param). |
-| `VITE_LOCAL_ROOM_SERVER_HTTP_URL` | derived from WS URL | Optional; REST base for loopback mode. |
+| `VITE_MULTIPLAYER_SERVER_URL` | `ws://localhost:8080` | Public multiplayer (the only network room server). `.env.production` sets the Render URL. |
+| `VITE_MULTIPLAYER_SERVER_HTTP_URL` | derived from WS URL | Optional; REST base for the public server. |
+
+> **Solo needs no server.** The default `/` route runs a one-player room in the in-browser WASM room worker (`src/workers/roomWorker.ts` + `src/generated/wasm-room/`) — the SAME `dicesuki-core` engine as the native server, compiled to WASM. There is no native loopback server and no `VITE_LOCAL_ROOM_SERVER_*` config; the whole `dev:local-room` / "Open Local Solo Room" / `?server=local` apparatus was retired in #114.
 
 ## Frontend → server wiring
 
-The client picks a WebSocket/HTTP base URL at **build time**:
-
-- **Public mode (default):** uses `VITE_MULTIPLAYER_SERVER_URL`. Build the frontend with this pointed at wherever the server is reachable.
-- **Local-loopback mode:** appending `?server=local` to the app URL switches to `VITE_LOCAL_ROOM_SERVER_URL` (default `ws://127.0.0.1:8080`) — handy when the server is on the same box on the default port.
-
-Health of the selected server is polled via `GET {httpUrl}/health`, which must return `{"status":"ok","instanceId":"…"}`.
+Public multiplayer uses `VITE_MULTIPLAYER_SERVER_URL`, chosen at **build time** — build the frontend with this pointed at wherever the server is reachable. Health of the public server is polled via `GET {httpUrl}/health`, which must return `{"status":"ok","instanceId":"…"}`. Solo does not touch the network: it connects to the worker through the store's transport abstraction (`RoomSocket` / `WorkerRoomTransport`), speaking the identical JSON room protocol.
 
 ## Local bare-metal run
 

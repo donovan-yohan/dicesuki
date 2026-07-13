@@ -8,12 +8,6 @@ describe('buildRoomUrl', () => {
     )
   })
 
-  it('appends ?server=local when local is true', () => {
-    expect(buildRoomUrl('ABC123', { origin: 'https://dice.app', local: true })).toBe(
-      'https://dice.app/room/ABC123?server=local',
-    )
-  })
-
   it('strips a trailing slash from the origin', () => {
     expect(buildRoomUrl('r1', { origin: 'https://dice.app/' })).toBe(
       'https://dice.app/room/r1',

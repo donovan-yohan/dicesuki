@@ -55,8 +55,7 @@ async function attemptPreflight(
 /**
  * Preflight with retry through cold starts (#109): a public room server on
  * Render can answer 502/503 (or drop the connection) for a few seconds after
- * spinning down, so retry transient failures before giving up. Local-loopback
- * callers pass `maxRetries: 0` to keep fast-fail behavior.
+ * spinning down, so retry transient failures before giving up.
  */
 export async function preflightRoom(
   httpUrl: string,

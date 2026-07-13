@@ -18,8 +18,6 @@ export interface CreateRoomError {
 
 interface UseCreateRoomOptions {
   mode?: RoomServerMode
-  solo?: boolean
-  displayName?: string
   /**
    * Optional shared room environment theme chosen at creation time (#76).
    * The room creator becomes the host, so we carry the choice to the room via a
@@ -92,13 +90,6 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
       }
 
       const params = new URLSearchParams()
-      if (mode === 'local-loopback') {
-        params.set('server', 'local')
-      }
-      if (options.solo) {
-        params.set('solo', '1')
-        params.set('name', options.displayName || 'Solo Player')
-      }
       if (options.themeId) {
         params.set('theme', options.themeId)
       }
