@@ -261,6 +261,29 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
+            ClientMessage::UpdateSettings { settings } if is_joined => {
+                let mut room_guard = room.write().await;
+                match room_guard.update_settings(&player_id, settings) {
+                    Ok(()) => {
+                        room_guard.broadcast(&ServerMessage::SettingsUpdated {
+                            settings: room_guard.settings.clone(),
+                        });
+                    }
+                    Err(err) => {
+                        let message = match err {
+                            RoomError::NotHost => {
+                                "Only the host can change room settings".to_string()
+                            }
+                            _ => format!("Failed to update settings: {}", err.code()),
+                        };
+                        let _ = tx.send(ServerMessage::Error {
+                            code: err.code().to_string(),
+                            message,
+                        });
+                    }
+                }
+            }
+
             ClientMessage::Leave if is_joined => {
                 break;
             }
@@ -277,6 +300,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
     // Player disconnected - clean up
     if is_joined {
         let mut room_guard = room.write().await;
+        let previous_host = room_guard.host_id.clone();
         let removed_dice = room_guard.remove_player(&player_id);
         info!(
             "Player {} left room {} (removed {} dice)",
@@ -293,6 +317,18 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
         room_guard.broadcast(&ServerMessage::PlayerLeft {
             player_id: player_id.clone(),
         });
+
+        // If the departing player was the host, the room transferred host to the
+        // oldest remaining player. Notify everyone so clients can re-gate host UI.
+        // (Dedicated message, not a full room_state, to avoid clobbering each
+        // client's derived localPlayerId.)
+        let new_host = room_guard.host_id.clone();
+        if new_host != previous_host {
+            if let Some(host_id) = new_host {
+                info!("Host of room {} transferred to {}", room_guard.id, host_id);
+                room_guard.broadcast(&ServerMessage::HostChanged { host_id });
+            }
+        }
     }
 
     write_task.abort();

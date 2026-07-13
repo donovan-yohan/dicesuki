@@ -77,6 +77,25 @@ export interface DragEndMessage {
   velocityHistory: VelocityHistoryEntry[]
 }
 
+/**
+ * Versioned, forward-compatible room settings.
+ *
+ * Only the host may mutate these. `version` tracks the known-field schema;
+ * the index signature keeps the type forward-compatible so future additions
+ * (physics mode, theme, delegated roller, ...) flow through without a protocol
+ * break, and unknown/newer fields from a newer server are simply ignored by
+ * older clients rather than crashing them.
+ */
+export interface RoomSettings {
+  version: number
+  [key: string]: unknown
+}
+
+export interface UpdateSettingsMessage {
+  type: 'update_settings'
+  settings: RoomSettings
+}
+
 export type ClientMessage =
   | JoinMessage
   | SpawnDiceMessage
@@ -87,6 +106,7 @@ export type ClientMessage =
   | DragStartMessage
   | DragMoveMessage
   | DragEndMessage
+  | UpdateSettingsMessage
 
 // ==========================================
 // Server → Client Messages
@@ -123,8 +143,20 @@ export interface DieResult {
 export interface RoomStateMessage {
   type: 'room_state'
   roomId: string
+  hostId: string | null
   players: PlayerInfo[]
   dice: DiceState[]
+  settings: RoomSettings
+}
+
+export interface HostChangedMessage {
+  type: 'host_changed'
+  hostId: string
+}
+
+export interface SettingsUpdatedMessage {
+  type: 'settings_updated'
+  settings: RoomSettings
 }
 
 export interface PlayerJoinedMessage {
@@ -183,6 +215,8 @@ export interface ErrorMessage {
 
 export type ServerMessage =
   | RoomStateMessage
+  | HostChangedMessage
+  | SettingsUpdatedMessage
   | PlayerJoinedMessage
   | PlayerLeftMessage
   | DiceSpawnedMessage

@@ -4,8 +4,8 @@ use std::time::Instant;
 use rapier3d::prelude::RigidBodyHandle;
 use tokio::sync::RwLock;
 use crate::messages::{
-    DicePresentationMetadata, DiceSnapshot, DiceState, DiceType, DieResult, ServerMessage,
-    SpawnDiceEntry, VelocityHistoryEntry,
+    DicePresentationMetadata, DiceSnapshot, DiceState, DiceType, DieResult, RoomSettings,
+    ServerMessage, SpawnDiceEntry, VelocityHistoryEntry,
 };
 use crate::player::Player;
 use crate::physics::{
@@ -37,6 +37,7 @@ pub enum RoomError {
     NotDragging,
     DuplicateDiceId,
     DuplicateInventoryDie,
+    NotHost,
 }
 
 impl RoomError {
@@ -56,6 +57,7 @@ impl RoomError {
             RoomError::NotDragging => "NOT_DRAGGING",
             RoomError::DuplicateDiceId => "DUPLICATE_DICE_ID",
             RoomError::DuplicateInventoryDie => "DUPLICATE_INVENTORY_DIE",
+            RoomError::NotHost => "NOT_HOST",
         }
     }
 }
@@ -74,6 +76,7 @@ impl std::fmt::Display for RoomError {
             RoomError::NotDragging => "Die is not being dragged",
             RoomError::DuplicateDiceId => "Duplicate dice ID in spawn request",
             RoomError::DuplicateInventoryDie => "That inventory die is already on the table",
+            RoomError::NotHost => "Only the host can change room settings",
         };
         write!(f, "{msg}")
     }
@@ -150,6 +153,13 @@ pub struct Room {
     pub is_sim_running: bool,
     pub tick_count: u64,
     pub physics: PhysicsWorld,
+    /// The current host (room creator, then oldest remaining player on transfer).
+    /// `None` only when the room is empty.
+    pub host_id: Option<String>,
+    /// Host-controlled, versioned room settings (physics mode, theme, roller, ...).
+    pub settings: RoomSettings,
+    /// Monotonic counter used to assign `Player::join_order`.
+    next_join_seq: u64,
 }
 
 impl Room {
@@ -164,7 +174,16 @@ impl Room {
             is_sim_running: false,
             tick_count: 0,
             physics: PhysicsWorld::new(),
+            host_id: None,
+            settings: RoomSettings::default(),
+            next_join_seq: 0,
         }
+    }
+
+    /// Returns true if `player_id` is the current host of this room.
+    #[must_use]
+    pub fn is_host(&self, player_id: &str) -> bool {
+        self.host_id.as_deref() == Some(player_id)
     }
 
     #[must_use]
@@ -202,12 +221,18 @@ impl Room {
     /// # Errors
     ///
     /// Returns `Err(RoomError::RoomFull)` if the room is full, or `Err(RoomError::InvalidName)` if the name is invalid.
-    pub fn add_player(&mut self, player: Player) -> Result<(), RoomError> {
+    pub fn add_player(&mut self, mut player: Player) -> Result<(), RoomError> {
         if self.is_full() {
             return Err(RoomError::RoomFull);
         }
         if player.display_name.is_empty() || player.display_name.len() > 20 {
             return Err(RoomError::InvalidName);
+        }
+        player.join_order = self.next_join_seq;
+        self.next_join_seq += 1;
+        // The first player to join is the room creator and becomes host.
+        if self.host_id.is_none() {
+            self.host_id = Some(player.id.clone());
         }
         self.touch();
         self.players.insert(player.id.clone(), player);
@@ -215,6 +240,10 @@ impl Room {
     }
 
     /// Remove a player and all their dice. Returns the removed dice IDs.
+    ///
+    /// If the removed player was the host, host is transferred to the oldest
+    /// remaining player (lowest `join_order`), or set to `None` if the room is
+    /// now empty. Inspect `host_id` before and after to detect a transfer.
     pub fn remove_player(&mut self, player_id: &str) -> Vec<String> {
         self.players.remove(player_id);
         let removed_dice_ids: Vec<String> = self.dice.iter()
@@ -228,8 +257,35 @@ impl Room {
                 }
             }
         }
+        // Transfer host if the departing player held it.
+        if self.host_id.as_deref() == Some(player_id) {
+            self.host_id = self.oldest_player_id();
+        }
         self.touch();
         removed_dice_ids
+    }
+
+    /// Returns the id of the oldest remaining player (lowest `join_order`), or
+    /// `None` if the room is empty.
+    fn oldest_player_id(&self) -> Option<String> {
+        self.players.values()
+            .min_by_key(|p| p.join_order)
+            .map(|p| p.id.clone())
+    }
+
+    /// Replace room settings. Only the current host may mutate settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(RoomError::NotHost)` if `player_id` is not the host; room
+    /// state is left unchanged in that case.
+    pub fn update_settings(&mut self, player_id: &str, settings: RoomSettings) -> Result<(), RoomError> {
+        if !self.is_host(player_id) {
+            return Err(RoomError::NotHost);
+        }
+        self.settings = settings;
+        self.touch();
+        Ok(())
     }
 
     /// Remove specific dice. Returns IDs that were actually removed.
@@ -825,6 +881,7 @@ impl Room {
     pub fn build_room_state(&self) -> ServerMessage {
         ServerMessage::RoomState {
             room_id: self.id.clone(),
+            host_id: self.host_id.clone(),
             players: self.players.values().map(super::player::Player::to_info).collect(),
             dice: self.dice.values().map(|d| DiceState {
                 id: d.id.clone(),
@@ -834,6 +891,7 @@ impl Room {
                 rotation: d.rotation,
                 presentation: d.presentation.clone(),
             }).collect(),
+            settings: self.settings.clone(),
         }
     }
 }
@@ -1505,6 +1563,113 @@ mod tests {
         assert_eq!(RoomError::AlreadyDragged.code(), "ALREADY_DRAGGED");
         assert_eq!(RoomError::NotDragger.code(), "NOT_DRAGGER");
         assert_eq!(RoomError::NotDragging.code(), "NOT_DRAGGING");
+        assert_eq!(RoomError::NotHost.code(), "NOT_HOST");
+    }
+
+    // ── Host role & room settings ────────────────────────────────────────────
+
+    #[test]
+    fn test_creator_is_host() {
+        let mut room = Room::new("test".to_string());
+        assert_eq!(room.host_id, None, "Empty room has no host");
+        room.add_player(make_player("p1", "Creator")).unwrap();
+        assert_eq!(room.host_id.as_deref(), Some("p1"));
+        assert!(room.is_host("p1"));
+
+        // A second joiner does not usurp the host.
+        room.add_player(make_player("p2", "Joiner")).unwrap();
+        assert_eq!(room.host_id.as_deref(), Some("p1"));
+        assert!(!room.is_host("p2"));
+    }
+
+    #[test]
+    fn test_solo_player_is_host() {
+        // Solo loopback room: the single player is trivially host.
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("solo", "Solo")).unwrap();
+        assert!(room.is_host("solo"));
+    }
+
+    #[test]
+    fn test_host_transfers_to_oldest_remaining_on_disconnect() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "First")).unwrap();
+        room.add_player(make_player("p2", "Second")).unwrap();
+        room.add_player(make_player("p3", "Third")).unwrap();
+        assert_eq!(room.host_id.as_deref(), Some("p1"));
+
+        // Host leaves — oldest remaining (p2) becomes host.
+        room.remove_player("p1");
+        assert_eq!(room.host_id.as_deref(), Some("p2"), "Oldest remaining player becomes host");
+
+        // p2 leaves — p3 is now oldest remaining.
+        room.remove_player("p2");
+        assert_eq!(room.host_id.as_deref(), Some("p3"));
+    }
+
+    #[test]
+    fn test_non_host_disconnect_does_not_change_host() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "First")).unwrap();
+        room.add_player(make_player("p2", "Second")).unwrap();
+
+        // A non-host leaving must not move the host.
+        room.remove_player("p2");
+        assert_eq!(room.host_id.as_deref(), Some("p1"));
+    }
+
+    #[test]
+    fn test_host_cleared_when_room_empties() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Only")).unwrap();
+        room.remove_player("p1");
+        assert_eq!(room.host_id, None, "Empty room has no host");
+    }
+
+    #[test]
+    fn test_host_can_update_settings() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Host")).unwrap();
+
+        let mut settings = RoomSettings::default();
+        settings.fields.insert("physicsMode".to_string(), serde_json::json!("arcade"));
+
+        assert!(room.update_settings("p1", settings.clone()).is_ok());
+        assert_eq!(room.settings, settings);
+        assert_eq!(room.settings.fields.get("physicsMode").unwrap(), "arcade");
+    }
+
+    #[test]
+    fn test_non_host_settings_mutation_rejected_and_unchanged() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Host")).unwrap();
+        room.add_player(make_player("p2", "Guest")).unwrap();
+
+        let original = room.settings.clone();
+        let mut attempted = RoomSettings::default();
+        attempted.fields.insert("physicsMode".to_string(), serde_json::json!("arcade"));
+
+        // Non-host mutation must be rejected and leave settings untouched.
+        assert_eq!(room.update_settings("p2", attempted).unwrap_err(), RoomError::NotHost);
+        assert_eq!(room.settings, original);
+    }
+
+    #[test]
+    fn test_room_state_carries_host_and_settings() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Host")).unwrap();
+        let mut settings = RoomSettings::default();
+        settings.fields.insert("theme".to_string(), serde_json::json!("neon"));
+        room.update_settings("p1", settings).unwrap();
+
+        match room.build_room_state() {
+            ServerMessage::RoomState { host_id, settings, .. } => {
+                assert_eq!(host_id.as_deref(), Some("p1"));
+                assert_eq!(settings.version, crate::messages::ROOM_SETTINGS_VERSION);
+                assert_eq!(settings.fields.get("theme").unwrap(), "neon");
+            }
+            _ => panic!("Expected room state"),
+        }
     }
 
     #[test]

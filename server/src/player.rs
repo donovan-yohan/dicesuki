@@ -10,6 +10,9 @@ pub struct Player {
     pub color: String,
     pub sender: PlayerSender,
     pub dice_ids: Vec<String>,
+    /// Monotonic join sequence, assigned by the room on `add_player`.
+    /// Used to pick the oldest remaining player when the host disconnects.
+    pub join_order: u64,
 }
 
 impl Player {
@@ -21,6 +24,7 @@ impl Player {
             color,
             sender,
             dice_ids: Vec::new(),
+            join_order: 0,
         }
     }
 

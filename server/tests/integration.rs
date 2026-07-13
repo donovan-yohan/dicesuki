@@ -745,3 +745,164 @@ async fn get_room_info_concurrent_requests_do_not_deadlock() {
         assert_eq!(body["roomId"], room_id);
     }
 }
+
+// ─── Host Role & Room Settings Tests ─────────────────────────────
+
+#[tokio::test]
+async fn room_state_includes_host_and_settings() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{addr}/ws/{room_id}");
+
+    let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
+    ws.send(Message::Text(
+        json!({"type": "join", "roomId": room_id, "displayName": "Host", "color": "#FF0000"})
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+
+    let body = recv_json(&mut ws).await;
+    assert_eq!(body["type"], "room_state");
+    // The creator is host, so hostId equals the single player's id.
+    let players = body["players"].as_array().unwrap();
+    let host_id = body["hostId"].as_str().expect("hostId present");
+    assert_eq!(host_id, players[0]["id"].as_str().unwrap());
+    // Versioned settings object present.
+    assert_eq!(body["settings"]["version"], 1);
+}
+
+#[tokio::test]
+async fn host_can_update_settings_and_broadcast_reaches_all() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{addr}/ws/{room_id}");
+
+    // Host joins
+    let (mut ws1, _) = connect_async(&url).await.unwrap();
+    ws1.send(Message::Text(
+        json!({"type": "join", "roomId": room_id, "displayName": "Host", "color": "#FF0000"})
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws1).await; // room_state
+
+    // Guest joins
+    let (mut ws2, _) = connect_async(&url).await.unwrap();
+    ws2.send(Message::Text(
+        json!({"type": "join", "roomId": room_id, "displayName": "Guest", "color": "#0000FF"})
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws1).await; // player_joined
+    let _ = recv_json(&mut ws2).await; // room_state
+
+    // Host updates settings
+    ws1.send(Message::Text(
+        json!({"type": "update_settings", "settings": {"version": 1, "physicsMode": "arcade"}})
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+
+    // Both host and guest receive settings_updated with the new field
+    let m1 = recv_json(&mut ws1).await;
+    assert_eq!(m1["type"], "settings_updated");
+    assert_eq!(m1["settings"]["physicsMode"], "arcade");
+    let m2 = recv_json(&mut ws2).await;
+    assert_eq!(m2["type"], "settings_updated");
+    assert_eq!(m2["settings"]["physicsMode"], "arcade");
+}
+
+#[tokio::test]
+async fn non_host_settings_mutation_rejected() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{addr}/ws/{room_id}");
+
+    // Host joins
+    let (mut ws1, _) = connect_async(&url).await.unwrap();
+    ws1.send(Message::Text(
+        json!({"type": "join", "roomId": room_id, "displayName": "Host", "color": "#FF0000"})
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws1).await; // room_state
+
+    // Guest joins
+    let (mut ws2, _) = connect_async(&url).await.unwrap();
+    ws2.send(Message::Text(
+        json!({"type": "join", "roomId": room_id, "displayName": "Guest", "color": "#0000FF"})
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws1).await; // player_joined
+    let _ = recv_json(&mut ws2).await; // room_state
+
+    // Guest (non-host) attempts to update settings
+    ws2.send(Message::Text(
+        json!({"type": "update_settings", "settings": {"version": 1, "physicsMode": "arcade"}})
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+
+    // Guest gets a NOT_HOST error, and no settings_updated is broadcast
+    let err = recv_json(&mut ws2).await;
+    assert_eq!(err["type"], "error");
+    assert_eq!(err["code"], "NOT_HOST");
+}
+
+#[tokio::test]
+async fn host_transfers_to_next_player_on_disconnect() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{addr}/ws/{room_id}");
+
+    // Host joins
+    let (mut ws1, _) = connect_async(&url).await.unwrap();
+    ws1.send(Message::Text(
+        json!({"type": "join", "roomId": room_id, "displayName": "Host", "color": "#FF0000"})
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws1).await; // room_state
+
+    // Guest joins and captures its own player id from room_state (last player)
+    let (mut ws2, _) = connect_async(&url).await.unwrap();
+    ws2.send(Message::Text(
+        json!({"type": "join", "roomId": room_id, "displayName": "Guest", "color": "#0000FF"})
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws1).await; // player_joined
+    let guest_state = recv_json(&mut ws2).await; // room_state
+    let guest_players = guest_state["players"].as_array().unwrap();
+    let guest_id = guest_players
+        .last()
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // Host disconnects
+    ws1.close(None).await.unwrap();
+
+    // Guest receives player_left then host_changed naming itself as the new host
+    let mut saw_host_changed = false;
+    for _ in 0..3 {
+        let msg = recv_json(&mut ws2).await;
+        if msg["type"] == "host_changed" {
+            assert_eq!(msg["hostId"], guest_id);
+            saw_host_changed = true;
+            break;
+        }
+    }
+    assert!(saw_host_changed, "Remaining player should be notified it became host");
+}

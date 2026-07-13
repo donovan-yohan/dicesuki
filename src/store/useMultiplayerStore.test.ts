@@ -16,6 +16,116 @@ describe('useMultiplayerStore', () => {
       expect(state.players.size).toBe(0)
       expect(state.dice.size).toBe(0)
       expect(state.localPlayerId).toBeNull()
+      expect(state.hostId).toBeNull()
+      expect(state.isHost).toBe(false)
+      expect(state.roomSettings).toEqual({ version: 1 })
+    })
+  })
+
+  describe('host role & settings', () => {
+    it('sets isHost when the local player is the host in room_state', () => {
+      // Local player is the last in the list (p2); host is p2.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'room_state',
+        roomId: 'abc123',
+        hostId: 'p2',
+        players: [
+          { id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' },
+          { id: 'p2', displayName: 'Frodo', color: '#3B82F6' },
+        ],
+        dice: [],
+        settings: { version: 1, physicsMode: 'arcade' },
+      })
+
+      const state = useMultiplayerStore.getState()
+      expect(state.hostId).toBe('p2')
+      expect(state.localPlayerId).toBe('p2')
+      expect(state.isHost).toBe(true)
+      expect(state.roomSettings.physicsMode).toBe('arcade')
+    })
+
+    it('does not set isHost when a different player is the host', () => {
+      // Local player is p2 (last), host is p1.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'room_state',
+        roomId: 'abc123',
+        hostId: 'p1',
+        players: [
+          { id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' },
+          { id: 'p2', displayName: 'Frodo', color: '#3B82F6' },
+        ],
+        dice: [],
+        settings: { version: 1 },
+      })
+
+      const state = useMultiplayerStore.getState()
+      expect(state.hostId).toBe('p1')
+      expect(state.isHost).toBe(false)
+    })
+
+    it('promotes local player to host on host_changed', () => {
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'room_state',
+        roomId: 'abc123',
+        hostId: 'p1',
+        players: [
+          { id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' },
+          { id: 'p2', displayName: 'Frodo', color: '#3B82F6' },
+        ],
+        dice: [],
+        settings: { version: 1 },
+      })
+      expect(useMultiplayerStore.getState().isHost).toBe(false)
+
+      // Host (p1) leaves; server promotes local player (p2).
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'host_changed',
+        hostId: 'p2',
+      })
+
+      const state = useMultiplayerStore.getState()
+      expect(state.hostId).toBe('p2')
+      expect(state.isHost).toBe(true)
+    })
+
+    it('updates roomSettings on settings_updated, preserving forward-compat fields', () => {
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'settings_updated',
+        settings: { version: 2, physicsMode: 'gentle', theme: 'neon' },
+      })
+
+      const settings = useMultiplayerStore.getState().roomSettings
+      expect(settings.version).toBe(2)
+      expect(settings.physicsMode).toBe('gentle')
+      expect(settings.theme).toBe('neon')
+    })
+
+    it('sends update_settings over the socket', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+      })
+
+      useMultiplayerStore.getState().updateSettings({ version: 1, physicsMode: 'arcade' })
+
+      expect(send).toHaveBeenCalledTimes(1)
+      const payload = JSON.parse(send.mock.calls[0][0])
+      expect(payload).toEqual({
+        type: 'update_settings',
+        settings: { version: 1, physicsMode: 'arcade' },
+      })
+    })
+
+    it('resets host and settings state on reset', () => {
+      useMultiplayerStore.setState({ hostId: 'p1', isHost: true, roomSettings: { version: 3 } })
+
+      useMultiplayerStore.getState().reset()
+
+      const state = useMultiplayerStore.getState()
+      expect(state.hostId).toBeNull()
+      expect(state.isHost).toBe(false)
+      expect(state.roomSettings).toEqual({ version: 1 })
     })
   })
 
@@ -24,6 +134,7 @@ describe('useMultiplayerStore', () => {
       const msg: ServerMessage = {
         type: 'room_state',
         roomId: 'abc123',
+        hostId: 'p1',
         players: [
           { id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' },
           { id: 'p2', displayName: 'Frodo', color: '#3B82F6' },
@@ -31,6 +142,7 @@ describe('useMultiplayerStore', () => {
         dice: [
           { id: 'd1', ownerId: 'p1', diceType: 'd20', position: [0, 1, 0], rotation: [0, 0, 0, 1] },
         ],
+        settings: { version: 1 },
       }
 
       useMultiplayerStore.getState().handleServerMessage(msg)
@@ -47,6 +159,7 @@ describe('useMultiplayerStore', () => {
       useMultiplayerStore.getState().handleServerMessage({
         type: 'room_state',
         roomId: 'abc123',
+        hostId: 'p1',
         players: [{ id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' }],
         dice: [
           {
@@ -62,6 +175,7 @@ describe('useMultiplayerStore', () => {
             },
           },
         ],
+        settings: { version: 1 },
       })
 
       const die = useMultiplayerStore.getState().dice.get('d1')
@@ -74,8 +188,10 @@ describe('useMultiplayerStore', () => {
       useMultiplayerStore.getState().handleServerMessage({
         type: 'room_state',
         roomId: 'abc123',
+        hostId: 'p1',
         players: [{ id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' }],
         dice: [],
+        settings: { version: 1 },
       })
 
       useMultiplayerStore.getState().handleServerMessage({
@@ -90,11 +206,13 @@ describe('useMultiplayerStore', () => {
       useMultiplayerStore.getState().handleServerMessage({
         type: 'room_state',
         roomId: 'abc123',
+        hostId: 'p1',
         players: [
           { id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' },
           { id: 'p2', displayName: 'Frodo', color: '#3B82F6' },
         ],
         dice: [],
+        settings: { version: 1 },
       })
 
       useMultiplayerStore.getState().handleServerMessage({
@@ -366,8 +484,10 @@ describe('useMultiplayerStore', () => {
       useMultiplayerStore.getState().handleServerMessage({
         type: 'room_state',
         roomId: 'abc123',
+        hostId: 'p1',
         players: [{ id: 'p1', displayName: 'Test', color: '#FFF' }],
         dice: [],
+        settings: { version: 1 },
       })
 
       useMultiplayerStore.getState().reset()

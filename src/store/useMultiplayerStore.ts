@@ -6,6 +6,7 @@ import type {
   PlayerInfo,
   DiceState,
   DicePresentationMetadata,
+  RoomSettings,
   VelocityHistoryEntry,
 } from '../lib/multiplayerMessages'
 import { getWsServerUrl } from '../lib/multiplayerServer'
@@ -43,6 +44,10 @@ interface MultiplayerState {
   roomId: string | null
   players: Map<string, PlayerInfo>
   localPlayerId: string | null
+  // Host role & settings
+  hostId: string | null
+  isHost: boolean
+  roomSettings: RoomSettings
 
   // Dice
   dice: Map<string, MultiplayerDie>
@@ -66,6 +71,7 @@ interface MultiplayerState {
   removeDice: (diceIds: string[]) => void
   roll: () => void
   updateColor: (color: string) => void
+  updateSettings: (settings: RoomSettings) => void
 
   // Drag actions
   startDrag: (dieId: string, grabOffset: [number, number, number], worldPosition: [number, number, number]) => void
@@ -88,6 +94,9 @@ const createInitialState = () => ({
   roomId: null as string | null,
   players: new Map<string, PlayerInfo>(),
   localPlayerId: null as string | null,
+  hostId: null as string | null,
+  isHost: false,
+  roomSettings: { version: 1 } as RoomSettings,
   dice: new Map<string, MultiplayerDie>(),
   pendingInventoryDieIds: new Set<string>(),
   lastSnapshotTime: 0,
@@ -201,7 +210,30 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           msg.dice,
           localPlayerId,
         )
-        set({ players, dice, pendingInventoryDieIds, localPlayerId })
+        const hostId = msg.hostId ?? null
+        set({
+          players,
+          dice,
+          pendingInventoryDieIds,
+          localPlayerId,
+          hostId,
+          isHost: localPlayerId !== null && localPlayerId === hostId,
+          roomSettings: msg.settings,
+        })
+        break
+      }
+
+      case 'host_changed': {
+        const { localPlayerId } = get()
+        set({
+          hostId: msg.hostId,
+          isHost: localPlayerId !== null && localPlayerId === msg.hostId,
+        })
+        break
+      }
+
+      case 'settings_updated': {
+        set({ roomSettings: msg.settings })
         break
       }
 
@@ -387,6 +419,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   updateColor: (color: string) => {
     get().sendMessage({ type: 'update_color', color })
+  },
+
+  updateSettings: (settings: RoomSettings) => {
+    // Server authoritatively rejects non-host mutations; gate optimistically
+    // in the UI via `isHost`, but the server remains the source of truth.
+    get().sendMessage({ type: 'update_settings', settings })
   },
 
   startDrag: (dieId, grabOffset, worldPosition) => {
