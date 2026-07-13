@@ -129,6 +129,79 @@ describe('useMultiplayerStore', () => {
     })
   })
 
+  describe('motion control', () => {
+    it('host setMotionControl sends update_settings preserving other fields', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: true,
+        roomSettings: { version: 1, playerCap: 4 },
+      })
+
+      useMultiplayerStore.getState().setMotionControl('room')
+
+      expect(send).toHaveBeenCalledTimes(1)
+      const payload = JSON.parse(send.mock.calls[0][0])
+      expect(payload).toEqual({
+        type: 'update_settings',
+        settings: { version: 1, playerCap: 4, motionControl: 'room' },
+      })
+    })
+
+    it('non-host setMotionControl is a no-op (server also enforces)', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: false,
+        roomSettings: { version: 1 },
+      })
+
+      useMultiplayerStore.getState().setMotionControl('room')
+
+      expect(send).not.toHaveBeenCalled()
+    })
+
+    it('sendMotionImpulse does nothing when motion is off', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        roomSettings: { version: 1, motionControl: 'off' },
+      })
+
+      useMultiplayerStore.getState().sendMotionImpulse([1, 0, 0])
+
+      expect(send).not.toHaveBeenCalled()
+    })
+
+    it('sendMotionImpulse sends, then throttles, then sends again after the interval', () => {
+      vi.useFakeTimers({ toFake: ['performance'] })
+      try {
+        const send = vi.fn()
+        useMultiplayerStore.setState({
+          connectionStatus: 'connected',
+          socket: { send } as unknown as WebSocket,
+          roomSettings: { version: 1, motionControl: 'own_dice' },
+        })
+
+        const store = useMultiplayerStore.getState()
+        store.sendMotionImpulse([1, 0, 0])
+        store.sendMotionImpulse([2, 0, 0]) // within throttle window — dropped
+        expect(send).toHaveBeenCalledTimes(1)
+        const first = JSON.parse(send.mock.calls[0][0])
+        expect(first).toEqual({ type: 'motion_impulse', impulse: [1, 0, 0] })
+
+        vi.advanceTimersByTime(60) // > MOTION_IMPULSE_MIN_INTERVAL_MS (50)
+        store.sendMotionImpulse([3, 0, 0])
+        expect(send).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
   describe('reconnect & lifecycle', () => {
     it('uses the server-echoed localPlayerId even when not last in the list', () => {
       // Simulates a graceful rejoin: the reclaimed player (p1) is not last.

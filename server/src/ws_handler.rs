@@ -298,6 +298,22 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
+            ClientMessage::MotionImpulse { impulse } if is_joined => {
+                let mut room_guard = room.write().await;
+                match room_guard.apply_motion_impulse(&player_id, impulse) {
+                    Ok(affected) if !affected.is_empty() => {
+                        // Dice were nudged — make sure the physics loop is running so
+                        // the movement (and eventual re-settle) is broadcast.
+                        crate::room::Room::maybe_start_simulation(&mut room_guard, room.clone());
+                    }
+                    // No dice affected (sender owns none), or rate-limited / disabled:
+                    // silently ignore. Motion is high-frequency; surfacing an error per
+                    // dropped impulse would spam the client. `motionControl` state is
+                    // already visible to every client via `settings_updated`.
+                    Ok(_) | Err(_) => {}
+                }
+            }
+
             ClientMessage::Leave if is_joined => {
                 intentional_leave = true;
                 break;

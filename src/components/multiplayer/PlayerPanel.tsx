@@ -3,6 +3,12 @@ import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { connectionIndicator } from './connectionIndicator'
+import { getMotionControl } from '../../lib/multiplayerMessages'
+import {
+  MOTION_CONTROL_LABELS,
+  MOTION_CONTROL_DESCRIPTIONS,
+  MOTION_CONTROL_OPTIONS,
+} from '../../hooks/useRoomMotionNotices'
 
 interface PlayerPanelProps {
   isOpen: boolean
@@ -16,9 +22,13 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
   const selectedPlayerId = useMultiplayerStore((s) => s.selectedPlayerId)
   const setSelectedPlayerId = useMultiplayerStore((s) => s.setSelectedPlayerId)
   const roomId = useMultiplayerStore((s) => s.roomId)
+  const isHost = useMultiplayerStore((s) => s.isHost)
+  const roomSettings = useMultiplayerStore((s) => s.roomSettings)
+  const setMotionControl = useMultiplayerStore((s) => s.setMotionControl)
   const reduceMotion = shouldReduceMotion()
   const { currentTheme } = useTheme()
   const colors = currentTheme.tokens.colors
+  const motionControl = getMotionControl(roomSettings)
 
   // Host first, then the rest in join order.
   const playersArray = Array.from(players.values()).sort((a, b) => {
@@ -144,6 +154,68 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                 </button>
               )
             })}
+          </div>
+
+          {/* Motion control: host sets the room's device-motion policy; everyone
+              sees the current mode (read-only for non-hosts). */}
+          <div
+            className="flex flex-col gap-1.5 px-3 py-2.5"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
+            data-testid="motion-control"
+          >
+            <div className="flex items-center justify-between">
+              <span
+                className="text-xs font-semibold uppercase"
+                style={{ letterSpacing: '0.06em', color: colors.text.secondary }}
+              >
+                Motion
+              </span>
+              {!isHost && (
+                <span className="text-xs" style={{ color: colors.text.muted }}>
+                  Host controls
+                </span>
+              )}
+            </div>
+
+            <div
+              role="radiogroup"
+              aria-label="Room motion mode"
+              className="flex rounded-lg overflow-hidden"
+              style={{ border: '1px solid rgba(255,255,255,0.12)' }}
+            >
+              {MOTION_CONTROL_OPTIONS.map((mode) => {
+                const isActive = mode === motionControl
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    disabled={!isHost}
+                    onClick={() => isHost && setMotionControl(mode)}
+                    title={MOTION_CONTROL_DESCRIPTIONS[mode]}
+                    className="flex-1 px-1.5 py-1.5 text-xs font-medium transition-colors"
+                    style={{
+                      backgroundColor: isActive
+                        ? 'rgba(139, 92, 246, 0.55)'
+                        : 'transparent',
+                      color: isActive ? '#fff' : colors.text.secondary,
+                      cursor: isHost ? 'pointer' : 'default',
+                      opacity: !isHost && !isActive ? 0.5 : 1,
+                      borderLeft: mode !== MOTION_CONTROL_OPTIONS[0]
+                        ? '1px solid rgba(255,255,255,0.12)'
+                        : 'none',
+                    }}
+                  >
+                    {MOTION_CONTROL_LABELS[mode]}
+                  </button>
+                )
+              })}
+            </div>
+
+            <span className="text-xs" style={{ color: colors.text.muted, lineHeight: 1.35 }}>
+              {MOTION_CONTROL_DESCRIPTIONS[motionControl]}
+            </span>
           </div>
         </motion.div>
       )}

@@ -98,6 +98,50 @@ export interface UpdateSettingsMessage {
   settings: RoomSettings
 }
 
+/**
+ * Host-controlled policy governing which dice a player's device-motion
+ * (shake/gravity) input may affect. Kept in sync with the server `MotionControl`
+ * enum (server/src/room.rs).
+ * - `off`: motion input is disabled room-wide.
+ * - `own_dice`: a player's motion affects only the dice they own.
+ * - `room`: a player's motion affects every die on the table (pairs with the
+ *   delegated-roller role, #73).
+ */
+export type MotionControl = 'off' | 'own_dice' | 'room'
+
+/** Settings key holding the room's {@link MotionControl} policy. */
+export const MOTION_CONTROL_SETTING = 'motionControl'
+
+/** Default policy for a fresh room — motion scoped to your own dice. */
+export const DEFAULT_MOTION_CONTROL: MotionControl = 'own_dice'
+
+/** Read the room's {@link MotionControl}, falling back to the default. */
+export function getMotionControl(settings: RoomSettings | null | undefined): MotionControl {
+  const raw = settings?.[MOTION_CONTROL_SETTING]
+  if (raw === 'off' || raw === 'own_dice' || raw === 'room') {
+    return raw
+  }
+  return DEFAULT_MOTION_CONTROL
+}
+
+/**
+ * Return a new {@link RoomSettings} with the motion policy set to `mode`,
+ * preserving all other fields. Never mutates the input.
+ */
+export function setMotionControl(settings: RoomSettings, mode: MotionControl): RoomSettings {
+  return { ...settings, [MOTION_CONTROL_SETTING]: mode }
+}
+
+/**
+ * Device-motion (shake/gravity) input. `impulse` is a world-space vector the
+ * server applies to the dice the sender may affect under the room's
+ * `motionControl` policy. Rate-limited and magnitude-clamped server-side.
+ */
+export interface MotionImpulseMessage {
+  type: 'motion_impulse'
+  impulse: [number, number, number]
+}
+
 export type ClientMessage =
   | JoinMessage
   | SpawnDiceMessage
@@ -109,6 +153,7 @@ export type ClientMessage =
   | DragMoveMessage
   | DragEndMessage
   | UpdateSettingsMessage
+  | MotionImpulseMessage
 
 // ==========================================
 // Server → Client Messages
