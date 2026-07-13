@@ -799,4 +799,69 @@ describe('useMultiplayerStore', () => {
       expect(useMultiplayerStore.getState().connectionStatus).toBe('connected')
     })
   })
+
+  describe('join-phase error handling (#78)', () => {
+    it('surfaces a ROOM_FULL rejection on the form and stops the socket', () => {
+      const close = vi.fn()
+      // Simulate an open socket that has sent `join` but not yet received room_state.
+      useMultiplayerStore.setState({
+        socket: { close } as unknown as WebSocket,
+        connectionStatus: 'connected',
+        localPlayerId: null,
+      })
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'error',
+        code: 'ROOM_FULL',
+        message: 'Room is full (8/8 players)',
+      })
+
+      const state = useMultiplayerStore.getState()
+      expect(state.connectionError).toBe('Room is full (8/8 players)')
+      expect(state.connectionStatus).toBe('disconnected')
+      expect(state.socket).toBeNull()
+      expect(state.lastJoin).toBeNull()
+      expect(close).toHaveBeenCalled()
+    })
+
+    it('ignores join-phase error codes once already joined (localPlayerId set)', () => {
+      const close = vi.fn()
+      useMultiplayerStore.setState({
+        socket: { close } as unknown as WebSocket,
+        connectionStatus: 'connected',
+        localPlayerId: 'p1',
+      })
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'error',
+        code: 'INVALID_COLOR',
+        message: 'Invalid color',
+      })
+
+      const state = useMultiplayerStore.getState()
+      // Mid-session errors must not tear down a live connection.
+      expect(state.connectionStatus).toBe('connected')
+      expect(state.connectionError).toBeNull()
+      expect(close).not.toHaveBeenCalled()
+    })
+
+    it('leaves non-join error codes (e.g. DICE_LIMIT) alone', () => {
+      const close = vi.fn()
+      useMultiplayerStore.setState({
+        socket: { close } as unknown as WebSocket,
+        connectionStatus: 'connected',
+        localPlayerId: null,
+      })
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'error',
+        code: 'DICE_LIMIT',
+        message: 'Table is full',
+      })
+
+      const state = useMultiplayerStore.getState()
+      expect(state.connectionStatus).toBe('connected')
+      expect(close).not.toHaveBeenCalled()
+    })
+  })
 })

@@ -3,6 +3,7 @@ import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { connectionIndicator } from './connectionIndicator'
+import { RoomShare } from './RoomShare'
 import { getMotionControl, getRoller, getRoomThemeId } from '../../lib/multiplayerMessages'
 import { THEME_REGISTRY } from '../../themes/registry'
 import {
@@ -76,6 +77,9 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
             </span>
             <span className="text-xs">{playersArray.length}/8</span>
           </div>
+
+          {/* Share controls: copy link, native share, QR (issue #77) */}
+          <RoomShare />
 
           {/* Roster rows */}
           <div className="flex flex-col gap-1 p-2 overflow-y-auto">
