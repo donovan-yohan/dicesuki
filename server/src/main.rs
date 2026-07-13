@@ -13,6 +13,12 @@ async fn main() {
     let room_manager: SharedRoomManager = Arc::new(RwLock::new(RoomManager::new()));
     let app = build_app(room_manager.clone());
 
+    // Rooms registry heartbeat (ADR 006): upsert this server's row into the
+    // Supabase `rooms` table every N seconds so it appears in the public room
+    // browser. No-op unless SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY + PUBLIC_URL
+    // are set — the server otherwise runs exactly as before.
+    dicesuki_server::registry::spawn_if_enabled(room_manager.clone());
+
     // Spawn periodic room maintenance task (every 60s): expires reconnect grace
     // windows and cleans up stale empty rooms. A 60s cadence keeps grace expiry
     // (120s window) responsive without excessive lock churn.

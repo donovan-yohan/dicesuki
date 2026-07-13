@@ -23,10 +23,20 @@ tower-http = { version = "0.6", features = ["cors"] }
 nalgebra = "0.33"
 log = "0.4"
 env_logger = "0.11"
+# JWT verification against Supabase JWKS (ADR 006). jsonwebtoken is the de-facto
+# standard Rust JWT crate: actively maintained, native JWKS support via
+# `jwk::JwkSet` + `DecodingKey::from_jwk` (covers Supabase's asymmetric RSA/EC
+# signing keys and HMAC test keys), and it reuses `ring` — already in the tree
+# via rustls — instead of pulling OpenSSL like josekit would.
+jsonwebtoken = "9"
+# Runtime HTTP client for the Supabase JWKS fetch and the `rooms` registry
+# heartbeat (REST upsert). Kept rustls-only (no OpenSSL) to match the static
+# musl-friendly build; previously a dev-only dependency (integration tests).
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 
 [dev-dependencies]
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+base64 = "0.22.1"
 tokio-tungstenite = "0.24"
 
 [profile.release]

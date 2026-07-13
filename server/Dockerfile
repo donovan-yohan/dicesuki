@@ -41,9 +41,25 @@ COPY --from=builder /app/target/release/dicesuki-server /usr/local/bin/dicesuki-
 
 USER daisu
 
-# Runtime env vars: PORT (default 8080), RUST_LOG (default info),
-# CORS_ORIGIN (unset = permissive dev mode). Bind address is always
-# 0.0.0.0. INSTANCE_ID is auto-generated (8-char nanoid), not configurable.
+# Runtime env vars. Bind address is always 0.0.0.0. INSTANCE_ID is
+# auto-generated (8-char nanoid), not configurable.
+#
+#   Core (existing):
+#     PORT         TCP port (default 8080)
+#     RUST_LOG     env_logger filter (default info)
+#     CORS_ORIGIN  frontend origin; unset = permissive dev mode
+#
+#   Supabase JWT verification (ADR 006, optional — guest play works without it):
+#     SUPABASE_URL                project base, e.g. https://<proj>.supabase.co
+#                                 (also selects the JWKS URL + expected issuer).
+#                                 Defaults to the ADR 006 project if unset.
+#
+#   Rooms registry heartbeat (ADR 006, OFF unless ALL three are set):
+#     SUPABASE_URL                as above
+#     SUPABASE_SERVICE_ROLE_KEY   *** SECRET — never bake into the image or
+#                                 commit; pass at run time via -e / secret store.
+#     PUBLIC_URL                  this server's public base behind the TLS proxy,
+#                                 e.g. https://rooms.example.com
 ENV RUST_LOG=info \
     PORT=8080
 EXPOSE 8080
