@@ -1,7 +1,7 @@
 # Architecture Rules (derived from ADRs)
 
 > DO NOT edit by hand. Regenerate with `/adr:update`.
-> Generated: 2026-02-17 | Source: 9 Accepted ADRs (4 Frontend, 1 Server, 4 Shared)
+> Generated: 2026-07-13 | Source: 10 Accepted ADRs (4 Frontend, 1 Server, 5 Shared)
 
 ---
 
@@ -72,18 +72,6 @@
 - [Server-ADR-001] Release builds MUST use `opt-level = 3` and `lto = true`.
 - [Server-ADR-001] Reverse proxies MUST be configured to support WebSocket upgrades and not force HTTP/2 for WebSocket routes.
 
-## Dual Physics Architecture
-
-- [Shared-ADR-001] The project MUST maintain a dual physics architecture: client-side Rapier WASM (single-player) and server-side Rapier3D native (multiplayer).
-- [Shared-ADR-001] In multiplayer, the client MUST NOT render a `<Physics>` provider.
-- [Shared-ADR-001] In multiplayer, dice MUST be rendered as positioned meshes only (no local physics bodies).
-- [Shared-ADR-001] The server MUST stream `physics_snapshot` messages at 20Hz (every 3rd physics tick).
-- [Shared-ADR-001] Clients MUST interpolate between snapshots using lerp (position) and slerp (rotation).
-- [Shared-ADR-001] Face detection in multiplayer MUST run server-side; the server sends `die_settled` with the authoritative face value.
-- [Shared-ADR-001] Shared physics constants MUST match between `src/config/physicsConfig.ts` and `server/src/physics.rs` + `server/src/room.rs`.
-- [Shared-ADR-001] Any change to a shared physics constant MUST be applied to both client and server codebases.
-- [Shared-ADR-001] Dragged dice in multiplayer MUST remain dynamic bodies, not kinematic, to enable cross-player collisions.
-
 ## WebSocket JSON Protocol
 
 - [Shared-ADR-002] Client-server communication MUST use WebSocket transport with JSON serialization.
@@ -120,3 +108,35 @@
 - [Shared-ADR-004] The multiplayer arena MUST use a 9:16 portrait aspect ratio (`MULTIPLAYER_ARENA_HALF_X` = 4.5, `MULTIPLAYER_ARENA_HALF_Z` = 8.0).
 - [Shared-ADR-004] Arena dimension constants MUST match between `src/config/physicsConfig.ts` and `server/src/physics.rs`.
 - [Shared-ADR-004] Players MUST only be able to drag their own dice; ownership validation MUST occur server-side.
+
+## Room-First Local Loopback Architecture
+
+- [Shared-ADR-005] The room MUST be the single primitive for all dice play; solo and multiplayer MUST differ only in player count and server location, not in code path.
+- [Shared-ADR-005] Solo mode MUST join an implicit one-player room served by a local Rust room server (loopback, `127.0.0.1`), reached from the Settings **Open Local Solo Room** action.
+- [Shared-ADR-005] The client MUST verify the local room server is reachable (`GET /health` returns `status: "ok"` and an `instanceId`) before joining the implicit solo room.
+- [Shared-ADR-005] When the local server is unavailable, the UI MUST surface an actionable error naming the loopback URL and the `npm run dev:local-room` start command, rather than an indefinite loader.
+- [Shared-ADR-005] Local loopback server configuration (`VITE_LOCAL_ROOM_SERVER_URL` / `VITE_LOCAL_ROOM_SERVER_HTTP_URL`) MUST remain separate from public multiplayer server configuration.
+- [Shared-ADR-005] Both solo and multiplayer dice MUST flow through the room WebSocket protocol (`join`, `room_state`, `spawn_dice`, `dice_spawned`, `physics_snapshot`, `die_settled`, drag messages).
+- [Shared-ADR-005] `room_state` MUST carry an explicit `localPlayerId` so the client knows which player it controls.
+- [Shared-ADR-005] Owned/inventory dice identity MUST be carried end-to-end via `presentation` metadata on spawn (`inventoryDieId`, `displayName`, `setId`, `rarity`, `baseColor`, `customAssetId`, `customAssetName`, `unsupportedReason`); the server treats physics as authoritative and `presentation` as client-provided display metadata.
+- [Shared-ADR-005] Generic anonymous dice (e.g. `d20`, `2d6`) MUST spawn without any presentation block.
+- [Shared-ADR-005] Rapier3D MUST run natively in the Rust room server at 60Hz for both solo and multiplayer rooms; the client MUST NOT render a `<Physics>` provider for dice play.
+- [Shared-ADR-005] Dice MUST be rendered as positioned meshes only, driven by snapshot interpolation (lerp position, slerp rotation).
+- [Shared-ADR-005] Face detection MUST run server-side; the server emits `die_settled` with the authoritative face value.
+- [Shared-ADR-005] Active rooms MUST target 60Hz snapshots (`SNAPSHOT_DIVISOR = 1` in `server/src/room.rs`), superseding the 20Hz baseline.
+- [Shared-ADR-005] The shared arena MUST remain 9:16 portrait (`WALL_HALF_X = 4.5`, `WALL_HALF_Z = 8.0` in `server/src/physics.rs`, matching `src/config/physicsConfig.ts`).
+- [Shared-ADR-005] Arena and physics constants MUST remain manually synchronized between `src/config/physicsConfig.ts` and the Rust source; any change MUST be applied to both codebases.
+
+## Supabase Hybrid Backend
+
+- [Shared-ADR-006] The project MUST adopt a Supabase hybrid backend: Supabase owns identity and durable data, while the dev-box Axum room servers remain authoritative for physics.
+- [Shared-ADR-006] Supabase MUST hold identity via Discord OAuth as the primary provider, with guest mode preserved for account-free play.
+- [Shared-ADR-006] Durable user data (`profiles`, `settings`, dice `inventory`, `saved_rolls`) MUST live in Supabase Postgres with Row-Level Security; a player MUST only be able to write their own rows.
+- [Shared-ADR-006] The frontend MUST use the Supabase JS client for auth and data sync; local cache/offline behavior and the first-sign-in migration from `localStorage` MUST be preserved per Frontend-ADR-002.
+- [Shared-ADR-006] The room servers MUST remain physics-authoritative and add a JWT verification middleware, verifying player tokens locally against Supabase's cached JWKS URL (no shared secret, no per-request callout).
+- [Shared-ADR-006] A Supabase `rooms` registry table MUST be the source of truth for room discovery, superseding any ad-hoc discovery mechanism.
+- [Shared-ADR-006] Each dev-box server MUST upsert a `rooms` row keyed by its `INSTANCE_ID` (public URL, player count, `last_heartbeat`) on startup and heartbeat every N seconds; stale rows MUST be evicted by the existing stale-cleanup pattern (Server-ADR-001).
+- [Shared-ADR-006] The client's room browser MUST be a public-read query (optionally Supabase Realtime for live updates).
+- [Shared-ADR-006] The Docker image MUST be the distribution artifact for the room server.
+- [Shared-ADR-006] The Supabase anon key and project id are public-safe and MAY appear in client environment configuration and documentation.
+- [Shared-ADR-006] The service-role key and any JWT signing secret MUST NEVER be committed to the repository; they MUST be supplied via environment/secret storage on the systems that need them.
