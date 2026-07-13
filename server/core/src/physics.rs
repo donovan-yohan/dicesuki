@@ -1,64 +1,160 @@
+//! Engine physics constants and the Rapier world.
+//!
+//! # Single source of truth (epic #111, Shared-ADR-007)
+//!
+//! Every physics-engine constant lives **here, once**. Both build targets — the
+//! native multiplayer server binary and the `wasm32` in-browser room worker —
+//! link this same crate, so a value edited in this file provably reaches both
+//! with no second file to touch. This supersedes the Shared-ADR-003 "manual
+//! sync between `physicsConfig.ts` and Rust" regime: `src/config/physicsConfig.ts`
+//! no longer carries engine constants, and the browser reads the values it needs
+//! at runtime from [`crate::config::EngineConfig`] (over the room protocol's
+//! `room_state.config`, or the wasm `engine_config_json()` getter before a room
+//! exists) — never from a copied literal.
+//!
+//! Each constant documents its purpose, recommended range, and the rationale for
+//! its current value (Shared-ADR-003's documentation requirement, retained).
+
 use rapier3d::prelude::*;
 
-/// Constants matching the client-side physicsConfig.ts
+/// Standard gravity acceleration (m/s²) applied to the physics world.
+/// - Earth standard: `-9.81` (current) — familiar, predictable dice falls.
+/// - Lower (e.g. `-5`): floatier, slower falls. Higher (e.g. `-15`): snappier.
 pub const GRAVITY: f32 = -9.81;
+
+/// Restitution (bounciness) of dice and arena surfaces.
+/// - Range `0.0` (dead) – `1.0` (perfect bounce).
+/// - `0.3` (current): realistic — some bounce, settles quickly. `0.5` bounces
+///   longer; `0.1` settles almost immediately.
 pub const DICE_RESTITUTION: f32 = 0.3;
+
+/// Friction coefficient for dice and arena surfaces.
+/// - Range `0.0` (ice) – `1.0+` (very grippy).
+/// - `0.6` (current): plastic dice on wood/felt. `0.8` rolls slower; `0.3` slides.
 pub const DICE_FRICTION: f32 = 0.6;
+
+/// Rounded-edge chamfer radius for the D6 round-cuboid collider (world units).
+/// - `0.08` (current): subtle, realistic rounding. `0.12`–`0.15`: very smooth
+///   edges (easier rolling); `0.04`–`0.06`: sharper edges.
 pub const EDGE_CHAMFER_RADIUS: f32 = 0.08;
+
+/// Linear speed (m/s) below which a die counts as "at rest" for settle detection.
+/// - `0.01` (current): strict — waits until essentially still, so the
+///   authoritative face is read only once the die has truly stopped.
+/// - Larger values register a result while the die still creeps (risk of misreads).
 pub const LINEAR_VELOCITY_THRESHOLD: f32 = 0.01;
+
+/// Angular speed (rad/s) below which a die counts as "at rest" for settle detection.
+/// - `0.01` (current): strict — no perceptible spin allowed before a face is read.
 pub const ANGULAR_VELOCITY_THRESHOLD: f32 = 0.01;
+
+/// Duration (ms) a die must stay below the rest thresholds before its face registers.
+/// - `500` (current): prevents false positives from brief mid-roll stops without
+///   feeling sluggish. `1000`+ is safer but slower; `<500` risks premature reads.
 pub const REST_DURATION_MS: u64 = 500;
 
 /// Linear speed (m/s) above which an already-settled die is treated as "knocked"
 /// and must re-detect + rebroadcast its face. Set well above
 /// `LINEAR_VELOCITY_THRESHOLD` so settling micro-jitter never re-wakes a resting die,
-/// but low enough that a genuine cross-player hit reliably re-triggers detection.
-/// Mirrors `KNOCK_WAKE_LINEAR_SPEED` in `src/config/physicsConfig.ts` (Shared-ADR-003).
+/// yet low enough that a genuine cross-player hit reliably re-triggers detection.
+/// - `0.5` (current): reliable knock detection without false positives. `1.0` only
+///   reacts to hard hits (risk of stale faces); `0.2` is jittery.
 pub const KNOCK_WAKE_LINEAR_SPEED: f32 = 0.5;
 /// Angular counterpart to `KNOCK_WAKE_LINEAR_SPEED` (rad/s): a settled die spun past
-/// this by a collision must re-detect its face. Mirrors `KNOCK_WAKE_ANGULAR_SPEED` in
-/// `src/config/physicsConfig.ts` (Shared-ADR-003).
+/// this by a collision must re-detect its face. `0.5` (current) matches the linear
+/// threshold's sensitivity.
 pub const KNOCK_WAKE_ANGULAR_SPEED: f32 = 0.5;
+
+/// Minimum horizontal (XZ-plane) impulse magnitude for a button roll.
+/// - `1.0`–`3.0` (current range): kept modest so rapid clicking stacks energy
+///   rather than launching dice. Higher travels farther; lower stays centered.
 pub const ROLL_HORIZONTAL_MIN: f32 = 1.0;
+/// Maximum horizontal (XZ-plane) impulse magnitude for a button roll. See
+/// [`ROLL_HORIZONTAL_MIN`].
 pub const ROLL_HORIZONTAL_MAX: f32 = 3.0;
+/// Minimum upward (Y) impulse for a button roll.
+/// - `3.0`–`5.0` (current range): enough hop to tumble without flying into the
+///   ceiling. Higher arcs more; lower settles faster.
 pub const ROLL_VERTICAL_MIN: f32 = 3.0;
+/// Maximum upward (Y) impulse for a button roll. See [`ROLL_VERTICAL_MIN`].
 pub const ROLL_VERTICAL_MAX: f32 = 5.0;
 
-// Drag interaction constants (matching client physicsConfig.ts)
+/// **The single roll-feel torque truth.** Each axis of a rolled die receives a
+/// random torque impulse in `-ROLL_TORQUE_MAGNITUDE ..= ROLL_TORQUE_MAGNITUDE`
+/// (rad·kg·units), producing the tumble.
+///
+/// - `5.0` (current): the dramatic, lively tumble the owner has been playtesting
+///   in multiplayer. This value is now the *only* torque definition in the
+///   codebase — it reaches solo and multiplayer identically. It replaces the old
+///   client-side `±1` angular impulse (`(Math.random()-0.5)*2`) that made the
+///   same die throw differently by mode (the divergence issue #117 closes).
+/// - Recommended range: `1.0` (gentle) – `6.0` (energetic). This is a one-file
+///   edit here; feel tuning after solo playtesting is a single change in core.
+pub const ROLL_TORQUE_MAGNITUDE: f32 = 5.0;
+
+/// Base speed multiplier for how aggressively a dragged die chases the cursor.
+/// - `12.0` (current): responsive but smooth. `20` is snappy; `8` feels laggy.
 pub const DRAG_FOLLOW_SPEED: f32 = 12.0;
+/// Extra follow-speed multiplier added when a dragged die is far from the cursor,
+/// letting it catch up. - `2.5` (current): moderate. `5.0` overshoots; `1.0` minimal.
 pub const DRAG_DISTANCE_BOOST: f32 = 2.5;
+/// Distance (world units) beyond which [`DRAG_DISTANCE_BOOST`] starts applying.
+/// - `3.0` (current): medium. `5.0` only boosts when very far; `1.0` always boosts.
 pub const DRAG_DISTANCE_THRESHOLD: f32 = 3.0;
+/// How much cursor motion induces spin on a dragged die (torque strength).
+/// - `0.33` (current): subtle spin. `1.0` tumbles dramatically; `0.0` no spin.
 pub const DRAG_SPIN_FACTOR: f32 = 0.33;
+/// How much cursor motion induces rolling ("ball on a surface") on a dragged die.
+/// - `0.5` (current): natural. `4.0` rolls aggressively; `0.0` is spin-only.
 pub const DRAG_ROLL_FACTOR: f32 = 0.5;
+/// Height (world units) of the invisible plane a drag is projected onto. This is a
+/// server-side drag-target height; the *client* raycast plane is a separate render
+/// concern in `physicsConfig.ts`. - `2.0` (current): natural above-table feel.
 pub const DRAG_PLANE_HEIGHT: f32 = 2.0;
 
-// Throw mechanics (matching client physicsConfig.ts)
+/// Scale applied to the drag-release velocity when a throw is computed.
+/// - `0.8` (current): slightly dampened, realistic. `1.0` is 1:1; `0.5` is gentle.
 pub const THROW_VELOCITY_SCALE: f32 = 0.8;
+/// Upward (Y) velocity added on release to give thrown dice a dynamic arc.
+/// - `3.0` (current): moderate arc. `5.0` arcs high; `0.0` throws flat.
 pub const THROW_UPWARD_BOOST: f32 = 3.0;
+/// Minimum release speed (units/s) for a drag-release to count as a throw rather
+/// than a drop-in-place. - `2.0` (current): easy to trigger. `5.0` needs a fast swipe.
 pub const MIN_THROW_SPEED: f32 = 2.0;
+/// Maximum throw speed (units/s); faster releases are capped to prevent
+/// unrealistic launches. - `20.0` (current). `30` allows very fast; `15` caps low.
 pub const MAX_THROW_SPEED: f32 = 20.0;
 
-// Velocity clamping (matching client physicsConfig.ts)
+/// Hard cap on any die's linear speed (units/s), applied continuously so impulses,
+/// drags, and throws can never clip a die through a wall.
+/// - `25.0` (current): dynamic rolls without clipping. `30` risks clipping; `20` is safe.
 pub const MAX_DICE_VELOCITY: f32 = 25.0;
 
-// Motion control (host physics-mode policy — matching client physicsConfig.ts)
 /// Minimum interval (ms) between accepted `motion_impulse` messages per player.
 /// Device-motion input arriving faster than this is dropped so a shaking phone
-/// cannot flood the physics loop. Mirrors `MOTION_IMPULSE_MIN_INTERVAL_MS` in
-/// `src/config/physicsConfig.ts` (Shared-ADR-003).
+/// cannot flood the physics loop.
+/// - `50` (≈20Hz, current): responsive shake without spamming the loop.
+///   Recommended `33` (30Hz) – `100` (10Hz).
 pub const MOTION_IMPULSE_MIN_INTERVAL_MS: u64 = 50;
 /// Maximum magnitude (world units) of a single motion impulse. Every incoming
 /// impulse is clamped to this length so a malicious/miscalibrated client cannot
-/// launch dice out of the arena. Mirrors `MOTION_IMPULSE_MAX_MAGNITUDE` in
-/// `src/config/physicsConfig.ts` (Shared-ADR-003).
+/// launch dice out of the arena.
+/// - `30.0` (current): a firm shake, above a roll impulse but below escape velocity.
+///   Recommended `15` (gentle) – `40` (energetic).
 pub const MOTION_IMPULSE_MAX_MAGNITUDE: f32 = 30.0;
 
-/// Viewport bounds — fixed 9:16 portrait arena for multiplayer
+/// Ground plane height (world units) of the fixed 9:16 portrait arena.
 pub const GROUND_Y: f32 = -0.5;
+/// Ceiling height (world units) of the fixed 9:16 portrait arena.
 pub const CEILING_Y: f32 = 6.0;
-pub const WALL_HALF_X: f32 = 4.5;   // 9 units wide total
-pub const WALL_HALF_Z: f32 = 8.0;   // 16 units deep total
+/// Arena half-width along X (world units): 9 units wide total. Consumed by the
+/// client for camera fit and wall rendering via [`crate::config::EngineConfig`].
+pub const WALL_HALF_X: f32 = 4.5;
+/// Arena half-depth along Z (world units): 16 units deep total. See [`WALL_HALF_X`].
+pub const WALL_HALF_Z: f32 = 8.0;
+/// Height of the arena's four side walls (world units).
 pub const WALL_HEIGHT: f32 = 8.0;
+/// Thickness of the arena's four side walls (world units).
 pub const WALL_THICKNESS: f32 = 0.5;
 pub const ESCAPE_RESET_HALF_X: f32 = WALL_HALF_X + 8.0;
 pub const ESCAPE_RESET_HALF_Z: f32 = WALL_HALF_Z + 8.0;

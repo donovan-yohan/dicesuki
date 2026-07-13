@@ -35,11 +35,22 @@ export class WasmRoom {
     tick(dt_ms: number): Array<any>;
 }
 
+/**
+ * The engine physics constants, as a JSON string, from the SAME
+ * `dicesuki-core` build that runs the room. This is the single-source
+ * surface for values the browser needs *before* a room exists (e.g. arena
+ * bounds for an initial camera fit); once a room is joined the identical
+ * config also rides on every `room_state` message. Never a copied literal
+ * (epic #111, Shared-ADR-007).
+ */
+export function engineConfigJson(): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_wasmroom_free: (a: number, b: number) => void;
+    readonly engineConfigJson: (a: number) => void;
     readonly wasmroom_handleMessage: (a: number, b: number, c: number) => number;
     readonly wasmroom_isSimulating: (a: number) => number;
     readonly wasmroom_new: (a: number, b: number, c: number) => number;
@@ -48,6 +59,7 @@ export interface InitOutput {
     readonly __wbindgen_export2: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export3: (a: number, b: number) => number;
     readonly __wbindgen_export4: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;

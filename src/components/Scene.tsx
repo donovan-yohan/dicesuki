@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
-import { MULTIPLAYER_ARENA_HALF_X, MULTIPLAYER_ARENA_HALF_Z } from '../config/physicsConfig'
+// Arena bounds come from the room's engine config (Shared-ADR-007), the single
+// source of truth in dicesuki-core — not a copied client constant.
+import { useEngineConfig } from '../config/engineConfig'
 
 // Contexts
 import { useDiceBackend } from '../contexts/DiceBackendContext'
@@ -302,9 +304,15 @@ function MultiplayerDiceRenderer({ renderDeviceTier }: { renderDeviceTier: Rende
  */
 function MultiplayerCamera() {
   const { camera, size } = useThree()
+  // Arena half-extents come from the room's engine config (Shared-ADR-007): the
+  // single source of truth in dicesuki-core, not a copied client constant.
+  const config = useEngineConfig()
+  const arenaHalfX = config?.arenaHalfX
+  const arenaHalfZ = config?.arenaHalfZ
 
   useEffect(() => {
     if (!('fov' in camera)) return // Only for PerspectiveCamera
+    if (arenaHalfX === undefined || arenaHalfZ === undefined) return // wait for config
     const perspCamera = camera as THREE.PerspectiveCamera
     const aspect = size.width / size.height
 
@@ -312,11 +320,11 @@ function MultiplayerCamera() {
     const halfFovV = fovRad / 2
 
     // Calculate height needed to see full arena depth (Z axis)
-    const heightForZ = MULTIPLAYER_ARENA_HALF_Z / Math.tan(halfFovV)
+    const heightForZ = arenaHalfZ / Math.tan(halfFovV)
 
     // Calculate height needed to see full arena width (X axis)
     const halfFovH = Math.atan(Math.tan(halfFovV) * aspect)
-    const heightForX = MULTIPLAYER_ARENA_HALF_X / Math.tan(halfFovH)
+    const heightForX = arenaHalfX / Math.tan(halfFovH)
 
     // Use the larger height (ensures both dimensions fit) + margin
     const cameraHeight = Math.max(heightForZ, heightForX) * 1.05 // 5% margin
@@ -324,7 +332,7 @@ function MultiplayerCamera() {
     perspCamera.position.set(0, cameraHeight, 0)
     perspCamera.lookAt(0, 0, 0)
     perspCamera.updateProjectionMatrix()
-  }, [camera, size.width, size.height])
+  }, [camera, size.width, size.height, arenaHalfX, arenaHalfZ])
 
   return null
 }

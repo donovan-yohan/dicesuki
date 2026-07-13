@@ -1367,6 +1367,7 @@ impl Room {
                 presentation: d.presentation.clone(),
             }).collect(),
             settings: self.settings.clone(),
+            config: crate::config::EngineConfig::current(),
         }
     }
 }

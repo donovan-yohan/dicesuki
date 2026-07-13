@@ -160,6 +160,11 @@ pub enum ServerMessage {
         players: Vec<PlayerInfo>,
         dice: Vec<DiceState>,
         settings: RoomSettings,
+        /// Engine physics constants the client needs at runtime (arena bounds,
+        /// motion clamp/rate-limit). Built from the single source of truth in
+        /// `crate::physics`; the client reads these instead of a copied literal
+        /// (epic #111, Shared-ADR-007).
+        config: crate::config::EngineConfig,
     },
     HostChanged {
         #[serde(rename = "hostId")]
@@ -363,6 +368,7 @@ mod tests {
             }],
             dice: vec![],
             settings: RoomSettings::default(),
+            config: crate::config::EngineConfig::current(),
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"type\":\"room_state\""));
@@ -371,6 +377,9 @@ mod tests {
         assert!(json.contains("\"hostId\":\"p1\""));
         assert!(json.contains("\"localPlayerId\":\"p1\""));
         assert!(json.contains("\"settings\":{\"version\":1}"));
+        // Engine config rides along so the client never copies an engine literal.
+        assert!(json.contains("\"config\":{"));
+        assert!(json.contains("\"arenaHalfX\":4.5"));
     }
 
     #[test]

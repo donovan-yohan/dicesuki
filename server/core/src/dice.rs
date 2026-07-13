@@ -2,7 +2,7 @@ use rapier3d::prelude::*;
 use nalgebra::{Vector3, UnitQuaternion};
 use rand::Rng;
 use crate::messages::DiceType;
-use crate::physics::{PhysicsWorld, EDGE_CHAMFER_RADIUS, DICE_RESTITUTION, DICE_FRICTION, ROLL_HORIZONTAL_MIN, ROLL_HORIZONTAL_MAX, ROLL_VERTICAL_MIN, ROLL_VERTICAL_MAX};
+use crate::physics::{PhysicsWorld, EDGE_CHAMFER_RADIUS, DICE_RESTITUTION, DICE_FRICTION, ROLL_HORIZONTAL_MIN, ROLL_HORIZONTAL_MAX, ROLL_VERTICAL_MIN, ROLL_VERTICAL_MAX, ROLL_TORQUE_MAGNITUDE};
 
 /// Face definition for face detection
 #[derive(Debug, Clone)]
@@ -73,14 +73,17 @@ pub fn generate_roll_impulse() -> Vector3<f32> {
     )
 }
 
-/// Generate random angular torque for realistic tumbling
+/// Generate random angular torque for realistic tumbling. Each axis gets an
+/// independent random impulse in `-ROLL_TORQUE_MAGNITUDE ..= ROLL_TORQUE_MAGNITUDE`
+/// — the single roll-feel torque truth (see [`ROLL_TORQUE_MAGNITUDE`]), applied
+/// identically for solo and multiplayer.
 #[must_use]
 pub fn generate_roll_torque() -> Vector3<f32> {
     let mut rng = rand::thread_rng();
     Vector3::new(
-        rng.gen_range(-5.0..5.0),
-        rng.gen_range(-5.0..5.0),
-        rng.gen_range(-5.0..5.0),
+        rng.gen_range(-ROLL_TORQUE_MAGNITUDE..ROLL_TORQUE_MAGNITUDE),
+        rng.gen_range(-ROLL_TORQUE_MAGNITUDE..ROLL_TORQUE_MAGNITUDE),
+        rng.gen_range(-ROLL_TORQUE_MAGNITUDE..ROLL_TORQUE_MAGNITUDE),
     )
 }
 

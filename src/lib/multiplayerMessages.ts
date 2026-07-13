@@ -326,6 +326,51 @@ export interface DieResult {
   presentation?: DicePresentationMetadata
 }
 
+/**
+ * Engine physics constants the client needs at runtime, delivered by the room
+ * (native server OR wasm worker) so the browser never keeps a copied literal.
+ *
+ * This is the client mirror of `dicesuki_core::config::EngineConfig` — the single
+ * source of truth defined once in `server/core/src/physics.rs` (epic #111,
+ * Shared-ADR-007). Fields are the subset the frontend consumes today (arena
+ * bounds for camera fit + wall rendering); the rest are carried for reference and
+ * forward-compatibility. Optional so a pre-config test message still type-checks.
+ */
+export interface EngineConfig {
+  gravity: number
+  diceRestitution: number
+  diceFriction: number
+  edgeChamferRadius: number
+  linearVelocityThreshold: number
+  angularVelocityThreshold: number
+  restDurationMs: number
+  knockWakeLinearSpeed: number
+  knockWakeAngularSpeed: number
+  rollHorizontalMin: number
+  rollHorizontalMax: number
+  rollVerticalMin: number
+  rollVerticalMax: number
+  rollTorqueMagnitude: number
+  throwVelocityScale: number
+  throwUpwardBoost: number
+  minThrowSpeed: number
+  maxThrowSpeed: number
+  maxDiceVelocity: number
+  dragFollowSpeed: number
+  dragDistanceBoost: number
+  dragDistanceThreshold: number
+  dragSpinFactor: number
+  dragRollFactor: number
+  motionImpulseMinIntervalMs: number
+  motionImpulseMaxMagnitude: number
+  arenaHalfX: number
+  arenaHalfZ: number
+  arenaGroundY: number
+  arenaCeilingY: number
+  arenaWallHeight: number
+  arenaWallThickness: number
+}
+
 export interface RoomStateMessage {
   type: 'room_state'
   roomId: string
@@ -339,6 +384,8 @@ export interface RoomStateMessage {
   players: PlayerInfo[]
   dice: DiceState[]
   settings: RoomSettings
+  /** Engine constants from the room's `dicesuki-core` build (Shared-ADR-007). */
+  config?: EngineConfig
 }
 
 export interface HostChangedMessage {

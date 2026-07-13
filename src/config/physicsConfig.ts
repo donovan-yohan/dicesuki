@@ -1,590 +1,235 @@
 /**
- * Physics Configuration
+ * Client-side interaction & feedback configuration.
  *
- * Central configuration for all physics-related parameters in the dice simulator.
- * Organized by category for easy tweaking and tuning of game feel.
+ * # No engine constants here (epic #111, Shared-ADR-007)
  *
- * General Guidelines:
- * - Lower values = more subtle/realistic behavior
- * - Higher values = more dramatic/arcade-like behavior
- * - Test changes incrementally (±10-20% adjustments recommended)
+ * The physics-*engine* constants (gravity, restitution/friction, roll impulse &
+ * torque, settle thresholds, arena bounds, drag/throw response) used to live here
+ * and be "manually kept in sync" with the Rust server (Shared-ADR-003). That
+ * regime is retired: those constants now live **once** in `dicesuki-core`
+ * (`server/core/src/physics.rs`), reach the native server and the in-browser wasm
+ * room from that single source, and — where the browser genuinely needs one at
+ * runtime (arena bounds for camera fit / wall rendering) — arrive via the room's
+ * `EngineConfig` (see `src/config/engineConfig.ts`), never a copied literal.
+ *
+ * What remains here is purely **client-side**: rendering/geometry detail, device-
+ * motion sensor scaling, haptic thresholds, and input/message throttles — none of
+ * which the physics engine consumes. (The deprecated client `<Physics>` path's
+ * leftover engine constants live, quarantined, in `legacyClientPhysics.ts` until
+ * issue #115 deletes them with the rest of client physics.)
+ *
+ * General guidance: lower = subtler, higher = more dramatic; tune in ±10–20% steps.
  */
-
-// ============================================================================
-// WORLD PHYSICS
-// ============================================================================
-
-/**
- * Standard gravity acceleration (m/s²)
- * - Earth standard: -9.81
- * - Lower: Floatier, slower falls (e.g., -5)
- * - Higher: Faster, snappier falls (e.g., -15)
- */
-export const GRAVITY = -9.81
-
-/**
- * Time step mode for physics simulation
- * - 'vary': Variable time step (adapts to frame rate, more stable)
- * - 'fixed': Fixed time step (predictable but can lag on slow devices)
- */
-export const TIME_STEP_MODE = 'vary' as const
-
-// ============================================================================
-// DICE MATERIAL PROPERTIES
-// ============================================================================
-
-/**
- * Restitution (bounciness) of dice
- * - Range: 0.0 (no bounce) to 1.0 (perfect bounce)
- * - 0.3: Realistic dice behavior (some bounce, settles quickly)
- * - 0.5: Bouncy, takes longer to settle
- * - 0.1: Dead bounce, settles very fast
- */
-export const DICE_RESTITUTION = 0.3
-
-/**
- * Friction coefficient for dice surfaces
- * - Range: 0.0 (ice-like) to 1.0+ (very grippy)
- * - 0.6: Realistic plastic dice on wood/felt
- * - 0.8: High friction, slower rolling
- * - 0.3: Low friction, slides more
- */
-export const DICE_FRICTION = 0.6
-
-/**
- * Edge chamfer radius for rounded edges
- * - Applies to D6 collider physics shape
- * - 0.08: Subtle rounding (realistic)
- * - 0.12-0.15: Very smooth edges (easier rolling)
- * - 0.04-0.06: Slight chamfer (sharper edges)
- */
-export const EDGE_CHAMFER_RADIUS = 0.08
-
-// ============================================================================
-// ROLL IMPULSE GENERATION
-// ============================================================================
-
-/**
- * Horizontal impulse strength range for button rolls
- * - Min/Max random range for XZ plane force
- * - Current: 1-3 units (decreased for spam clicking)
- * - Higher: Dice travels farther horizontally
- * - Lower: Dice stays more centered
- * - Users can spam click for harder rolls
- */
-export const ROLL_HORIZONTAL_MIN = 1
-export const ROLL_HORIZONTAL_MAX = 3
-
-/**
- * Upward impulse strength range for button rolls
- * - Min/Max random range for Y axis force
- * - Current: 3-5 units (decreased for spam clicking)
- * - Higher: Dice flies higher, more tumbling
- * - Lower: Lower trajectory, faster settling
- * - Users can spam click for harder rolls
- */
-export const ROLL_VERTICAL_MIN = 3
-export const ROLL_VERTICAL_MAX = 5
-
-// ============================================================================
-// FACE DETECTION & REST STATE
-// ============================================================================
-
-/**
- * Linear velocity threshold for rest detection (m/s)
- * - Dice must be below this speed to be considered "at rest"
- * - 0.01: Very strict (waits until completely still)
- * - 0.05: Lenient (registers result while still moving slightly)
- * - Recommended: 0.05 to avoid rounded dice micro-sliding forever in UI state
- */
-export const LINEAR_VELOCITY_THRESHOLD = 0.05
-
-/**
- * Angular velocity threshold for rest detection (rad/s)
- * - Dice must be rotating slower than this to be "at rest"
- * - 0.01: Very strict (no rotation allowed)
- * - 0.05: Lenient (slight wobble OK)
- * - Recommended: 0.05 for rounded-edge dice that can micro-wobble under Rapier
- */
-export const ANGULAR_VELOCITY_THRESHOLD = 0.05
-
-/**
- * Duration dice must remain still before result registers (ms)
- * - Prevents false positives from brief stops during rolling
- * - 1000ms: Safe, prevents premature reads
- * - 500ms: Faster results, slight risk of misreads
- * - 1500ms: Very conservative, slower gameplay
- */
-export const REST_DURATION_MS = 500
-
-/**
- * Linear speed (m/s) above which an already-settled die is treated as "knocked"
- * (multiplayer, server-authoritative) and must re-detect + rebroadcast its face.
- * - Set well above LINEAR_VELOCITY_THRESHOLD so settling micro-jitter never re-wakes
- *   a resting die, yet low enough that a real cross-player hit reliably re-triggers.
- * - 0.5: reliable knock detection without false positives (current)
- * - 1.0: only hard hits re-settle (risk of stale faces on soft nudges)
- * - 0.2: very sensitive (risk of jitter re-waking dice)
- * MUST stay in sync with `KNOCK_WAKE_LINEAR_SPEED` in `server/src/physics.rs` (Shared-ADR-003).
- */
-export const KNOCK_WAKE_LINEAR_SPEED = 0.5
-
-/**
- * Angular counterpart to KNOCK_WAKE_LINEAR_SPEED (rad/s): a settled die spun past this
- * by a collision must re-detect its face.
- * - 0.5: matches the linear threshold's sensitivity (current)
- * MUST stay in sync with `KNOCK_WAKE_ANGULAR_SPEED` in `server/src/physics.rs` (Shared-ADR-003).
- */
-export const KNOCK_WAKE_ANGULAR_SPEED = 0.5
-
-// ============================================================================
-// DRAG INTERACTION
-// ============================================================================
-
-/**
- * Base speed multiplier for drag following
- * - How aggressively dice follows cursor/touch
- * - 12: Responsive but smooth
- * - 20: Very snappy, immediate response
- * - 8: Slower, more laggy feel
- */
-export const DRAG_FOLLOW_SPEED = 12
-
-/**
- * Extra speed boost when dice is far from cursor
- * - Multiplier added to base speed at max distance
- * - 2.5: Moderate boost for overshooting
- * - 5.0: Aggressive catch-up, lots of overshoot
- * - 1.0: Minimal boost, less overshoot
- */
-export const DRAG_DISTANCE_BOOST = 2.5
-
-/**
- * Distance threshold where boost starts applying (world units)
- * - Below this distance: normal speed
- * - Above this distance: boost kicks in
- * - 3.0: Medium threshold
- * - 5.0: Only boosts when very far
- * - 1.0: Always boosting (even when close)
- */
-export const DRAG_DISTANCE_THRESHOLD = 3
-
-/**
- * How much drag movement induces rotational spin
- * - Torque impulse strength from cursor movement
- * - 0.33: Subtle spin from dragging
- * - 1.0: Dramatic tumbling while dragging
- * - 0.0: No spin induced (dice stays oriented)
- */
-export const DRAG_SPIN_FACTOR = 0.33
-
-/**
- * How much drag movement induces rolling motion towards cursor
- * - Creates "ball rolling on surface" effect
- * - 2.0: Natural rolling motion
- * - 4.0: Aggressive rolling
- * - 0.0: No rolling (only tumbling from DRAG_SPIN_FACTOR)
- */
-export const DRAG_ROLL_FACTOR = 0.5
-
-/**
- * Y-coordinate of invisible drag plane (world units)
- * - Height above table where dragging occurs
- * - 2.0: Above table, natural feel
- * - 3.0: Higher up, more dramatic
- * - 1.0: Closer to table surface
- */
-export const DRAG_PLANE_HEIGHT = 2
-
-// ============================================================================
-// THROW MECHANICS (Release from drag)
-// ============================================================================
-
-/**
- * Scale factor for throw velocity on release
- * - Multiplies calculated velocity from drag motion
- * - 0.8: Slightly dampened (realistic)
- * - 1.0: No dampening (1:1 motion)
- * - 0.5: Very dampened (gentle throws)
- */
-export const THROW_VELOCITY_SCALE = 0.8
-
-/**
- * Upward boost added to throw velocity (world units/s)
- * - Extra Y velocity for dynamic throws
- * - 3.0: Moderate upward arc
- * - 5.0: High arcing throws
- * - 0.0: Horizontal throws only
- */
-export const THROW_UPWARD_BOOST = 3
-
-/**
- * Minimum throw speed to register as throw (world units/s)
- * - Below this: drop in place, no throw
- * - 2.0: Easy to trigger throws
- * - 5.0: Requires fast swipe to throw
- */
-export const MIN_THROW_SPEED = 2
-
-/**
- * Maximum throw velocity cap (world units/s)
- * - Prevents unrealistic fast throws
- * - 20: Reasonable max speed
- * - 30: Allow very fast throws
- * - 15: Cap throws lower
- */
-export const MAX_THROW_SPEED = 20
-
-/**
- * Maximum linear velocity for dice (world units/s)
- * - Prevents dice from moving too fast and clipping through walls
- * - Applied continuously to all dice movement (roll impulses, drag, throws)
- * - 25: Safe limit prevents wall clipping while allowing dynamic rolls
- * - 30: Higher limit, more risk of clipping
- * - 20: Conservative limit, very safe
- */
-export const MAX_DICE_VELOCITY = 25
-
-/**
- * Number of position samples for velocity calculation
- * - More samples = smoother but less responsive
- * - 5: Good balance
- * - 10: Very smooth, might feel laggy
- * - 3: More immediate, less smooth
- */
-export const VELOCITY_HISTORY_SIZE = 5
-
-// ============================================================================
-// DEVICE MOTION (Tilt & Shake)
-// ============================================================================
-
-/**
- * Scale factor for device tilt to gravity force
- * - Multiplies tilt angle to physics gravity
- * - 15: Strong tilt response
- * - 25: Very responsive to tilting
- * - 5: Subtle tilt effect
- */
-export const GRAVITY_SCALE = 15
-
-/**
- * Scale factor for linear acceleration effects
- * - Pseudo-force when phone moves/accelerates
- * - 15: Moderate acceleration response
- * - 25: High sensitivity to phone movement
- * - 5: Low sensitivity
- */
-export const ACCELERATION_SCALE = 15
-
-/**
- * Minimum acceleration magnitude to detect shake (m/s²)
- * - Higher = harder to trigger shake
- * - 20: Moderate shake threshold
- * - 30: Hard shaking required
- * - 10: Light shaking triggers
- */
-export const SHAKE_THRESHOLD = 20
-
-/**
- * Duration shake state persists after detection (ms)
- * - Prevents rapid re-triggering
- * - 500ms: Half second cooldown
- * - 1000ms: Full second cooldown
- * - 250ms: Quick re-shake allowed
- */
-export const SHAKE_DURATION = 500
-
-/**
- * Minimum tilt to register as actual tilt (m/s²)
- * - Filters sensor noise when phone is still
- * - 2.0: Filters minor jitter
- * - 5.0: Requires significant tilt
- * - 0.5: Very sensitive to slight tilts
- */
-export const TILT_DEADZONE = 2.0
-
-/**
- * Minimum linear acceleration to register (m/s²)
- * - Filters hand tremors and minor movements
- * - 1.0: Filters small vibrations
- * - 3.0: Only large movements register
- * - 0.5: Very sensitive
- */
-export const ACCELERATION_DEADZONE = 1.0
-
-/**
- * Throttle UI updates from motion events (ms)
- * - Limits UI re-renders for performance
- * - 100ms: 10fps UI updates (good balance)
- * - 50ms: 20fps UI updates (smoother, more CPU)
- * - 200ms: 5fps UI updates (more performant)
- */
-export const UI_UPDATE_THROTTLE = 100
 
 // ============================================================================
 // GEOMETRY SETTINGS
 // ============================================================================
 
 /**
- * Subdivision detail level for polyhedral dice
- * - Higher = smoother edges but more vertices
- * - 1: Good balance (current setting)
- * - 2: Very smooth, more expensive
- * - 0: Sharp edges, cheapest
+ * Subdivision detail level for polyhedral dice meshes (render only).
+ * - `0` (current): sharp edges, cheapest. `1` balances; `2` is very smooth/expensive.
  */
 export const POLYHEDRON_DETAIL_LEVEL = 0
 
 // ============================================================================
-// HAPTIC FEEDBACK
+// DRAG INPUT (client raycast / velocity sampling)
 // ============================================================================
 
 /**
- * Minimum speed required to trigger haptic feedback (world units/s)
- * - Filters out stationary and slow-moving dice
- * - 0.5: Requires meaningful movement
- * - 1.0: Only fast collisions vibrate
- * - 0.2: More sensitive, vibrates on gentle bumps
+ * Y-coordinate (world units) of the invisible plane a pointer drag is raycast
+ * onto. This is a client input-mapping height, not the server drag-target height.
+ * - `2.0` (current): natural above-table feel. `3.0` higher; `1.0` near the table.
+ */
+export const DRAG_PLANE_HEIGHT = 2
+
+/**
+ * Number of recent position+timestamp samples the client keeps during a drag to
+ * compute the release throw velocity (sent to the room as `velocityHistory`).
+ * - `5` (current): good balance. `10` smoother but laggier; `3` more immediate.
+ */
+export const VELOCITY_HISTORY_SIZE = 5
+
+// ============================================================================
+// DEVICE MOTION (Tilt & Shake sensor scaling — client)
+// ============================================================================
+
+/**
+ * Scale factor mapping device tilt angle to an effective-gravity force.
+ * - `15` (current): strong tilt response. `25` very responsive; `5` subtle.
+ */
+export const GRAVITY_SCALE = 15
+
+/**
+ * Scale factor for the linear-acceleration pseudo-force when the phone moves.
+ * - `15` (current): moderate. `25` high sensitivity; `5` low.
+ */
+export const ACCELERATION_SCALE = 15
+
+/**
+ * Minimum acceleration magnitude (m/s²) to detect a shake.
+ * - `20` (current): moderate. `30` needs hard shaking; `10` triggers on light shakes.
+ */
+export const SHAKE_THRESHOLD = 20
+
+/**
+ * Duration (ms) the shake state persists after detection, preventing rapid retrigger.
+ * - `500` (current): half-second cooldown. `1000` full second; `250` quick re-shake.
+ */
+export const SHAKE_DURATION = 500
+
+/**
+ * Minimum tilt (m/s²) to register as an actual tilt, filtering sensor noise.
+ * - `2.0` (current): filters minor jitter. `5.0` needs significant tilt; `0.5` very sensitive.
+ */
+export const TILT_DEADZONE = 2.0
+
+/**
+ * Minimum linear acceleration (m/s²) to register, filtering hand tremors.
+ * - `1.0` (current): filters small vibrations. `3.0` only large moves; `0.5` very sensitive.
+ */
+export const ACCELERATION_DEADZONE = 1.0
+
+/**
+ * Throttle (ms) for UI updates driven by motion events (perf).
+ * - `100` (current): ~10fps UI. `50` smoother/more CPU; `200` more performant.
+ */
+export const UI_UPDATE_THROTTLE = 100
+
+// ============================================================================
+// HAPTIC FEEDBACK (client vibration mapping)
+// ============================================================================
+
+/**
+ * Minimum speed (units/s) required to trigger haptic feedback.
+ * - `1.0` (current): only meaningful movement. `0.2` gentler bumps; higher = only fast hits.
  */
 export const HAPTIC_MIN_SPEED = 1.0
 
 /**
- * Minimum velocity change to detect impact (world units/s)
- * - Measures deceleration from collision
- * - 0.5: Detects moderate impacts
- * - 1.0: Only strong impacts
- * - 0.3: More sensitive to gentle collisions
+ * Minimum velocity change (units/s) to detect an impact from deceleration.
+ * - `0.5` (current): moderate impacts. `1.0` only strong; `0.3` gentle collisions.
  */
 export const HAPTIC_MIN_VELOCITY_CHANGE = 0.5
 
 /**
- * Dot product threshold for impact detection
- * - Force must oppose velocity direction (negative dot product)
- * - -0.3: Force must be somewhat opposing motion
- * - -0.5: Force must strongly oppose motion (fewer triggers)
- * - -0.1: Allow more perpendicular forces (more triggers)
+ * Dot-product threshold: contact force must oppose velocity to count as an impact.
+ * - `-0.5` (current): force must strongly oppose motion. `-0.1` more triggers; `-0.3` middle.
  */
 export const HAPTIC_FORCE_DIRECTION_THRESHOLD = -0.5
 
 /**
- * Minimum force magnitude to trigger any haptic (physics units)
- * - Filters weak contacts and friction
- * - 5: Moderate threshold
- * - 10: Only significant impacts
- * - 2: More sensitive to light touches
+ * Minimum contact-force magnitude to trigger any haptic (filters friction/weak contacts).
+ * - `50` (current). Higher = only significant impacts; lower = more sensitive.
  */
 export const HAPTIC_MIN_FORCE = 50
 
 /**
- * Force threshold to bypass direction check (physics units)
- * - High-force impacts skip the dot product direction filter
- * - Allows wall collisions with positive dot products to vibrate
- * - 30: Good threshold for wall vs dice-to-dice distinction
- * - 40: More conservative, only very strong impacts bypass
- * - 20: More lenient, more impacts bypass direction check
+ * Force above which the direction check is bypassed (lets wall hits vibrate).
+ * - `30` (current): good wall vs dice-to-dice split. `40` conservative; `20` lenient.
  */
 export const HAPTIC_HIGH_FORCE_BYPASS = 30
 
 /**
- * Force threshold for light vibration (physics units)
- * - Below this: no vibration (too weak)
- * - At this level: light tap (10ms)
- * - 20: Gentle bumps
- * - 30: Moderate impacts only
- * - 10: Very sensitive
+ * Force threshold for a *light* vibration; below it, no vibration.
+ * - `75` (current). Higher = fewer light taps; lower = more sensitive.
  */
 export const HAPTIC_LIGHT_THRESHOLD = 75
 
 /**
- * Force threshold for medium vibration (physics units)
- * - Below this: light vibration
- * - At this level: medium bump (30ms)
- * - 50: Normal dice collisions
- * - 70: Harder impacts only
- * - 30: More frequent medium vibrations
+ * Force threshold for a *medium* vibration; below it, light.
+ * - `100` (current). Higher = harder impacts only; lower = more medium buzzes.
  */
 export const HAPTIC_MEDIUM_THRESHOLD = 100
 
 /**
- * Vibration duration for light impacts (milliseconds)
- * - Duration of haptic pulse for gentle collisions
- * - 10: Quick tap
- * - 15: Slightly longer
- * - 5: Very subtle
+ * Vibration duration (ms) for light impacts.
+ * - `1` (current): very subtle tap.
  */
 export const HAPTIC_LIGHT_DURATION = 1
 
 /**
- * Vibration duration for medium impacts (milliseconds)
- * - Duration of haptic pulse for normal collisions
- * - 30: Noticeable bump
- * - 40: Stronger feedback
- * - 20: More subtle
+ * Vibration duration (ms) for medium impacts.
+ * - `15` (current): noticeable bump.
  */
 export const HAPTIC_MEDIUM_DURATION = 15
 
 /**
- * Vibration duration for strong impacts (milliseconds)
- * - Duration of haptic pulse for hard collisions
- * - 50: Strong impact feel
- * - 70: Very strong feedback
- * - 40: Moderate strong feedback
+ * Vibration duration (ms) for strong impacts.
+ * - `75` (current): strong impact feel.
  */
 export const HAPTIC_STRONG_DURATION = 75
 
 /**
- * Minimum time between haptic triggers (milliseconds)
- * - Prevents overwhelming vibration spam
- * - 50: Up to 20 vibrations per second
- * - 100: Up to 10 vibrations per second (less spam)
- * - 30: More frequent feedback (may feel buzzy)
+ * Minimum time (ms) between haptic triggers, preventing vibration spam.
+ * - `100` (current): up to 10/s. `50` up to 20/s; `30` may feel buzzy.
  */
 export const HAPTIC_THROTTLE_MS = 100
 
 // ============================================================================
-// MULTIPLAYER COLLISION FEEDBACK
+// MULTIPLAYER COLLISION FEEDBACK (client haptic/SFX mapping)
 // ============================================================================
 
 /**
- * Impact speed (m/s) mapping a server `dice_knocked` event to a *medium* haptic/SFX
- * pulse. In multiplayer there is no client physics, so impact strength comes from the
- * server-reported `impactSpeed` rather than local force estimation.
- * - Below this: light feedback; at/above: medium.
- * - Derived from KNOCK_WAKE_LINEAR_SPEED (0.5) as the floor for "any knock".
- * - 3.0: a firm nudge (current)
+ * Impact speed (m/s) mapping a room `dice_knocked` event to a *medium* haptic/SFX
+ * pulse. In a room there is no client physics, so impact strength comes from the
+ * server-reported `impactSpeed`. Below this: light; at/above: medium.
+ * - `3.0` (current): a firm nudge.
  */
 export const COLLISION_IMPACT_MEDIUM_SPEED = 3.0
 
 /**
- * Impact speed (m/s) mapping a server `dice_knocked` event to a *strong* haptic/SFX
- * pulse — a hard cross-player smack.
- * - At/above this: strong feedback.
- * - 7.0: a solid throw connecting (current); MAX_THROW_SPEED is 20, so this is reachable.
+ * Impact speed (m/s) mapping a room `dice_knocked` event to a *strong* pulse — a
+ * hard cross-player smack. At/above this: strong.
+ * - `7.0` (current): a solid throw connecting.
  */
 export const COLLISION_IMPACT_STRONG_SPEED = 7.0
 
 // ============================================================================
-// MULTIPLAYER ARENA (Fixed 9:16 portrait)
+// MULTIPLAYER INPUT THROTTLES & MOTION SEND POLICY (client)
 // ============================================================================
 
 /**
- * Multiplayer arena half-width (X axis, world units)
- * - Total width: 9 units (MULTIPLAYER_ARENA_HALF_X * 2)
- * - Must match server/src/physics.rs WALL_HALF_X
- */
-export const MULTIPLAYER_ARENA_HALF_X = 4.5
-
-/**
- * Multiplayer arena half-depth (Z axis, world units)
- * - Total depth: 16 units (MULTIPLAYER_ARENA_HALF_Z * 2)
- * - Must match server/src/physics.rs WALL_HALF_Z
- */
-export const MULTIPLAYER_ARENA_HALF_Z = 8.0
-
-/**
- * Multiplayer drag message throttle interval (ms)
- * - How often to send drag_move messages to server
- * - 33ms ≈ 30Hz — balances responsiveness and bandwidth
+ * Interval (ms) at which the client sends `drag_move` messages during a drag.
+ * - `33` ≈ 30Hz (current): balances responsiveness and bandwidth.
  */
 export const MULTIPLAYER_DRAG_THROTTLE_MS = 33
 
-// ============================================================================
-// MULTIPLAYER MOTION CONTROL (Host physics-mode policy)
-// ============================================================================
-
 /**
- * Minimum interval (ms) between `motion_impulse` messages a client may send,
- * and the window the server uses to reject impulses that arrive too fast.
- * Rate-limits device-motion input so a shaking phone cannot flood the room.
- * - 50ms ≈ 20Hz — responsive shake without spamming the physics loop.
- * - Recommended range: 33ms (30Hz) – 100ms (10Hz).
- * - MUST match `MOTION_IMPULSE_MIN_INTERVAL_MS` in server/src/physics.rs (Shared-ADR-003).
+ * Minimum interval (ms) between `motion_impulse` messages the client sends. A
+ * client-side send throttle so a shaking phone does not flood the socket; the
+ * room's authoritative rate-limit (`motionImpulseMinIntervalMs`) is defined in
+ * `dicesuki-core` and delivered via `EngineConfig`.
+ * - `50` ≈ 20Hz (current). Recommended `33` (30Hz) – `100` (10Hz).
  */
 export const MOTION_IMPULSE_MIN_INTERVAL_MS = 50
 
 /**
- * Maximum magnitude (world units) of a single `motion_impulse` vector. The
- * server clamps every incoming impulse to this length so a malicious or
- * miscalibrated client cannot launch dice out of the arena.
- * - 30: a firm shake; comfortably above a roll impulse but below escape velocity.
- * - Recommended range: 15 (gentle) – 40 (energetic).
- * - MUST match `MOTION_IMPULSE_MAX_MAGNITUDE` in server/src/physics.rs (Shared-ADR-003).
+ * Magnitude (world units) the client clamps a shake impulse to before sending, so
+ * it never emits an impulse the room would scale down anyway. Mirrors the room's
+ * authoritative clamp (`motionImpulseMaxMagnitude`), which is defined once in
+ * `dicesuki-core` and delivered via `EngineConfig`.
+ * - `30` (current). Recommended `15` (gentle) – `40` (energetic).
  */
 export const MOTION_IMPULSE_MAX_MAGNITUDE = 30
 
 /**
- * Upward (world +Y) component of a shake-to-roll impulse in a room. On the
- * rising edge of a detected shake we send a mostly-upward "toss" so dice hop
- * off the table and tumble, mirroring the lively feel of the single-player
- * shake torque.
- * - Sized within the roll vertical range (ROLL_VERTICAL_MIN..MAX = 3..5).
- * - Recommended range: 3 (gentle hop) – 6 (energetic toss).
- * - 4: a firm toss that clears the tray without launching dice.
+ * Upward (world +Y) component of a shake-to-roll impulse. Mostly upward so dice
+ * hop off the table and tumble, mirroring the single-player shake feel.
+ * - `4` (current): a firm toss that clears the tray. Recommended `3`–`6`.
  */
 export const SHAKE_IMPULSE_VERTICAL = 4
 
 /**
- * Scale applied to the sensor's effective-gravity horizontal (X/Z) components
- * when mapping a shake to a world-space impulse. The effective-gravity vector
- * from `useDeviceMotion` already folds in tilt plus the shake pseudo-force
- * (ACCELERATION_SCALE), so a fraction of it gives horizontal energy in the
- * shake direction without exceeding the arena.
- * - Effective-gravity horizontals span roughly ±15 (tilt) and more mid-shake;
- *   0.3 keeps typical horizontal impulse near a roll (1..3) and relies on the
- *   server clamp (MOTION_IMPULSE_MAX_MAGNITUDE) for extreme shakes.
- * - Recommended range: 0.2 (subtle) – 0.5 (skittery).
+ * Scale applied to the sensor's effective-gravity horizontal (X/Z) components when
+ * mapping a shake to a world-space impulse, giving horizontal energy in the shake
+ * direction. - `0.3` (current). Recommended `0.2` (subtle) – `0.5` (skittery).
  */
 export const SHAKE_IMPULSE_HORIZONTAL_SCALE = 0.3
 
 /**
  * Peak random horizontal jitter (world units) added to each shake impulse so
- * identically-stacked dice scatter instead of translating in lockstep. Matches
- * the ±1.5 spread of the single-player shake torque.
- * - Applied as `(rng() - 0.5) * 2 * SHAKE_IMPULSE_JITTER` on X and Z.
- * - Recommended range: 0 (deterministic) – 3 (chaotic).
+ * identically-stacked dice scatter instead of translating in lockstep. Applied as
+ * `(rng() - 0.5) * 2 * SHAKE_IMPULSE_JITTER` on X and Z.
+ * - `1.5` (current). Recommended `0` (deterministic) – `3` (chaotic).
  */
 export const SHAKE_IMPULSE_JITTER = 1.5
-
-// ============================================================================
-// PRESETS (Quick configs for different feels)
-// ============================================================================
-
-/**
- * Preset configurations for different gameplay styles
- * Uncomment and export to use
- */
-
-// REALISTIC - Simulates real dice on felt table
-export const PRESET_REALISTIC = {
-  DICE_RESTITUTION: 0.25,
-  DICE_FRICTION: 0.7,
-  ROLL_HORIZONTAL_MIN: 1.5,
-  ROLL_HORIZONTAL_MAX: 3,
-  ROLL_VERTICAL_MIN: 4,
-  ROLL_VERTICAL_MAX: 6,
-  DRAG_FOLLOW_SPEED: 10,
-  REST_DURATION_MS: 1200,
-} as const
-
-// ARCADE - Fast, snappy, responsive
-export const PRESET_ARCADE = {
-  DICE_RESTITUTION: 0.4,
-  DICE_FRICTION: 0.5,
-  ROLL_HORIZONTAL_MIN: 3,
-  ROLL_HORIZONTAL_MAX: 6,
-  ROLL_VERTICAL_MIN: 6,
-  ROLL_VERTICAL_MAX: 10,
-  DRAG_FOLLOW_SPEED: 18,
-  REST_DURATION_MS: 800,
-} as const
-
-// GENTLE - Slow, careful, precise
-export const PRESET_GENTLE = {
-  DICE_RESTITUTION: 0.2,
-  DICE_FRICTION: 0.8,
-  ROLL_HORIZONTAL_MIN: 1,
-  ROLL_HORIZONTAL_MAX: 2.5,
-  ROLL_VERTICAL_MIN: 3,
-  ROLL_VERTICAL_MAX: 5,
-  DRAG_FOLLOW_SPEED: 8,
-  REST_DURATION_MS: 1500,
-} as const
