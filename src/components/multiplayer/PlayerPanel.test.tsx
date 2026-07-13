@@ -167,3 +167,86 @@ describe('PlayerPanel motion control', () => {
     expect(screen.getByRole('radio', { name: /whole room/i })).toBeDisabled()
   })
 })
+
+describe('PlayerPanel delegated roller', () => {
+  beforeEach(() => {
+    useMultiplayerStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useMultiplayerStore.getState().reset()
+  })
+
+  it('lets the host hand the dice to a player and sends it to the server', () => {
+    // Arrange
+    const send = vi.fn()
+    setRoster([player('a', 'Alice'), player('b', 'Bob')], {
+      localPlayerId: 'a',
+      hostId: 'a',
+    })
+    useMultiplayerStore.setState({
+      isHost: true,
+      roomSettings: { version: 1 },
+      socket: { send } as unknown as WebSocket,
+    })
+    renderPanel()
+
+    // Act: give Bob the dice.
+    fireEvent.click(screen.getByRole('button', { name: /make bob the roller/i }))
+
+    // Assert
+    expect(send).toHaveBeenCalledTimes(1)
+    const payload = JSON.parse(send.mock.calls[0][0])
+    expect(payload).toEqual({
+      type: 'update_settings',
+      settings: { version: 1, roller: 'b' },
+    })
+  })
+
+  it('shows who holds the dice and lets the host revoke', () => {
+    // Arrange: Bob is already the roller.
+    const send = vi.fn()
+    setRoster([player('a', 'Alice'), player('b', 'Bob')], {
+      localPlayerId: 'a',
+      hostId: 'a',
+    })
+    useMultiplayerStore.setState({
+      isHost: true,
+      roomSettings: { version: 1, roller: 'b' },
+      socket: { send } as unknown as WebSocket,
+    })
+    renderPanel()
+
+    // Assert: everyone sees a single "rolling" badge (on Bob's row).
+    expect(screen.getByLabelText('Rolling for the table')).toBeInTheDocument()
+
+    // Act: host revokes via Bob's now-active toggle.
+    fireEvent.click(screen.getByRole('button', { name: /revoke roller from bob/i }))
+
+    // Assert: revocation clears the roller field.
+    const payload = JSON.parse(send.mock.calls[0][0])
+    expect(payload).toEqual({ type: 'update_settings', settings: { version: 1 } })
+  })
+
+  it('shows the roller badge to non-hosts but no assignment controls', () => {
+    // Arrange: local player is not the host; Alice holds the dice.
+    setRoster([player('a', 'Alice'), player('b', 'Bob')], {
+      localPlayerId: 'b',
+      hostId: 'a',
+    })
+    useMultiplayerStore.setState({
+      isHost: false,
+      roomSettings: { version: 1, roller: 'a' },
+    })
+    renderPanel()
+
+    // Assert: the badge is visible, but non-hosts get no assign/revoke buttons.
+    expect(screen.getByLabelText('Rolling for the table')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /make .* the roller/i }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /revoke roller/i }),
+    ).not.toBeInTheDocument()
+  })
+})

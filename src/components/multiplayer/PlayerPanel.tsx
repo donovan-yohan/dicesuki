@@ -3,7 +3,7 @@ import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { connectionIndicator } from './connectionIndicator'
-import { getMotionControl } from '../../lib/multiplayerMessages'
+import { getMotionControl, getRoller } from '../../lib/multiplayerMessages'
 import {
   MOTION_CONTROL_LABELS,
   MOTION_CONTROL_DESCRIPTIONS,
@@ -25,10 +25,12 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
   const isHost = useMultiplayerStore((s) => s.isHost)
   const roomSettings = useMultiplayerStore((s) => s.roomSettings)
   const setMotionControl = useMultiplayerStore((s) => s.setMotionControl)
+  const setRoller = useMultiplayerStore((s) => s.setRoller)
   const reduceMotion = shouldReduceMotion()
   const { currentTheme } = useTheme()
   const colors = currentTheme.tokens.colors
   const motionControl = getMotionControl(roomSettings)
+  const rollerId = getRoller(roomSettings)
 
   // Host first, then the rest in join order.
   const playersArray = Array.from(players.values()).sort((a, b) => {
@@ -82,11 +84,13 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                 isLocal ? connectionStatus : 'connected',
               )
 
+              const isRollerPlayer = player.id === rollerId
+
               return (
+                <div key={player.id} className="flex items-center gap-1">
                 <button
-                  key={player.id}
                   onClick={() => setSelectedPlayerId(player.id)}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left w-full"
+                  className="flex flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left"
                   style={{
                     backgroundColor: isSelected
                       ? 'rgba(255,255,255,0.14)'
@@ -135,6 +139,15 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                         👑
                       </span>
                     )}
+                    {isRollerPlayer && (
+                      <span
+                        title="Rolling for the table"
+                        aria-label="Rolling for the table"
+                        role="img"
+                      >
+                        🎲
+                      </span>
+                    )}
                   </span>
 
                   {/* Connection state */}
@@ -152,6 +165,40 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                     }}
                   />
                 </button>
+                {isHost && (
+                  <button
+                    type="button"
+                    onClick={() => setRoller(isRollerPlayer ? null : player.id)}
+                    title={
+                      isRollerPlayer
+                        ? 'Revoke roller'
+                        : `Give ${player.displayName} the dice`
+                    }
+                    aria-label={
+                      isRollerPlayer
+                        ? `Revoke roller from ${player.displayName}`
+                        : `Make ${player.displayName} the roller`
+                    }
+                    aria-pressed={isRollerPlayer}
+                    data-testid={`roller-toggle-${player.id}`}
+                    className="flex items-center justify-center rounded-md"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      flexShrink: 0,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      backgroundColor: isRollerPlayer
+                        ? 'rgba(139, 92, 246, 0.55)'
+                        : 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      opacity: isRollerPlayer ? 1 : 0.75,
+                    }}
+                  >
+                    🎲
+                  </button>
+                )}
+                </div>
               )
             })}
           </div>
