@@ -117,6 +117,26 @@ export const ANGULAR_VELOCITY_THRESHOLD = 0.05
  */
 export const REST_DURATION_MS = 500
 
+/**
+ * Linear speed (m/s) above which an already-settled die is treated as "knocked"
+ * (multiplayer, server-authoritative) and must re-detect + rebroadcast its face.
+ * - Set well above LINEAR_VELOCITY_THRESHOLD so settling micro-jitter never re-wakes
+ *   a resting die, yet low enough that a real cross-player hit reliably re-triggers.
+ * - 0.5: reliable knock detection without false positives (current)
+ * - 1.0: only hard hits re-settle (risk of stale faces on soft nudges)
+ * - 0.2: very sensitive (risk of jitter re-waking dice)
+ * MUST stay in sync with `KNOCK_WAKE_LINEAR_SPEED` in `server/src/physics.rs` (Shared-ADR-003).
+ */
+export const KNOCK_WAKE_LINEAR_SPEED = 0.5
+
+/**
+ * Angular counterpart to KNOCK_WAKE_LINEAR_SPEED (rad/s): a settled die spun past this
+ * by a collision must re-detect its face.
+ * - 0.5: matches the linear threshold's sensitivity (current)
+ * MUST stay in sync with `KNOCK_WAKE_ANGULAR_SPEED` in `server/src/physics.rs` (Shared-ADR-003).
+ */
+export const KNOCK_WAKE_ANGULAR_SPEED = 0.5
+
 // ============================================================================
 // DRAG INTERACTION
 // ============================================================================
@@ -419,6 +439,28 @@ export const HAPTIC_STRONG_DURATION = 75
  * - 30: More frequent feedback (may feel buzzy)
  */
 export const HAPTIC_THROTTLE_MS = 100
+
+// ============================================================================
+// MULTIPLAYER COLLISION FEEDBACK
+// ============================================================================
+
+/**
+ * Impact speed (m/s) mapping a server `dice_knocked` event to a *medium* haptic/SFX
+ * pulse. In multiplayer there is no client physics, so impact strength comes from the
+ * server-reported `impactSpeed` rather than local force estimation.
+ * - Below this: light feedback; at/above: medium.
+ * - Derived from KNOCK_WAKE_LINEAR_SPEED (0.5) as the floor for "any knock".
+ * - 3.0: a firm nudge (current)
+ */
+export const COLLISION_IMPACT_MEDIUM_SPEED = 3.0
+
+/**
+ * Impact speed (m/s) mapping a server `dice_knocked` event to a *strong* haptic/SFX
+ * pulse — a hard cross-player smack.
+ * - At/above this: strong feedback.
+ * - 7.0: a solid throw connecting (current); MAX_THROW_SPEED is 20, so this is reachable.
+ */
+export const COLLISION_IMPACT_STRONG_SPEED = 7.0
 
 // ============================================================================
 // MULTIPLAYER ARENA (Fixed 9:16 portrait)

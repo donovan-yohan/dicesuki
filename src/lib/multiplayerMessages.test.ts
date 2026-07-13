@@ -4,6 +4,7 @@ import type {
   ServerMessage,
   RoomStateMessage,
   PhysicsSnapshotMessage,
+  DiceKnockedMessage,
 } from './multiplayerMessages'
 
 describe('multiplayerMessages', () => {
@@ -143,6 +144,16 @@ describe('multiplayerMessages', () => {
       const json = '{"type":"die_settled","diceId":"d1","faceValue":6,"position":[1,0,0],"rotation":[0,0,0,1]}'
       const msg: ServerMessage = JSON.parse(json)
       expect(msg.type).toBe('die_settled')
+    })
+
+    it('should parse a dice_knocked message', () => {
+      const json = '{"type":"dice_knocked","diceId":"d1","position":[1,0.5,2],"impactSpeed":6.4}'
+      const msg: ServerMessage = JSON.parse(json)
+      expect(msg.type).toBe('dice_knocked')
+      const knocked = msg as DiceKnockedMessage
+      expect(knocked.diceId).toBe('d1')
+      expect(knocked.position).toEqual([1, 0.5, 2])
+      expect(knocked.impactSpeed).toBeCloseTo(6.4)
     })
 
     it('should parse a roll_complete message', () => {

@@ -10,6 +10,7 @@ import type {
   VelocityHistoryEntry,
 } from '../lib/multiplayerMessages'
 import { getWsServerUrl } from '../lib/multiplayerServer'
+import { triggerCollisionFeedback } from '../lib/collisionFeedback'
 import { useDiceStore } from './useDiceStore'
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
@@ -342,6 +343,21 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             die.presentation,
           )
         }
+        break
+      }
+
+      case 'dice_knocked': {
+        // A settled die was bumped back into motion by a collision. Mark it rolling so
+        // the UI stops showing a stale settled value; the authoritative re-settled face
+        // arrives later via `die_settled`. Fire collision haptics/SFX at the impact.
+        const { dice } = get()
+        const die = dice.get(msg.diceId)
+        if (die) {
+          const newDice = new Map(dice)
+          newDice.set(msg.diceId, { ...die, isRolling: true, faceValue: null })
+          set({ dice: newDice })
+        }
+        triggerCollisionFeedback(msg.impactSpeed)
         break
       }
 
