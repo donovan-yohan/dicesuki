@@ -1,5 +1,32 @@
 use serde::{Deserialize, Serialize};
 
+/// Current room-settings schema version. Bumped when the shape of the known
+/// settings fields changes in a way clients need to reason about.
+pub const ROOM_SETTINGS_VERSION: u32 = 1;
+
+/// Versioned, forward-compatible room settings.
+///
+/// Only the host may mutate these. The struct carries an explicit `version`
+/// plus a flattened bag (`fields`) so future additions (physics mode, theme,
+/// delegated roller, ...) slot in without a protocol break: unknown/newer
+/// fields round-trip through `fields` and are ignored by older clients rather
+/// than causing a deserialization failure.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RoomSettings {
+    pub version: u32,
+    #[serde(flatten, default)]
+    pub fields: serde_json::Map<String, serde_json::Value>,
+}
+
+impl Default for RoomSettings {
+    fn default() -> Self {
+        Self {
+            version: ROOM_SETTINGS_VERSION,
+            fields: serde_json::Map::new(),
+        }
+    }
+}
+
 /// Messages sent from client to server
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
@@ -43,6 +70,9 @@ pub enum ClientMessage {
         die_id: String,
         #[serde(rename = "velocityHistory")]
         velocity_history: Vec<VelocityHistoryEntry>,
+    },
+    UpdateSettings {
+        settings: RoomSettings,
     },
 }
 
@@ -104,8 +134,18 @@ pub enum ServerMessage {
     RoomState {
         #[serde(rename = "roomId")]
         room_id: String,
+        #[serde(rename = "hostId")]
+        host_id: Option<String>,
         players: Vec<PlayerInfo>,
         dice: Vec<DiceState>,
+        settings: RoomSettings,
+    },
+    HostChanged {
+        #[serde(rename = "hostId")]
+        host_id: String,
+    },
+    SettingsUpdated {
+        settings: RoomSettings,
     },
     PlayerJoined {
         player: PlayerInfo,
@@ -256,17 +296,72 @@ mod tests {
     fn test_serialize_room_state() {
         let msg = ServerMessage::RoomState {
             room_id: "abc123".to_string(),
+            host_id: Some("p1".to_string()),
             players: vec![PlayerInfo {
                 id: "p1".to_string(),
                 display_name: "Gandalf".to_string(),
                 color: "#8B5CF6".to_string(),
             }],
             dice: vec![],
+            settings: RoomSettings::default(),
         };
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"type\":\"room_state\""));
         assert!(json.contains("\"roomId\":\"abc123\""));
         assert!(json.contains("\"displayName\":\"Gandalf\""));
+        assert!(json.contains("\"hostId\":\"p1\""));
+        assert!(json.contains("\"settings\":{\"version\":1}"));
+    }
+
+    #[test]
+    fn test_room_settings_default_is_versioned() {
+        let settings = RoomSettings::default();
+        assert_eq!(settings.version, ROOM_SETTINGS_VERSION);
+        assert!(settings.fields.is_empty());
+    }
+
+    #[test]
+    fn test_room_settings_unknown_field_round_trips() {
+        // A newer client sends a setting an older server doesn't know about.
+        // It must deserialize (not crash) and round-trip through `fields`.
+        let json = r#"{"version":2,"physicsMode":"arcade","theme":"neon"}"#;
+        let settings: RoomSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(settings.version, 2);
+        assert_eq!(settings.fields.get("physicsMode").unwrap(), "arcade");
+        assert_eq!(settings.fields.get("theme").unwrap(), "neon");
+
+        let reserialized = serde_json::to_string(&settings).unwrap();
+        assert!(reserialized.contains("\"physicsMode\":\"arcade\""));
+        assert!(reserialized.contains("\"theme\":\"neon\""));
+    }
+
+    #[test]
+    fn test_deserialize_update_settings() {
+        let json = r#"{"type":"update_settings","settings":{"version":1,"physicsMode":"gentle"}}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::UpdateSettings { settings } => {
+                assert_eq!(settings.version, 1);
+                assert_eq!(settings.fields.get("physicsMode").unwrap(), "gentle");
+            }
+            _ => panic!("Expected UpdateSettings message"),
+        }
+    }
+
+    #[test]
+    fn test_serialize_host_changed() {
+        let msg = ServerMessage::HostChanged { host_id: "p2".to_string() };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"host_changed\""));
+        assert!(json.contains("\"hostId\":\"p2\""));
+    }
+
+    #[test]
+    fn test_serialize_settings_updated() {
+        let msg = ServerMessage::SettingsUpdated { settings: RoomSettings::default() };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"settings_updated\""));
+        assert!(json.contains("\"version\":1"));
     }
 
     #[test]

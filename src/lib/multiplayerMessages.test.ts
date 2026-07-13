@@ -75,17 +75,52 @@ describe('multiplayerMessages', () => {
       const msg: ClientMessage = { type: 'leave' }
       expect(msg.type).toBe('leave')
     })
+
+    it('should type-check an update_settings message', () => {
+      const msg: ClientMessage = {
+        type: 'update_settings',
+        settings: { version: 1, physicsMode: 'arcade' },
+      }
+      expect(msg.type).toBe('update_settings')
+      if (msg.type === 'update_settings') {
+        expect(msg.settings.version).toBe(1)
+        expect(msg.settings.physicsMode).toBe('arcade')
+      }
+    })
   })
 
   describe('ServerMessage parsing', () => {
     it('should parse a room_state message', () => {
-      const json = '{"type":"room_state","roomId":"abc123","players":[{"id":"p1","displayName":"Gandalf","color":"#8B5CF6"}],"dice":[]}'
+      const json = '{"type":"room_state","roomId":"abc123","hostId":"p1","players":[{"id":"p1","displayName":"Gandalf","color":"#8B5CF6"}],"dice":[],"settings":{"version":1}}'
       const msg: ServerMessage = JSON.parse(json)
       expect(msg.type).toBe('room_state')
       const roomState = msg as RoomStateMessage
       expect(roomState.roomId).toBe('abc123')
+      expect(roomState.hostId).toBe('p1')
+      expect(roomState.settings.version).toBe(1)
       expect(roomState.players).toHaveLength(1)
       expect(roomState.players[0].displayName).toBe('Gandalf')
+    })
+
+    it('should parse a host_changed message', () => {
+      const json = '{"type":"host_changed","hostId":"p2"}'
+      const msg: ServerMessage = JSON.parse(json)
+      expect(msg.type).toBe('host_changed')
+      if (msg.type === 'host_changed') {
+        expect(msg.hostId).toBe('p2')
+      }
+    })
+
+    it('should parse a settings_updated message with unknown forward-compat fields', () => {
+      const json = '{"type":"settings_updated","settings":{"version":2,"physicsMode":"arcade","theme":"neon"}}'
+      const msg: ServerMessage = JSON.parse(json)
+      expect(msg.type).toBe('settings_updated')
+      if (msg.type === 'settings_updated') {
+        expect(msg.settings.version).toBe(2)
+        // Unknown/newer fields round-trip through the index signature.
+        expect(msg.settings.physicsMode).toBe('arcade')
+        expect(msg.settings.theme).toBe('neon')
+      }
     })
 
     it('should parse a physics_snapshot message', () => {
