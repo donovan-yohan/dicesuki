@@ -19,6 +19,11 @@ async fn main() {
     // are set — the server otherwise runs exactly as before.
     dicesuki_server::registry::spawn_if_enabled(room_manager.clone());
 
+    // Discord room-advertisement bot (issue #84): posts/updates a room-status
+    // embed with a Join link (issue #85) per public room in a configured channel.
+    // No-op unless DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID + APP_BASE_URL are set.
+    dicesuki_server::discord::spawn_if_enabled(room_manager.clone());
+
     // Spawn periodic room maintenance task (every 60s): expires reconnect grace
     // windows and cleans up stale empty rooms. A 60s cadence keeps grace expiry
     // (120s window) responsive without excessive lock churn.

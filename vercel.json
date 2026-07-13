@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/room/:id", "destination": "/api/og?id=:id" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
