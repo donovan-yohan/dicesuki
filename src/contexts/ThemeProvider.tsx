@@ -9,24 +9,38 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { defaultTheme, type Theme } from '../themes/tokens'
 import { THEME_REGISTRY, getThemeById } from '../themes/registry'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
+import { useSettingsStore } from '../store/useSettingsStore'
 import { ThemeContext, type ThemeContextValue } from './ThemeContext'
 
-const STORAGE_KEY_CURRENT_THEME = 'dicesuki-current-theme'
 const STORAGE_KEY_OWNED_THEMES = 'dicesuki-owned-themes'
 
 interface ThemeProviderProps {
   children: ReactNode
 }
 
+/** Resolve a theme id to a Theme, falling back to the default. */
+function resolveTheme(themeId: string): Theme {
+  return getThemeById(themeId) ?? defaultTheme
+}
+
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [currentTheme, setCurrentTheme] = useState<Theme>(() => {
-    const savedThemeId = localStorage.getItem(STORAGE_KEY_CURRENT_THEME)
-    if (savedThemeId) {
-      const theme = getThemeById(savedThemeId)
-      if (theme) return theme
-    }
-    return defaultTheme
-  })
+  // The selected theme id lives in useSettingsStore (issue #82) so it can be
+  // synced per-account. ThemeProvider stays the source of the resolved Theme
+  // object + owned-themes/purchase concerns, and reacts to remote sync updates.
+  const [currentTheme, setCurrentTheme] = useState<Theme>(() =>
+    resolveTheme(useSettingsStore.getState().themeId),
+  )
+
+  // Keep the resolved theme in step with the settings store — covers remote
+  // hydration on sign-in (theme applied without reload) and any other writer.
+  useEffect(() => {
+    return useSettingsStore.subscribe((state) => {
+      setCurrentTheme((prev) => {
+        const next = resolveTheme(state.themeId)
+        return next.id === prev.id ? prev : next
+      })
+    })
+  }, [])
 
   // For now, all themes are owned by default for development/testing
   const [ownedThemes, setOwnedThemes] = useState<string[]>(() => {
@@ -48,8 +62,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     // Keep dice synchronized in this effect. Deferring this update can let a
     // previous theme's async callback overwrite the newly selected theme.
     useDiceManagerStore.getState().updateDiceColors(currentTheme.id)
-
-    localStorage.setItem(STORAGE_KEY_CURRENT_THEME, currentTheme.id)
   }, [currentTheme])
 
   useEffect(() => {
@@ -79,6 +91,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       return false
     }
 
+    // Write to the settings store (persisted + synced); the subscription above
+    // updates the resolved currentTheme.
+    useSettingsStore.getState().setThemeId(theme.id)
     setCurrentTheme(theme)
     return true
   }

@@ -4,11 +4,13 @@ import { renderHook } from '@testing-library/react'
 import { useEnvironmentTheme } from './useEnvironmentTheme'
 import { ThemeProvider } from '../contexts/ThemeProvider'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
+import { useSettingsStore } from '../store/useSettingsStore'
 import { defaultTheme } from '../themes/tokens'
 import { getThemeById } from '../themes/registry'
 
-// The ThemeProvider seeds its personal theme from localStorage; pin it to the
-// fantasy theme so the "personal" fallback is distinguishable from the default.
+// The ThemeProvider resolves its personal theme from the settings store (#82);
+// pin it to the fantasy theme so the "personal" fallback is distinguishable
+// from the default.
 const PERSONAL_THEME_ID = 'fantasy-earth'
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -18,7 +20,7 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('useEnvironmentTheme', () => {
   beforeEach(() => {
     useMultiplayerStore.getState().reset()
-    localStorage.setItem('dicesuki-current-theme', PERSONAL_THEME_ID)
+    useSettingsStore.setState({ themeId: PERSONAL_THEME_ID })
   })
 
   it('uses the player personal theme when no room theme is set (solo / local)', () => {
