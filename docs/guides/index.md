@@ -12,5 +12,6 @@
 | [custom-dice.md](custom-dice.md) | GLB persistence, IndexedDB, blob URL lifecycle |
 | [saved-rolls.md](saved-rolls.md) | Bonus system, formula display, state lifecycle |
 | [server.md](server.md) | Rust/Axum gotchas, axum version, server architecture |
+| [deployment.md](deployment.md) | Playtest stack, Docker image, ports, env vars, WSL2/tunnels |
 | [tech-stack.md](tech-stack.md) | Dependencies, React 19, R3F versions |
 | [changelog.md](changelog.md) | Recent updates and changes |
