@@ -6,6 +6,7 @@ import { DeviceMotionProvider } from './contexts/DeviceMotionProvider'
 import { ThemeProvider } from './contexts/ThemeProvider'
 import { useInventoryStore } from './store/useInventoryStore'
 import { useAuthStore } from './store/useAuthStore'
+import { initDataSync } from './lib/dataSync'
 import DiceFaceTestHarness from './components/test/DiceFaceTestHarness'
 import { MultiplayerRoom } from './components/multiplayer/MultiplayerRoom'
 import { RoomBrowser } from './components/multiplayer/RoomBrowser'
@@ -70,6 +71,9 @@ function App() {
   // Bootstrap auth once at startup. When Supabase is unconfigured this resolves
   // straight to guest mode with no network calls and no console noise (#81).
   useEffect(() => {
+    // Wire per-account data sync to auth state first (no-op / guest-safe when
+    // Supabase is unconfigured), then bootstrap auth (#82, #81).
+    initDataSync()
     void useAuthStore.getState().initialize()
   }, [])
 
