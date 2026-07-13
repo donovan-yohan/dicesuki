@@ -35,6 +35,7 @@ docs/exec-plans/ → Execution plans (active + completed)
 | Haptic Feedback | [docs/guides/haptic-feedback.md](docs/guides/haptic-feedback.md) |
 | Custom Dice | [docs/guides/custom-dice.md](docs/guides/custom-dice.md) |
 | Saved Rolls | [docs/guides/saved-rolls.md](docs/guides/saved-rolls.md) |
+| Auth & Profiles | [docs/guides/auth.md](docs/guides/auth.md) |
 | Server (Rust) | [docs/guides/server.md](docs/guides/server.md) |
 | Tech Stack | [docs/guides/tech-stack.md](docs/guides/tech-stack.md) |
 | Changelog | [docs/guides/changelog.md](docs/guides/changelog.md) |

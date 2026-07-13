@@ -5,6 +5,7 @@ import { checkDeviceCompatibility } from './lib/deviceDetection'
 import { DeviceMotionProvider } from './contexts/DeviceMotionProvider'
 import { ThemeProvider } from './contexts/ThemeProvider'
 import { useInventoryStore } from './store/useInventoryStore'
+import { useAuthStore } from './store/useAuthStore'
 import DiceFaceTestHarness from './components/test/DiceFaceTestHarness'
 import { MultiplayerRoom } from './components/multiplayer/MultiplayerRoom'
 import { RoomBrowser } from './components/multiplayer/RoomBrowser'
@@ -66,6 +67,12 @@ function MainApp() {
 }
 
 function App() {
+  // Bootstrap auth once at startup. When Supabase is unconfigured this resolves
+  // straight to guest mode with no network calls and no console noise (#81).
+  useEffect(() => {
+    void useAuthStore.getState().initialize()
+  }, [])
+
   return (
     <BrowserRouter>
       <Routes>
