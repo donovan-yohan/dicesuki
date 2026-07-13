@@ -181,6 +181,16 @@ pub enum ServerMessage {
         position: [f32; 3],
         rotation: [f32; 4],
     },
+    /// A previously-settled die was bumped back into motion by a collision.
+    /// Purely a client feedback signal (haptics/SFX); the authoritative re-settled
+    /// face still arrives later via `DieSettled`.
+    DiceKnocked {
+        #[serde(rename = "diceId")]
+        dice_id: String,
+        position: [f32; 3],
+        #[serde(rename = "impactSpeed")]
+        impact_speed: f32,
+    },
     RollComplete {
         #[serde(rename = "playerId")]
         player_id: String,
@@ -377,6 +387,20 @@ mod tests {
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"p\":[1.0,2.0,3.0]"));
         assert!(json.contains("\"r\":[0.0,0.0,0.0,1.0]"));
+    }
+
+    #[test]
+    fn test_serialize_dice_knocked() {
+        let msg = ServerMessage::DiceKnocked {
+            dice_id: "d1".to_string(),
+            position: [1.0, 0.5, 2.0],
+            impact_speed: 6.5,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"dice_knocked\""));
+        assert!(json.contains("\"diceId\":\"d1\""));
+        assert!(json.contains("\"position\":[1.0,0.5,2.0]"));
+        assert!(json.contains("\"impactSpeed\":6.5"));
     }
 
     #[test]

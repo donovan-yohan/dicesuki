@@ -200,6 +200,18 @@ export interface DieSettledMessage {
   rotation: [number, number, number, number]
 }
 
+/**
+ * A previously-settled die was bumped back into motion by a collision.
+ * Purely a client feedback signal (haptics/SFX) fired at the impact site; the
+ * authoritative re-settled face still arrives later via a `die_settled` message.
+ */
+export interface DiceKnockedMessage {
+  type: 'dice_knocked'
+  diceId: string
+  position: [number, number, number]
+  impactSpeed: number
+}
+
 export interface RollCompleteMessage {
   type: 'roll_complete'
   playerId: string
@@ -224,5 +236,6 @@ export type ServerMessage =
   | RollStartedMessage
   | PhysicsSnapshotMessage
   | DieSettledMessage
+  | DiceKnockedMessage
   | RollCompleteMessage
   | ErrorMessage

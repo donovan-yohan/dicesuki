@@ -8,6 +8,17 @@ pub const EDGE_CHAMFER_RADIUS: f32 = 0.08;
 pub const LINEAR_VELOCITY_THRESHOLD: f32 = 0.01;
 pub const ANGULAR_VELOCITY_THRESHOLD: f32 = 0.01;
 pub const REST_DURATION_MS: u64 = 500;
+
+/// Linear speed (m/s) above which an already-settled die is treated as "knocked"
+/// and must re-detect + rebroadcast its face. Set well above
+/// `LINEAR_VELOCITY_THRESHOLD` so settling micro-jitter never re-wakes a resting die,
+/// but low enough that a genuine cross-player hit reliably re-triggers detection.
+/// Mirrors `KNOCK_WAKE_LINEAR_SPEED` in `src/config/physicsConfig.ts` (Shared-ADR-003).
+pub const KNOCK_WAKE_LINEAR_SPEED: f32 = 0.5;
+/// Angular counterpart to `KNOCK_WAKE_LINEAR_SPEED` (rad/s): a settled die spun past
+/// this by a collision must re-detect its face. Mirrors `KNOCK_WAKE_ANGULAR_SPEED` in
+/// `src/config/physicsConfig.ts` (Shared-ADR-003).
+pub const KNOCK_WAKE_ANGULAR_SPEED: f32 = 0.5;
 pub const ROLL_HORIZONTAL_MIN: f32 = 1.0;
 pub const ROLL_HORIZONTAL_MAX: f32 = 3.0;
 pub const ROLL_VERTICAL_MIN: f32 = 3.0;
@@ -182,6 +193,14 @@ impl PhysicsWorld {
     pub fn is_at_rest(&self, handle: RigidBodyHandle) -> bool {
         self.get_linear_speed(handle) < LINEAR_VELOCITY_THRESHOLD
             && self.get_angular_speed(handle) < ANGULAR_VELOCITY_THRESHOLD
+    }
+
+    /// Check if a body has been "knocked" — i.e. it is moving fast enough (linear or
+    /// angular) that a previously-settled die must re-detect and rebroadcast its face.
+    #[must_use]
+    pub fn is_knocked(&self, handle: RigidBodyHandle) -> bool {
+        self.get_linear_speed(handle) > KNOCK_WAKE_LINEAR_SPEED
+            || self.get_angular_speed(handle) > KNOCK_WAKE_ANGULAR_SPEED
     }
 
     /// Insert a pre-built rigid body and attach a collider to it.

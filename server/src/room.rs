@@ -22,6 +22,12 @@ use log::warn;
 /// A reference-counted, async-read/write-locked room handle.
 pub type SharedRoom = Arc<RwLock<Room>>;
 
+/// Result of a single [`Room::physics_tick`]: `(snapshot, newly_settled, knocked)`.
+/// - `snapshot`: the physics snapshot to broadcast this tick (if any dice qualify).
+/// - `newly_settled`: `(dice_id, face_value)` for dice that came to rest this tick.
+/// - `knocked`: `(dice_id, impact_speed)` for settled dice bumped back into motion this tick.
+pub type PhysicsTickResult = (Option<ServerMessage>, Vec<(String, u32)>, Vec<(String, f32)>);
+
 /// Typed error variants returned by Room methods.
 /// Use `.code()` when the wire-protocol error code string is needed (e.g. sending to client).
 #[derive(Debug, Clone, PartialEq)]
@@ -440,9 +446,12 @@ impl Room {
     }
 
     /// Step physics and check for settled dice.
-    /// Returns `(snapshot, newly_settled_dice)`. This is an ~20-line orchestrator;
-    /// each phase is handled by a dedicated private helper.
-    pub fn physics_tick(&mut self) -> (Option<ServerMessage>, Vec<(String, u32)>) {
+    /// Returns `(snapshot, newly_settled_dice, knocked_dice)`. This is an ~20-line
+    /// orchestrator; each phase is handled by a dedicated private helper.
+    ///
+    /// `knocked_dice` is a list of `(dice_id, impact_speed)` for already-settled dice
+    /// that were bumped back into motion this tick (e.g. by another player's throw).
+    pub fn physics_tick(&mut self) -> PhysicsTickResult {
         // 1. Apply drag forces to dice being dragged (before stepping physics)
         self.apply_drag_forces();
 
@@ -468,10 +477,15 @@ impl Room {
             }
         }
 
-        // 6. Build snapshot (snapshots sent every tick at 60Hz)
+        // 6. Re-wake settled dice that were knocked back into motion (cross-player hits).
+        //    Must run before check_settled_dice so a knocked die re-enters the settle
+        //    pipeline and rebroadcasts an authoritative `die_settled`.
+        let knocked = self.wake_knocked_dice();
+
+        // 7. Build snapshot (snapshots sent every tick at 60Hz)
         let snapshot = self.build_physics_snapshot();
 
-        // 7. Check for newly settled dice
+        // 8. Check for newly settled dice
         let newly_settled = self.check_settled_dice();
 
         // Stop simulating if nothing is active
@@ -480,7 +494,46 @@ impl Room {
             self.is_simulating = false;
         }
 
-        (snapshot, newly_settled)
+        (snapshot, newly_settled, knocked)
+    }
+
+    /// Re-wake already-settled dice that a collision has bumped back into motion.
+    ///
+    /// A settled die (`is_rolling == false`, `face_value.is_some()`, not being dragged)
+    /// whose body now exceeds the knock-wake velocity thresholds is cleared back to a
+    /// rolling state so `check_settled_dice` re-detects and rebroadcasts its face once it
+    /// comes to rest again. Ensures no stale settled value persists after a knock.
+    ///
+    /// Returns `(dice_id, impact_speed)` for each die re-woken this tick, where
+    /// `impact_speed` is the die's linear speed at the moment of the knock — used by the
+    /// simulation loop to size collision haptics/SFX on the client.
+    fn wake_knocked_dice(&mut self) -> Vec<(String, f32)> {
+        let knocked: Vec<(String, f32)> = self.dice.iter()
+            .filter_map(|(id, die)| {
+                // Only settled, non-dragged dice can be "knocked" back into motion.
+                if die.is_rolling || die.drag_state.is_some() || die.face_value.is_none() {
+                    return None;
+                }
+                let handle = die.body_handle?;
+                self.physics.is_knocked(handle)
+                    .then(|| (id.clone(), self.physics.get_linear_speed(handle)))
+            })
+            .collect();
+
+        for (id, _) in &knocked {
+            if let Some(die) = self.dice.get_mut(id) {
+                die.is_rolling = true;
+                die.face_value = None;
+                die.rest_start_tick = None;
+            }
+        }
+
+        // A knocked die is active again — keep the simulation loop alive so it re-settles.
+        if !knocked.is_empty() {
+            self.is_simulating = true;
+        }
+
+        knocked
     }
 
     /// Apply drag forces to all dice currently being dragged.
@@ -701,11 +754,23 @@ impl Room {
                     break;
                 }
 
-                let (snapshot, newly_settled) = room_guard.physics_tick();
+                let (snapshot, newly_settled, knocked) = room_guard.physics_tick();
 
                 // Broadcast physics snapshot
                 if let Some(snap) = snapshot {
                     room_guard.broadcast(&snap);
+                }
+
+                // Broadcast a collision signal for each settled die knocked back into
+                // motion this tick, so clients can fire haptics/SFX at the impact site.
+                for (dice_id, impact_speed) in &knocked {
+                    if let Some(die) = room_guard.dice.get(dice_id) {
+                        room_guard.broadcast(&ServerMessage::DiceKnocked {
+                            dice_id: dice_id.clone(),
+                            position: die.position,
+                            impact_speed: *impact_speed,
+                        });
+                    }
                 }
 
                 // Handle newly settled dice
@@ -1284,7 +1349,7 @@ mod tests {
         room.roll_player_dice("p1");
 
         // Snapshots are sent every tick at 60Hz
-        let (snap1, _) = room.physics_tick();
+        let (snap1, _, _) = room.physics_tick();
         assert!(snap1.is_some(), "Every tick should produce a snapshot at 60Hz");
     }
 
@@ -1323,7 +1388,7 @@ mod tests {
         // Narrower 9:16 arena causes more wall bounces, needs more settling time
         let mut settled = false;
         for _ in 0..1200 {
-            let (_, newly_settled) = room.physics_tick();
+            let (_, newly_settled, _) = room.physics_tick();
             if !newly_settled.is_empty() {
                 settled = true;
                 break;
@@ -1689,7 +1754,7 @@ mod tests {
         }
 
         // Step physics so position updates
-        let (snapshot, _) = room.physics_tick();
+        let (snapshot, _, _) = room.physics_tick();
 
         // d2 should be in the snapshot even though it's not rolling (it moved)
         assert!(snapshot.is_some(), "Snapshot should be generated for displaced die");
@@ -2002,5 +2067,131 @@ mod physics_tick_helper_tests {
         assert!((1..=6).contains(face_value), "D6 face value must be 1-6, got {face_value}");
         assert!(!room.dice.get("d1").unwrap().is_rolling, "Die should no longer be rolling");
         assert!(room.dice.get("d1").unwrap().face_value.is_some(), "Die should have a face value");
+    }
+
+    // ── wake_knocked_dice ────────────────────────────────────────────────────
+
+    /// Force a die into a "settled" state (not rolling, has a face value, not dragged).
+    fn mark_settled(room: &mut Room, die_id: &str, face: u32) {
+        let die = room.dice.get_mut(die_id).unwrap();
+        die.is_rolling = false;
+        die.face_value = Some(face);
+        die.rest_start_tick = None;
+        die.drag_state = None;
+    }
+
+    /// A settled die shoved above the knock threshold must be re-woken: rolling again,
+    /// face cleared, and reported with a positive impact speed.
+    #[test]
+    fn test_wake_knocked_dice_rewakes_settled_die() {
+        let mut room = make_room_with_player_and_die("d1");
+        mark_settled(&mut room, "d1", 4);
+
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        room.physics.set_linear_velocity(handle, [5.0, 0.0, 0.0]);
+
+        let knocked = room.wake_knocked_dice();
+
+        assert_eq!(knocked.len(), 1, "Knocked settled die should be reported");
+        assert_eq!(knocked[0].0, "d1");
+        assert!(knocked[0].1 > crate::physics::KNOCK_WAKE_LINEAR_SPEED, "Impact speed should reflect the hit");
+        let die = room.dice.get("d1").unwrap();
+        assert!(die.is_rolling, "Knocked die should be rolling again");
+        assert!(die.face_value.is_none(), "Knocked die's stale face must be cleared");
+        assert!(room.is_simulating, "Simulation must stay alive to re-settle the knocked die");
+    }
+
+    /// A settled die that is barely moving (below the knock threshold) must stay settled
+    /// so ordinary settling micro-jitter never wipes a valid face.
+    #[test]
+    fn test_wake_knocked_dice_ignores_slow_settled_die() {
+        let mut room = make_room_with_player_and_die("d1");
+        mark_settled(&mut room, "d1", 2);
+
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        room.physics.set_linear_velocity(handle, [crate::physics::KNOCK_WAKE_LINEAR_SPEED * 0.5, 0.0, 0.0]);
+
+        let knocked = room.wake_knocked_dice();
+
+        assert!(knocked.is_empty(), "Sub-threshold motion should not knock a settled die");
+        let die = room.dice.get("d1").unwrap();
+        assert!(!die.is_rolling, "Slow settled die should stay settled");
+        assert_eq!(die.face_value, Some(2), "Valid face must be preserved");
+    }
+
+    /// A die currently being dragged must never be treated as knocked — the drag system
+    /// owns its motion.
+    #[test]
+    fn test_wake_knocked_dice_ignores_dragged_die() {
+        let mut room = make_room_with_player_and_die("d1");
+        mark_settled(&mut room, "d1", 5);
+        let pos = room.dice.get("d1").unwrap().position;
+        room.start_drag("p1", "d1", [0.0; 3], [pos[0] + 4.0, 2.0, pos[2]]).unwrap();
+
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        room.physics.set_linear_velocity(handle, [6.0, 0.0, 0.0]);
+
+        let knocked = room.wake_knocked_dice();
+        assert!(knocked.is_empty(), "Dragged die should not be reported as knocked");
+    }
+
+    /// A fast-moving die that never had a settled face (still rolling from a throw) is not
+    /// a "knock" — only previously-settled dice re-enter the pipeline this way.
+    #[test]
+    fn test_wake_knocked_dice_ignores_rolling_die() {
+        let mut room = make_room_with_player_and_die("d1");
+        room.dice.get_mut("d1").unwrap().is_rolling = true;
+        room.dice.get_mut("d1").unwrap().face_value = None;
+
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        room.physics.set_linear_velocity(handle, [8.0, 0.0, 0.0]);
+
+        let knocked = room.wake_knocked_dice();
+        assert!(knocked.is_empty(), "An already-rolling die is not a fresh knock");
+    }
+
+    /// End-to-end: a settled die that is knocked must re-settle and rebroadcast a fresh
+    /// authoritative face via the normal `check_settled_dice` pipeline (no stale value).
+    #[test]
+    fn test_knocked_die_resettles_and_rebroadcasts_face() {
+        let mut room = make_room_with_player_and_die("d1");
+
+        // 1. Roll and let the die settle naturally to get an authoritative face.
+        room.roll_player_dice("p1");
+        let mut first_face = None;
+        for _ in 0..1200 {
+            let (_, newly_settled, _) = room.physics_tick();
+            if let Some((_, face)) = newly_settled.iter().find(|(id, _)| id == "d1") {
+                first_face = Some(*face);
+                break;
+            }
+        }
+        assert!(first_face.is_some(), "Die should settle with an initial face");
+        assert!(!room.dice.get("d1").unwrap().is_rolling, "Die is settled before the knock");
+
+        // 2. Knock it: apply a strong sideways+spin impulse, as another player's throw would.
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        room.physics.set_linear_velocity(handle, [7.0, 1.0, 0.0]);
+        room.physics.set_angular_velocity(handle, [4.0, 4.0, 4.0]);
+
+        // 3. One tick re-wakes it and reports the knock.
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.iter().any(|(id, _)| id == "d1"), "Knock should be reported for feedback");
+        assert!(room.dice.get("d1").unwrap().is_rolling, "Knocked die is rolling again");
+        assert!(room.dice.get("d1").unwrap().face_value.is_none(), "Stale face cleared after knock");
+
+        // 4. It must re-settle and rebroadcast a fresh face value.
+        let mut resettled_face = None;
+        for _ in 0..1200 {
+            let (_, newly_settled, _) = room.physics_tick();
+            if let Some((_, face)) = newly_settled.iter().find(|(id, _)| id == "d1") {
+                resettled_face = Some(*face);
+                break;
+            }
+        }
+        assert!(resettled_face.is_some(), "Knocked die must re-settle and rebroadcast a face");
+        let face = resettled_face.unwrap();
+        assert!((1..=6).contains(&face), "Rebroadcast D6 face must be 1-6, got {face}");
+        assert_eq!(room.dice.get("d1").unwrap().face_value, Some(face), "Authoritative face is updated");
     }
 }

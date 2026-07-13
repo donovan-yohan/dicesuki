@@ -333,6 +333,47 @@ describe('useMultiplayerStore', () => {
       expect(die?.position).toEqual([1, 0, 0.5])
     })
 
+    it('should handle dice_knocked message by re-rolling the die and clearing its face', () => {
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'dice_spawned',
+        ownerId: 'p1',
+        dice: [
+          { id: 'd1', ownerId: 'p1', diceType: 'd6', position: [0, 2, 0], rotation: [0, 0, 0, 1] },
+        ],
+      })
+      // Settle it first so it has a stale face value.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'die_settled',
+        diceId: 'd1',
+        faceValue: 4,
+        position: [1, 0, 0.5],
+        rotation: [0, 0, 0, 1],
+      })
+      expect(useMultiplayerStore.getState().dice.get('d1')?.faceValue).toBe(4)
+
+      // A knock must clear the stale face and mark the die rolling again.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'dice_knocked',
+        diceId: 'd1',
+        position: [1, 0, 0.5],
+        impactSpeed: 6.5,
+      })
+
+      const die = useMultiplayerStore.getState().dice.get('d1')
+      expect(die?.isRolling).toBe(true)
+      expect(die?.faceValue).toBeNull()
+    })
+
+    it('should handle dice_knocked for an unknown die without crashing', () => {
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'dice_knocked',
+        diceId: 'ghost',
+        position: [0, 0, 0],
+        impactSpeed: 5,
+      })
+      expect(useMultiplayerStore.getState().dice.size).toBe(0)
+    })
+
     it('should handle dice_removed message', () => {
       useMultiplayerStore.getState().handleServerMessage({
         type: 'dice_spawned',
