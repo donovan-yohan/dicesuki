@@ -50,6 +50,8 @@ import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
 import { PlayerPanel } from './multiplayer/PlayerPanel'
 import { RoomNotices } from './multiplayer/RoomNotices'
+import { MultiplayerMotionController } from './multiplayer/MultiplayerMotionController'
+import { RoomMotionHint } from './multiplayer/RoomMotionHint'
 import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
 import type { TableDieSummary } from '../types/tableDice'
 
@@ -776,6 +778,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
             <MultiplayerCamera />
             <MultiplayerArena />
             <MultiplayerDiceRenderer renderDeviceTier={renderDeviceTier} />
+            <MultiplayerMotionController />
           </>
         ) : (
           <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
@@ -1009,6 +1012,7 @@ function SceneContent({ rollCallbackRef }: { rollCallbackRef: { current: () => v
         <>
           <PlayerPanel isOpen={isPlayerPanelOpen} />
           <RoomNotices />
+          <RoomMotionHint />
         </>
       )}
 
