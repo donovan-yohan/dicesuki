@@ -4,8 +4,7 @@ use log::{error, info, warn};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::messages::{ClientMessage, DiceType, PlayerInfo, ServerMessage};
-use crate::player::Player;
+use crate::messages::{ClientMessage, PlayerInfo, ServerMessage};
 use crate::room::RoomError;
 use crate::room_manager::SharedRoom;
 
@@ -38,8 +37,11 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
         }
     });
 
-    let player_id = Uuid::new_v4().to_string();
+    // Candidate id for a fresh seat; on graceful rejoin the room hands back the
+    // reclaimed player's existing id, which we adopt for the rest of the loop.
+    let mut player_id = Uuid::new_v4().to_string();
     let mut is_joined = false;
+    let mut intentional_leave = false;
 
     // Read loop: process incoming messages
     while let Some(msg_result) = ws_receiver.next().await {
@@ -69,6 +71,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
             ClientMessage::Join {
                 display_name,
                 color,
+                reconnect_token,
                 ..
             } => {
                 if is_joined {
@@ -87,38 +90,49 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                     continue;
                 }
 
-                let player = Player::new(
+                let mut room_guard = room.write().await;
+
+                match room_guard.join(
                     player_id.clone(),
                     display_name.clone(),
                     color.clone(),
                     tx.clone(),
-                );
-
-                let mut room_guard = room.write().await;
-
-                match room_guard.add_player(player) {
-                    Ok(()) => {
+                    reconnect_token.as_deref(),
+                ) {
+                    Ok(result) => {
                         is_joined = true;
-                        info!(
-                            "Player '{}' ({}) joined room {}",
-                            display_name, player_id, room_guard.id
-                        );
+                        // Adopt the effective id (reclaimed id on rejoin).
+                        player_id = result.player_id.clone();
+                        if result.reconnected {
+                            info!(
+                                "Player '{}' ({}) rejoined room {} within grace window",
+                                display_name, player_id, room_guard.id
+                            );
+                        } else {
+                            info!(
+                                "Player '{}' ({}) joined room {}",
+                                display_name, player_id, room_guard.id
+                            );
+                        }
 
-                        // Send full room state to the new player
-                        let room_state = room_guard.build_room_state();
+                        // Send full room state to this player (echoes their id).
+                        let room_state = room_guard.build_room_state(&player_id);
                         let _ = tx.send(room_state);
 
-                        // Notify other players
-                        room_guard.broadcast_except(
-                            &ServerMessage::PlayerJoined {
-                                player: PlayerInfo {
-                                    id: player_id.clone(),
-                                    display_name,
-                                    color,
+                        // A reclaimed seat is already known to other clients, so
+                        // only announce genuinely new players.
+                        if !result.reconnected {
+                            room_guard.broadcast_except(
+                                &ServerMessage::PlayerJoined {
+                                    player: PlayerInfo {
+                                        id: player_id.clone(),
+                                        display_name,
+                                        color,
+                                    },
                                 },
-                            },
-                            &player_id,
-                        );
+                                &player_id,
+                            );
+                        }
                     }
                     Err(err) => {
                         let message = match err {
@@ -285,6 +299,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
             }
 
             ClientMessage::Leave if is_joined => {
+                intentional_leave = true;
                 break;
             }
 
@@ -297,34 +312,50 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
         }
     }
 
-    // Player disconnected - clean up
+    // Connection ended. An explicit Leave frees the seat immediately; an
+    // unexpected drop (socket close/error) holds the seat and dice for the
+    // reconnect grace window so the player can rejoin with the same identity.
     if is_joined {
         let mut room_guard = room.write().await;
-        let previous_host = room_guard.host_id.clone();
-        let removed_dice = room_guard.remove_player(&player_id);
-        info!(
-            "Player {} left room {} (removed {} dice)",
-            player_id,
-            room_guard.id,
-            removed_dice.len()
-        );
 
-        if !removed_dice.is_empty() {
-            room_guard.broadcast(&ServerMessage::DiceRemoved {
-                dice_ids: removed_dice,
+        if intentional_leave {
+            let previous_host = room_guard.host_id.clone();
+            let removed_dice = room_guard.remove_player(&player_id);
+            info!(
+                "Player {} left room {} (removed {} dice)",
+                player_id,
+                room_guard.id,
+                removed_dice.len()
+            );
+
+            if !removed_dice.is_empty() {
+                room_guard.broadcast(&ServerMessage::DiceRemoved {
+                    dice_ids: removed_dice,
+                });
+            }
+            room_guard.broadcast(&ServerMessage::PlayerLeft {
+                player_id: player_id.clone(),
             });
-        }
-        room_guard.broadcast(&ServerMessage::PlayerLeft {
-            player_id: player_id.clone(),
-        });
 
-        // If the departing player was the host, the room transferred host to the
-        // oldest remaining player. Notify everyone so clients can re-gate host UI.
-        // (Dedicated message, not a full room_state, to avoid clobbering each
-        // client's derived localPlayerId.)
-        let new_host = room_guard.host_id.clone();
-        if new_host != previous_host {
-            if let Some(host_id) = new_host {
+            // If the departing host handed off, notify everyone so clients can
+            // re-gate host UI. (Dedicated message, not a full room_state, to
+            // avoid clobbering each client's derived localPlayerId.)
+            let new_host = room_guard.host_id.clone();
+            if new_host != previous_host {
+                if let Some(host_id) = new_host {
+                    info!("Host of room {} transferred to {}", room_guard.id, host_id);
+                    room_guard.broadcast(&ServerMessage::HostChanged { host_id });
+                }
+            }
+        } else {
+            // Hold the seat during the grace window. Dice and identity persist;
+            // only host may transfer (to an oldest connected player).
+            let outcome = room_guard.mark_disconnected(&player_id);
+            info!(
+                "Player {} disconnected from room {} (seat held for {}s grace)",
+                player_id, room_guard.id, crate::room::RECONNECT_GRACE_SECS
+            );
+            if let Some(host_id) = outcome.new_host {
                 info!("Host of room {} transferred to {}", room_guard.id, host_id);
                 room_guard.broadcast(&ServerMessage::HostChanged { host_id });
             }

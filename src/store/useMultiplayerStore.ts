@@ -45,6 +45,18 @@ interface MultiplayerState {
   roomId: string | null
   players: Map<string, PlayerInfo>
   localPlayerId: string | null
+
+  // Reconnect / lifecycle
+  /** Stable token that lets the server reclaim this seat on a graceful rejoin. */
+  reconnectToken: string | null
+  /** Number of consecutive auto-reconnect attempts since the last live socket. */
+  reconnectAttempts: number
+  /** True when the client itself asked to leave (suppresses auto-reconnect). */
+  intentionalDisconnect: boolean
+  /** Parameters of the last join, replayed by auto-reconnect. */
+  lastJoin: { roomId: string; displayName: string; color: string; serverUrl: string; token: string } | null
+  /** User-facing notice shown when a room went away (idle cleanup / unreachable). */
+  roomClosedNotice: string | null
   // Host role & settings
   hostId: string | null
   isHost: boolean
@@ -95,6 +107,11 @@ const createInitialState = () => ({
   roomId: null as string | null,
   players: new Map<string, PlayerInfo>(),
   localPlayerId: null as string | null,
+  reconnectToken: null as string | null,
+  reconnectAttempts: 0,
+  intentionalDisconnect: false,
+  lastJoin: null as MultiplayerState['lastJoin'],
+  roomClosedNotice: null as string | null,
   hostId: null as string | null,
   isHost: false,
   roomSettings: { version: 1 } as RoomSettings,
@@ -106,80 +123,174 @@ const createInitialState = () => ({
   parseErrorCount: 0,
 })
 
+type StoreSet = (partial: Partial<MultiplayerState>) => void
+type StoreGet = () => MultiplayerState
+
+const MAX_RECONNECT_ATTEMPTS = 5
+const RECONNECT_BASE_DELAY_MS = 1000
+const RECONNECT_MAX_DELAY_MS = 8000
+const ROOM_CLOSED_MESSAGE =
+  'Lost connection to this room. It may have been closed after a period of inactivity. Rejoin to start again.'
+
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearReconnectTimer() {
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+}
+
+/**
+ * Return a stable per-room reconnect token, persisted in sessionStorage so a
+ * page reload within the grace window still reclaims the same seat. Falls back
+ * to an ephemeral token when sessionStorage is unavailable (SSR/tests).
+ */
+function getOrCreateReconnectToken(roomId: string): string {
+  const key = `dicesuki:reconnectToken:${roomId}`
+  const mint = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+  try {
+    const existing = sessionStorage.getItem(key)
+    if (existing) return existing
+    const token = mint()
+    sessionStorage.setItem(key, token)
+    return token
+  } catch {
+    return mint()
+  }
+}
+
+/**
+ * Open a WebSocket and wire its lifecycle handlers, including auto-reconnect on
+ * an unexpected drop. Shared by the user-initiated `connect` and the backoff
+ * reconnect loop.
+ */
+function establishConnection(
+  set: StoreSet,
+  get: StoreGet,
+  params: { roomId: string; displayName: string; color: string; serverUrl: string; token: string },
+) {
+  const { roomId, displayName, color, serverUrl, token } = params
+  const existingSocket = get().socket
+  if (existingSocket) {
+    existingSocket.close()
+  }
+
+  const socket = new WebSocket(`${serverUrl}/ws/${roomId}`)
+  set({ socket, connectionStatus: 'connecting', serverUrl, parseErrorCount: 0 })
+
+  socket.onopen = () => {
+    if (get().socket !== socket) {
+      socket.close()
+      return
+    }
+    // A live connection resets the retry budget and clears prior notices.
+    set({
+      socket,
+      connectionStatus: 'connected',
+      roomId,
+      reconnectAttempts: 0,
+      connectionError: null,
+      roomClosedNotice: null,
+    })
+    const joinMsg: ClientMessage = { type: 'join', roomId, displayName, color, reconnectToken: token }
+    socket.send(JSON.stringify(joinMsg))
+  }
+
+  socket.onmessage = (event) => {
+    try {
+      const msg: ServerMessage = JSON.parse(event.data)
+      get().handleServerMessage(msg)
+      if (get().parseErrorCount !== 0) {
+        set({ parseErrorCount: 0 })
+      }
+    } catch (e) {
+      console.error('[Multiplayer] Failed to parse server message:', e)
+      const newCount = get().parseErrorCount + 1
+      if (newCount > 3) {
+        set({ parseErrorCount: newCount, connectionStatus: 'error' })
+      } else {
+        set({ parseErrorCount: newCount })
+      }
+    }
+  }
+
+  socket.onerror = (error) => {
+    // Log only — the following `onclose` drives state and reconnection so we
+    // don't tear down the socket mid-retry.
+    console.error('[Multiplayer] WebSocket error:', error)
+  }
+
+  socket.onclose = () => {
+    if (get().socket !== socket) return
+
+    const { intentionalDisconnect, reconnectAttempts, lastJoin } = get()
+    if (intentionalDisconnect) {
+      set({ connectionStatus: 'disconnected', socket: null })
+      return
+    }
+
+    // Exhausted retries (or no join to replay): surface an understandable notice
+    // instead of failing silently.
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS || !lastJoin) {
+      set({
+        connectionStatus: 'disconnected',
+        socket: null,
+        roomClosedNotice: ROOM_CLOSED_MESSAGE,
+      })
+      return
+    }
+
+    const attempt = reconnectAttempts + 1
+    const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** (attempt - 1), RECONNECT_MAX_DELAY_MS)
+    set({ connectionStatus: 'connecting', socket: null, reconnectAttempts: attempt })
+    clearReconnectTimer()
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      const replay = get().lastJoin
+      if (replay && !get().intentionalDisconnect) {
+        establishConnection(set, get, replay)
+      }
+    }, delay)
+  }
+}
+
 export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   ...createInitialState(),
 
   connect: (roomId: string, displayName: string, color: string, serverUrlOverride?: string) => {
-    const { serverUrl, socket: existingSocket } = get()
-    if (existingSocket) {
-      existingSocket.close()
-    }
+    clearReconnectTimer()
+    const activeServerUrl = serverUrlOverride || get().serverUrl
+    const token = getOrCreateReconnectToken(roomId)
 
-    const activeServerUrl = serverUrlOverride || serverUrl
-
-    const wsUrl = `${activeServerUrl}/ws/${roomId}`
-    const socket = new WebSocket(wsUrl)
+    // Fresh, user-initiated connection: clear any prior notice and reset the
+    // reconnect budget. The token comes from sessionStorage so a reconnect (or
+    // reload) reclaims the same seat within the grace window.
     set({
-      socket,
-      connectionStatus: 'connecting',
       connectionError: null,
-      serverUrl: activeServerUrl,
-      parseErrorCount: 0,
+      roomClosedNotice: null,
+      intentionalDisconnect: false,
+      reconnectAttempts: 0,
+      reconnectToken: token,
+      lastJoin: { roomId, displayName, color, serverUrl: activeServerUrl, token },
     })
 
-    socket.onopen = () => {
-      if (get().socket !== socket) {
-        socket.close()
-        return
-      }
-      set({ socket, connectionStatus: 'connected', roomId })
-      const joinMsg: ClientMessage = {
-        type: 'join',
-        roomId,
-        displayName,
-        color,
-      }
-      socket.send(JSON.stringify(joinMsg))
-    }
-
-    socket.onmessage = (event) => {
-      try {
-        const msg: ServerMessage = JSON.parse(event.data)
-        get().handleServerMessage(msg)
-        if (get().parseErrorCount !== 0) {
-          set({ parseErrorCount: 0 })
-        }
-      } catch (e) {
-        console.error('[Multiplayer] Failed to parse server message:', e)
-        const newCount = get().parseErrorCount + 1
-        if (newCount > 3) {
-          set({ parseErrorCount: newCount, connectionStatus: 'error' })
-        } else {
-          set({ parseErrorCount: newCount })
-        }
-      }
-    }
-
-    socket.onclose = () => {
-      if (get().socket === socket) {
-        set({ connectionStatus: 'disconnected', socket: null })
-      }
-    }
-
-    socket.onerror = (error) => {
-      console.error('[Multiplayer] WebSocket error:', error)
-      if (get().socket === socket) {
-        set({
-          connectionStatus: 'disconnected',
-          connectionError: `Could not connect to ${activeServerUrl}. Verify the room server is running and this room still exists.`,
-          socket: null,
-        })
-      }
-    }
+    establishConnection(set, get, { roomId, displayName, color, serverUrl: activeServerUrl, token })
   },
 
   disconnect: () => {
-    const { socket } = get()
+    clearReconnectTimer()
+    const { socket, connectionStatus } = get()
+    // Signal an intentional leave so the server frees the seat immediately
+    // (no grace hold) and `onclose` does not auto-reconnect.
+    set({ intentionalDisconnect: true })
+    if (socket && connectionStatus === 'connected') {
+      try {
+        socket.send(JSON.stringify({ type: 'leave' } as ClientMessage))
+      } catch {
+        // socket may already be closing — ignore.
+      }
+    }
     if (socket) {
       socket.close()
     }
@@ -204,8 +315,10 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         for (const d of msg.dice) {
           dice.set(d.id, diceStateToMultiplayerDie(d))
         }
-        // The local player is the last one in the list (just joined)
-        const localPlayerId = msg.players[msg.players.length - 1]?.id || null
+        // Prefer the server-echoed id (robust across rejoin, where the reclaimed
+        // player is not necessarily last in the unordered list). Fall back to the
+        // last player for older servers that don't send it.
+        const localPlayerId = msg.localPlayerId ?? msg.players[msg.players.length - 1]?.id ?? null
         const pendingInventoryDieIds = removeResolvedPendingInventoryIds(
           get().pendingInventoryDieIds,
           msg.dice,
@@ -465,6 +578,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   },
 
   reset: () => {
+    clearReconnectTimer()
     set({
       ...createInitialState(),
       serverUrl: get().serverUrl,

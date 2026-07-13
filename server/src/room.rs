@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use rapier3d::prelude::RigidBodyHandle;
 use tokio::sync::RwLock;
 use crate::messages::{
     DicePresentationMetadata, DiceSnapshot, DiceState, DiceType, DieResult, RoomSettings,
     ServerMessage, SpawnDiceEntry, VelocityHistoryEntry,
 };
-use crate::player::Player;
+use crate::player::{Player, PlayerSender};
 use crate::physics::{
     PhysicsWorld, REST_DURATION_MS, MAX_DICE_VELOCITY,
     DRAG_FOLLOW_SPEED, DRAG_DISTANCE_BOOST, DRAG_DISTANCE_THRESHOLD,
@@ -94,6 +94,36 @@ pub const MAX_PLAYERS: usize = 8;
 pub const MAX_DICE: usize = 30;
 pub const IDLE_TIMEOUT_SECS: u64 = 1800; // 30 minutes
 pub const SNAPSHOT_DIVISOR: u64 = 1; // 1 = every tick (60Hz), 2 = 30Hz, 3 = 20Hz
+/// How long a disconnected player's seat (identity, dice, host status) is held
+/// so they can rejoin without losing their place. See the room-lifecycle policy
+/// in `docs/guides/server.md`.
+pub const RECONNECT_GRACE_SECS: u64 = 120; // 2 minutes
+/// Settings key holding the host-configurable player cap.
+pub const PLAYER_CAP_SETTING: &str = "playerCap";
+
+/// Outcome of a successful [`Room::join`]: the effective player id to use for
+/// the rest of the connection and whether this reclaimed a held seat.
+#[derive(Debug, Clone, PartialEq)]
+pub struct JoinResult {
+    pub player_id: String,
+    pub reconnected: bool,
+}
+
+/// Result of [`Room::mark_disconnected`]. `new_host` is `Some` only when the
+/// disconnect triggered a host transfer to another connected player.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DisconnectOutcome {
+    pub new_host: Option<String>,
+}
+
+/// Result of [`Room::expire_grace_players`]: players (and their dice) whose
+/// grace window elapsed, plus any host transfer the removals triggered.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct GraceExpiry {
+    pub removed_players: Vec<String>,
+    pub removed_dice: Vec<String>,
+    pub new_host: Option<String>,
+}
 
 pub struct DragState {
     pub dragger_id: String,
@@ -202,9 +232,23 @@ impl Room {
         self.dice.len()
     }
 
+    /// The effective player cap: the host-configurable `playerCap` setting,
+    /// clamped to `1..=MAX_PLAYERS`, defaulting to `MAX_PLAYERS` when unset or
+    /// malformed.
+    #[must_use]
+    pub fn player_cap(&self) -> usize {
+        self.settings.fields.get(PLAYER_CAP_SETTING)
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|n| usize::try_from(n).ok())
+            .map_or(MAX_PLAYERS, |n| n.clamp(1, MAX_PLAYERS))
+    }
+
+    /// Full when occupied seats (connected players **and** seats held during the
+    /// reconnect grace window) reach the cap. Held seats count so a briefly
+    /// dropped player can reclaim their place.
     #[must_use]
     pub fn is_full(&self) -> bool {
-        self.players.len() >= MAX_PLAYERS
+        self.players.len() >= self.player_cap()
     }
 
     #[must_use]
@@ -277,6 +321,152 @@ impl Room {
         self.players.values()
             .min_by_key(|p| p.join_order)
             .map(|p| p.id.clone())
+    }
+
+    /// Returns the id of the oldest **currently-connected** player (lowest
+    /// `join_order`), or `None` if every remaining player is disconnected.
+    fn oldest_connected_player_id(&self) -> Option<String> {
+        self.players.values()
+            .filter(|p| p.connected)
+            .min_by_key(|p| p.join_order)
+            .map(|p| p.id.clone())
+    }
+
+    /// Join the room, either reclaiming a held seat (graceful rejoin) or seating
+    /// a brand-new player.
+    ///
+    /// When `reconnect_token` matches a disconnected player still within the
+    /// grace window, that seat is reclaimed: the connection is re-bound and the
+    /// player keeps their id, name, color, dice, and host status. Otherwise a
+    /// new player is seated (subject to the player cap). The returned
+    /// [`JoinResult::player_id`] is the id the caller MUST use for the rest of
+    /// the connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(RoomError::InvalidName)` for an out-of-range name, or
+    /// `Err(RoomError::RoomFull)` when a fresh seat would exceed the cap.
+    pub fn join(
+        &mut self,
+        candidate_id: String,
+        display_name: String,
+        color: String,
+        sender: PlayerSender,
+        reconnect_token: Option<&str>,
+    ) -> Result<JoinResult, RoomError> {
+        // Graceful rejoin: reclaim a held seat matching the token.
+        if let Some(token) = reconnect_token.filter(|t| !t.is_empty()) {
+            if let Some(existing_id) = self.players.values()
+                .find(|p| !p.connected && p.reconnect_token == token)
+                .map(|p| p.id.clone())
+            {
+                let player = self.players.get_mut(&existing_id)
+                    .expect("player exists: id was just read from self.players");
+                player.sender = sender;
+                player.connected = true;
+                player.disconnected_at = None;
+                // Identity (name/color/dice/host) is intentionally preserved.
+                self.touch();
+                return Ok(JoinResult { player_id: existing_id, reconnected: true });
+            }
+        }
+
+        // Fresh seat — validate and enforce the cap.
+        if display_name.is_empty() || display_name.len() > 20 {
+            return Err(RoomError::InvalidName);
+        }
+        if self.is_full() {
+            return Err(RoomError::RoomFull);
+        }
+        let mut player = Player::new(candidate_id.clone(), display_name, color, sender);
+        player.join_order = self.next_join_seq;
+        self.next_join_seq += 1;
+        player.reconnect_token = reconnect_token.unwrap_or_default().to_string();
+        player.connected = true;
+        if self.host_id.is_none() {
+            self.host_id = Some(candidate_id.clone());
+        }
+        self.touch();
+        self.players.insert(candidate_id.clone(), player);
+        Ok(JoinResult { player_id: candidate_id, reconnected: false })
+    }
+
+    /// Mark a player as disconnected, holding their seat and dice for the
+    /// reconnect grace window instead of removing them.
+    ///
+    /// If the disconnecting player was the host and at least one other player is
+    /// still connected, host transfers to the oldest connected player so the
+    /// room stays controllable. If nobody else is connected, the seat keeps the
+    /// host flag so the player reclaims it on rejoin.
+    pub fn mark_disconnected(&mut self, player_id: &str) -> DisconnectOutcome {
+        let previous_host = self.host_id.clone();
+        if let Some(player) = self.players.get_mut(player_id) {
+            player.connected = false;
+            player.disconnected_at = Some(Instant::now());
+        }
+        if self.host_id.as_deref() == Some(player_id) {
+            if let Some(new_host) = self.oldest_connected_player_id() {
+                self.host_id = Some(new_host);
+            }
+            // else: no connected player to hand off to — keep host on the
+            // disconnected seat so it is reclaimed on rejoin.
+        }
+        self.touch();
+        let new_host = self.host_id.clone();
+        DisconnectOutcome {
+            new_host: if new_host == previous_host { None } else { new_host },
+        }
+    }
+
+    /// Remove players whose reconnect grace window has elapsed, freeing their
+    /// seats and dice. Returns the removed players/dice and any host transfer
+    /// the removals triggered so the caller can broadcast the changes.
+    ///
+    /// Does not `touch()` — a room emptied by grace expiry should remain
+    /// eligible for idle cleanup based on its genuine last activity.
+    pub fn expire_grace_players(&mut self, grace: Duration) -> GraceExpiry {
+        let previous_host = self.host_id.clone();
+        let expired: Vec<String> = self.players.values()
+            .filter(|p| !p.connected
+                && p.disconnected_at.is_some_and(|t| t.elapsed() >= grace))
+            .map(|p| p.id.clone())
+            .collect();
+
+        if expired.is_empty() {
+            return GraceExpiry::default();
+        }
+
+        let mut removed_dice = Vec::new();
+        for pid in &expired {
+            let dice_ids: Vec<String> = self.dice.iter()
+                .filter(|(_, d)| d.owner_id == *pid)
+                .map(|(id, _)| id.clone())
+                .collect();
+            for id in &dice_ids {
+                if let Some(die) = self.dice.remove(id) {
+                    if let Some(handle) = die.body_handle {
+                        self.physics.remove_body(handle);
+                    }
+                }
+            }
+            removed_dice.extend(dice_ids);
+            self.players.remove(pid);
+        }
+
+        // Transfer host if the expired set held it. Prefer an oldest connected
+        // player; fall back to the oldest remaining (still-in-grace) seat.
+        let mut new_host = None;
+        if let Some(prev) = previous_host.as_deref() {
+            if expired.iter().any(|id| id == prev) {
+                self.host_id = self.oldest_connected_player_id()
+                    .or_else(|| self.oldest_player_id());
+                if self.host_id != previous_host {
+                    new_host = self.host_id.clone();
+                }
+            }
+        }
+
+        GraceExpiry { removed_players: expired, removed_dice, new_host }
     }
 
     /// Replace room settings. Only the current host may mutate settings.
@@ -941,12 +1131,15 @@ impl Room {
         Ok(())
     }
 
-    /// Build a full room state snapshot (sent to newly joined players)
+    /// Build a full room state snapshot for `recipient_id` (the player it is
+    /// sent to). The recipient id is echoed back as `localPlayerId` so the
+    /// client can identify itself deterministically, including on rejoin.
     #[must_use]
-    pub fn build_room_state(&self) -> ServerMessage {
+    pub fn build_room_state(&self, recipient_id: &str) -> ServerMessage {
         ServerMessage::RoomState {
             room_id: self.id.clone(),
             host_id: self.host_id.clone(),
+            local_player_id: Some(recipient_id.to_string()),
             players: self.players.values().map(super::player::Player::to_info).collect(),
             dice: self.dice.values().map(|d| DiceState {
                 id: d.id.clone(),
@@ -1319,7 +1512,7 @@ mod tests {
 
         assert_eq!(spawned[0].presentation.as_ref(), Some(&presentation));
         assert_eq!(room.dice.get("d1").unwrap().presentation.as_ref(), Some(&presentation));
-        match room.build_room_state() {
+        match room.build_room_state("p1") {
             ServerMessage::RoomState { dice, .. } => {
                 assert_eq!(dice[0].presentation.as_ref(), Some(&presentation));
             }
@@ -1727,14 +1920,189 @@ mod tests {
         settings.fields.insert("theme".to_string(), serde_json::json!("neon"));
         room.update_settings("p1", settings).unwrap();
 
-        match room.build_room_state() {
-            ServerMessage::RoomState { host_id, settings, .. } => {
+        match room.build_room_state("p1") {
+            ServerMessage::RoomState { host_id, local_player_id, settings, .. } => {
+                assert_eq!(local_player_id.as_deref(), Some("p1"));
                 assert_eq!(host_id.as_deref(), Some("p1"));
                 assert_eq!(settings.version, crate::messages::ROOM_SETTINGS_VERSION);
                 assert_eq!(settings.fields.get("theme").unwrap(), "neon");
             }
             _ => panic!("Expected room state"),
         }
+    }
+
+    // ── Room lifecycle: player cap, grace rejoin, host reclaim ───────────────
+
+    fn make_sender() -> PlayerSender {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        tx
+    }
+
+    fn set_player_cap(room: &mut Room, cap: u64) {
+        // Cap is a host-configurable room setting; write it directly for tests.
+        room.settings.fields.insert(PLAYER_CAP_SETTING.to_string(), serde_json::json!(cap));
+    }
+
+    #[test]
+    fn test_player_cap_defaults_to_max() {
+        let room = Room::new("test".to_string());
+        assert_eq!(room.player_cap(), MAX_PLAYERS);
+    }
+
+    #[test]
+    fn test_player_cap_reads_and_clamps_setting() {
+        let mut room = Room::new("test".to_string());
+        set_player_cap(&mut room, 3);
+        assert_eq!(room.player_cap(), 3);
+        // Below range clamps up to 1.
+        set_player_cap(&mut room, 0);
+        assert_eq!(room.player_cap(), 1);
+        // Above MAX clamps down.
+        set_player_cap(&mut room, 999);
+        assert_eq!(room.player_cap(), MAX_PLAYERS);
+    }
+
+    #[test]
+    fn test_join_enforces_configurable_cap() {
+        let mut room = Room::new("test".to_string());
+        set_player_cap(&mut room, 2);
+
+        assert!(room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), None).is_ok());
+        assert!(room.join("p2".into(), "Bob".into(), "#FFF".into(), make_sender(), None).is_ok());
+        assert!(room.is_full());
+
+        let third = room.join("p3".into(), "Carol".into(), "#FFF".into(), make_sender(), None);
+        assert_eq!(third.unwrap_err(), RoomError::RoomFull);
+    }
+
+    #[test]
+    fn test_held_seat_counts_toward_cap() {
+        let mut room = Room::new("test".to_string());
+        set_player_cap(&mut room, 1);
+        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1")).unwrap();
+        // p1 drops but holds the seat during grace — room stays full.
+        room.mark_disconnected("p1");
+        assert!(room.is_full(), "A grace-held seat still counts against the cap");
+        let other = room.join("p2".into(), "Bob".into(), "#FFF".into(), make_sender(), None);
+        assert_eq!(other.unwrap_err(), RoomError::RoomFull);
+    }
+
+    #[test]
+    fn test_rejoin_within_grace_preserves_identity_and_dice() {
+        let mut room = Room::new("test".to_string());
+        let result = room
+            .join("p1".into(), "Alice".into(), "#AABBCC".into(), make_sender(), Some("tok1"))
+            .unwrap();
+        assert!(!result.reconnected);
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D20)]).unwrap();
+
+        // Drop the connection — seat + dice held for the grace window.
+        room.mark_disconnected("p1");
+        assert_eq!(room.dice_count(), 1, "Dice are retained during grace");
+        assert!(!room.players.get("p1").unwrap().connected);
+
+        // Rejoin within grace with the same token — identity reclaimed.
+        let rejoin = room
+            .join("brand-new-id".into(), "Changed".into(), "#000000".into(), make_sender(), Some("tok1"))
+            .unwrap();
+        assert!(rejoin.reconnected, "Same token within grace reclaims the seat");
+        assert_eq!(rejoin.player_id, "p1", "Reclaims the original player id");
+        assert_eq!(room.player_count(), 1, "No duplicate seat is created");
+        assert_eq!(room.dice_count(), 1, "Dice ownership is preserved");
+        assert!(room.dice.get("d1").unwrap().owner_id == "p1");
+
+        let player = room.players.get("p1").unwrap();
+        assert!(player.connected);
+        assert_eq!(player.display_name, "Alice", "Original name is preserved");
+        assert_eq!(player.color, "#AABBCC", "Original color is preserved");
+    }
+
+    #[test]
+    fn test_rejoin_after_grace_is_a_new_player() {
+        let mut room = Room::new("test".to_string());
+        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1")).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.mark_disconnected("p1");
+
+        // Grace elapses (zero window forces immediate expiry).
+        let expiry = room.expire_grace_players(Duration::ZERO);
+        assert_eq!(expiry.removed_players, vec!["p1".to_string()]);
+        assert_eq!(expiry.removed_dice, vec!["d1".to_string()]);
+        assert_eq!(room.player_count(), 0);
+        assert_eq!(room.dice_count(), 0);
+
+        // Rejoin with the same token now seats a brand-new player.
+        let rejoin = room
+            .join("p2".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1"))
+            .unwrap();
+        assert!(!rejoin.reconnected, "After grace, the token no longer matches a held seat");
+        assert_eq!(rejoin.player_id, "p2");
+    }
+
+    #[test]
+    fn test_expire_respects_grace_window() {
+        let mut room = Room::new("test".to_string());
+        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1")).unwrap();
+        room.mark_disconnected("p1");
+
+        // A generous window means the just-dropped player is NOT expired.
+        let expiry = room.expire_grace_players(Duration::from_secs(3600));
+        assert!(expiry.removed_players.is_empty());
+        assert_eq!(room.player_count(), 1);
+    }
+
+    #[test]
+    fn test_expire_keeps_connected_players() {
+        let mut room = Room::new("test".to_string());
+        room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), None).unwrap();
+        room.join("p2".into(), "Bob".into(), "#FFF".into(), make_sender(), Some("tok2")).unwrap();
+        room.mark_disconnected("p2");
+
+        let expiry = room.expire_grace_players(Duration::ZERO);
+        assert_eq!(expiry.removed_players, vec!["p2".to_string()]);
+        assert!(room.players.contains_key("p1"), "Connected player is untouched");
+        assert_eq!(room.host_id.as_deref(), Some("p1"), "Non-host expiry leaves host unchanged");
+    }
+
+    #[test]
+    fn test_host_reclaimed_on_rejoin_when_sole_occupant() {
+        let mut room = Room::new("test".to_string());
+        room.join("p1".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1")).unwrap();
+        assert!(room.is_host("p1"));
+
+        // Sole occupant drops — nobody to hand host to, so the seat keeps it.
+        let outcome = room.mark_disconnected("p1");
+        assert_eq!(outcome.new_host, None, "No transfer when alone");
+        assert_eq!(room.host_id.as_deref(), Some("p1"));
+
+        // Rejoin within grace — host is reclaimed.
+        let rejoin = room
+            .join("new".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1"))
+            .unwrap();
+        assert!(rejoin.reconnected);
+        assert!(room.is_host("p1"), "Returning sole host reclaims host status");
+    }
+
+    #[test]
+    fn test_host_transfers_on_disconnect_and_is_not_reclaimed() {
+        let mut room = Room::new("test".to_string());
+        room.join("p1".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1")).unwrap();
+        room.join("p2".into(), "Guest".into(), "#FFF".into(), make_sender(), None).unwrap();
+        assert!(room.is_host("p1"));
+
+        // Host drops while a connected player remains — host transfers to p2.
+        let outcome = room.mark_disconnected("p1");
+        assert_eq!(outcome.new_host.as_deref(), Some("p2"));
+        assert!(room.is_host("p2"));
+
+        // Original host rejoins within grace — the active host (p2) keeps it;
+        // no host thrash.
+        let rejoin = room
+            .join("new".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1"))
+            .unwrap();
+        assert!(rejoin.reconnected);
+        assert!(room.is_host("p2"), "An active host is not usurped by a returning player");
+        assert!(!room.is_host("p1"));
     }
 
     #[test]

@@ -129,6 +129,80 @@ describe('useMultiplayerStore', () => {
     })
   })
 
+  describe('reconnect & lifecycle', () => {
+    it('uses the server-echoed localPlayerId even when not last in the list', () => {
+      // Simulates a graceful rejoin: the reclaimed player (p1) is not last.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'room_state',
+        roomId: 'abc123',
+        hostId: 'p1',
+        localPlayerId: 'p1',
+        players: [
+          { id: 'p1', displayName: 'Alice', color: '#8B5CF6' },
+          { id: 'p2', displayName: 'Bob', color: '#3B82F6' },
+        ],
+        dice: [],
+        settings: { version: 1 },
+      })
+
+      const state = useMultiplayerStore.getState()
+      expect(state.localPlayerId).toBe('p1')
+      expect(state.isHost).toBe(true)
+    })
+
+    it('falls back to the last player when localPlayerId is absent', () => {
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'room_state',
+        roomId: 'abc123',
+        hostId: 'p1',
+        players: [
+          { id: 'p1', displayName: 'Alice', color: '#8B5CF6' },
+          { id: 'p2', displayName: 'Bob', color: '#3B82F6' },
+        ],
+        dice: [],
+        settings: { version: 1 },
+      })
+      expect(useMultiplayerStore.getState().localPlayerId).toBe('p2')
+    })
+
+    it('disconnect sends an explicit leave and suppresses auto-reconnect', () => {
+      const send = vi.fn()
+      const close = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send, close } as unknown as WebSocket,
+      })
+
+      useMultiplayerStore.getState().disconnect()
+
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(JSON.parse(send.mock.calls[0][0])).toEqual({ type: 'leave' })
+      expect(close).toHaveBeenCalledTimes(1)
+      // reset() runs after, returning to a clean disconnected state.
+      expect(useMultiplayerStore.getState().connectionStatus).toBe('disconnected')
+      expect(useMultiplayerStore.getState().socket).toBeNull()
+    })
+
+    it('reset clears reconnect and notice state', () => {
+      useMultiplayerStore.setState({
+        roomClosedNotice: 'gone',
+        reconnectAttempts: 4,
+        intentionalDisconnect: true,
+        reconnectToken: 'tok',
+        lastJoin: { roomId: 'r', displayName: 'n', color: '#fff', serverUrl: 'ws://x', token: 'tok' },
+      })
+
+      useMultiplayerStore.getState().reset()
+
+      const state = useMultiplayerStore.getState()
+      expect(state.roomClosedNotice).toBeNull()
+      expect(state.reconnectAttempts).toBe(0)
+      expect(state.intentionalDisconnect).toBe(false)
+      expect(state.reconnectToken).toBeNull()
+      expect(state.lastJoin).toBeNull()
+    })
+  })
+
   describe('handleServerMessage', () => {
     it('should handle room_state message', () => {
       const msg: ServerMessage = {

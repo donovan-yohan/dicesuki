@@ -1,34 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
-import type { ConnectionStatus } from '../../store/useMultiplayerStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
+import { connectionIndicator } from './connectionIndicator'
 
 interface PlayerPanelProps {
   isOpen: boolean
-}
-
-interface ConnectionIndicator {
-  color: string
-  label: string
-}
-
-/** Maps a connection status to a roster dot color + accessible label. */
-// Small pure helper co-located with its only consumer and its test; the
-// fast-refresh caveat does not apply to this non-hook, non-component export.
-// eslint-disable-next-line react-refresh/only-export-components
-export function connectionIndicator(status: ConnectionStatus): ConnectionIndicator {
-  switch (status) {
-    case 'connected':
-      return { color: '#34d399', label: 'Connected' }
-    case 'connecting':
-      return { color: '#fbbf24', label: 'Connecting' }
-    case 'error':
-      return { color: '#f87171', label: 'Connection error' }
-    case 'disconnected':
-    default:
-      return { color: '#9ca3af', label: 'Disconnected' }
-  }
 }
 
 export function PlayerPanel({ isOpen }: PlayerPanelProps) {
