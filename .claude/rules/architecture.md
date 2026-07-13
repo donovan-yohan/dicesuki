@@ -1,7 +1,7 @@
 # Architecture Rules (derived from ADRs)
 
 > DO NOT edit by hand. Regenerate with `/adr:update`.
-> Generated: 2026-07-13 | Source: 10 Accepted ADRs (4 Frontend, 1 Server, 5 Shared)
+> Generated: 2026-07-13 | Source: 11 Accepted ADRs (4 Frontend, 1 Server, 6 Shared)
 
 ---
 
@@ -11,13 +11,7 @@
 - [Frontend-ADR-001] Three.js geometries MUST be memoized with `useMemo` to prevent per-frame allocations.
 - [Frontend-ADR-001] Event callbacks MUST be wrapped in `useCallback` to avoid unnecessary re-renders.
 - [Frontend-ADR-001] Components SHOULD be wrapped in `React.memo` when receiving stable props.
-
-## Client-Side Physics (Rapier WASM)
-
-- [Frontend-ADR-001] `@react-three/rapier` v2 MUST be used for single-player physics simulation.
-- [Frontend-ADR-001] Physics state MUST be read via refs, not React state, inside the simulation loop.
-- [Frontend-ADR-001] React state updates from physics callbacks MUST be deferred with `requestAnimationFrame`.
-- [Frontend-ADR-001] The `<Physics>` provider MUST NOT be rendered in multiplayer mode.
+- [Frontend-ADR-001] Client-side Rapier WASM physics (`@react-three/rapier`, the `<Physics>` provider, and client-side face detection) is superseded by Shared-ADR-005 and Shared-ADR-007 and MUST NOT be reintroduced; all dice physics and face detection run in `dicesuki-core`.
 
 ## State Management (Zustand)
 
@@ -60,7 +54,7 @@
 ## Server Architecture (Rust / Axum)
 
 - [Server-ADR-001] The multiplayer server MUST be implemented in Rust using Axum with Tokio async runtime.
-- [Server-ADR-001] Server code MUST reside in `server/`.
+- [Server-ADR-001] Server code MUST reside in `server/` (native binary in `server/src/`, shared simulation crate in `server/core/`).
 - [Server-ADR-001] `RoomManager` MUST be wrapped in `Arc<RwLock<RoomManager>>` shared via Axum `State` extractor.
 - [Server-ADR-001] Each `Room` MUST be wrapped in `Arc<RwLock<Room>>` for concurrent player access.
 - [Server-ADR-001] WebSocket connections MUST be handled by Tokio tasks spawned per connection.
@@ -79,20 +73,46 @@
 - [Shared-ADR-002] JSON field names MUST use camelCase.
 - [Shared-ADR-002] Rust struct fields MUST use `#[serde(rename = "camelCase")]` annotations.
 - [Shared-ADR-002] The `physics_snapshot` message MUST use compact field names (`p`, `r`) for bandwidth efficiency.
-- [Shared-ADR-002] Message types MUST be defined in `src/lib/multiplayerMessages.ts` (client) and `server/src/messages.rs` (server), kept manually in sync.
+- [Shared-ADR-002] Message types MUST be defined in `src/lib/multiplayerMessages.ts` (client) and `server/core/src/messages.rs` (core), kept manually in sync.
 - [Shared-ADR-002] The `error` message MUST include a machine-readable `code` field.
 - [Shared-ADR-002] WebSocket upgrades require HTTP/1.1; reverse proxies MUST support this.
 - [Shared-ADR-002] Drag interaction MUST use three message types: `drag_start`, `drag_move`, `drag_end`.
 - [Shared-ADR-002] The `drag_end` message MUST include a `velocityHistory` array for throw calculation.
 
+## WASM Room Core (One Engine, One Constant Set)
+
+- [Shared-ADR-007] The room simulation (physics, dice, room loop, message types, face detection) MUST live in one shared Rust crate, `dicesuki-core` (`server/core/`), compiled to two targets from one source: the native multiplayer server binary and a `wasm-bindgen` module.
+- [Shared-ADR-007] The default page load MUST run the wasm build of `dicesuki-core` inside a Web Worker as an in-browser room server, speaking the existing JSON room protocol over `postMessage`; `@react-three/rapier` MUST NOT be used.
+- [Shared-ADR-007] The wasm room MUST be `dicesuki-core` compiled to wasm — never a re-implementation and never a different engine (e.g. `rapier.js` with ported constants).
+- [Shared-ADR-007] The Web Worker host MUST be a thin shim (instantiate wasm, forward protocol JSON, drive the tick timer) with NO game logic in JS/TS.
+- [Shared-ADR-007] No wasm-specific behavior forks MUST live inside core; platform glue is limited to clock and RNG feature flags. A wasm limitation MUST be fixed in core so both targets get the fix.
+- [Shared-ADR-007] Every physics-engine constant (gravity, restitution/friction, edge chamfer, roll impulse & torque, settle/knock thresholds, drag & throw response, velocity clamp, motion clamp/rate-limit, arena bounds) MUST be defined exactly once in `dicesuki-core` (`server/core/src/physics.rs`), each with a rustdoc description, recommended range, and current-value rationale.
+- [Shared-ADR-007] There MUST be exactly one roll torque/impulse definition (`ROLL_TORQUE_MAGNITUDE`) in core; solo and multiplayer MUST roll identically (the historical `±1` vs `±5` divergence is gone).
+- [Shared-ADR-007] `src/config/physicsConfig.ts` MUST carry NO engine constants — only client-side concerns (geometry detail, device-motion sensor scaling, haptic thresholds, input/message throttles, the client shake-impulse mapping, and the client-side motion send throttle/clamp that mirror the room policy).
+- [Shared-ADR-007] When the browser needs an engine value at runtime, it MUST obtain it from core, never from a copied literal: `EngineConfig::current()` projects the engine constants to a camelCase JSON object, carried on every `room_state` message (`ServerMessage::RoomState.config`), stored in `useMultiplayerStore.engineConfig`, and read via `src/config/engineConfig.ts`; before any room exists the wasm module exposes it via the `engineConfigJson()` `wasm-bindgen` getter.
+- [Shared-ADR-007] Drift guards MUST fail closed: `server/core/src/config.rs` MUST assert `EngineConfig::current()` reflects the `physics` constants, and `src/config/physicsConfig.guard.test.ts` MUST assert `physicsConfig.ts` exports no engine constant and that arena bounds arrive via `room_state.config`.
+- [Shared-ADR-007] The transitional shim `src/config/legacyClientPhysics.ts` MUST NOT be imported by any room/engine-path code (it is quarantined out of `physicsConfig.ts` and deleted with the deprecated client `<Physics>` path).
+
+## Room-First Architecture (Single Dice Path)
+
+- [Shared-ADR-005] The room MUST be the single primitive for all dice play; solo and multiplayer MUST differ only in player count and where the room runs, not in code path.
+- [Shared-ADR-005] Solo mode MUST run as an implicit one-player in-browser wasm room (Shared-ADR-007); there MUST be no local native room server, health-gate, or loopback configuration for solo play.
+- [Shared-ADR-005] Both solo and multiplayer dice MUST flow through the room WebSocket protocol (`join`, `room_state`, `spawn_dice`, `dice_spawned`, `physics_snapshot`, `die_settled`, drag messages).
+- [Shared-ADR-005] `room_state` MUST carry an explicit `localPlayerId` so the client knows which player it controls.
+- [Shared-ADR-005] Owned/inventory dice identity MUST be carried end-to-end via `presentation` metadata on spawn (`inventoryDieId`, `displayName`, `setId`, `rarity`, `baseColor`, `customAssetId`, `customAssetName`, `unsupportedReason`); the server treats physics as authoritative and `presentation` as client-provided display metadata.
+- [Shared-ADR-005] Generic anonymous dice (e.g. `d20`, `2d6`) MUST spawn without any presentation block.
+- [Shared-ADR-005] Rapier3D MUST run inside the room's Rust core (native server or in-browser wasm room) at 60Hz for both solo and multiplayer; the client MUST NOT render a `<Physics>` provider for dice play.
+- [Shared-ADR-005] Dice MUST be rendered as positioned meshes only, driven by snapshot interpolation (lerp position, slerp rotation).
+- [Shared-ADR-005] Face detection MUST run server-side (in core); the room emits `die_settled` with the authoritative face value.
+- [Shared-ADR-005] Active rooms MUST target 60Hz snapshots (`SNAPSHOT_DIVISOR = 1` in `server/core/src/room.rs`), superseding the 20Hz baseline.
+- [Shared-ADR-005] The shared arena MUST remain 9:16 portrait; its bounds are engine constants owned by `dicesuki-core` and delivered to the client via `room_state.config` (Shared-ADR-007), not manually synced.
+
 ## Centralized Physics Configuration
 
-- [Shared-ADR-003] All client-side physics constants MUST be defined in `src/config/physicsConfig.ts`.
-- [Shared-ADR-003] Constants MUST be organized into clearly labeled sections (World Physics, Material, Roll Impulse, Face Detection, Drag, Throw, Device Motion, Geometry, Haptic, Multiplayer Arena, Presets).
-- [Shared-ADR-003] Every constant MUST include a JSDoc comment with description, recommended range, and current value rationale.
-- [Shared-ADR-003] Named preset objects SHOULD be defined for distinct gameplay styles (Realistic, Arcade, Gentle).
-- [Shared-ADR-003] Server physics constants live in Rust source files; shared constants MUST be kept in sync manually.
-- [Shared-ADR-003] Any change to a shared constant MUST be applied to both `physicsConfig.ts` and the corresponding Rust files.
+- [Shared-ADR-003] Physics constants MUST be centralized in clearly labeled, documented locations rather than scattered across component files, hooks, or inline values.
+- [Shared-ADR-003] Every constant MUST include a documentation comment (JSDoc for client constants, rustdoc for core engine constants) giving a description, recommended range, and current-value rationale.
+- [Shared-ADR-003] Client-side physics constants MUST live in `src/config/physicsConfig.ts`, organized into clearly labeled sections; engine constants MUST NOT appear there (they live once in `dicesuki-core` per Shared-ADR-007).
+- [Shared-ADR-003] The manual cross-language sync regime for physics-engine constants (defining them in both `physicsConfig.ts` and Rust and keeping them synced by hand) is retired: engine constants live once in `dicesuki-core` and reach the client at runtime via `EngineConfig` (Shared-ADR-007).
 
 ## Multiplayer Drag Interaction
 
@@ -105,27 +125,8 @@
 - [Shared-ADR-004] The `physics_snapshot` handler MUST NOT skip any dice; all dice update from snapshots uniformly.
 - [Shared-ADR-004] The server MUST send 60Hz snapshots (`SNAPSHOT_DIVISOR=1`) during drag for responsive visual feedback.
 - [Shared-ADR-004] `MultiplayerDie` `useFrame` MUST read position via `useMultiplayerStore.getState()`, not props, to avoid re-render overhead.
-- [Shared-ADR-004] The multiplayer arena MUST use a 9:16 portrait aspect ratio (`MULTIPLAYER_ARENA_HALF_X` = 4.5, `MULTIPLAYER_ARENA_HALF_Z` = 8.0).
-- [Shared-ADR-004] Arena dimension constants MUST match between `src/config/physicsConfig.ts` and `server/src/physics.rs`.
+- [Shared-ADR-004] The multiplayer arena MUST use a 9:16 portrait aspect ratio (half-extents 4.5 x 8.0), defined once in `dicesuki-core` (`server/core/src/physics.rs`) and delivered to the client via `room_state.config` (Shared-ADR-007).
 - [Shared-ADR-004] Players MUST only be able to drag their own dice; ownership validation MUST occur server-side.
-
-## Room-First Local Loopback Architecture
-
-- [Shared-ADR-005] The room MUST be the single primitive for all dice play; solo and multiplayer MUST differ only in player count and server location, not in code path.
-- [Shared-ADR-005] Solo mode MUST join an implicit one-player room served by a local Rust room server (loopback, `127.0.0.1`), reached from the Settings **Open Local Solo Room** action.
-- [Shared-ADR-005] The client MUST verify the local room server is reachable (`GET /health` returns `status: "ok"` and an `instanceId`) before joining the implicit solo room.
-- [Shared-ADR-005] When the local server is unavailable, the UI MUST surface an actionable error naming the loopback URL and the `npm run dev:local-room` start command, rather than an indefinite loader.
-- [Shared-ADR-005] Local loopback server configuration (`VITE_LOCAL_ROOM_SERVER_URL` / `VITE_LOCAL_ROOM_SERVER_HTTP_URL`) MUST remain separate from public multiplayer server configuration.
-- [Shared-ADR-005] Both solo and multiplayer dice MUST flow through the room WebSocket protocol (`join`, `room_state`, `spawn_dice`, `dice_spawned`, `physics_snapshot`, `die_settled`, drag messages).
-- [Shared-ADR-005] `room_state` MUST carry an explicit `localPlayerId` so the client knows which player it controls.
-- [Shared-ADR-005] Owned/inventory dice identity MUST be carried end-to-end via `presentation` metadata on spawn (`inventoryDieId`, `displayName`, `setId`, `rarity`, `baseColor`, `customAssetId`, `customAssetName`, `unsupportedReason`); the server treats physics as authoritative and `presentation` as client-provided display metadata.
-- [Shared-ADR-005] Generic anonymous dice (e.g. `d20`, `2d6`) MUST spawn without any presentation block.
-- [Shared-ADR-005] Rapier3D MUST run natively in the Rust room server at 60Hz for both solo and multiplayer rooms; the client MUST NOT render a `<Physics>` provider for dice play.
-- [Shared-ADR-005] Dice MUST be rendered as positioned meshes only, driven by snapshot interpolation (lerp position, slerp rotation).
-- [Shared-ADR-005] Face detection MUST run server-side; the server emits `die_settled` with the authoritative face value.
-- [Shared-ADR-005] Active rooms MUST target 60Hz snapshots (`SNAPSHOT_DIVISOR = 1` in `server/src/room.rs`), superseding the 20Hz baseline.
-- [Shared-ADR-005] The shared arena MUST remain 9:16 portrait (`WALL_HALF_X = 4.5`, `WALL_HALF_Z = 8.0` in `server/src/physics.rs`, matching `src/config/physicsConfig.ts`).
-- [Shared-ADR-005] Arena and physics constants MUST remain manually synchronized between `src/config/physicsConfig.ts` and the Rust source; any change MUST be applied to both codebases.
 
 ## Supabase Hybrid Backend
 
