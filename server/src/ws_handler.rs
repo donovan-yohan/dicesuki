@@ -7,6 +7,19 @@ use uuid::Uuid;
 use crate::messages::{ClientMessage, PlayerInfo, ServerMessage};
 use crate::room::RoomError;
 use crate::room_manager::SharedRoom;
+use crate::sink::MessageSink;
+
+/// Adapts this connection's tokio mpsc sender to the core [`MessageSink`] seam,
+/// so `dicesuki-core` can push protocol messages to the client without knowing
+/// about tokio. An orphan-rule-safe newtype (the trait and the mpsc type are
+/// both foreign to core, so the impl must live here on a local type).
+struct MpscSink(mpsc::UnboundedSender<ServerMessage>);
+
+impl MessageSink for MpscSink {
+    fn send(&self, msg: &ServerMessage) -> bool {
+        self.0.send(msg.clone()).is_ok()
+    }
+}
 
 /// Returns true if `color` is a valid hex color string (#RGB or #RRGGBB).
 fn is_valid_hex_color(color: &str) -> bool {
@@ -115,7 +128,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                     player_id.clone(),
                     display_name.clone(),
                     color.clone(),
-                    tx.clone(),
+                    MpscSink(tx.clone()),
                     reconnect_token.as_deref(),
                     user_id.clone(),
                 ) {
@@ -229,7 +242,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                         dice_ids,
                     });
 
-                    crate::room::Room::maybe_start_simulation(&mut room_guard, room.clone());
+                    crate::simulation::maybe_start_simulation(&mut room_guard, room.clone());
                 }
             }
 
@@ -252,7 +265,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 let mut room_guard = room.write().await;
                 match room_guard.start_drag(&player_id, &die_id, grab_offset, world_position) {
                     Ok(()) => {
-                        crate::room::Room::maybe_start_simulation(&mut room_guard, room.clone());
+                        crate::simulation::maybe_start_simulation(&mut room_guard, room.clone());
                     }
                     Err(err) => {
                         let message = match err {
@@ -332,7 +345,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                     Ok(affected) if !affected.is_empty() => {
                         // Dice were nudged — make sure the physics loop is running so
                         // the movement (and eventual re-settle) is broadcast.
-                        crate::room::Room::maybe_start_simulation(&mut room_guard, room.clone());
+                        crate::simulation::maybe_start_simulation(&mut room_guard, room.clone());
                     }
                     // No dice affected (sender owns none), or rate-limited / disabled:
                     // silently ignore. Motion is high-frequency; surfacing an error per

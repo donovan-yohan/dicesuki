@@ -1,0 +1,32 @@
+[package]
+name = "dicesuki-core"
+version = "0.1.0"
+edition = "2021"
+description = "Pure game logic (physics, dice, room simulation, protocol, face detection) for Daisu — no async runtime or web-server dependencies. Compiles native and to wasm32-unknown-unknown."
+license = "MIT"
+repository = "https://github.com/donovan-yohan/dicesuki"
+publish = false
+
+[lib]
+# rlib for the native server; cdylib enables the future wasm-bindgen room worker
+# (issue #113) to build a browser module from this exact crate.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rapier3d = "0.22"
+nalgebra = "0.33"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.8"
+log = "0.4"
+# Clock seam: web-time re-exports std::time on native and uses the browser
+# Performance API on wasm. std::time::Instant panics at runtime on
+# wasm32-unknown-unknown, so room/player timing MUST go through this.
+web-time = "1"
+
+# WASM RNG seam: rand 0.8 -> getrandom 0.2, which has no default backend on
+# wasm32-unknown-unknown. The `js` feature selects the browser
+# Crypto.getRandomValues backend. Target-gated so the native server never pulls
+# the JS-interop dependency.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }

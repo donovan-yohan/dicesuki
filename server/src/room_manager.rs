@@ -6,7 +6,10 @@ use log::info;
 use crate::messages::ServerMessage;
 use crate::room::{Room, RECONNECT_GRACE_SECS};
 
-pub use crate::room::SharedRoom;
+/// A reference-counted, async-read/write-locked room handle. The tokio lock is a
+/// server-side (native runtime) concern, so it lives here rather than in
+/// `dicesuki-core`, which exposes a synchronous `Room` (issue #112).
+pub type SharedRoom = Arc<RwLock<Room>>;
 
 pub struct RoomManager {
     rooms: HashMap<String, SharedRoom>,

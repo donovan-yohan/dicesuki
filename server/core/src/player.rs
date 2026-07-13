@@ -1,15 +1,17 @@
-use std::time::Instant;
-use tokio::sync::mpsc;
+// Clock seam (epic #111): std::time::Instant panics at runtime on wasm; web-time
+// re-exports std on native and uses the Performance API on wasm.
+use web_time::Instant;
 use crate::messages::ServerMessage;
+use crate::sink::MessageSink;
 
-pub type PlayerSender = mpsc::UnboundedSender<ServerMessage>;
-
-#[derive(Debug)]
 pub struct Player {
     pub id: String,
     pub display_name: String,
     pub color: String,
-    pub sender: PlayerSender,
+    /// Output seam (epic #111): the room emits protocol messages through this
+    /// without knowing the host runtime. The native server wraps a tokio mpsc
+    /// sender; a future wasm worker wraps `postMessage`.
+    pub sender: Box<dyn MessageSink>,
     pub dice_ids: Vec<String>,
     /// Monotonic join sequence, assigned by the room on `add_player`.
     /// Used to pick the oldest remaining player when the host disconnects.
@@ -34,12 +36,17 @@ pub struct Player {
 
 impl Player {
     #[must_use]
-    pub fn new(id: String, display_name: String, color: String, sender: PlayerSender) -> Self {
+    pub fn new(
+        id: String,
+        display_name: String,
+        color: String,
+        sender: impl MessageSink + 'static,
+    ) -> Self {
         Self {
             id,
             display_name,
             color,
-            sender,
+            sender: Box::new(sender),
             dice_ids: Vec::new(),
             join_order: 0,
             reconnect_token: String::new(),
@@ -52,7 +59,7 @@ impl Player {
 
     #[must_use]
     pub fn send(&self, msg: &ServerMessage) -> bool {
-        self.sender.send(msg.clone()).is_ok()
+        self.sender.send(msg)
     }
 
     #[must_use]
@@ -68,6 +75,8 @@ impl Player {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Runtime-free stand-in for tokio's mpsc, with matching liveness semantics.
+    use crate::sink::testing as mpsc;
 
     #[test]
     fn test_player_creation() {
