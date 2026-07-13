@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import Scene from './components/Scene'
+import { SoloRoom } from './components/SoloRoom'
 import { checkDeviceCompatibility } from './lib/deviceDetection'
 import { DeviceMotionProvider } from './contexts/DeviceMotionProvider'
 import { ThemeProvider } from './contexts/ThemeProvider'
@@ -60,9 +60,11 @@ function MainApp() {
     )
   }
 
+  // Default experience: a one-player room hosted by the in-browser WASM room
+  // worker (issue #114). No native server, no health check, no network.
   return (
     <div className="w-full h-full">
-      <Scene />
+      <SoloRoom />
     </div>
   )
 }

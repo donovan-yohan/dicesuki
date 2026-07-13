@@ -55,9 +55,10 @@ describe('MultiplayerRoom join deep-link flow (#78)', () => {
   })
 
   it('shows a server-down notice when the room server is unreachable', async () => {
-    // Local loopback fast-fails (no retries), keeping this deterministic (#109).
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
-    renderRoom('/room/ROOM42?server=local')
+    // A non-transient status (500) is not retried, so preflight fails fast and
+    // this stays deterministic without waiting out the cold-start backoff (#109).
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+    renderRoom()
 
     fireEvent.change(screen.getByPlaceholderText('Display name'), {
       target: { value: 'Sam' },

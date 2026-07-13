@@ -1,4 +1,9 @@
-export type RoomServerMode = 'public' | 'local-loopback'
+/**
+ * Room-server target. Solo no longer uses a native loopback server — it runs
+ * in-browser against the WASM room worker (issue #114) — so `'public'` is the
+ * only network room server that remains.
+ */
+export type RoomServerMode = 'public'
 
 export type RoomServerReadinessState = 'ready' | 'unavailable' | 'port-conflict'
 
@@ -31,10 +36,9 @@ interface ReadinessOptions {
   fetchImpl?: typeof fetch
   timeoutMs?: number
   /**
-   * Number of retries after the first attempt. Defaults per mode: public servers
-   * retry through cold starts ({@link READINESS_MAX_RETRIES}); local loopback
-   * fast-fails (0) because localhost never cold-starts and long waits there hide
-   * real errors (#109).
+   * Number of retries after the first attempt. Defaults to
+   * {@link READINESS_MAX_RETRIES} so a cold-starting public server is ridden out
+   * before giving up (#109).
    */
   maxRetries?: number
   /** Delay between attempts in ms. Defaults to {@link READINESS_RETRY_DELAY_MS}. */
@@ -46,8 +50,6 @@ interface ReadinessOptions {
 }
 
 const DEFAULT_PUBLIC_WS_URL = 'ws://localhost:8080'
-const DEFAULT_LOCAL_LOOPBACK_WS_URL = 'ws://127.0.0.1:8080'
-const LOCAL_ROOM_START_COMMAND = 'npm run dev:local-room'
 const READINESS_TIMEOUT_MS = 2_500
 
 /**
@@ -97,17 +99,6 @@ function normalizeBaseUrl(url: string): string {
 }
 
 export function getRoomServerConfig(mode: RoomServerMode = 'public'): RoomServerConfig {
-  if (mode === 'local-loopback') {
-    const wsUrl = normalizeBaseUrl(readEnv('VITE_LOCAL_ROOM_SERVER_URL') || DEFAULT_LOCAL_LOOPBACK_WS_URL)
-    return {
-      mode,
-      label: 'Local loopback room server',
-      wsUrl,
-      httpUrl: normalizeBaseUrl(readEnv('VITE_LOCAL_ROOM_SERVER_HTTP_URL') || toHttpUrl(wsUrl)),
-      startCommand: LOCAL_ROOM_START_COMMAND,
-    }
-  }
-
   const wsUrl = normalizeBaseUrl(readEnv('VITE_MULTIPLAYER_SERVER_URL') || DEFAULT_PUBLIC_WS_URL)
   return {
     mode,
@@ -119,8 +110,7 @@ export function getRoomServerConfig(mode: RoomServerMode = 'public'): RoomServer
 }
 
 /**
- * Returns the WebSocket URL for the selected room server.
- * Public multiplayer and local loopback modes intentionally use separate env keys.
+ * Returns the WebSocket URL for the public multiplayer room server.
  */
 export function getWsServerUrl(mode: RoomServerMode = 'public'): string {
   return getRoomServerConfig(mode).wsUrl
@@ -288,8 +278,7 @@ export async function checkRoomServerReadiness(
   config: RoomServerConfig,
   options: ReadinessOptions = {},
 ): Promise<RoomServerReadiness> {
-  const maxRetries =
-    options.maxRetries ?? (config.mode === 'local-loopback' ? 0 : READINESS_MAX_RETRIES)
+  const maxRetries = options.maxRetries ?? READINESS_MAX_RETRIES
   const retryDelayMs = options.retryDelayMs ?? READINESS_RETRY_DELAY_MS
   const sleep = options.sleepImpl ?? readinessSleep
 

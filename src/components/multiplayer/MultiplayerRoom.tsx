@@ -6,7 +6,7 @@ import { DiceBackendProvider } from '../../contexts/DiceBackendProvider'
 import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore } from '../../store/useDiceStore'
 import { usePlayerIdentityStore } from '../../store/usePlayerIdentityStore'
-import { getRoomServerConfig, READINESS_MAX_RETRIES, type RoomServerMode } from '../../lib/multiplayerServer'
+import { getRoomServerConfig, READINESS_MAX_RETRIES } from '../../lib/multiplayerServer'
 import { preflightRoom, type PreflightResult } from '../../lib/roomPreflight'
 import Scene from '../Scene'
 
@@ -29,13 +29,9 @@ export function MultiplayerRoom() {
   const rememberedColor = usePlayerIdentityStore((s) => s.color)
   const setIdentity = usePlayerIdentityStore((s) => s.setIdentity)
 
-  const serverMode: RoomServerMode = searchParams.get('server') === 'local' ? 'local-loopback' : 'public'
-  const serverConfig = getRoomServerConfig(serverMode)
-  const isSoloRoom = searchParams.get('solo') === '1'
-  // Pre-fill from (in priority order) an explicit `?name=`, the solo default,
-  // then the player's last-used identity (issue #78).
-  const initialDisplayName =
-    searchParams.get('name') || (isSoloRoom ? 'Solo Player' : rememberedName)
+  const serverConfig = getRoomServerConfig()
+  // Pre-fill from an explicit `?name=`, else the player's last-used identity (#78).
+  const initialDisplayName = searchParams.get('name') || rememberedName
   // Theme chosen in the creation flow (#76). We apply it once the room creator
   // has been confirmed as host by `room_state`; setRoomTheme is host-gated.
   const initialThemeId = searchParams.get('theme')
@@ -49,7 +45,6 @@ export function MultiplayerRoom() {
   // Interim "server waking up, retrying…" message while a cold-starting public
   // server is retried during preflight (#109); null when not retrying.
   const [wakingNotice, setWakingNotice] = useState<string | null>(null)
-  const autoJoinAttemptsRef = useRef(0)
 
   const multiplayerBackend = useMultiplayerDiceBackend()
 
@@ -63,14 +58,6 @@ export function MultiplayerRoom() {
       useDiceManagerStore.getState().removeAllDice()
     }
   }, [disconnect])
-
-  useEffect(() => {
-    if (!isSoloRoom || !roomId || connectionStatus !== 'disconnected') return
-    if (autoJoinAttemptsRef.current >= 2) return
-    autoJoinAttemptsRef.current += 1
-    connect(roomId, initialDisplayName || 'Solo Player', color, serverConfig.wsUrl)
-    setHasJoined(true)
-  }, [color, connect, connectionStatus, initialDisplayName, isSoloRoom, roomId, serverConfig.wsUrl])
 
   // Apply the creation-time theme once, after the creator is confirmed host.
   const appliedThemeRef = useRef(false)
@@ -94,7 +81,7 @@ export function MultiplayerRoom() {
     // retry through cold starts; local loopback fast-fails (#109).
     setIsChecking(true)
     const result = await preflightRoom(serverConfig.httpUrl, roomId, {
-      maxRetries: serverMode === 'local-loopback' ? 0 : READINESS_MAX_RETRIES,
+      maxRetries: READINESS_MAX_RETRIES,
       onRetry: ({ attempt, maxRetries }) => {
         setWakingNotice(`Server waking up, retrying… (attempt ${attempt} of ${maxRetries})`)
       },
@@ -126,7 +113,7 @@ export function MultiplayerRoom() {
         color: 'white',
         background: '#1a1a2e',
       }}>
-        <h1>{isSoloRoom ? 'Local Solo Room' : 'Join Room'}</h1>
+        <h1>Join Room</h1>
         <p style={{ opacity: 0.7 }}>Room: {roomId}</p>
         <p style={{ opacity: 0.7, maxWidth: '28rem', textAlign: 'center' }}>
           {serverConfig.label}: {serverConfig.wsUrl}
@@ -163,11 +150,6 @@ export function MultiplayerRoom() {
             }}
           >
             <strong>Connection failed.</strong> {connectionError}
-            {serverConfig.startCommand && (
-              <div style={{ marginTop: '0.5rem' }}>
-                Start the local server with <code>{serverConfig.startCommand}</code>, then try again.
-              </div>
-            )}
           </div>
         )}
         {wakingNotice && (
@@ -213,12 +195,6 @@ export function MultiplayerRoom() {
               <>
                 <strong>Can&apos;t reach the room server.</strong> Check your
                 connection and try again in a moment.
-                {serverConfig.startCommand && (
-                  <div style={{ marginTop: '0.5rem' }}>
-                    If you&apos;re running locally, start it with{' '}
-                    <code>{serverConfig.startCommand}</code>.
-                  </div>
-                )}
               </>
             )}
             <div style={{ marginTop: '0.75rem' }}>
@@ -350,7 +326,6 @@ export function MultiplayerRoom() {
     <div
       data-testid="multiplayer-room"
       data-connection-status={connectionStatus}
-      data-server-mode={serverMode}
       data-player-count={playerCount}
       data-local-player-ready={localPlayerId ? 'true' : 'false'}
       data-dice-count={diceCount}

@@ -4,12 +4,6 @@ import { useTheme } from '../../contexts/ThemeContext'
 import { buildRoomUrl, copyToClipboard, shareRoomLink } from '../../lib/roomLinks'
 import { QrCode } from './QrCode'
 
-/** True when the current page is pinned to the local loopback server. */
-function isLocalServer(): boolean {
-  if (typeof window === 'undefined') return false
-  return new URLSearchParams(window.location.search).get('server') === 'local'
-}
-
 /**
  * In-room sharing controls (issue #77): copy the canonical link, open the native
  * share sheet (with a copy fallback), and reveal a QR code sized for in-person
@@ -25,7 +19,7 @@ export function RoomShare() {
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const roomUrl = useMemo(
-    () => (roomId ? buildRoomUrl(roomId, { local: isLocalServer() }) : null),
+    () => (roomId ? buildRoomUrl(roomId) : null),
     [roomId],
   )
 

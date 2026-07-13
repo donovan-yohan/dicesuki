@@ -26,14 +26,14 @@ describe('useCreateRoom', () => {
     vi.restoreAllMocks()
   })
 
-  it('checks local readiness, creates an implicit solo room, and navigates with local params', async () => {
+  it('checks readiness, creates a room, and navigates to it', async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(jsonResponse({ status: 'ok', instanceId: 'srv123' }))
       .mockResolvedValueOnce(jsonResponse({ roomId: 'ABC123' }, { status: 201 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const { result } = renderHook(() => useCreateRoom({ mode: 'local-loopback', solo: true }))
+    const { result } = renderHook(() => useCreateRoom())
 
     await act(async () => {
       await result.current.createRoom()
@@ -41,15 +41,15 @@ describe('useCreateRoom', () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      'http://127.0.0.1:8080/health',
+      'http://localhost:8080/health',
       expect.objectContaining({ method: 'GET' }),
     )
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      'http://127.0.0.1:8080/api/rooms',
+      'http://localhost:8080/api/rooms',
       { method: 'POST' },
     )
-    expect(navigateMock).toHaveBeenCalledWith('/room/ABC123?server=local&solo=1&name=Solo+Player')
+    expect(navigateMock).toHaveBeenCalledWith('/room/ABC123')
     expect(result.current.error).toBeNull()
   })
 
@@ -86,11 +86,12 @@ describe('useCreateRoom', () => {
   })
 
   it('keeps users on the panel with an actionable port-conflict error', async () => {
+    // A wrong /health payload is non-retryable, so this returns immediately.
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse({ status: 'ok' }),
     ))
 
-    const { result } = renderHook(() => useCreateRoom({ mode: 'local-loopback', solo: true }))
+    const { result } = renderHook(() => useCreateRoom())
 
     await act(async () => {
       await result.current.createRoom()
@@ -99,23 +100,29 @@ describe('useCreateRoom', () => {
     expect(navigateMock).not.toHaveBeenCalled()
     expect(result.current.error).toMatchObject({
       kind: 'port-conflict',
-      command: 'npm run dev:local-room',
+      command: null,
     })
   })
 
   it('keeps users on the panel with an actionable unavailable-server error', async () => {
+    vi.useFakeTimers()
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch')))
 
-    const { result } = renderHook(() => useCreateRoom({ mode: 'local-loopback', solo: true }))
+    const { result } = renderHook(() => useCreateRoom())
 
     await act(async () => {
-      await result.current.createRoom()
+      const pending = result.current.createRoom()
+      // Public readiness retries a down server through cold starts (#109); flush
+      // all backoff waits so the error surfaces without a real 10s wall wait.
+      await vi.runAllTimersAsync()
+      await pending
     })
+    vi.useRealTimers()
 
     expect(navigateMock).not.toHaveBeenCalled()
     expect(result.current.error).toMatchObject({
       kind: 'unavailable',
-      command: 'npm run dev:local-room',
+      command: null,
     })
   })
 })

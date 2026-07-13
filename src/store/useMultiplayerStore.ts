@@ -21,10 +21,56 @@ import {
 import type { RoomVisibility } from '../lib/multiplayerMessages'
 import { MOTION_IMPULSE_MIN_INTERVAL_MS } from '../config/physicsConfig'
 import { getWsServerUrl } from '../lib/multiplayerServer'
+import { createWorkerRoomTransport } from '../lib/workerRoomTransport'
 import { triggerCollisionFeedback } from '../lib/collisionFeedback'
 import { useDiceStore } from './useDiceStore'
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
+
+/**
+ * Which transport a room connection runs over. `'websocket'` reaches the public
+ * multiplayer server over the network; `'worker'` reaches the in-browser WASM
+ * room worker over `postMessage` (solo). Both speak the identical JSON room
+ * protocol, so every action below (join, spawn, roll, snapshots, settle,
+ * settings, drag, motion) is transport-agnostic — only the socket object differs
+ * (issue #114, epic #111).
+ */
+export type RoomTransportKind = 'websocket' | 'worker'
+
+/** Sentinel `serverUrl` recorded for solo (worker-backed) connections. */
+export const SOLO_WORKER_SERVER_URL = 'worker://solo'
+
+/**
+ * The `WebSocket`-shaped slice the store depends on, satisfied by both a real
+ * `WebSocket` (public multiplayer) and the {@link WorkerRoomTransport} (solo).
+ * Narrowing to this interface is what makes the connection layer
+ * transport-agnostic.
+ */
+export interface RoomSocket {
+  send(data: string): void
+  close(): void
+  readonly readyState: number
+  onopen: ((event: Event) => void) | null
+  onmessage: ((event: MessageEvent) => void) | null
+  onerror: ((event: Event) => void) | null
+  onclose: ((event: CloseEvent) => void) | null
+}
+
+/**
+ * Build the room socket for a connection. Public multiplayer opens a real
+ * `WebSocket`; solo constructs a {@link WorkerRoomTransport} over the WASM room
+ * worker. Both are `WebSocket`-shaped ({@link RoomSocket}), so the rest of the
+ * connection logic is identical regardless of transport.
+ */
+function createRoomSocket(
+  transport: RoomTransportKind,
+  params: { roomId: string; serverUrl: string },
+): RoomSocket {
+  if (transport === 'worker') {
+    return createWorkerRoomTransport(params.roomId)
+  }
+  return new WebSocket(`${params.serverUrl}/ws/${params.roomId}`)
+}
 
 export interface MultiplayerDie {
   id: string
@@ -48,7 +94,7 @@ export interface MultiplayerDie {
 interface MultiplayerState {
   // Connection
   connectionStatus: ConnectionStatus
-  socket: WebSocket | null
+  socket: RoomSocket | null
   serverUrl: string
   connectionError: string | null
 
@@ -65,7 +111,7 @@ interface MultiplayerState {
   /** True when the client itself asked to leave (suppresses auto-reconnect). */
   intentionalDisconnect: boolean
   /** Parameters of the last join, replayed by auto-reconnect. */
-  lastJoin: { roomId: string; displayName: string; color: string; serverUrl: string; token: string } | null
+  lastJoin: { roomId: string; displayName: string; color: string; serverUrl: string; token: string; transport: RoomTransportKind } | null
   /** User-facing notice shown when a room went away (idle cleanup / unreachable). */
   roomClosedNotice: string | null
   // Host role & settings
@@ -85,7 +131,7 @@ interface MultiplayerState {
   parseErrorCount: number
 
   // Actions
-  connect: (roomId: string, displayName: string, color: string, serverUrl?: string) => void
+  connect: (roomId: string, displayName: string, color: string, serverUrl?: string, transport?: RoomTransportKind) => void
   disconnect: () => void
   sendMessage: (msg: ClientMessage) => void
   handleServerMessage: (msg: ServerMessage) => void
@@ -137,7 +183,7 @@ interface MultiplayerState {
 
 const createInitialState = () => ({
   connectionStatus: 'disconnected' as ConnectionStatus,
-  socket: null as WebSocket | null,
+  socket: null as RoomSocket | null,
   serverUrl: getWsServerUrl(),
   connectionError: null as string | null,
   roomId: null as string | null,
@@ -216,15 +262,15 @@ function getOrCreateReconnectToken(roomId: string): string {
 function establishConnection(
   set: StoreSet,
   get: StoreGet,
-  params: { roomId: string; displayName: string; color: string; serverUrl: string; token: string },
+  params: { roomId: string; displayName: string; color: string; serverUrl: string; token: string; transport: RoomTransportKind },
 ) {
-  const { roomId, displayName, color, serverUrl, token } = params
+  const { roomId, displayName, color, serverUrl, token, transport } = params
   const existingSocket = get().socket
   if (existingSocket) {
     existingSocket.close()
   }
 
-  const socket = new WebSocket(`${serverUrl}/ws/${roomId}`)
+  const socket = createRoomSocket(transport, { roomId, serverUrl })
   set({ socket, connectionStatus: 'connecting', serverUrl, parseErrorCount: 0 })
 
   socket.onopen = () => {
@@ -278,6 +324,14 @@ function establishConnection(
       return
     }
 
+    // The solo worker transport is local: it never drops mid-session, and
+    // re-spinning a fresh wasm room would silently lose all table state. Treat an
+    // unexpected close as terminal rather than reconnecting.
+    if (lastJoin?.transport === 'worker') {
+      set({ connectionStatus: 'disconnected', socket: null })
+      return
+    }
+
     // Exhausted retries (or no join to replay): surface an understandable notice
     // instead of failing silently.
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS || !lastJoin) {
@@ -306,9 +360,12 @@ function establishConnection(
 export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   ...createInitialState(),
 
-  connect: (roomId: string, displayName: string, color: string, serverUrlOverride?: string) => {
+  connect: (roomId: string, displayName: string, color: string, serverUrlOverride?: string, transport: RoomTransportKind = 'websocket') => {
     clearReconnectTimer()
-    const activeServerUrl = serverUrlOverride || get().serverUrl
+    // Solo (worker) connections have no network server; record a sentinel URL so
+    // any UI that reads `serverUrl` shows something coherent.
+    const activeServerUrl =
+      transport === 'worker' ? SOLO_WORKER_SERVER_URL : serverUrlOverride || get().serverUrl
     const token = getOrCreateReconnectToken(roomId)
 
     // Fresh, user-initiated connection: clear any prior notice and reset the
@@ -320,10 +377,10 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       intentionalDisconnect: false,
       reconnectAttempts: 0,
       reconnectToken: token,
-      lastJoin: { roomId, displayName, color, serverUrl: activeServerUrl, token },
+      lastJoin: { roomId, displayName, color, serverUrl: activeServerUrl, token, transport },
     })
 
-    establishConnection(set, get, { roomId, displayName, color, serverUrl: activeServerUrl, token })
+    establishConnection(set, get, { roomId, displayName, color, serverUrl: activeServerUrl, token, transport })
   },
 
   disconnect: () => {

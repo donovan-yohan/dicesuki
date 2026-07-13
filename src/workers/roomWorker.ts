@@ -11,9 +11,13 @@
  * `workerRoomTransport.ts` are the host half only.
  */
 
-// The generated module resolves its own `.wasm` via `import.meta.url`, which
-// Vite rewrites to an emitted asset URL at build time.
+// Load the wasm binary through an explicit Vite `?url` import and hand it to
+// `init()`. Left to itself the generated module resolves its `.wasm` via
+// `new URL('…_bg.wasm', import.meta.url)`, which Vite only rewrites to a served
+// asset at *build* time — in `vite dev` that path 404s and the room never boots.
+// The `?url` import resolves correctly in both dev and build.
 import init, { WasmRoom } from '../generated/wasm-room/dicesuki_wasm.js'
+import wasmUrl from '../generated/wasm-room/dicesuki_wasm_bg.wasm?url'
 import type { WorkerInbound, WorkerOutbound } from '../lib/workerRoomTransport'
 
 /**
@@ -71,7 +75,7 @@ function createRoom(roomId: string): void {
 
 async function handleInit(roomId: string): Promise<void> {
   try {
-    if (wasmReady === null) wasmReady = init()
+    if (wasmReady === null) wasmReady = init(wasmUrl)
     await wasmReady
     createRoom(roomId)
     // Flush anything that raced ahead of instantiation.

@@ -29,7 +29,6 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
   const navigate = useNavigate()
   const publicRoom = useCreateRoom({ themeId: roomThemeId })
-  const localSoloRoom = useCreateRoom({ mode: 'local-loopback', solo: true })
 
   return (
     <>
@@ -51,39 +50,6 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           >
             Multiplayer
           </h3>
-
-          <button
-            onClick={localSoloRoom.createRoom}
-            disabled={localSoloRoom.isCreating}
-            className="w-full flex items-center justify-between p-4 rounded-lg transition-all"
-            style={{
-              backgroundColor: 'rgba(139, 92, 246, 0.1)',
-              border: '1px solid rgba(139, 92, 246, 0.3)',
-              cursor: localSoloRoom.isCreating ? 'wait' : 'pointer',
-              opacity: localSoloRoom.isCreating ? 0.6 : 1,
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🎲</span>
-              <div className="text-left">
-                <div
-                  className="font-semibold text-sm"
-                  style={{ color: 'var(--color-text-primary)' }}
-                >
-                  {localSoloRoom.isCreating ? 'Starting Solo Room...' : 'Open Local Solo Room'}
-                </div>
-                <div
-                  className="text-xs"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  Uses the loopback room server for offline solo play
-                </div>
-              </div>
-            </div>
-            <span style={{ color: 'var(--color-accent)' }}>→</span>
-          </button>
-
-          <RoomErrorMessage error={localSoloRoom.error} onDismiss={localSoloRoom.clearError} />
 
           {/* Room theme picker: choose the shared table look before creating a
               multiplayer room. Applied host-side right after join (#76). */}
