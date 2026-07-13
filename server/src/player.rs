@@ -1,3 +1,4 @@
+use std::time::Instant;
 use tokio::sync::mpsc;
 use crate::messages::ServerMessage;
 
@@ -13,6 +14,15 @@ pub struct Player {
     /// Monotonic join sequence, assigned by the room on `add_player`.
     /// Used to pick the oldest remaining player when the host disconnects.
     pub join_order: u64,
+    /// Stable, client-supplied token used to reclaim this seat on graceful
+    /// rejoin. Empty for players that joined without one (no reconnect support).
+    pub reconnect_token: String,
+    /// Whether this player currently has a live WebSocket connection.
+    /// A `false` value means the seat is held during the reconnect grace window.
+    pub connected: bool,
+    /// When the connection dropped, used to expire the grace window. `None`
+    /// while connected.
+    pub disconnected_at: Option<Instant>,
 }
 
 impl Player {
@@ -25,6 +35,9 @@ impl Player {
             sender,
             dice_ids: Vec::new(),
             join_order: 0,
+            reconnect_token: String::new(),
+            connected: true,
+            disconnected_at: None,
         }
     }
 

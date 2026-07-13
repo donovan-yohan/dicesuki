@@ -38,6 +38,10 @@ pub enum ClientMessage {
         #[serde(rename = "displayName")]
         display_name: String,
         color: String,
+        /// Stable, client-supplied token used to reclaim a held seat after a
+        /// dropped connection (graceful rejoin). Absent for brand-new clients.
+        #[serde(rename = "reconnectToken", default)]
+        reconnect_token: Option<String>,
     },
     SpawnDice {
         dice: Vec<SpawnDiceEntry>,
@@ -136,6 +140,11 @@ pub enum ServerMessage {
         room_id: String,
         #[serde(rename = "hostId")]
         host_id: Option<String>,
+        /// The recipient's own player id. Lets the client set `localPlayerId`
+        /// deterministically (needed for graceful rejoin, where the reclaimed
+        /// player is not necessarily last in the unordered players list).
+        #[serde(rename = "localPlayerId", skip_serializing_if = "Option::is_none")]
+        local_player_id: Option<String>,
         players: Vec<PlayerInfo>,
         dice: Vec<DiceState>,
         settings: RoomSettings,
@@ -255,10 +264,23 @@ mod tests {
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
             #[allow(clippy::used_underscore_binding)]
-            ClientMessage::Join { _room_id, display_name, color } => {
+            ClientMessage::Join { _room_id, display_name, color, reconnect_token } => {
                 assert_eq!(_room_id, "abc123");
                 assert_eq!(display_name, "Gandalf");
                 assert_eq!(color, "#8B5CF6");
+                assert_eq!(reconnect_token, None);
+            }
+            _ => panic!("Expected Join message"),
+        }
+    }
+
+    #[test]
+    fn test_deserialize_join_with_reconnect_token() {
+        let json = r##"{"type":"join","roomId":"abc123","displayName":"Gandalf","color":"#8B5CF6","reconnectToken":"tok-xyz"}"##;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::Join { reconnect_token, .. } => {
+                assert_eq!(reconnect_token.as_deref(), Some("tok-xyz"));
             }
             _ => panic!("Expected Join message"),
         }
@@ -307,6 +329,7 @@ mod tests {
         let msg = ServerMessage::RoomState {
             room_id: "abc123".to_string(),
             host_id: Some("p1".to_string()),
+            local_player_id: Some("p1".to_string()),
             players: vec![PlayerInfo {
                 id: "p1".to_string(),
                 display_name: "Gandalf".to_string(),
@@ -320,6 +343,7 @@ mod tests {
         assert!(json.contains("\"roomId\":\"abc123\""));
         assert!(json.contains("\"displayName\":\"Gandalf\""));
         assert!(json.contains("\"hostId\":\"p1\""));
+        assert!(json.contains("\"localPlayerId\":\"p1\""));
         assert!(json.contains("\"settings\":{\"version\":1}"));
     }
 

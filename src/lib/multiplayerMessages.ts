@@ -9,6 +9,8 @@ export interface JoinMessage {
   roomId: string
   displayName: string
   color: string
+  /** Stable token used to reclaim a held seat after a dropped connection. */
+  reconnectToken?: string
 }
 
 export interface DicePresentationMetadata {
@@ -144,6 +146,12 @@ export interface RoomStateMessage {
   type: 'room_state'
   roomId: string
   hostId: string | null
+  /**
+   * The recipient's own player id. Present so the client can identify itself
+   * deterministically, including on graceful rejoin where the reclaimed player
+   * is not necessarily last in the (unordered) players list.
+   */
+  localPlayerId?: string | null
   players: PlayerInfo[]
   dice: DiceState[]
   settings: RoomSettings

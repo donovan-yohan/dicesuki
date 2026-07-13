@@ -13,12 +13,14 @@ async fn main() {
     let room_manager: SharedRoomManager = Arc::new(RwLock::new(RoomManager::new()));
     let app = build_app(room_manager.clone());
 
-    // Spawn stale room cleanup task (every 5 minutes)
+    // Spawn periodic room maintenance task (every 60s): expires reconnect grace
+    // windows and cleans up stale empty rooms. A 60s cadence keeps grace expiry
+    // (120s window) responsive without excessive lock churn.
     let cleanup_mgr = room_manager.clone();
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(300)).await;
-            cleanup_mgr.write().await.cleanup_stale_rooms().await;
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            cleanup_mgr.write().await.run_maintenance().await;
         }
     });
 

@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 use log::info;
-use crate::room::Room;
+use crate::messages::ServerMessage;
+use crate::room::{Room, RECONNECT_GRACE_SECS};
 
 pub use crate::room::SharedRoom;
 
@@ -46,12 +48,39 @@ impl RoomManager {
         self.rooms.len()
     }
 
-    /// Remove rooms that have been empty past the idle timeout
-    pub async fn cleanup_stale_rooms(&mut self) {
+    /// Periodic room maintenance, run by the background task:
+    /// 1. Expire disconnected players whose reconnect grace window has elapsed,
+    ///    broadcasting the resulting dice/player/host changes to each room.
+    /// 2. Remove rooms that have been empty past the idle timeout.
+    ///
+    /// Ordering matters: grace expiry can empty a room (freeing the last held
+    /// seat), making it eligible for idle cleanup in the same pass.
+    pub async fn run_maintenance(&mut self) {
+        let grace = Duration::from_secs(RECONNECT_GRACE_SECS);
+
+        for room in self.rooms.values() {
+            let mut room = room.write().await;
+            let expiry = room.expire_grace_players(grace);
+            if expiry.removed_players.is_empty() {
+                continue;
+            }
+            if !expiry.removed_dice.is_empty() {
+                room.broadcast(&ServerMessage::DiceRemoved {
+                    dice_ids: expiry.removed_dice,
+                });
+            }
+            for player_id in expiry.removed_players {
+                info!("Grace window expired for player {player_id} in room {}", room.id);
+                room.broadcast(&ServerMessage::PlayerLeft { player_id });
+            }
+            if let Some(host_id) = expiry.new_host {
+                room.broadcast(&ServerMessage::HostChanged { host_id });
+            }
+        }
+
         let mut stale_ids = Vec::new();
         for (id, room) in &self.rooms {
-            let room = room.read().await;
-            if room.is_idle_expired() {
+            if room.read().await.is_idle_expired() {
                 stale_ids.push(id.clone());
             }
         }

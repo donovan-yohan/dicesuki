@@ -13,6 +13,7 @@ export function MultiplayerRoom() {
   const [searchParams] = useSearchParams()
   const connectionStatus = useMultiplayerStore((s) => s.connectionStatus)
   const connectionError = useMultiplayerStore((s) => s.connectionError)
+  const roomClosedNotice = useMultiplayerStore((s) => s.roomClosedNotice)
   const playerCount = useMultiplayerStore((s) => s.players.size)
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
   const diceCount = useMultiplayerStore((s) => s.dice.size)
@@ -77,6 +78,23 @@ export function MultiplayerRoom() {
         <p style={{ opacity: 0.7, maxWidth: '28rem', textAlign: 'center' }}>
           {serverConfig.label}: {serverConfig.wsUrl}
         </p>
+        {roomClosedNotice && (
+          <div
+            role="alert"
+            style={{
+              maxWidth: '28rem',
+              padding: '0.875rem 1rem',
+              borderRadius: '10px',
+              border: '1px solid rgba(250, 204, 21, 0.45)',
+              background: 'rgba(113, 63, 18, 0.45)',
+              color: '#fde68a',
+              fontSize: '0.9rem',
+              lineHeight: 1.4,
+            }}
+          >
+            <strong>Room unavailable.</strong> {roomClosedNotice}
+          </div>
+        )}
         {showConnectionError && (
           <div
             role="alert"

@@ -444,12 +444,75 @@ async fn player_disconnect_notifies_others() {
     let _ = recv_json(&mut ws1).await; // player_joined (Bob)
     let _ = recv_json(&mut ws2).await; // room_state
 
-    // Player 2 disconnects
-    ws2.close(None).await.unwrap();
+    // Player 2 leaves intentionally (explicit `leave` frees the seat at once).
+    ws2.send(Message::Text(json!({ "type": "leave" }).to_string()))
+        .await
+        .unwrap();
 
     // Player 1 should receive player_left
     let msg = recv_json(&mut ws1).await;
     assert_eq!(msg["type"], "player_left");
+}
+
+#[tokio::test]
+async fn dropped_connection_holds_seat_and_rejoin_reclaims_identity() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{addr}/ws/{room_id}");
+
+    // Player 1 (host) joins and stays connected as an observer.
+    let (mut ws1, _) = connect_async(&url).await.unwrap();
+    ws1.send(Message::Text(
+        json!({ "type": "join", "roomId": room_id, "displayName": "Alice", "color": "#FF0000" })
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws1).await; // room_state
+
+    // Player 2 joins with a reconnect token.
+    let (mut ws2, _) = connect_async(&url).await.unwrap();
+    ws2.send(Message::Text(
+        json!({ "type": "join", "roomId": room_id, "displayName": "Bob", "color": "#0000FF",
+                "reconnectToken": "tok-bob" })
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+    let joined = recv_json(&mut ws1).await; // player_joined (Bob)
+    assert_eq!(joined["type"], "player_joined");
+    let state2 = recv_json(&mut ws2).await; // room_state
+    let bob_id = state2["localPlayerId"].as_str().unwrap().to_string();
+
+    // Player 2's connection drops (raw close, no `leave`). Seat is held.
+    ws2.close(None).await.unwrap();
+
+    // Player 1 must NOT be told Bob left — the seat is held during grace.
+    assert!(
+        try_recv_json(&mut ws1).await.is_none(),
+        "A dropped connection must not broadcast player_left during the grace window"
+    );
+
+    // Player 2 rejoins within grace using the same token.
+    let (mut ws2b, _) = connect_async(&url).await.unwrap();
+    ws2b.send(Message::Text(
+        json!({ "type": "join", "roomId": room_id, "displayName": "Bob", "color": "#0000FF",
+                "reconnectToken": "tok-bob" })
+            .to_string(),
+    ))
+    .await
+    .unwrap();
+    let rejoin_state = recv_json(&mut ws2b).await; // room_state
+    // Identity reclaimed: same player id as before the drop.
+    assert_eq!(rejoin_state["localPlayerId"].as_str(), Some(bob_id.as_str()));
+    // No duplicate seat — still just Alice + Bob.
+    assert_eq!(rejoin_state["players"].as_array().unwrap().len(), 2);
+
+    // Player 1 must NOT receive a player_joined for the reclaimed seat.
+    assert!(
+        try_recv_json(&mut ws1).await.is_none(),
+        "Reclaiming a held seat must not broadcast a new player_joined"
+    );
 }
 
 #[tokio::test]
@@ -883,18 +946,15 @@ async fn host_transfers_to_next_player_on_disconnect() {
     .unwrap();
     let _ = recv_json(&mut ws1).await; // player_joined
     let guest_state = recv_json(&mut ws2).await; // room_state
-    let guest_players = guest_state["players"].as_array().unwrap();
-    let guest_id = guest_players
-        .last()
-        .unwrap()["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    // Use the server-echoed localPlayerId: the players array is unordered, so
+    // deriving self-identity from `.last()` is non-deterministic.
+    let guest_id = guest_state["localPlayerId"].as_str().unwrap().to_string();
 
     // Host disconnects
     ws1.close(None).await.unwrap();
 
-    // Guest receives player_left then host_changed naming itself as the new host
+    // Guest receives host_changed naming itself as the new host. (A raw drop now
+    // holds the host's seat for the grace window, so no player_left is emitted.)
     let mut saw_host_changed = false;
     for _ in 0..3 {
         let msg = recv_json(&mut ws2).await;

@@ -5,7 +5,8 @@ import { ThemeContext } from '../../contexts/ThemeContext'
 import type { PlayerInfo } from '../../lib/multiplayerMessages'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { defaultTheme } from '../../themes/tokens'
-import { connectionIndicator, PlayerPanel } from './PlayerPanel'
+import { PlayerPanel } from './PlayerPanel'
+import { connectionIndicator } from './connectionIndicator'
 
 const player = (id: string, name: string, color = '#8B5CF6'): PlayerInfo => ({
   id,
