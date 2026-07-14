@@ -20,6 +20,7 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use dicesuki_core::messages::{ClientMessage, ServerMessage};
+use dicesuki_core::physics::ArenaBounds;
 use dicesuki_core::room::{Room, RoomError};
 use dicesuki_core::sink::MessageSink;
 
@@ -68,11 +69,13 @@ pub struct RoomHost {
 }
 
 impl RoomHost {
-    /// Create a host owning a fresh, empty room with the given id.
+    /// Create a host owning a fresh, empty room with the given id and arena
+    /// `bounds`. Solo passes an aspect-fitted footprint ([`ArenaBounds::from_aspect`]);
+    /// the default keeps the fixed 9:16 arena.
     #[must_use]
-    pub fn new(room_id: String) -> Self {
+    pub fn new(room_id: String, bounds: ArenaBounds) -> Self {
         Self {
-            room: Room::new(room_id),
+            room: Room::new(room_id, bounds),
             outbound: Arc::new(Mutex::new(VecDeque::new())),
             joined: false,
         }
@@ -338,7 +341,7 @@ mod tests {
 
     #[test]
     fn join_round_trips_to_room_state() {
-        let mut host = RoomHost::new("solo".to_string());
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
         let out = join(&mut host);
         assert_eq!(out.len(), 1);
         assert!(out[0].contains("\"type\":\"room_state\""));
@@ -347,7 +350,7 @@ mod tests {
 
     #[test]
     fn spawn_before_join_is_rejected() {
-        let mut host = RoomHost::new("solo".to_string());
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
         host.handle_message(r#"{"type":"spawn_dice","dice":[{"id":"d1","diceType":"d6"}]}"#);
         let out = host.drain_json();
         assert_eq!(out.len(), 1);
@@ -356,7 +359,7 @@ mod tests {
 
     #[test]
     fn invalid_color_join_is_rejected() {
-        let mut host = RoomHost::new("solo".to_string());
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
         host.handle_message(r#"{"type":"join","roomId":"solo","displayName":"Solo","color":"purple"}"#);
         let out = host.drain_json();
         assert!(out[0].contains("INVALID_COLOR"));
@@ -364,7 +367,7 @@ mod tests {
 
     #[test]
     fn spawn_emits_dice_spawned() {
-        let mut host = RoomHost::new("solo".to_string());
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
         let _ = join(&mut host);
         host.handle_message(r#"{"type":"spawn_dice","dice":[{"id":"d1","diceType":"d6"}]}"#);
         let out = host.drain_json();
@@ -375,7 +378,7 @@ mod tests {
 
     #[test]
     fn idle_tick_is_a_noop() {
-        let mut host = RoomHost::new("solo".to_string());
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
         let _ = join(&mut host);
         assert!(!host.is_simulating());
         host.tick(16.667);
@@ -384,7 +387,7 @@ mod tests {
 
     #[test]
     fn roll_drives_ticks_to_a_settled_face() {
-        let mut host = RoomHost::new("solo".to_string());
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
         let _ = join(&mut host);
         host.handle_message(r#"{"type":"spawn_dice","dice":[{"id":"d1","diceType":"d6"}]}"#);
         let _ = host.drain_json();
@@ -419,7 +422,7 @@ mod tests {
 
     #[test]
     fn double_join_is_rejected() {
-        let mut host = RoomHost::new("solo".to_string());
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
         let _ = join(&mut host);
         let out = join(&mut host);
         assert!(out[0].contains("ALREADY_JOINED"));

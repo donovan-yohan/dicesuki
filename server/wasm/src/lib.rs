@@ -25,6 +25,7 @@ pub mod host;
 mod wasm {
     use crate::host::RoomHost;
     use dicesuki_core::config::EngineConfig;
+    use dicesuki_core::physics::ArenaBounds;
     use js_sys::{Array, Function};
     use wasm_bindgen::prelude::*;
 
@@ -55,17 +56,22 @@ mod wasm {
     impl WasmRoom {
         /// Construct an empty solo room.
         ///
-        /// `room_id` labels the room in `room_state`. `on_message` (optional) is
+        /// `room_id` labels the room in `room_state`. `aspect` (optional) is the
+        /// host window's aspect ratio (width / height); when present the arena is
+        /// fitted to it via [`ArenaBounds::from_aspect`], otherwise the fixed 9:16
+        /// arena is used. All sizing policy lives in core — the worker only forwards
+        /// the number (epic #111 anti-drift guardrail). `on_message` (optional) is
         /// called with each outbound protocol JSON string as it is produced; it
         /// is the worker's `postMessage` pump. Every mutating method also returns
         /// the same messages as an array, so a purely polling host works too.
         #[wasm_bindgen(constructor)]
         #[must_use]
-        pub fn new(room_id: String, on_message: Option<Function>) -> Self {
+        pub fn new(room_id: String, aspect: Option<f32>, on_message: Option<Function>) -> Self {
             // Readable panics in the browser console during development.
             console_error_panic_hook::set_once();
+            let bounds = aspect.map_or_else(ArenaBounds::default, ArenaBounds::from_aspect);
             Self {
-                host: RoomHost::new(room_id),
+                host: RoomHost::new(room_id, bounds),
                 on_message,
             }
         }

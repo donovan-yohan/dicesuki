@@ -39,17 +39,22 @@ export class WasmRoom {
     /**
      * Construct an empty solo room.
      *
-     * `room_id` labels the room in `room_state`. `on_message` (optional) is
+     * `room_id` labels the room in `room_state`. `aspect` (optional) is the
+     * host window's aspect ratio (width / height); when present the arena is
+     * fitted to it via [`ArenaBounds::from_aspect`], otherwise the fixed 9:16
+     * arena is used. All sizing policy lives in core — the worker only forwards
+     * the number (epic #111 anti-drift guardrail). `on_message` (optional) is
      * called with each outbound protocol JSON string as it is produced; it
      * is the worker's `postMessage` pump. Every mutating method also returns
      * the same messages as an array, so a purely polling host works too.
      * @param {string} room_id
+     * @param {number | null} [aspect]
      * @param {Function | null} [on_message]
      */
-    constructor(room_id, on_message) {
+    constructor(room_id, aspect, on_message) {
         const ptr0 = passStringToWasm0(room_id, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmroom_new(ptr0, len0, isLikeNone(on_message) ? 0 : addHeapObject(on_message));
+        const ret = wasm.wasmroom_new(ptr0, len0, isLikeNone(aspect) ? 0x100000001 : Math.fround(aspect), isLikeNone(on_message) ? 0 : addHeapObject(on_message));
         this.__wbg_ptr = ret >>> 0;
         WasmRoomFinalization.register(this, this.__wbg_ptr, this);
         return this;

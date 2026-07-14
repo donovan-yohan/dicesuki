@@ -156,10 +156,90 @@ pub const WALL_HALF_Z: f32 = 8.0;
 pub const WALL_HEIGHT: f32 = 8.0;
 /// Thickness of the arena's four side walls (world units).
 pub const WALL_THICKNESS: f32 = 0.5;
-pub const ESCAPE_RESET_HALF_X: f32 = WALL_HALF_X + 8.0;
-pub const ESCAPE_RESET_HALF_Z: f32 = WALL_HALF_Z + 8.0;
-pub const ESCAPE_RESET_MIN_Y: f32 = GROUND_Y - 8.0;
-pub const ESCAPE_RESET_MAX_Y: f32 = CEILING_Y + 8.0;
+/// Extra distance (world units) a die may drift beyond an arena wall before the
+/// room teleports it back onto the table. Added to a room's [`ArenaBounds`]
+/// half-extents to form the horizontal escape thresholds
+/// ([`ArenaBounds::escape_half_x`]/[`ArenaBounds::escape_half_z`]); the vertical
+/// thresholds are the fixed [`ESCAPE_RESET_MIN_Y`]/[`ESCAPE_RESET_MAX_Y`].
+/// - `8.0` (current): wide enough that normal fast rolls never trip it, tight
+///   enough to recover a genuinely tunnelled die within a frame or two.
+///   Recommended `4.0`–`12.0`.
+pub const ESCAPE_RESET_MARGIN: f32 = 8.0;
+/// Lowest Y (world units) a die may reach before the room recovers it: below the
+/// ground by [`ESCAPE_RESET_MARGIN`]. Arena height is fixed, so this is constant.
+pub const ESCAPE_RESET_MIN_Y: f32 = GROUND_Y - ESCAPE_RESET_MARGIN;
+/// Highest Y (world units) a die may reach before the room recovers it: above the
+/// ceiling by [`ESCAPE_RESET_MARGIN`]. Arena height is fixed, so this is constant.
+pub const ESCAPE_RESET_MAX_Y: f32 = CEILING_Y + ESCAPE_RESET_MARGIN;
+
+/// Horizontal footprint (floor half-extents, world units) of a room's arena.
+///
+/// The arena's **height** is fixed by [`GROUND_Y`], [`CEILING_Y`], and
+/// [`WALL_HEIGHT`]; only the floor's X/Z half-extents vary so a room can match
+/// the aspect ratio of the surface it renders on. Every room owns one of these
+/// and builds its walls, escape bounds, and [`crate::config::EngineConfig`] from
+/// it, so the client always sees the ACTUAL arena its room is simulating.
+///
+/// - Default (`half_x = WALL_HALF_X = 4.5`, `half_z = WALL_HALF_Z = 8.0`): the
+///   fixed 9:16 portrait arena the native multiplayer server always uses.
+/// - Recommended range: constructed only via [`ArenaBounds::from_aspect`], whose
+///   aspect clamp keeps half-extents within roughly `[3.8, 9.5]`.
+/// - Rationale: solo play runs in the browser, where the viewport aspect varies;
+///   fitting the arena to it removes letterboxing while preserving playfield area.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ArenaBounds {
+    /// Arena half-width along X (world units).
+    pub half_x: f32,
+    /// Arena half-depth along Z (world units).
+    pub half_z: f32,
+}
+
+impl Default for ArenaBounds {
+    /// The fixed 9:16 portrait arena ([`WALL_HALF_X`] x [`WALL_HALF_Z`]) — what
+    /// the native multiplayer server always uses.
+    fn default() -> Self {
+        Self { half_x: WALL_HALF_X, half_z: WALL_HALF_Z }
+    }
+}
+
+impl ArenaBounds {
+    /// Fit the arena to a window's `aspect` (= width / height) while preserving
+    /// playfield area.
+    ///
+    /// Area is held at `WALL_HALF_X * WALL_HALF_Z` (= 36 world-unit², the default
+    /// arena's quarter-area) so no window shape gains or loses room for dice to
+    /// settle: `half_x = sqrt(AREA * aspect)`, `half_z = sqrt(AREA / aspect)`.
+    ///
+    /// - `aspect` is clamped to `[0.4, 2.4]` before use, bounding the arena to
+    ///   sane shapes even for absurd viewports; half-extents then stay within
+    ///   roughly `[3.8, 9.5]`.
+    /// - Rationale: the canonical portrait aspect `9 / 16 = 0.5625` reproduces
+    ///   exactly `half_x = 4.5`, `half_z = 8.0`, so the default arena is a fixed
+    ///   point of this fit — solo at 9:16 is identical to multiplayer.
+    #[must_use]
+    pub fn from_aspect(aspect: f32) -> Self {
+        const AREA: f32 = WALL_HALF_X * WALL_HALF_Z;
+        let aspect = aspect.clamp(0.4, 2.4);
+        Self {
+            half_x: (AREA * aspect).sqrt(),
+            half_z: (AREA / aspect).sqrt(),
+        }
+    }
+
+    /// Horizontal (X) escape threshold: how far past the wall on X a die may drift
+    /// before the room recovers it. See [`ESCAPE_RESET_MARGIN`].
+    #[must_use]
+    pub fn escape_half_x(&self) -> f32 {
+        self.half_x + ESCAPE_RESET_MARGIN
+    }
+
+    /// Horizontal (Z) escape threshold: how far past the wall on Z a die may drift
+    /// before the room recovers it. See [`ESCAPE_RESET_MARGIN`].
+    #[must_use]
+    pub fn escape_half_z(&self) -> f32 {
+        self.half_z + ESCAPE_RESET_MARGIN
+    }
+}
 
 pub struct PhysicsWorld {
     pub(crate) rigid_body_set: RigidBodySet,
@@ -185,6 +265,17 @@ impl Default for PhysicsWorld {
 impl PhysicsWorld {
     #[must_use]
     pub fn new() -> Self {
+        Self::with_bounds(ArenaBounds::default())
+    }
+
+    /// Build the physics world for an arena of the given horizontal `bounds`.
+    /// Ground, ceiling, and the four walls are sized from `bounds`; the arena's
+    /// height ([`GROUND_Y`]/[`CEILING_Y`]/[`WALL_HEIGHT`]) is fixed. Solo passes an
+    /// aspect-fitted `bounds` ([`ArenaBounds::from_aspect`]); the native
+    /// multiplayer server passes [`ArenaBounds::default`].
+    #[must_use]
+    pub fn with_bounds(bounds: ArenaBounds) -> Self {
+        let ArenaBounds { half_x, half_z } = bounds;
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
         let gravity = vector![0.0, GRAVITY, 0.0];
@@ -194,7 +285,7 @@ impl PhysicsWorld {
             .translation(vector![0.0, GROUND_Y, 0.0])
             .build();
         let ground_handle = rigid_body_set.insert(ground_body);
-        let ground_collider = ColliderBuilder::cuboid(WALL_HALF_X + 2.0, 0.5, WALL_HALF_Z + 2.0)
+        let ground_collider = ColliderBuilder::cuboid(half_x + 2.0, 0.5, half_z + 2.0)
             .restitution(DICE_RESTITUTION)
             .friction(DICE_FRICTION)
             .build();
@@ -205,16 +296,16 @@ impl PhysicsWorld {
             .translation(vector![0.0, CEILING_Y, 0.0])
             .build();
         let ceiling_handle = rigid_body_set.insert(ceiling_body);
-        let ceiling_collider = ColliderBuilder::cuboid(WALL_HALF_X + 2.0, 0.5, WALL_HALF_Z + 2.0)
+        let ceiling_collider = ColliderBuilder::cuboid(half_x + 2.0, 0.5, half_z + 2.0)
             .build();
         collider_set.insert_with_parent(ceiling_collider, ceiling_handle, &mut rigid_body_set);
 
         // 4 walls: +X, -X, +Z, -Z
         let walls = [
-            (vector![WALL_HALF_X + WALL_THICKNESS, WALL_HEIGHT / 2.0, 0.0], vector![WALL_THICKNESS, WALL_HEIGHT, WALL_HALF_Z + 2.0]),
-            (vector![-(WALL_HALF_X + WALL_THICKNESS), WALL_HEIGHT / 2.0, 0.0], vector![WALL_THICKNESS, WALL_HEIGHT, WALL_HALF_Z + 2.0]),
-            (vector![0.0, WALL_HEIGHT / 2.0, WALL_HALF_Z + WALL_THICKNESS], vector![WALL_HALF_X + 2.0, WALL_HEIGHT, WALL_THICKNESS]),
-            (vector![0.0, WALL_HEIGHT / 2.0, -(WALL_HALF_Z + WALL_THICKNESS)], vector![WALL_HALF_X + 2.0, WALL_HEIGHT, WALL_THICKNESS]),
+            (vector![half_x + WALL_THICKNESS, WALL_HEIGHT / 2.0, 0.0], vector![WALL_THICKNESS, WALL_HEIGHT, half_z + 2.0]),
+            (vector![-(half_x + WALL_THICKNESS), WALL_HEIGHT / 2.0, 0.0], vector![WALL_THICKNESS, WALL_HEIGHT, half_z + 2.0]),
+            (vector![0.0, WALL_HEIGHT / 2.0, half_z + WALL_THICKNESS], vector![half_x + 2.0, WALL_HEIGHT, WALL_THICKNESS]),
+            (vector![0.0, WALL_HEIGHT / 2.0, -(half_z + WALL_THICKNESS)], vector![half_x + 2.0, WALL_HEIGHT, WALL_THICKNESS]),
         ];
 
         for (pos, half_extents) in walls {
@@ -404,6 +495,67 @@ mod tests {
     fn test_physics_world_creation() {
         let world = PhysicsWorld::new();
         // Ground + ceiling + 4 walls = 6 fixed bodies
+        assert_eq!(world.rigid_body_set.len(), 6);
+    }
+
+    #[test]
+    fn arena_bounds_default_is_the_fixed_9_16_arena() {
+        let b = ArenaBounds::default();
+        assert_eq!(b.half_x, WALL_HALF_X);
+        assert_eq!(b.half_z, WALL_HALF_Z);
+    }
+
+    #[test]
+    fn from_aspect_9_16_is_exactly_the_default_arena() {
+        // The canonical portrait aspect is a fixed point of the fit: it must
+        // reproduce the default arena's half-extents bit-for-bit.
+        let b = ArenaBounds::from_aspect(9.0 / 16.0);
+        assert_eq!(b.half_x, 4.5, "9:16 must reproduce WALL_HALF_X exactly");
+        assert_eq!(b.half_z, 8.0, "9:16 must reproduce WALL_HALF_Z exactly");
+        assert_eq!(b, ArenaBounds::default());
+    }
+
+    #[test]
+    fn from_aspect_preserves_playfield_area_and_tracks_aspect() {
+        const AREA: f32 = WALL_HALF_X * WALL_HALF_Z;
+        for aspect in [0.5_f32, 0.75, 1.0, 1.5, 2.0] {
+            let b = ArenaBounds::from_aspect(aspect);
+            assert!(
+                (b.half_x * b.half_z - AREA).abs() < 1e-3,
+                "area preserved for aspect {aspect}: got {}",
+                b.half_x * b.half_z
+            );
+            // Wider windows widen X and shorten Z; the ratio equals the aspect.
+            assert!(
+                (b.half_x / b.half_z - aspect).abs() < 1e-3,
+                "half_x/half_z tracks aspect for {aspect}"
+            );
+        }
+    }
+
+    #[test]
+    fn from_aspect_clamps_extreme_windows() {
+        // Below the clamp floor: pinned to aspect 0.4.
+        assert_eq!(
+            ArenaBounds::from_aspect(0.1),
+            ArenaBounds::from_aspect(0.4),
+            "aspect below 0.4 clamps to 0.4"
+        );
+        // Above the clamp ceiling: pinned to aspect 2.4.
+        assert_eq!(
+            ArenaBounds::from_aspect(10.0),
+            ArenaBounds::from_aspect(2.4),
+            "aspect above 2.4 clamps to 2.4"
+        );
+        // A degenerate (zero-height) viewport → +inf aspect → clamps, never NaN.
+        let inf = ArenaBounds::from_aspect(f32::INFINITY);
+        assert!(inf.half_x.is_finite() && inf.half_z.is_finite());
+    }
+
+    #[test]
+    fn with_bounds_scales_arena_but_keeps_body_count() {
+        // A custom arena still has ground + ceiling + 4 walls.
+        let world = PhysicsWorld::with_bounds(ArenaBounds::from_aspect(1.0));
         assert_eq!(world.rigid_body_set.len(), 6);
     }
 

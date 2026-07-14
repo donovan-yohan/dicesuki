@@ -43,6 +43,17 @@ describe('WorkerRoomTransport', () => {
     expect(worker.posted).toEqual([{ type: 'init', roomId: 'room-abc' }])
   })
 
+  it('forwards the viewport aspect in init when provided', () => {
+    new WorkerRoomTransport(worker, 'room-abc', 1.5)
+    expect(worker.posted).toEqual([{ type: 'init', roomId: 'room-abc', viewportAspect: 1.5 }])
+  })
+
+  it('omits viewportAspect from init when none is provided (fixed-arena fallback)', () => {
+    new WorkerRoomTransport(worker, 'room-abc', undefined)
+    expect(worker.posted).toEqual([{ type: 'init', roomId: 'room-abc' }])
+    expect(worker.posted[0]).not.toHaveProperty('viewportAspect')
+  })
+
   it('starts CONNECTING and opens only after the worker signals ready', () => {
     const transport = new WorkerRoomTransport(worker, 'r')
     const onopen = vi.fn()

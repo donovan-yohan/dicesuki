@@ -68,7 +68,14 @@ function createRoomSocket(
   params: { roomId: string; serverUrl: string },
 ): RoomSocket {
   if (transport === 'worker') {
-    return createWorkerRoomTransport(params.roomId)
+    // Fit the solo arena to the current window shape (Shared-ADR-007). Captured
+    // once here, at room creation; live resize is out of scope. Guarded for
+    // non-DOM/test contexts and degenerate (zero-height) viewports.
+    const viewportAspect =
+      typeof window !== 'undefined' && window.innerHeight > 0
+        ? window.innerWidth / window.innerHeight
+        : undefined
+    return createWorkerRoomTransport(params.roomId, viewportAspect)
   }
   return new WebSocket(`${params.serverUrl}/ws/${params.roomId}`)
 }

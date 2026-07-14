@@ -11,11 +11,11 @@ use crate::messages::{
 use crate::player::Player;
 use crate::sink::MessageSink;
 use crate::physics::{
-    PhysicsWorld, REST_DURATION_MS, MAX_DICE_VELOCITY,
+    ArenaBounds, PhysicsWorld, REST_DURATION_MS, MAX_DICE_VELOCITY,
     DRAG_FOLLOW_SPEED, DRAG_DISTANCE_BOOST, DRAG_DISTANCE_THRESHOLD,
     DRAG_ROLL_FACTOR, DRAG_SPIN_FACTOR,
     THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
-    ESCAPE_RESET_HALF_X, ESCAPE_RESET_HALF_Z, ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
+    ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
     MOTION_IMPULSE_MIN_INTERVAL_MS, MOTION_IMPULSE_MAX_MAGNITUDE,
 };
 use crate::dice::{create_dice_body, generate_roll_impulse, generate_roll_torque, generate_spawn_position};
@@ -301,9 +301,12 @@ fn clamp_impulse(impulse: [f32; 3], max_magnitude: f32) -> [f32; 3] {
     }
 }
 
-fn is_outside_escape_bounds(position: [f32; 3]) -> bool {
-    position[0].abs() > ESCAPE_RESET_HALF_X
-        || position[2].abs() > ESCAPE_RESET_HALF_Z
+/// Whether `position` is far enough outside the room's arena (`bounds` plus the
+/// horizontal [`crate::physics::ESCAPE_RESET_MARGIN`], and the fixed vertical
+/// [`ESCAPE_RESET_MIN_Y`]/[`ESCAPE_RESET_MAX_Y`]) that the die must be recovered.
+fn is_outside_escape_bounds(position: [f32; 3], bounds: &ArenaBounds) -> bool {
+    position[0].abs() > bounds.escape_half_x()
+        || position[2].abs() > bounds.escape_half_z()
         || position[1] < ESCAPE_RESET_MIN_Y
         || position[1] > ESCAPE_RESET_MAX_Y
 }
@@ -317,6 +320,11 @@ pub struct Room {
     pub is_sim_running: bool,
     pub tick_count: u64,
     pub physics: PhysicsWorld,
+    /// This room's arena footprint. The native multiplayer server uses
+    /// [`ArenaBounds::default`] (fixed 9:16); the in-browser solo room uses an
+    /// aspect-fitted footprint. Drives the physics walls, escape recovery, and the
+    /// `EngineConfig` shipped on `room_state.config`.
+    pub bounds: ArenaBounds,
     /// The current host (room creator, then oldest remaining player on transfer).
     /// `None` only when the room is empty.
     pub host_id: Option<String>,
@@ -327,8 +335,11 @@ pub struct Room {
 }
 
 impl Room {
+    /// Create a room with the given arena `bounds`. The physics world is built to
+    /// match, and `bounds` rides on every `room_state.config`. The native server
+    /// passes [`ArenaBounds::default`]; the solo wasm room passes an aspect-fit.
     #[must_use]
-    pub fn new(id: String) -> Self {
+    pub fn new(id: String, bounds: ArenaBounds) -> Self {
         Self {
             id,
             players: HashMap::new(),
@@ -337,7 +348,8 @@ impl Room {
             is_simulating: false,
             is_sim_running: false,
             tick_count: 0,
-            physics: PhysicsWorld::new(),
+            physics: PhysicsWorld::with_bounds(bounds),
+            bounds,
             host_id: None,
             settings: RoomSettings::default(),
             next_join_seq: 0,
@@ -1102,7 +1114,7 @@ impl Room {
             .filter_map(|(id, die)| {
                 let handle = die.body_handle?;
                 let position = self.physics.get_position(handle)?;
-                is_outside_escape_bounds(position).then(|| id.clone())
+                is_outside_escape_bounds(position, &self.bounds).then(|| id.clone())
             })
             .collect();
 
@@ -1367,7 +1379,7 @@ impl Room {
                 presentation: d.presentation.clone(),
             }).collect(),
             settings: self.settings.clone(),
-            config: crate::config::EngineConfig::current(),
+            config: crate::config::EngineConfig::for_arena(&self.bounds),
         }
     }
 }
@@ -1519,7 +1531,7 @@ mod tests {
 
     #[test]
     fn test_room_creation() {
-        let room = Room::new("test".to_string());
+        let room = Room::new("test".to_string(), ArenaBounds::default());
         assert_eq!(room.id, "test");
         assert!(room.is_empty());
         assert!(!room.is_full());
@@ -1528,8 +1540,34 @@ mod tests {
     }
 
     #[test]
+    fn default_room_uses_the_fixed_arena_bounds() {
+        let room = Room::new("mp".to_string(), ArenaBounds::default());
+        assert_eq!(room.bounds, ArenaBounds::default());
+    }
+
+    #[test]
+    fn room_ships_its_own_bounds_in_room_state_config() {
+        // A non-default arena must reach the client verbatim on room_state.config,
+        // not the fixed-arena default (Shared-ADR-007: bounds are per-room).
+        let bounds = ArenaBounds::from_aspect(1.0); // square, ~6 x 6
+        let room = Room::new("solo".to_string(), bounds);
+        match room.build_room_state("p1") {
+            ServerMessage::RoomState { config, .. } => {
+                assert!((config.arena_half_x - bounds.half_x).abs() < f32::EPSILON);
+                assert!((config.arena_half_z - bounds.half_z).abs() < f32::EPSILON);
+                // A distinctive non-default arena really did override the default.
+                assert!(
+                    (config.arena_half_x - ArenaBounds::default().half_x).abs() > 0.5,
+                    "solo arena should differ from the fixed 9:16 default"
+                );
+            }
+            other => panic!("expected RoomState, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn test_add_player() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
         assert!(room.add_player(player).is_ok());
         assert_eq!(room.player_count(), 1);
@@ -1538,7 +1576,7 @@ mod tests {
 
     #[test]
     fn test_room_full() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         for i in 0..MAX_PLAYERS {
             let player = make_player(&format!("p{i}"), &format!("Player{i}"));
             assert!(room.add_player(player).is_ok());
@@ -1550,7 +1588,7 @@ mod tests {
 
     #[test]
     fn test_invalid_name() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "");
         assert_eq!(room.add_player(player).unwrap_err(), RoomError::InvalidName);
 
@@ -1561,7 +1599,7 @@ mod tests {
 
     #[test]
     fn test_remove_player_removes_dice() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
         room.spawn_dice("p1", vec![
@@ -1578,7 +1616,7 @@ mod tests {
 
     #[test]
     fn test_spawn_dice() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
 
@@ -1591,7 +1629,7 @@ mod tests {
 
     #[test]
     fn test_dice_limit() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
 
@@ -1607,7 +1645,7 @@ mod tests {
 
     #[test]
     fn test_remove_dice_only_own() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let p1 = make_player("p1", "Gandalf");
         let p2 = make_player("p2", "Frodo");
         room.add_player(p1).unwrap();
@@ -1628,7 +1666,7 @@ mod tests {
 
     #[test]
     fn test_broadcast() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let (tx1, mut rx1) = mpsc::unbounded_channel();
         let (tx2, mut rx2) = mpsc::unbounded_channel();
 
@@ -1649,7 +1687,7 @@ mod tests {
 
     #[test]
     fn test_broadcast_except() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let (tx1, mut rx1) = mpsc::unbounded_channel();
         let (tx2, mut rx2) = mpsc::unbounded_channel();
 
@@ -1670,7 +1708,7 @@ mod tests {
 
     #[test]
     fn test_spawn_dice_with_physics() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
 
@@ -1684,7 +1722,7 @@ mod tests {
 
     #[test]
     fn test_spawn_dice_rejects_duplicate_dice_ids() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
 
         assert_eq!(room.spawn_dice("p1", vec![
@@ -1695,7 +1733,7 @@ mod tests {
 
     #[test]
     fn test_spawn_dice_rejects_duplicate_owned_inventory_die() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
 
         room.spawn_dice("p1", vec![SpawnDiceEntry {
@@ -1716,7 +1754,7 @@ mod tests {
 
     #[test]
     fn test_spawn_dice_preserves_presentation_metadata() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
 
@@ -1740,7 +1778,7 @@ mod tests {
 
     #[test]
     fn test_roll_marks_dice_as_rolling() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
@@ -1753,7 +1791,7 @@ mod tests {
 
     #[test]
     fn test_physics_tick_produces_snapshots() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
@@ -1766,20 +1804,22 @@ mod tests {
 
     #[test]
     fn test_physics_tick_resets_escaped_die() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
 
         let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
-        room.physics.reset_body_to_position(handle, [ESCAPE_RESET_HALF_X + 1.0, 2.0, 0.0]);
-        room.dice.get_mut("d1").unwrap().position = [ESCAPE_RESET_HALF_X + 1.0, 2.0, 0.0];
+        // Push the die just past this room's X escape threshold (bounds-relative).
+        let escaped_x = room.bounds.escape_half_x() + 1.0;
+        room.physics.reset_body_to_position(handle, [escaped_x, 2.0, 0.0]);
+        room.dice.get_mut("d1").unwrap().position = [escaped_x, 2.0, 0.0];
 
         let _ = room.physics_tick();
 
         let die = room.dice.get("d1").unwrap();
         assert!(
-            !is_outside_escape_bounds(die.position),
+            !is_outside_escape_bounds(die.position, &room.bounds),
             "Escaped die should be reset inside bounds, got {:?}",
             die.position
         );
@@ -1789,7 +1829,7 @@ mod tests {
 
     #[test]
     fn test_dice_eventually_settle() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Test");
         room.add_player(player).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
@@ -1817,7 +1857,7 @@ mod tests {
 
     #[test]
     fn test_start_drag_own_die() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
@@ -1829,7 +1869,7 @@ mod tests {
 
     #[test]
     fn test_cannot_drag_other_players_die() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.add_player(make_player("p2", "Frodo")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
@@ -1841,7 +1881,7 @@ mod tests {
 
     #[test]
     fn test_cannot_drag_already_dragged_die() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
 
@@ -1854,7 +1894,7 @@ mod tests {
     #[test]
     #[allow(clippy::float_cmp)]
     fn test_update_drag_target() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         room.start_drag("p1", "d1", [0.0; 3], [1.0, 2.0, 3.0]).unwrap();
@@ -1867,7 +1907,7 @@ mod tests {
 
     #[test]
     fn test_end_drag_clears_state() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         room.start_drag("p1", "d1", [0.0; 3], [0.0; 3]).unwrap();
@@ -1880,7 +1920,7 @@ mod tests {
 
     #[test]
     fn test_error_room_full_returns_correct_variant() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         for i in 0..MAX_PLAYERS {
             room.add_player(make_player(&format!("p{i}"), &format!("P{i}"))).unwrap();
         }
@@ -1892,7 +1932,7 @@ mod tests {
 
     #[test]
     fn test_error_invalid_name_returns_correct_variant() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         // Empty name
         assert_eq!(
             room.add_player(make_player("p1", "")).unwrap_err(),
@@ -1907,7 +1947,7 @@ mod tests {
 
     #[test]
     fn test_error_dice_full_returns_correct_variant() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Alice")).unwrap();
         let many: Vec<(String, DiceType)> = (0..MAX_DICE)
             .map(|i| (format!("d{i}"), DiceType::D6))
@@ -1921,7 +1961,7 @@ mod tests {
 
     #[test]
     fn test_error_die_not_found_start_drag() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Alice")).unwrap();
         assert_eq!(
             room.start_drag("p1", "nonexistent", [0.0; 3], [0.0; 3]).unwrap_err(),
@@ -1931,7 +1971,7 @@ mod tests {
 
     #[test]
     fn test_error_not_owner_returns_correct_variant() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Alice")).unwrap();
         room.add_player(make_player("p2", "Bob")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
@@ -1943,7 +1983,7 @@ mod tests {
 
     #[test]
     fn test_error_already_dragged_returns_correct_variant() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Alice")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         room.start_drag("p1", "d1", [0.0; 3], [0.0; 3]).unwrap();
@@ -1955,7 +1995,7 @@ mod tests {
 
     #[test]
     fn test_error_not_dragger_returns_correct_variant() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Alice")).unwrap();
         room.add_player(make_player("p2", "Bob")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
@@ -1970,7 +2010,7 @@ mod tests {
 
     #[test]
     fn test_error_not_dragging_update_drag() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Alice")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         // Die exists but is not being dragged
@@ -1982,7 +2022,7 @@ mod tests {
 
     #[test]
     fn test_error_not_dragging_end_drag() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Alice")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         // Die exists but was never dragged
@@ -1994,7 +2034,7 @@ mod tests {
 
     #[test]
     fn test_error_not_dragger_end_drag() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Alice")).unwrap();
         room.add_player(make_player("p2", "Bob")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
@@ -2009,7 +2049,7 @@ mod tests {
 
     #[test]
     fn test_error_die_not_found_update_drag() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Alice")).unwrap();
         assert_eq!(
             room.update_drag("p1", "nonexistent", [0.0; 3]).unwrap_err(),
@@ -2019,7 +2059,7 @@ mod tests {
 
     #[test]
     fn test_error_die_not_found_end_drag() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Alice")).unwrap();
         assert_eq!(
             room.end_drag("p1", "nonexistent", &[]).unwrap_err(),
@@ -2046,7 +2086,7 @@ mod tests {
 
     #[test]
     fn test_creator_is_host() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         assert_eq!(room.host_id, None, "Empty room has no host");
         room.add_player(make_player("p1", "Creator")).unwrap();
         assert_eq!(room.host_id.as_deref(), Some("p1"));
@@ -2061,14 +2101,14 @@ mod tests {
     #[test]
     fn test_solo_player_is_host() {
         // Solo loopback room: the single player is trivially host.
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("solo", "Solo")).unwrap();
         assert!(room.is_host("solo"));
     }
 
     #[test]
     fn test_host_transfers_to_oldest_remaining_on_disconnect() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "First")).unwrap();
         room.add_player(make_player("p2", "Second")).unwrap();
         room.add_player(make_player("p3", "Third")).unwrap();
@@ -2085,7 +2125,7 @@ mod tests {
 
     #[test]
     fn test_non_host_disconnect_does_not_change_host() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "First")).unwrap();
         room.add_player(make_player("p2", "Second")).unwrap();
 
@@ -2096,7 +2136,7 @@ mod tests {
 
     #[test]
     fn test_host_cleared_when_room_empties() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Only")).unwrap();
         room.remove_player("p1");
         assert_eq!(room.host_id, None, "Empty room has no host");
@@ -2104,7 +2144,7 @@ mod tests {
 
     #[test]
     fn test_host_can_update_settings() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Host")).unwrap();
 
         let mut settings = RoomSettings::default();
@@ -2117,7 +2157,7 @@ mod tests {
 
     #[test]
     fn test_non_host_settings_mutation_rejected_and_unchanged() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Host")).unwrap();
         room.add_player(make_player("p2", "Guest")).unwrap();
 
@@ -2132,7 +2172,7 @@ mod tests {
 
     #[test]
     fn test_room_state_carries_host_and_settings() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Host")).unwrap();
         let mut settings = RoomSettings::default();
         settings.fields.insert("theme".to_string(), serde_json::json!("neon"));
@@ -2160,7 +2200,7 @@ mod tests {
 
     /// Two players (p1 host, p2 guest) each owning one die (d1 / d2).
     fn make_two_player_room_with_dice() -> Room {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Host")).unwrap();
         room.add_player(make_player("p2", "Guest")).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D20)]).unwrap();
@@ -2170,14 +2210,14 @@ mod tests {
 
     #[test]
     fn test_motion_control_defaults_to_own_dice() {
-        let room = Room::new("test".to_string());
+        let room = Room::new("test".to_string(), ArenaBounds::default());
         assert_eq!(room.motion_control(), MotionControl::OwnDice);
         assert_eq!(MotionControl::DEFAULT, MotionControl::OwnDice);
     }
 
     #[test]
     fn test_motion_control_reads_setting_and_falls_back() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         set_motion_control(&mut room, MotionControl::Off);
         assert_eq!(room.motion_control(), MotionControl::Off);
         set_motion_control(&mut room, MotionControl::Room);
@@ -2426,7 +2466,7 @@ mod tests {
 
     #[test]
     fn test_theme_id_none_by_default() {
-        let room = Room::new("test".to_string());
+        let room = Room::new("test".to_string(), ArenaBounds::default());
         assert_eq!(room.theme_id(), None);
     }
 
@@ -2509,13 +2549,13 @@ mod tests {
 
     #[test]
     fn test_player_cap_defaults_to_max() {
-        let room = Room::new("test".to_string());
+        let room = Room::new("test".to_string(), ArenaBounds::default());
         assert_eq!(room.player_cap(), MAX_PLAYERS);
     }
 
     #[test]
     fn test_player_cap_reads_and_clamps_setting() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         set_player_cap(&mut room, 3);
         assert_eq!(room.player_cap(), 3);
         // Below range clamps up to 1.
@@ -2528,7 +2568,7 @@ mod tests {
 
     #[test]
     fn test_join_enforces_configurable_cap() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         set_player_cap(&mut room, 2);
 
         assert!(room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), None, None).is_ok());
@@ -2541,7 +2581,7 @@ mod tests {
 
     #[test]
     fn test_held_seat_counts_toward_cap() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         set_player_cap(&mut room, 1);
         room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1"), None).unwrap();
         // p1 drops but holds the seat during grace — room stays full.
@@ -2553,7 +2593,7 @@ mod tests {
 
     #[test]
     fn test_rejoin_within_grace_preserves_identity_and_dice() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let result = room
             .join("p1".into(), "Alice".into(), "#AABBCC".into(), make_sender(), Some("tok1"), None)
             .unwrap();
@@ -2583,7 +2623,7 @@ mod tests {
 
     #[test]
     fn test_rejoin_after_grace_is_a_new_player() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1"), None).unwrap();
         room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         room.mark_disconnected("p1");
@@ -2605,7 +2645,7 @@ mod tests {
 
     #[test]
     fn test_expire_respects_grace_window() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), Some("tok1"), None).unwrap();
         room.mark_disconnected("p1");
 
@@ -2617,7 +2657,7 @@ mod tests {
 
     #[test]
     fn test_expire_keeps_connected_players() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.join("p1".into(), "Alice".into(), "#FFF".into(), make_sender(), None, None).unwrap();
         room.join("p2".into(), "Bob".into(), "#FFF".into(), make_sender(), Some("tok2"), None).unwrap();
         room.mark_disconnected("p2");
@@ -2630,7 +2670,7 @@ mod tests {
 
     #[test]
     fn test_host_reclaimed_on_rejoin_when_sole_occupant() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.join("p1".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1"), None).unwrap();
         assert!(room.is_host("p1"));
 
@@ -2649,7 +2689,7 @@ mod tests {
 
     #[test]
     fn test_host_transfers_on_disconnect_and_is_not_reclaimed() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.join("p1".into(), "Host".into(), "#FFF".into(), make_sender(), Some("tok1"), None).unwrap();
         room.join("p2".into(), "Guest".into(), "#FFF".into(), make_sender(), None, None).unwrap();
         assert!(room.is_host("p1"));
@@ -2671,7 +2711,7 @@ mod tests {
 
     #[test]
     fn test_settled_die_included_in_snapshot_after_displacement() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let p1 = make_player("p1", "Alice");
         let p2 = make_player("p2", "Bob");
         room.add_player(p1).unwrap();
@@ -2698,7 +2738,7 @@ mod tests {
 
     #[test]
     fn test_drag_moves_die_toward_target() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Test")).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
 
@@ -2725,14 +2765,14 @@ mod tests {
 
     #[test]
     fn test_room_unlisted_by_default() {
-        let room = Room::new("test".to_string());
+        let room = Room::new("test".to_string(), ArenaBounds::default());
         assert!(!room.is_public(), "Rooms must be unlisted (private) by default");
         assert!(room.public_listing().is_none(), "Unlisted rooms produce no listing");
     }
 
     #[test]
     fn test_room_public_when_host_opts_in() {
-        let mut room = Room::new("abc123".to_string());
+        let mut room = Room::new("abc123".to_string(), ArenaBounds::default());
         set_field(&mut room, VISIBILITY_SETTING, serde_json::json!("public"));
         assert!(room.is_public());
         let listing = room.public_listing().expect("Public room yields a listing");
@@ -2744,14 +2784,14 @@ mod tests {
 
     #[test]
     fn test_unknown_visibility_value_is_unlisted() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         set_field(&mut room, VISIBILITY_SETTING, serde_json::json!("secret"));
         assert!(!room.is_public(), "Unknown visibility values stay unlisted");
     }
 
     #[test]
     fn test_listing_reflects_player_count_name_and_theme() {
-        let mut room = Room::new("room42".to_string());
+        let mut room = Room::new("room42".to_string(), ArenaBounds::default());
         set_field(&mut room, VISIBILITY_SETTING, serde_json::json!("public"));
         set_field(&mut room, ROOM_NAME_SETTING, serde_json::json!("  Taco Tuesday  "));
         set_field(&mut room, THEME_SETTING, serde_json::json!("neon"));
@@ -2776,7 +2816,7 @@ mod tests {
 
     #[test]
     fn test_blank_room_name_yields_none() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         set_field(&mut room, VISIBILITY_SETTING, serde_json::json!("public"));
         set_field(&mut room, ROOM_NAME_SETTING, serde_json::json!("   \t  "));
         assert_eq!(room.room_name(), None, "Whitespace-only name sanitizes to None");
@@ -2795,7 +2835,7 @@ mod physics_cleanup_tests {
 
     #[test]
     fn test_remove_dice_removes_physics_body() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
 
         // PhysicsWorld starts with 6 fixed bodies (ground + ceiling + 4 walls)
@@ -2815,7 +2855,7 @@ mod physics_cleanup_tests {
 
     #[test]
     fn test_remove_player_removes_physics_bodies() {
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.add_player(make_player("p2", "Frodo")).unwrap();
 
@@ -2845,7 +2885,7 @@ mod physics_cleanup_tests {
     #[test]
     fn test_remove_dice_no_body_handle_is_noop() {
         // Dice without physics bodies (body_handle: None) should not crash on remove
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
 
         let baseline = room.physics.body_count();
@@ -2874,7 +2914,7 @@ mod physics_tick_helper_tests {
     fn make_room_with_player_and_die(die_id: &str) -> Room {
         let (tx, _rx) = mpsc::unbounded_channel();
         let player = Player::new("p1".to_string(), "Test".to_string(), "#FFF".to_string(), tx);
-        let mut room = Room::new("test".to_string());
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(player).unwrap();
         room.spawn_dice_with_physics("p1", vec![(die_id.to_string(), DiceType::D6)]).unwrap();
         room
