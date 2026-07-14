@@ -566,6 +566,10 @@ pub struct PhysicsWorld {
     pub multibody_joint_set: MultibodyJointSet,
     pub ccd_solver: CCDSolver,
     pub query_pipeline: QueryPipeline,
+    /// Handles of the 6 fixed arena bodies (ground, ceiling, 4 walls), retained so
+    /// the arena can be rebuilt in place on a host resize ([`rebuild_arena`],
+    /// Shared-ADR-009) without disturbing the dice bodies inserted after them.
+    arena_handles: Vec<RigidBodyHandle>,
 }
 
 impl Default for PhysicsWorld {
@@ -587,57 +591,11 @@ impl PhysicsWorld {
     /// multiplayer server passes [`ArenaBounds::default`].
     #[must_use]
     pub fn with_bounds(bounds: ArenaBounds) -> Self {
-        let ArenaBounds { half_x, half_z } = bounds;
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
         let gravity = vector![0.0, GRAVITY, 0.0];
 
-        // Ground plane
-        let ground_body = RigidBodyBuilder::fixed()
-            .translation(vector![0.0, GROUND_Y, 0.0])
-            .build();
-        let ground_handle = rigid_body_set.insert(ground_body);
-        // Arena surfaces use the ARENA_RESTITUTION / ARENA_FRICTION material, not
-        // the dice material. With Rapier's Average combine rule the effective
-        // die↔felt pair is restitution 0.30 and friction 0.30 — the real felt-lined
-        // tray this recalibration targets.
-        let ground_collider = ColliderBuilder::cuboid(half_x + 2.0, 0.5, half_z + 2.0)
-            .restitution(ARENA_RESTITUTION)
-            .friction(ARENA_FRICTION)
-            .build();
-        collider_set.insert_with_parent(ground_collider, ground_handle, &mut rigid_body_set);
-
-        // Ceiling — same felt material as the floor (pair die↔felt = 0.30 / 0.30
-        // via Average).
-        let ceiling_body = RigidBodyBuilder::fixed()
-            .translation(vector![0.0, CEILING_Y, 0.0])
-            .build();
-        let ceiling_handle = rigid_body_set.insert(ceiling_body);
-        let ceiling_collider = ColliderBuilder::cuboid(half_x + 2.0, 0.5, half_z + 2.0)
-            .restitution(ARENA_RESTITUTION)
-            .friction(ARENA_FRICTION)
-            .build();
-        collider_set.insert_with_parent(ceiling_collider, ceiling_handle, &mut rigid_body_set);
-
-        // 4 walls: +X, -X, +Z, -Z
-        let walls = [
-            (vector![half_x + WALL_THICKNESS, WALL_HEIGHT / 2.0, 0.0], vector![WALL_THICKNESS, WALL_HEIGHT, half_z + 2.0]),
-            (vector![-(half_x + WALL_THICKNESS), WALL_HEIGHT / 2.0, 0.0], vector![WALL_THICKNESS, WALL_HEIGHT, half_z + 2.0]),
-            (vector![0.0, WALL_HEIGHT / 2.0, half_z + WALL_THICKNESS], vector![half_x + 2.0, WALL_HEIGHT, WALL_THICKNESS]),
-            (vector![0.0, WALL_HEIGHT / 2.0, -(half_z + WALL_THICKNESS)], vector![half_x + 2.0, WALL_HEIGHT, WALL_THICKNESS]),
-        ];
-
-        for (pos, half_extents) in walls {
-            let wall_body = RigidBodyBuilder::fixed()
-                .translation(pos)
-                .build();
-            let wall_handle = rigid_body_set.insert(wall_body);
-            let wall_collider = ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
-                .restitution(ARENA_RESTITUTION)
-                .friction(ARENA_FRICTION)
-                .build();
-            collider_set.insert_with_parent(wall_collider, wall_handle, &mut rigid_body_set);
-        }
+        let arena_handles = Self::insert_arena(&mut rigid_body_set, &mut collider_set, bounds);
 
         // One 60 Hz room tick is integrated as PHYSICS_SUBSTEPS substeps that sum to
         // TIME_SCALE/60 s (see `step`), so dt is derived from the substep count —
@@ -663,6 +621,96 @@ impl PhysicsWorld {
             multibody_joint_set: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             query_pipeline: QueryPipeline::new(),
+            arena_handles,
+        }
+    }
+
+    /// Insert the 6 fixed arena bodies (ground, ceiling, 4 walls) sized from
+    /// `bounds` and return their handles. Shared by [`with_bounds`] (initial build)
+    /// and [`rebuild_arena`] (host resize). The arena's height
+    /// ([`GROUND_Y`]/[`CEILING_Y`]/[`WALL_HEIGHT`]) is fixed; only the X/Z footprint
+    /// varies.
+    fn insert_arena(
+        rigid_body_set: &mut RigidBodySet,
+        collider_set: &mut ColliderSet,
+        bounds: ArenaBounds,
+    ) -> Vec<RigidBodyHandle> {
+        let ArenaBounds { half_x, half_z } = bounds;
+        let mut handles = Vec::with_capacity(6);
+
+        // Ground plane. Arena surfaces use the ARENA_RESTITUTION / ARENA_FRICTION
+        // material, not the dice material. With Rapier's Average combine rule the
+        // effective die↔felt pair is restitution 0.30 and friction 0.30 — the real
+        // felt-lined tray this recalibration targets.
+        let ground_body = RigidBodyBuilder::fixed()
+            .translation(vector![0.0, GROUND_Y, 0.0])
+            .build();
+        let ground_handle = rigid_body_set.insert(ground_body);
+        let ground_collider = ColliderBuilder::cuboid(half_x + 2.0, 0.5, half_z + 2.0)
+            .restitution(ARENA_RESTITUTION)
+            .friction(ARENA_FRICTION)
+            .build();
+        collider_set.insert_with_parent(ground_collider, ground_handle, rigid_body_set);
+        handles.push(ground_handle);
+
+        // Ceiling — same felt material as the floor (pair die↔felt = 0.30 / 0.30
+        // via Average).
+        let ceiling_body = RigidBodyBuilder::fixed()
+            .translation(vector![0.0, CEILING_Y, 0.0])
+            .build();
+        let ceiling_handle = rigid_body_set.insert(ceiling_body);
+        let ceiling_collider = ColliderBuilder::cuboid(half_x + 2.0, 0.5, half_z + 2.0)
+            .restitution(ARENA_RESTITUTION)
+            .friction(ARENA_FRICTION)
+            .build();
+        collider_set.insert_with_parent(ceiling_collider, ceiling_handle, rigid_body_set);
+        handles.push(ceiling_handle);
+
+        // 4 walls: +X, -X, +Z, -Z
+        let walls = [
+            (vector![half_x + WALL_THICKNESS, WALL_HEIGHT / 2.0, 0.0], vector![WALL_THICKNESS, WALL_HEIGHT, half_z + 2.0]),
+            (vector![-(half_x + WALL_THICKNESS), WALL_HEIGHT / 2.0, 0.0], vector![WALL_THICKNESS, WALL_HEIGHT, half_z + 2.0]),
+            (vector![0.0, WALL_HEIGHT / 2.0, half_z + WALL_THICKNESS], vector![half_x + 2.0, WALL_HEIGHT, WALL_THICKNESS]),
+            (vector![0.0, WALL_HEIGHT / 2.0, -(half_z + WALL_THICKNESS)], vector![half_x + 2.0, WALL_HEIGHT, WALL_THICKNESS]),
+        ];
+
+        for (pos, half_extents) in walls {
+            let wall_body = RigidBodyBuilder::fixed()
+                .translation(pos)
+                .build();
+            let wall_handle = rigid_body_set.insert(wall_body);
+            let wall_collider = ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
+                .restitution(ARENA_RESTITUTION)
+                .friction(ARENA_FRICTION)
+                .build();
+            collider_set.insert_with_parent(wall_collider, wall_handle, rigid_body_set);
+            handles.push(wall_handle);
+        }
+
+        handles
+    }
+
+    /// Rebuild the 6 arena bodies to a new `bounds` in place (host resize,
+    /// Shared-ADR-009). The old arena bodies are removed and replaced; every dice
+    /// body keeps its handle and state, so a resize never drops or re-rolls dice.
+    /// Callers are responsible for moving any die now outside the new bounds inside
+    /// (see [`crate::room::Room::set_arena`]).
+    pub fn rebuild_arena(&mut self, bounds: ArenaBounds) {
+        let old = std::mem::take(&mut self.arena_handles);
+        for handle in old {
+            self.remove_body(handle);
+        }
+        self.arena_handles = Self::insert_arena(&mut self.rigid_body_set, &mut self.collider_set, bounds);
+    }
+
+    /// Move a body to `position`, KEEPING its current orientation and stopping its
+    /// motion. Used to nudge a die inside a shrunk arena without re-rolling its face
+    /// — contrast [`reset_body_to_position`], which also resets rotation to identity.
+    pub fn move_body_keep_rotation(&mut self, handle: RigidBodyHandle, position: [f32; 3]) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            rb.set_translation(vector![position[0], position[1], position[2]], true);
+            rb.set_linvel(vector![0.0, 0.0, 0.0], true);
+            rb.set_angvel(vector![0.0, 0.0, 0.0], true);
         }
     }
 
@@ -1024,5 +1072,23 @@ mod tests {
         }
 
         assert!(world.is_at_rest(handle), "Dice should be at rest after 10 seconds");
+    }
+
+    #[test]
+    fn test_rebuild_arena_preserves_dice_bodies() {
+        use crate::dice::create_dice_body;
+        use crate::messages::DiceType;
+
+        let mut world = PhysicsWorld::with_bounds(ArenaBounds::default());
+        assert_eq!(world.body_count(), 6, "arena is ground + ceiling + 4 walls");
+
+        let die = create_dice_body(DiceType::D6, [0.0, 3.0, 0.0], &mut world);
+        assert_eq!(world.body_count(), 7);
+
+        world.rebuild_arena(ArenaBounds::from_aspect(1.0));
+
+        // The 6 arena bodies are replaced; the die handle survives (still 7 total).
+        assert_eq!(world.body_count(), 7, "rebuild swaps arena bodies, keeps dice");
+        assert!(world.get_position(die).is_some(), "die body survives the arena rebuild");
     }
 }

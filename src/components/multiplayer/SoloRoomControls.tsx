@@ -10,6 +10,7 @@ import {
   type RoomVisibility,
 } from '../../lib/multiplayerMessages'
 import { setPendingRoomSetup, type ArenaFootprint } from '../../lib/roomCarry'
+import { RoomSizeControl } from './RoomSizeControl'
 
 /**
  * Solo-mode contents of the {@link PlayerPanel}: the panel is the primary way to
@@ -68,6 +69,12 @@ export function SoloRoomControls() {
 
   return (
     <div className="flex flex-col gap-2.5 px-3 py-3" data-testid="solo-room-controls">
+      {/* Room size: reshape the solo table to your screen or a fixed ratio. The
+          solo player is the host, so this resizes the current room live. */}
+      <div className="pb-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <RoomSizeControl showAuto />
+      </div>
+
       {/* Discovery — the room we're about to create is unlisted or public. */}
       <div className="flex flex-col gap-1.5" data-testid="solo-room-visibility">
         <span

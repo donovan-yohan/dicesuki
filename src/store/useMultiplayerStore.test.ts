@@ -973,4 +973,37 @@ describe('useMultiplayerStore', () => {
       expect(send).not.toHaveBeenCalled()
     })
   })
+
+  describe('setArena / arena_changed', () => {
+    it('host setArena sends a set_arena message with the aspect', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: true,
+      })
+
+      useMultiplayerStore.getState().setArena(16 / 9)
+
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(JSON.parse(send.mock.calls[0][0])).toEqual({ type: 'set_arena', aspect: 16 / 9 })
+    })
+
+    it('non-host setArena is a no-op', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        isHost: false,
+      })
+      useMultiplayerStore.getState().setArena(1)
+      expect(send).not.toHaveBeenCalled()
+    })
+
+    it('arena_changed adopts the new engine config (bounds reflow)', () => {
+      const config = { arenaHalfX: 8, arenaHalfZ: 4.5 } as unknown as import('../lib/multiplayerMessages').EngineConfig
+      useMultiplayerStore.getState().handleServerMessage({ type: 'arena_changed', config })
+      expect(useMultiplayerStore.getState().engineConfig).toEqual(config)
+    })
+  })
 })

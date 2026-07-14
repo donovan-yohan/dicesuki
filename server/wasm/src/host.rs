@@ -206,6 +206,16 @@ impl RoomHost {
                 }
             }
 
+            ClientMessage::SetArena { aspect } if self.joined => {
+                // The solo player is the room host, so presets work in solo too
+                // (Shared-ADR-009). The worker's tick loop broadcasts any moved
+                // dice; no explicit sim start needed here.
+                match self.room.set_arena(SOLO_PLAYER_ID, aspect) {
+                    Ok(config) => self.room.broadcast(&ServerMessage::ArenaChanged { config }),
+                    Err(err) => self.send_error(err.code(), &err.to_string()),
+                }
+            }
+
             ClientMessage::MotionImpulse { impulse } if self.joined => {
                 // Motion is high-frequency; a dropped/rate-limited impulse is
                 // silently ignored, matching the server.

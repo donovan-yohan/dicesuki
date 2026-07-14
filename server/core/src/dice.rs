@@ -224,22 +224,33 @@ pub fn generate_spawn_position(n: usize, bounds: &ArenaBounds) -> [f32; 3] {
     [x, y, z]
 }
 
-/// Clamp a client-supplied spawn position into the playable arena.
+/// Clamp a position into the playable arena, leaving `wall_margin` of X/Z
+/// clearance from the walls and pinning Y to `[GROUND_Y, CEILING_Y]`. Returns the
+/// input unchanged when already inside, so callers can detect a move by equality.
 ///
-/// Carried-dice spawns (Shared-ADR-005) let a client hand the server an explicit
-/// position; this keeps a stray or hostile value inside the walls so a die can
-/// never be placed straddling/outside the arena. X/Z are pinned to
-/// `±(half − SPAWN_WALL_MARGIN)` (the same inset the drop grid respects) and Y to
-/// `[GROUND_Y, CEILING_Y]`.
+/// The margin is a parameter because callers want different clearances: a spawn
+/// wants the drop-grid fan-out inset ([`clamp_spawn_position`]); a resize wants
+/// only the collision clearance so dice merely resting near a wall are not yanked.
 #[must_use]
-pub fn clamp_spawn_position(position: [f32; 3], bounds: &ArenaBounds) -> [f32; 3] {
-    let max_x = (bounds.half_x - SPAWN_WALL_MARGIN).max(0.0);
-    let max_z = (bounds.half_z - SPAWN_WALL_MARGIN).max(0.0);
+pub fn clamp_position_within(position: [f32; 3], bounds: &ArenaBounds, wall_margin: f32) -> [f32; 3] {
+    let max_x = (bounds.half_x - wall_margin).max(0.0);
+    let max_z = (bounds.half_z - wall_margin).max(0.0);
     [
         position[0].clamp(-max_x, max_x),
         position[1].clamp(GROUND_Y, CEILING_Y),
         position[2].clamp(-max_z, max_z),
     ]
+}
+
+/// Clamp a client-supplied spawn position into the playable arena with the spawn
+/// fan-out margin ([`SPAWN_WALL_MARGIN`]).
+///
+/// Carried-dice spawns (Shared-ADR-005) let a client hand the server an explicit
+/// position; this keeps a stray or hostile value inside the walls so a die can
+/// never be placed straddling/outside the arena.
+#[must_use]
+pub fn clamp_spawn_position(position: [f32; 3], bounds: &ArenaBounds) -> [f32; 3] {
+    clamp_position_within(position, bounds, SPAWN_WALL_MARGIN)
 }
 
 /// Permute a 0-based fill order into a grid index in `0..count`, ordered

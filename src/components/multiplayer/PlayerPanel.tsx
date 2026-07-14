@@ -6,6 +6,7 @@ import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { connectionIndicator } from './connectionIndicator'
 import { RoomShare } from './RoomShare'
 import { SoloRoomControls } from './SoloRoomControls'
+import { RoomSizeControl } from './RoomSizeControl'
 import {
   getMotionControl,
   getRoller,
@@ -337,6 +338,15 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                 )
               )
             )}
+          </div>
+
+          {/* Room size: the host shapes the shared arena; everyone in the room
+              sees the same shape (Shared-ADR-009). Read-only for non-hosts. */}
+          <div
+            className="flex flex-col gap-1.5 px-3 py-2.5"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            <RoomSizeControl disabled={!isHost} />
           </div>
 
           {/* Motion control: host sets the room's device-motion policy; everyone

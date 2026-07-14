@@ -90,6 +90,12 @@ pub enum ClientMessage {
     MotionImpulse {
         impulse: [f32; 3],
     },
+    /// Host-only: resize the shared arena to the given aspect ratio (width/height).
+    /// The server derives area-preserving bounds via `ArenaBounds::from_aspect` and
+    /// broadcasts the new `EngineConfig` (Shared-ADR-009).
+    SetArena {
+        aspect: f32,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -183,6 +189,13 @@ pub enum ServerMessage {
     },
     SettingsUpdated {
         settings: RoomSettings,
+    },
+    /// The host resized the shared arena (Shared-ADR-009). Carries the room's new
+    /// `EngineConfig` (arena bounds) so every client reflows walls, shadows, and
+    /// camera. Broadcast to all players; unlike `room_state.config` this is not
+    /// join-only, closing the mid-session config-delivery gap.
+    ArenaChanged {
+        config: crate::config::EngineConfig,
     },
     PlayerJoined {
         player: PlayerInfo,
