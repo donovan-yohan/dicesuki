@@ -666,28 +666,35 @@ export const useInventoryStore = create<InventoryStore>()(
       // ========================================================================
 
       initializeStarterDice: () => {
-        const state = get()
+        const hadDice = get().dice.length > 0
 
-        // Only initialize if player has no dice
-        if (state.dice.length > 0) {
-          console.log('[Inventory] Already has dice, skipping starter initialization')
+        if (!hadDice) {
+          console.log('[Inventory] Initializing starter dice')
+          STARTER_DICE.forEach(starterDie => {
+            get().addDie(starterDie)
+          })
+          // Give some starting currency
+          set(state => ({
+            currency: {
+              ...state.currency,
+              coins: 500,
+              standardTokens: 5,
+            },
+          }))
           return
         }
 
-        console.log('[Inventory] Initializing starter dice')
-
-        STARTER_DICE.forEach(starterDie => {
-          get().addDie(starterDie)
-        })
-
-        // Give some starting currency
-        set(state => ({
-          currency: {
-            ...state.currency,
-            coins: 500,
-            standardTokens: 5
-          }
-        }))
+        // Existing inventory: idempotently grant just the newer "materials-lab"
+        // dice (metal/rubber d20) so players who predate them can still play with
+        // material feel. Keyed by name so it grants exactly once.
+        const ownedNames = new Set(get().dice.map(d => d.name))
+        const missing = STARTER_DICE.filter(
+          d => d.setId === 'materials-lab' && !ownedNames.has(d.name),
+        )
+        if (missing.length > 0) {
+          console.log(`[Inventory] Granting ${missing.length} materials-lab dice`)
+          missing.forEach(d => get().addDie(d))
+        }
       },
 
       reset: () => {

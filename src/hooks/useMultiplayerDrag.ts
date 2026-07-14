@@ -75,9 +75,13 @@ export function useMultiplayerDrag() {
     const worldPos = getPointerWorldPosition(event.nativeEvent.clientX, event.nativeEvent.clientY)
     if (!worldPos) return
 
-    // Calculate grab offset from die center (reuse pre-allocated vectors)
+    // Calculate grab offset from die center (reuse pre-allocated vectors). The
+    // offset preserves WHERE on the die you grabbed on X/Z (so it doesn't snap its
+    // center to the cursor), but its Y is zeroed: we want the die to lift up to the
+    // drag plane (DRAG_PLANE_HEIGHT) when grabbed, not stay at its resting height.
     event.object.getWorldPosition(dieCenterVec.current)
     offsetVec.current.subVectors(dieCenterVec.current, worldPos)
+    offsetVec.current.y = 0
     dragOffsetRef.current = offsetVec.current.clone()
 
     // Apply offset to get the die-centered target position

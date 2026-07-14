@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, ReactNode } from 'react'
 import { useInventoryStore } from '../../store/useInventoryStore'
+import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload } from '../../lib/inventoryDrag'
 import type { DiceShape } from '../../types/diceShape'
 import type { DieRarity, InventoryDie } from '../../types/inventory'
@@ -57,6 +58,21 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragSta
 
   const { currentTheme } = useTheme()
   const { dice, getDevDice, removeAllDevDice } = useInventoryStore()
+
+  // Inventory dice currently on the local player's table (spawned or in-flight), so
+  // a card can show "Added" + a disabled button instead of "Add". Selected as raw
+  // pieces and memoized into a Set so the reference is stable across renders.
+  const tableDice = useMultiplayerStore((s) => s.dice)
+  const pendingInventoryDieIds = useMultiplayerStore((s) => s.pendingInventoryDieIds)
+  const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
+  const onTableInventoryIds = useMemo(() => {
+    const ids = new Set<string>(pendingInventoryDieIds)
+    for (const die of tableDice.values()) {
+      const invId = die.presentation?.inventoryDieId
+      if (invId && (!localPlayerId || die.ownerId === localPlayerId)) ids.add(invId)
+    }
+    return ids
+  }, [tableDice, pendingInventoryDieIds, localPlayerId])
   const devDice = getDevDice()
   const hasDevDice = devDice.length > 0
 
@@ -369,6 +385,7 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragSta
                     theme={currentTheme}
                     onSelect={() => setSelectedDie(die)}
                     onSpawn={onSpawnDie ? () => handleSpawnDie(die) : undefined}
+                    isOnTable={onTableInventoryIds.has(die.id)}
                     onDragStateChange={onInventoryDragStateChange}
                     registerPreviewSlot={registerPreviewSlot}
                   />
@@ -474,6 +491,7 @@ interface InventoryDieCardProps {
   theme: Theme
   onSelect: () => void
   onSpawn?: () => void
+  isOnTable?: boolean
   onDragStateChange?: (isDragging: boolean) => void
   registerPreviewSlot: (dieId: string, element: HTMLElement | null) => void
 }
@@ -483,6 +501,7 @@ function InventoryDieCard({
   theme,
   onSelect,
   onSpawn,
+  isOnTable = false,
   onDragStateChange,
   registerPreviewSlot,
 }: InventoryDieCardProps) {
@@ -569,15 +588,18 @@ function InventoryDieCard({
         <div className="px-3 pb-3">
           <button
             type="button"
-            onClick={onSpawn}
+            onClick={isOnTable ? undefined : onSpawn}
+            disabled={isOnTable}
             className="h-9 w-full rounded-md text-sm font-semibold transition-colors"
             style={{
-              backgroundColor: theme.tokens.colors.accent,
-              color: theme.tokens.colors.text.primary,
+              backgroundColor: isOnTable ? theme.tokens.colors.surface : theme.tokens.colors.accent,
+              color: isOnTable ? theme.tokens.colors.text.muted : theme.tokens.colors.text.primary,
+              cursor: isOnTable ? 'not-allowed' : 'pointer',
+              opacity: isOnTable ? 0.6 : 1,
             }}
-            aria-label={`Add ${die.name} to table`}
+            aria-label={isOnTable ? `${die.name} is on the table` : `Add ${die.name} to table`}
           >
-            Add
+            {isOnTable ? 'Added' : 'Add'}
           </button>
         </div>
       )}

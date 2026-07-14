@@ -23,6 +23,7 @@ import type { RoomVisibility } from '../lib/multiplayerMessages'
 import { MOTION_IMPULSE_MIN_INTERVAL_MS } from '../config/physicsConfig'
 import { getWsServerUrl } from '../lib/multiplayerServer'
 import { createWorkerRoomTransport } from '../lib/workerRoomTransport'
+import { arenaDimensionsForViewport } from '../config/renderScale'
 import { triggerCollisionFeedback } from '../lib/collisionFeedback'
 import { useDiceStore } from './useDiceStore'
 
@@ -68,14 +69,17 @@ function createRoomSocket(
   params: { roomId: string; serverUrl: string },
 ): RoomSocket {
   if (transport === 'worker') {
-    // Fit the solo arena to the current window shape (Shared-ADR-007). Captured
-    // once here, at room creation; live resize is out of scope. Guarded for
-    // non-DOM/test contexts and degenerate (zero-height) viewports.
-    const viewportAspect =
-      typeof window !== 'undefined' && window.innerHeight > 0
-        ? window.innerWidth / window.innerHeight
+    // Size the solo arena to the current viewport at the fixed on-screen dice
+    // scale (ADR-008 amendment): a die stays real-die-sized and a larger canvas
+    // yields a larger box. Derived from the SAME scale the camera uses
+    // (`renderScale`), so the walls frame exactly what's on screen. Captured once
+    // here, at room creation; live resize is out of scope. `undefined` in
+    // non-DOM/degenerate contexts falls back to the fixed 9:16 arena.
+    const arena =
+      typeof window !== 'undefined'
+        ? arenaDimensionsForViewport(window.innerWidth, window.innerHeight)
         : undefined
-    return createWorkerRoomTransport(params.roomId, viewportAspect)
+    return createWorkerRoomTransport(params.roomId, arena?.width, arena?.depth)
   }
   return new WebSocket(`${params.serverUrl}/ws/${params.roomId}`)
 }

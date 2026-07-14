@@ -4,9 +4,35 @@
  * Defines the dice given to new players and tutorial rewards.
  */
 
-import { NewInventoryDie } from '../types/inventory'
+import { NewInventoryDie, DieMaterial } from '../types/inventory'
 import { getDieSetById } from './dieSets'
 import { DiceMetadata, DiceRarity } from '../types/customDice'
+
+/**
+ * A "materials lab" starter die: a d20 with an explicit material so its physics
+ * (server `material_physics`) and look (client `resolveDiceMaterial`) differ — a way to
+ * feel out how metal vs rubber vs plastic interact with the current gravity/setting.
+ */
+function createMaterialLabDie(
+  material: DieMaterial,
+  name: string,
+  baseColor: string,
+  metalness: number,
+  roughness: number,
+): Omit<NewInventoryDie, 'id' | 'acquiredAt'> {
+  return {
+    type: 'd20',
+    setId: 'materials-lab',
+    rarity: 'rare',
+    appearance: { baseColor, accentColor: '#ffffff', material, metalness, roughness },
+    vfx: {},
+    name,
+    description: `A ${material} d20 — feel how a ${material} die rolls and bounces under this gravity.`,
+    isFavorite: false,
+    isLocked: true,
+    source: 'starter',
+  }
+}
 
 // ============================================================================
 // Helper Functions
@@ -141,6 +167,10 @@ const DEVIL_D6_METADATA: DiceMetadata = {
  * Distribution: 6d4, 6d6 (Devil), 4d8, 2d10, 2d12, 1d20
  */
 export const STARTER_DICE: Array<Omit<NewInventoryDie, 'id' | 'acquiredAt'>> = [
+  // Materials lab: metal + rubber d20 to feel how die material affects the roll.
+  createMaterialLabDie('metal', 'Steel d20', '#c2c7cf', 1.0, 0.28),
+  createMaterialLabDie('rubber', 'Rubber d20', '#e9d5ff', 0.0, 0.95),
+
   // 1 d20
   createStarterDie('d20', 'adventurer-starter', 'common', 'Starter d20', 'starter'),
 

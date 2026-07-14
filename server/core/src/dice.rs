@@ -16,15 +16,66 @@ pub struct DiceFace {
     pub normal: Vector3<f32>,
 }
 
-/// Dice size (half-extent for d6, approximate radius for others)
+/// Dice size (half-extent base for the polyhedra hulls, before per-die scaling)
 pub const DICE_SIZE: f32 = 0.5;
 
-/// Create a rigid body and collider for a given dice type at a spawn position,
-/// inserting them into the provided `PhysicsWorld`.
+/// Half-extent (world units) of the d6 cube collider. The d6 is rendered 10 %
+/// larger than the base die by default (client `DICE_SHAPE_SIZE_SCALE.d6 = 1.1`),
+/// so its collider edge (2 · this = 1.1) equals the client d6 mesh edge.
+/// INVARIANT: keep in sync with the client d6 scale.
+pub const D6_HALF_EXTENT: f32 = DICE_SIZE * 1.1;
+
+/// Target collider **circumradius** (world units) for a non-d6 die, equal to the
+/// client mesh circumradius (`getDiceShapeSize(shape, 1)` × THREE's polyhedron
+/// `radius`, in `src/lib/diceShapeScale.ts`). The collider is scaled to this in
+/// [`create_dice_body`] so the physics shape equals the drawn shape.
+///
+/// INVARIANT: mirror `DICE_SHAPE_SIZE_SCALE` in the client. d6 is excluded (it uses
+/// a cuboid whose edge already matches its mesh).
+#[must_use]
+fn dice_circumradius(dice_type: DiceType) -> f32 {
+    match dice_type {
+        DiceType::D12 => 0.9,
+        // d4, d8, d10, d20 render at THREE radius 1.0.
+        _ => 1.0,
+    }
+}
+
+/// Physics material `(restitution, friction, density, restitution_combine)` for a
+/// die, keyed on the client `presentation.material`. `density` (at the unit-volume
+/// collider) sets the die's mass; the combine rule governs bounce off the felt
+/// floor (arena restitution 0): the default `Average` halves a die's own
+/// restitution, while `rubber` uses `Max` to bounce at its FULL restitution.
+/// - `metal`: heavy (density 5), low bounce (0.5).
+/// - `rubber`: light, bouncy (restitution 0.8, `Max` → ~0.8 off the felt), grippy.
+/// - anything else (`plastic`/`resin`/None/…): the tuned default dice material.
+#[must_use]
+fn material_physics(material: Option<&str>) -> (f32, f32, f32, CoefficientCombineRule) {
+    match material {
+        Some("metal") => (0.5, 0.18, 5.0, CoefficientCombineRule::Average),
+        Some("rubber") => (0.8, 0.95, 0.9, CoefficientCombineRule::Max),
+        _ => (DICE_RESTITUTION, DICE_FRICTION, 1.0, CoefficientCombineRule::Average),
+    }
+}
+
+/// Create a rigid body and collider for a die at a spawn position with the default
+/// (plastic) material. See [`create_dice_body_with_material`].
 pub fn create_dice_body(
     dice_type: DiceType,
     position: [f32; 3],
     world: &mut PhysicsWorld,
+) -> RigidBodyHandle {
+    create_dice_body_with_material(dice_type, position, world, None)
+}
+
+/// Create a rigid body and collider for a given dice type at a spawn position,
+/// inserting them into the provided `PhysicsWorld`. `material` (the client
+/// `presentation.material`) selects the physics material via [`material_physics`].
+pub fn create_dice_body_with_material(
+    dice_type: DiceType,
+    position: [f32; 3],
+    world: &mut PhysicsWorld,
+    material: Option<&str>,
 ) -> RigidBodyHandle {
     let mut rng = rand::thread_rng();
 
@@ -47,21 +98,38 @@ pub fn create_dice_body(
         .build();
 
     let collider = if dice_type == DiceType::D6 {
-        // Plain (sharp-edged) cube: the chamfer was removed to restore the legacy
-        // settle-creep fix (a rounded cube micro-rolls forever under loose settle
-        // thresholds) and to give the die its full mass (m = 1.0, I = 1/6), which
-        // the recalibrated roll torque assumes.
-        ColliderBuilder::cuboid(DICE_SIZE, DICE_SIZE, DICE_SIZE)
+        // Plain (sharp-edged) cube. The everyday die is rendered 10 % larger by
+        // default (client `DICE_SHAPE_SIZE_SCALE.d6 = 1.1`), so its collider is the
+        // matching cuboid — half-extent D6_HALF_EXTENT = DICE_SIZE · 1.1 = 0.55, edge
+        // 1.1 = the client d6 mesh edge. (Roll velocity/spin are mass/inertia-scaled,
+        // so the larger, heavier d6 still launches and tumbles at the tuned rates.)
+        ColliderBuilder::cuboid(D6_HALF_EXTENT, D6_HALF_EXTENT, D6_HALF_EXTENT)
     } else {
-        // For non-d6 dice, use convex hull from vertices
-        let vertices = get_dice_vertices(dice_type);
-        ColliderBuilder::convex_hull(&vertices)
-            .unwrap_or_else(|| ColliderBuilder::ball(DICE_SIZE))
-    }
-    .restitution(DICE_RESTITUTION)
-    .friction(DICE_FRICTION)
-    .density(1.0)
-    .build();
+        // Non-d6 dice: convex hull scaled so its circumradius equals the CLIENT
+        // MESH circumradius ([`dice_circumradius`], mirroring `getDiceShapeSize` in
+        // src/lib/diceShapeScale.ts). The raw `get_dice_vertices` hulls are built at
+        // ~half that scale, so without this the drawn die was ~2× its collider and
+        // clipped walls/other dice; scaling makes the collision shape equal the
+        // visible geometry.
+        let target = dice_circumradius(dice_type);
+        let verts = get_dice_vertices(dice_type);
+        let max_norm = verts.iter().map(|p| p.coords.norm()).fold(0.0_f32, f32::max);
+        let scale = if max_norm > 1e-6 { target / max_norm } else { 1.0 };
+        let scaled: Vec<Point<f32>> = verts
+            .iter()
+            .map(|p| point![p.x * scale, p.y * scale, p.z * scale])
+            .collect();
+        ColliderBuilder::convex_hull(&scaled)
+            .unwrap_or_else(|| ColliderBuilder::ball(target))
+    };
+
+    let (restitution, friction, density, restitution_combine) = material_physics(material);
+    let collider = collider
+        .restitution(restitution)
+        .restitution_combine_rule(restitution_combine)
+        .friction(friction)
+        .density(density)
+        .build();
 
     world.spawn_body(body, collider)
 }
@@ -106,10 +174,11 @@ pub fn generate_roll_spin() -> Vector3<f32> {
 /// ([`SPAWN_LANE_SPACING`]) and rows on Z ([`SPAWN_ROW_SPACING`]) as fit inside
 /// `bounds` (less [`SPAWN_WALL_MARGIN`]), centered on the table so a wide
 /// (landscape) arena fans across more lanes and a deep (portrait) one across more
-/// rows. Grid cells are always ≥ `SPAWN_LANE_SPACING` (1.12 U) apart, so even at
-/// jitter extremes (±[`SPAWN_JITTER`] per axis) no two same-layer dice come within
-/// `1.12 − 2·SPAWN_JITTER` = 0.68 U of each other. Uniform [`SPAWN_JITTER`] on each
-/// axis keeps same-cell draws from stacking perfectly.
+/// rows. Grid cells are always ≥ `min(SPAWN_LANE_SPACING, SPAWN_ROW_SPACING)` apart,
+/// so even at jitter extremes (±[`SPAWN_JITTER`] per axis) no two same-layer dice
+/// come within `that − 2·SPAWN_JITTER` of each other — sized above the full die so
+/// the matched (mesh-size) colliders don't spawn interpenetrated. Uniform
+/// [`SPAWN_JITTER`] on each axis keeps same-cell draws from stacking perfectly.
 ///
 /// When a batch exhausts the layer-0 grid, overflow dice drop from a **higher
 /// layer** (`y += SPAWN_LAYER_SPACING`) with the grid restarting — a second
@@ -134,8 +203,14 @@ pub fn generate_spawn_position(n: usize, bounds: &ArenaBounds) -> [f32; 3] {
 
     let layer = n / per_layer;
     let cell = n % per_layer;
-    let col = cell % lanes;
-    let row = cell / lanes;
+    // Fill the grid CENTER-OUT so die 0 lands at the table center and a batch fans
+    // out symmetrically around it (a handful dropped in the middle), rather than
+    // starting from a corner — which, on a large arena, spawned the first die far
+    // off-screen-center. `center_out_index` permutes the fill order into the same
+    // set of grid cells, so bounds, interpenetration, and layer capacity are
+    // unchanged; only which die lands where changes.
+    let col = center_out_index(cell % lanes, lanes);
+    let row = center_out_index(cell / lanes, rows);
 
     // Center each grid axis about 0: the extreme cell sits at
     // (count-1)/2 · spacing ≤ half_extent − margin, so the whole grid (plus jitter)
@@ -147,6 +222,23 @@ pub fn generate_spawn_position(n: usize, bounds: &ArenaBounds) -> [f32; 3] {
     let y = SPAWN_HEIGHT + layer as f32 * SPAWN_LAYER_SPACING;
 
     [x, y, z]
+}
+
+/// Permute a 0-based fill order into a grid index in `0..count`, ordered
+/// center-first: fill order `0` maps to the center cell, then it alternates
+/// outward (`+1, -1, +2, -2, …`). The result is a bijection over `0..count`
+/// (every cell is still used exactly once), so a batch fanned this way occupies
+/// the same cells as a corner-first fill — only the order differs, keeping the
+/// first/early dice at the table center.
+#[must_use]
+fn center_out_index(fill_order: usize, count: usize) -> usize {
+    debug_assert!(fill_order < count);
+    let base = (count - 1) / 2; // integer center index
+    let k = i64::try_from((fill_order + 1) / 2).unwrap_or(0);
+    let signed = if fill_order % 2 == 1 { k } else { -k };
+    let idx = i64::try_from(base).unwrap_or(0) + signed;
+    let last = i64::try_from(count).unwrap_or(1) - 1;
+    idx.clamp(0, last).try_into().unwrap_or(0)
 }
 
 /// Get vertices for convex hull collider based on dice type
@@ -477,15 +569,14 @@ mod tests {
 
     #[test]
     fn test_spawn_batch_has_no_interpenetration_any_aspect() {
-        // A full MAX_DICE batch must fan out with no two dice within
-        // (1 U − 2·SPAWN_JITTER) of each other, for every in-range aspect and at
-        // jitter extremes — the guarantee the layered, arena-sized grid gives in
-        // place of the old row-clamp that stacked overflow dice onto one cell.
-        // (Nominal grid cells are ≥ SPAWN_LANE_SPACING = 1.12 U apart; worst-case
-        // jitter of both dice removes at most 2·SPAWN_JITTER = 0.44 U, so the true
-        // floor is ~0.68 U — comfortably above the asserted 1 U − 0.44 U = 0.56 U.)
-        use crate::physics::SPAWN_JITTER;
-        let min_separation = 1.0 - 2.0 * SPAWN_JITTER; // 0.56 U
+        // A full MAX_DICE batch must fan out with no two dice closer than the
+        // guaranteed grid gap — the smaller of the lane/row spacings, less the
+        // worst-case jitter of both dice — for every in-range aspect. This is the
+        // guarantee the layered, arena-sized grid gives in place of the old
+        // row-clamp that stacked overflow dice onto one cell. Derived from the
+        // spacing constants so it tracks the full-size-collider spacing bump.
+        use crate::physics::{SPAWN_JITTER, SPAWN_LANE_SPACING, SPAWN_ROW_SPACING};
+        let min_separation = SPAWN_LANE_SPACING.min(SPAWN_ROW_SPACING) - 2.0 * SPAWN_JITTER;
         let aspects = [0.4_f32, 0.5625, 0.75, 1.0, 1.5, 2.0, 2.4];
         for aspect in aspects {
             let bounds = ArenaBounds::from_aspect(aspect);
@@ -506,6 +597,43 @@ mod tests {
                         );
                     }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn center_out_index_is_a_centered_permutation() {
+        for count in 1..=25usize {
+            let mapped: Vec<usize> = (0..count).map(|i| center_out_index(i, count)).collect();
+            // Fill order 0 lands on the center cell.
+            assert_eq!(mapped[0], (count - 1) / 2, "count {count}: order 0 is center");
+            // Every cell is used exactly once (a bijection over 0..count).
+            let mut sorted = mapped.clone();
+            sorted.sort_unstable();
+            let expected: Vec<usize> = (0..count).collect();
+            assert_eq!(sorted, expected, "count {count}: must be a permutation, got {mapped:?}");
+        }
+    }
+
+    #[test]
+    fn first_die_spawns_at_table_center_on_a_large_arena() {
+        // The regression: on a big arena the first die used to drop at a corner.
+        // Center-out fill must land die 0 within one grid step of the origin on
+        // both axes, for the default and a wide aspect-fit arena.
+        use crate::physics::{SPAWN_JITTER, SPAWN_LANE_SPACING, SPAWN_ROW_SPACING};
+        for bounds in [ArenaBounds::default(), ArenaBounds::from_dimensions(40.0, 30.0)] {
+            for _ in 0..50 {
+                let p = generate_spawn_position(0, &bounds);
+                assert!(
+                    p[0].abs() <= SPAWN_LANE_SPACING / 2.0 + SPAWN_JITTER,
+                    "die 0 x not centered: {} (bounds {bounds:?})",
+                    p[0]
+                );
+                assert!(
+                    p[2].abs() <= SPAWN_ROW_SPACING / 2.0 + SPAWN_JITTER,
+                    "die 0 z not centered: {} (bounds {bounds:?})",
+                    p[2]
+                );
             }
         }
     }
@@ -571,6 +699,32 @@ mod tests {
                 "{dice_type:?} spin {omega} vs target {target}"
             );
         }
+    }
+
+    #[test]
+    fn collider_hull_scales_to_mesh_circumradius() {
+        // Each non-d6 collider is scaled so its circumradius equals the client mesh
+        // circumradius (dice_circumradius, mirroring getDiceShapeSize) — the guard
+        // that the physics shape equals the drawn shape (no clipping / sinking).
+        for dt in [
+            DiceType::D4, DiceType::D8, DiceType::D10, DiceType::D12, DiceType::D20,
+        ] {
+            let target = dice_circumradius(dt);
+            let verts = get_dice_vertices(dt);
+            let max_norm = verts.iter().map(|p| p.coords.norm()).fold(0.0_f32, f32::max);
+            let scale = target / max_norm;
+            let scaled_max = verts
+                .iter()
+                .map(|p| p.coords.norm() * scale)
+                .fold(0.0_f32, f32::max);
+            assert!(
+                (scaled_max - target).abs() < 1e-4,
+                "{dt:?}: scaled collider circumradius {scaled_max} != mesh target {target}"
+            );
+        }
+        // d20/d8/d10/d4 render at THREE radius 1.0; d12 at 0.9.
+        assert!((dice_circumradius(DiceType::D20) - 1.0).abs() < f32::EPSILON);
+        assert!((dice_circumradius(DiceType::D12) - 0.9).abs() < f32::EPSILON);
     }
 
     #[test]

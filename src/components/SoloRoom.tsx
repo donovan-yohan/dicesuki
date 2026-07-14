@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import Scene from './Scene'
 import { DiceBackendProvider } from '../contexts/DiceBackendProvider'
 import { useMultiplayerDiceBackend } from '../hooks/useMultiplayerDiceBackend'
@@ -37,7 +37,28 @@ export function SoloRoom() {
   const rememberedName = usePlayerIdentityStore((s) => s.displayName)
   const rememberedColor = usePlayerIdentityStore((s) => s.color)
 
+  const didSeedDefaultRef = useRef(false)
+
   const backend = useMultiplayerDiceBackend()
+  const { addDie } = backend
+
+  // Seed a single d20 FROM THE INVENTORY in the center of an empty table when the
+  // solo room opens, so the app never boots to an empty tray (center-out spawn
+  // places the first die at the table center). `addDie` picks an available d20 from
+  // the player's inventory and spawns it with its presentation metadata — every die
+  // on the table is an inventory die, never an invented one. Guarded so it seeds
+  // once per connected session and never stomps a table that already has dice.
+  useEffect(() => {
+    if (connectionStatus !== 'connected') {
+      didSeedDefaultRef.current = false
+      return
+    }
+    if (didSeedDefaultRef.current) return
+    didSeedDefaultRef.current = true
+    if (useMultiplayerStore.getState().dice.size === 0) {
+      addDie('d20')
+    }
+  }, [connectionStatus, addDie])
 
   // Open the solo worker room on mount; disconnect + reset on unmount. Reset and
   // connect are paired in ONE effect so React StrictMode's dev remount

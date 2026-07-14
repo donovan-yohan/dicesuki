@@ -4,9 +4,9 @@ import { getDiceShapeSize } from './diceShapeScale'
 import { createDiceGeometry } from './geometries'
 
 describe('dice shape scale', () => {
-  it('keeps most stock dice at the requested base size', () => {
+  it('keeps most stock dice at the base size, d6 10% larger by default', () => {
     expect(getDiceShapeSize('d4', 1)).toBe(1)
-    expect(getDiceShapeSize('d6', 1)).toBe(1)
+    expect(getDiceShapeSize('d6', 1)).toBeCloseTo(1.1, 5) // everyday die rendered 10% larger
     expect(getDiceShapeSize('d8', 1)).toBe(1)
     expect(getDiceShapeSize('d10', 1)).toBe(1)
     expect(getDiceShapeSize('d20', 1)).toBe(1)

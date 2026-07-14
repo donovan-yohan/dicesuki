@@ -4,7 +4,7 @@ import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import { type DiceShape, createDiceGeometry } from '../../lib/geometries'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
-import { getFaceRendererForShape } from '../../lib/faceRenderers'
+import { resolveDiceMaterial } from '../../lib/diceMaterial'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { type RenderDeviceTier, resolveDiceRenderLod } from '../../lib/renderLod'
@@ -65,12 +65,18 @@ export function MultiplayerDie({
     [renderDeviceTier, isOwnedByLocalPlayer],
   )
 
+  // Material look comes from the single resolver (shared with the inventory
+  // previews, so they can't drift), keyed on the server physics material
+  // (dice.rs::material_physics): metal → glossy faces + matte painted numbers,
+  // rubber → pastel tie-dye, everything else the default.
+  const resolution = resolveDiceMaterial(diceType, presentation?.material)
   const materials = useDiceMaterials({
     shape: diceType,
     color: presentation?.baseColor ?? color,
-    roughness: 0.7,
-    metalness: 0.1,
-    faceRenderer: getFaceRendererForShape(diceType),
+    roughness: resolution.roughness,
+    metalness: resolution.metalness,
+    faceRenderer: resolution.faceRenderer,
+    materialMaskRenderer: resolution.materialMaskRenderer,
     lodPolicy,
   })
 

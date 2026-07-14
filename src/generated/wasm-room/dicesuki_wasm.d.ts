@@ -21,16 +21,19 @@ export class WasmRoom {
     /**
      * Construct an empty solo room.
      *
-     * `room_id` labels the room in `room_state`. `aspect` (optional) is the
-     * host window's aspect ratio (width / height); when present the arena is
-     * fitted to it via [`ArenaBounds::from_aspect`], otherwise the fixed 9:16
-     * arena is used. All sizing policy lives in core — the worker only forwards
-     * the number (epic #111 anti-drift guardrail). `on_message` (optional) is
-     * called with each outbound protocol JSON string as it is produced; it
-     * is the worker's `postMessage` pump. Every mutating method also returns
-     * the same messages as an array, so a purely polling host works too.
+     * `room_id` labels the room in `room_state`. `arena_width`/`arena_depth`
+     * (optional, full world extents — X across the screen, Z down it) are the
+     * arena footprint the host derives from its viewport at the fixed on-screen
+     * dice scale (ADR-008 amendment): when BOTH are present the arena is sized
+     * to them via [`ArenaBounds::from_dimensions`] (halved + clamped in core),
+     * so a larger canvas yields a larger box at unchanged dice size; otherwise
+     * the fixed 9:16 arena is used. All sizing/clamp policy lives in core — the
+     * worker only forwards the numbers (epic #111 anti-drift guardrail).
+     * `on_message` (optional) is called with each outbound protocol JSON string
+     * as it is produced; it is the worker's `postMessage` pump. Every mutating
+     * method also returns the same messages as an array, so a polling host works.
      */
-    constructor(room_id: string, aspect?: number | null, on_message?: Function | null);
+    constructor(room_id: string, arena_width?: number | null, arena_depth?: number | null, on_message?: Function | null);
     /**
      * Advance the simulation one fixed 60Hz step. `dt_ms` is accepted for
      * symmetry with a wall-clock driver but ignored (core uses a fixed
@@ -57,7 +60,7 @@ export interface InitOutput {
     readonly engineConfigJson: (a: number) => void;
     readonly wasmroom_handleMessage: (a: number, b: number, c: number) => number;
     readonly wasmroom_isSimulating: (a: number) => number;
-    readonly wasmroom_new: (a: number, b: number, c: number, d: number) => number;
+    readonly wasmroom_new: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly wasmroom_tick: (a: number, b: number) => number;
     readonly __wbindgen_export: (a: number) => void;
     readonly __wbindgen_export2: (a: number, b: number, c: number) => void;

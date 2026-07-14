@@ -4,9 +4,8 @@ import * as THREE from 'three'
 
 import { createDiceGeometry } from '../../lib/geometries'
 import { createFaceMaterialsArray } from '../../lib/faceMaterialMapping'
-import { getFaceRendererForShape } from '../../lib/faceRenderers'
+import { resolveDiceMaterial, buildDiceFaceMaterial } from '../../lib/diceMaterial'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
-import { renderDiceFaceToTexture } from '../../lib/textureRendering'
 import type { DiceShape } from '../../types/diceShape'
 import type { InventoryDie } from '../../types/inventory'
 
@@ -40,19 +39,6 @@ interface IdleScheduler {
 
 const PREVIEW_TEXTURE_SIZE = 128
 const PREVIEW_LOAD_BATCH_SIZE = 6
-
-const MATERIAL_DEFAULTS = {
-  plastic: { roughness: 0.68, metalness: 0.06 },
-  resin: { roughness: 0.42, metalness: 0.08 },
-  metal: { roughness: 0.28, metalness: 0.72 },
-  stone: { roughness: 0.86, metalness: 0.02 },
-  glass: { roughness: 0.14, metalness: 0.02 },
-  crystal: { roughness: 0.2, metalness: 0.08 },
-  wood: { roughness: 0.78, metalness: 0.02 },
-  bone: { roughness: 0.7, metalness: 0.02 },
-  obsidian: { roughness: 0.24, metalness: 0.18 },
-  celestial: { roughness: 0.34, metalness: 0.2 },
-} as const
 
 export function SharedInventoryDicePreviewCanvas({
   dice,
@@ -311,28 +297,32 @@ function acquirePreviewMaterials(
     return cached
   }
 
-  const materialDefaults = MATERIAL_DEFAULTS[die.appearance.material]
   const color = normalizeHexColor(die.appearance.baseColor, '#f8fafc')
   const emissiveColor = normalizeHexColor(die.appearance.emissive, '#000000')
   const emissiveIntensity = die.appearance.emissiveIntensity ?? (die.appearance.material === 'celestial' ? 0.18 : 0)
   const transparent = die.appearance.material === 'glass' || die.appearance.material === 'crystal'
   const opacity = die.appearance.material === 'glass' ? 0.66 : 1
-  const roughness = die.appearance.roughness ?? materialDefaults.roughness
-  const metalness = die.appearance.metalness ?? materialDefaults.metalness
-  const faceRenderer = getFaceRendererForShape(die.type)
-  const materials = createFaceMaterialsArray(die.type, (faceValue) => {
-    const texture = renderDiceFaceToTexture(faceValue, color, faceRenderer, PREVIEW_TEXTURE_SIZE)
-    return new THREE.MeshStandardMaterial({
-      map: texture,
-      roughness,
-      metalness,
-      emissive: new THREE.Color(emissiveColor),
-      emissiveIntensity,
-      flatShading: die.type === 'd10',
-      transparent,
-      opacity,
-    })
-  })
+
+  // Face renderer / mask / PBR come from the SHARED resolver (identical to the
+  // tray's MultiplayerDie), and construction goes through the SHARED builder, so a
+  // preview cannot drift from the die actually rendered on the table.
+  const resolution = resolveDiceMaterial(die.type, die.appearance.material)
+  const extras = {
+    emissive: emissiveIntensity > 0 ? emissiveColor : undefined,
+    emissiveIntensity,
+    transparent,
+    opacity,
+  }
+  const materials = createFaceMaterialsArray(die.type, (faceValue) =>
+    buildDiceFaceMaterial({
+      shape: die.type,
+      faceValue,
+      color,
+      resolution,
+      textureSize: PREVIEW_TEXTURE_SIZE,
+      extras,
+    }),
+  )
   const entry = { materials, refCount: 1 }
   cache.set(materialKey, entry)
   return entry
@@ -366,22 +356,24 @@ function disposePreviewEntry(
 
 function disposePreviewMaterials(materials: THREE.Material[]) {
   materials.forEach((material) => {
-    if (material instanceof THREE.MeshStandardMaterial && material.map) {
-      material.map.dispose()
+    if (material instanceof THREE.MeshStandardMaterial) {
+      material.map?.dispose()
+      // matte-metal numbers assign one mask texture to both slots — dispose once.
+      material.metalnessMap?.dispose()
     }
     material.dispose()
   })
 }
 
 function getMaterialCacheKey(die: InventoryDie) {
+  // PBR + face renderer + mask are derived from `die.appearance.material` by the
+  // shared resolver, so the material string (already keyed) covers them.
   return [
     die.type,
     normalizeHexColor(die.appearance.baseColor, '#f8fafc'),
     normalizeHexColor(die.appearance.emissive, '#000000'),
     die.appearance.emissiveIntensity ?? (die.appearance.material === 'celestial' ? 0.18 : 0),
     die.appearance.material,
-    die.appearance.roughness ?? MATERIAL_DEFAULTS[die.appearance.material].roughness,
-    die.appearance.metalness ?? MATERIAL_DEFAULTS[die.appearance.material].metalness,
     die.appearance.material === 'glass' ? 0.66 : 1,
     PREVIEW_TEXTURE_SIZE,
   ].join('|')

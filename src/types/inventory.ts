@@ -18,6 +18,7 @@ export type DieMaterial =
   | 'plastic'      // Basic, matte
   | 'resin'        // Semi-glossy
   | 'metal'        // High metalness
+  | 'rubber'       // Matte, bouncy, grippy
   | 'stone'        // Rough, natural
   | 'glass'        // Transparent
   | 'crystal'      // Refractive
