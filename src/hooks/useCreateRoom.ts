@@ -16,7 +16,7 @@ export interface CreateRoomError {
   command: string | null
 }
 
-interface UseCreateRoomOptions {
+export interface UseCreateRoomOptions {
   mode?: RoomServerMode
   /**
    * Optional shared room environment theme chosen at creation time (#76).
@@ -25,6 +25,13 @@ interface UseCreateRoomOptions {
    * `POST /api/rooms` stays theme-agnostic, keeping the server untouched.
    */
   themeId?: string | null
+  /**
+   * Called with the server-assigned room id after a room is successfully created
+   * and before navigation. Lets the caller stash per-room hand-off state (e.g. a
+   * carried-dice setup) keyed to the exact room, so it can never be applied to a
+   * different room the user later joins.
+   */
+  onRoomCreated?: (roomId: string) => void
 }
 
 interface UseCreateRoomResult {
@@ -88,6 +95,10 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
       if (typeof data.roomId !== 'string') {
         throw new Error('Room server response did not include a roomId')
       }
+
+      // Room exists now: let the caller key any hand-off state to this exact id
+      // before we navigate into it.
+      options.onRoomCreated?.(data.roomId)
 
       const params = new URLSearchParams()
       if (options.themeId) {

@@ -98,6 +98,17 @@ pub struct SpawnDiceEntry {
     #[serde(rename = "diceType")]
     pub dice_type: DiceType,
     pub presentation: Option<DicePresentationMetadata>,
+    /// Optional explicit spawn position `[x, y, z]`. When present the die is
+    /// placed here (clamped into the arena) instead of the deterministic
+    /// drop grid — used to carry a solo room's dice into a fresh server room
+    /// at their exact resting spots. Absent for normal drop-in spawns.
+    #[serde(default)]
+    pub position: Option<[f32; 3]>,
+    /// Optional explicit spawn orientation (quaternion `[x, y, z, w]`). Paired
+    /// with `position` to reproduce a carried die's resting face; the settle
+    /// detector then reports the same value. Absent for normal spawns.
+    #[serde(default)]
+    pub rotation: Option<[f32; 4]>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

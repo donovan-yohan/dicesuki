@@ -3,10 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ThemeContext } from '../../contexts/ThemeContext'
 import type { PlayerInfo } from '../../lib/multiplayerMessages'
-import { useMultiplayerStore } from '../../store/useMultiplayerStore'
+import { useMultiplayerStore, SOLO_WORKER_SERVER_URL } from '../../store/useMultiplayerStore'
 import { defaultTheme } from '../../themes/tokens'
 import { PlayerPanel } from './PlayerPanel'
 import { connectionIndicator } from './connectionIndicator'
+
+// The solo branch renders a self-contained go-online widget with its own network
+// hooks; stub it so this suite only verifies PlayerPanel's solo/live branching.
+vi.mock('./SoloRoomControls', () => ({
+  SoloRoomControls: () => <div data-testid="solo-room-controls-stub" />,
+}))
 
 const player = (id: string, name: string, color = '#8B5CF6'): PlayerInfo => ({
   id,
@@ -320,5 +326,48 @@ describe('PlayerPanel room theme', () => {
     expect(card.disabled).toBe(true)
     // Non-hosts still see the room's current theme reflected.
     expect(card).toHaveAttribute('aria-checked', 'true')
+  })
+})
+
+describe('PlayerPanel solo vs live room', () => {
+  beforeEach(() => {
+    useMultiplayerStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useMultiplayerStore.getState().reset()
+  })
+
+  it('shows the go-online controls and hides live-room controls in a solo room', () => {
+    setRoster([player('a', 'You')], { localPlayerId: 'a', hostId: 'a' })
+    useMultiplayerStore.setState({
+      serverUrl: SOLO_WORKER_SERVER_URL,
+      isHost: true,
+      roomSettings: { version: 1 },
+    })
+
+    renderPanel()
+
+    expect(screen.getByTestId('solo-room-controls-stub')).toBeInTheDocument()
+    // Live-room-only sections are hidden in solo (nothing to configure yet).
+    expect(screen.queryByTestId('room-visibility')).toBeNull()
+    expect(screen.queryByTestId('motion-control')).toBeNull()
+    expect(screen.queryByTestId('room-theme-control')).toBeNull()
+  })
+
+  it('shows live-room controls (not the go-online widget) in a server room', () => {
+    setRoster([player('a', 'You')], { localPlayerId: 'a', hostId: 'a' })
+    useMultiplayerStore.setState({
+      serverUrl: 'ws://localhost:8080',
+      isHost: true,
+      roomSettings: { version: 1 },
+    })
+
+    renderPanel()
+
+    expect(screen.queryByTestId('solo-room-controls-stub')).toBeNull()
+    expect(screen.getByTestId('room-visibility')).toBeInTheDocument()
+    expect(screen.getByTestId('motion-control')).toBeInTheDocument()
+    expect(screen.getByTestId('room-theme-control')).toBeInTheDocument()
   })
 })

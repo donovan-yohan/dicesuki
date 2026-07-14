@@ -6,7 +6,7 @@ use crate::physics::{
     ArenaBounds, PhysicsWorld, DICE_RESTITUTION, DICE_FRICTION,
     ROLL_HORIZONTAL_MIN, ROLL_HORIZONTAL_MAX, ROLL_VERTICAL_MIN, ROLL_VERTICAL_MAX,
     ROLL_TORQUE_MAGNITUDE, SPAWN_HEIGHT, SPAWN_LANE_SPACING, SPAWN_ROW_SPACING,
-    SPAWN_JITTER, SPAWN_WALL_MARGIN, SPAWN_LAYER_SPACING,
+    SPAWN_JITTER, SPAWN_WALL_MARGIN, SPAWN_LAYER_SPACING, GROUND_Y, CEILING_Y,
 };
 
 /// Face definition for face detection
@@ -222,6 +222,24 @@ pub fn generate_spawn_position(n: usize, bounds: &ArenaBounds) -> [f32; 3] {
     let y = SPAWN_HEIGHT + layer as f32 * SPAWN_LAYER_SPACING;
 
     [x, y, z]
+}
+
+/// Clamp a client-supplied spawn position into the playable arena.
+///
+/// Carried-dice spawns (Shared-ADR-005) let a client hand the server an explicit
+/// position; this keeps a stray or hostile value inside the walls so a die can
+/// never be placed straddling/outside the arena. X/Z are pinned to
+/// `±(half − SPAWN_WALL_MARGIN)` (the same inset the drop grid respects) and Y to
+/// `[GROUND_Y, CEILING_Y]`.
+#[must_use]
+pub fn clamp_spawn_position(position: [f32; 3], bounds: &ArenaBounds) -> [f32; 3] {
+    let max_x = (bounds.half_x - SPAWN_WALL_MARGIN).max(0.0);
+    let max_z = (bounds.half_z - SPAWN_WALL_MARGIN).max(0.0);
+    [
+        position[0].clamp(-max_x, max_x),
+        position[1].clamp(GROUND_Y, CEILING_Y),
+        position[2].clamp(-max_z, max_z),
+    ]
 }
 
 /// Permute a 0-based fill order into a grid index in `0..count`, ordered

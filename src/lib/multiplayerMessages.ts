@@ -30,6 +30,19 @@ export interface SpawnDiceEntry {
   id: string
   diceType: DiceShape
   presentation?: DicePresentationMetadata
+  /**
+   * Optional explicit resting position `[x, y, z]`. When present the server
+   * places the die here (clamped into the arena) instead of the default drop
+   * grid — used to carry a solo room's dice into a fresh server room at their
+   * exact spots (Shared-ADR-005). Omitted for normal drop-in spawns.
+   */
+  position?: [number, number, number]
+  /**
+   * Optional explicit resting orientation (quaternion `[x, y, z, w]`), paired
+   * with {@link position} so a carried die reproduces the same face. Omitted for
+   * normal spawns.
+   */
+  rotation?: [number, number, number, number]
 }
 
 export interface SpawnDiceMessage {
