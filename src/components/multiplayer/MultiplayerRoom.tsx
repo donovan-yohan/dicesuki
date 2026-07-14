@@ -8,6 +8,7 @@ import { useDiceStore } from '../../store/useDiceStore'
 import { usePlayerIdentityStore } from '../../store/usePlayerIdentityStore'
 import { getRoomServerConfig, READINESS_MAX_RETRIES } from '../../lib/multiplayerServer'
 import { preflightRoom, type PreflightResult } from '../../lib/roomPreflight'
+import { consumePendingRoomSetup, fitCarriedDice } from '../../lib/roomCarry'
 import Scene from '../Scene'
 
 export function MultiplayerRoom() {
@@ -67,6 +68,29 @@ export function MultiplayerRoom() {
     appliedThemeRef.current = true
     setRoomTheme(initialThemeId)
   }, [initialThemeId, isHost, connectionStatus, setRoomTheme])
+
+  // Replay a carried solo room (Shared-ADR-005) into this fresh server room once
+  // the creator is confirmed host: apply the chosen discovery/name, then recreate
+  // the dice at their exact resting spots. Consumes the hand-off buffer once.
+  const appliedCarryRef = useRef(false)
+  useEffect(() => {
+    if (appliedCarryRef.current) return
+    if (!roomId || !isHost || connectionStatus !== 'connected') return
+    const setup = consumePendingRoomSetup(roomId)
+    if (!setup) return
+    appliedCarryRef.current = true
+    const store = useMultiplayerStore.getState()
+    if (setup.visibility === 'public') {
+      store.setVisibility('public')
+      if (setup.roomName.trim()) store.setRoomName(setup.roomName)
+    }
+    // Scale the carried layout to this room's arena (solo is viewport-sized, a
+    // server room is the fixed 9:16) so dice keep their relative arrangement
+    // instead of being clamped onto the walls.
+    const engine = store.engineConfig
+    const destArena = engine ? { halfX: engine.arenaHalfX, halfZ: engine.arenaHalfZ } : null
+    store.spawnCarriedDice(fitCarriedDice(setup.dice, setup.sourceArena, destArena))
+  }, [roomId, isHost, connectionStatus])
 
   const handleJoin = async () => {
     if (!roomId || !displayName.trim() || isChecking) return

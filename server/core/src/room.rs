@@ -19,7 +19,7 @@ use crate::physics::{
     ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
     MOTION_IMPULSE_MIN_INTERVAL_MS, MOTION_IMPULSE_MAX_MAGNITUDE,
 };
-use crate::dice::{create_dice_body_with_material, generate_roll_impulse, generate_roll_spin, generate_spawn_position};
+use crate::dice::{clamp_spawn_position, create_dice_body_with_material, generate_roll_impulse, generate_roll_spin, generate_spawn_position};
 use crate::face_detection::detect_face_value;
 use log::warn;
 
@@ -273,6 +273,12 @@ pub struct DiceSpawnRequest {
     pub id: String,
     pub dice_type: DiceType,
     pub presentation: Option<DicePresentationMetadata>,
+    /// Explicit resting position for a carried die (Shared-ADR-005). `None` uses
+    /// the deterministic drop grid.
+    pub position: Option<[f32; 3]>,
+    /// Explicit resting orientation `[x, y, z, w]` for a carried die. `None` uses
+    /// the random spawn rotation.
+    pub rotation: Option<[f32; 4]>,
 }
 
 impl From<SpawnDiceEntry> for DiceSpawnRequest {
@@ -281,6 +287,8 @@ impl From<SpawnDiceEntry> for DiceSpawnRequest {
             id: entry.id,
             dice_type: entry.dice_type,
             presentation: entry.presentation,
+            position: entry.position,
+            rotation: entry.rotation,
         }
     }
 }
@@ -291,6 +299,8 @@ impl From<(String, DiceType)> for DiceSpawnRequest {
             id,
             dice_type,
             presentation: None,
+            position: None,
+            rotation: None,
         }
     }
 }
@@ -875,9 +885,21 @@ impl Room {
         let spawn_index_base = self.dice.len();
         let mut spawned = Vec::new();
         for (batch_index, entry) in entries.into_iter().enumerate() {
-            let position = generate_spawn_position(spawn_index_base + batch_index, &self.bounds);
+            // Carried dice (Shared-ADR-005) arrive with an explicit resting
+            // position; everything else uses the deterministic drop grid.
+            let position = match entry.position {
+                Some(p) => clamp_spawn_position(p, &self.bounds),
+                None => generate_spawn_position(spawn_index_base + batch_index, &self.bounds),
+            };
             let material = entry.presentation.as_ref().and_then(|p| p.material.as_deref());
             let body_handle = create_dice_body_with_material(entry.dice_type, position, &mut self.physics, material);
+            // A carried die also brings its exact resting orientation: overwrite the
+            // random spawn rotation so it reproduces the same face. Velocity is left
+            // at the body default (zero), so a die placed at rest stays put and the
+            // normal settle detector reports its face within REST_DURATION_MS.
+            if let Some(rot) = entry.rotation {
+                self.physics.set_rotation(body_handle, rot);
+            }
             let rotation = self.physics.get_rotation(body_handle).unwrap_or([0.0, 0.0, 0.0, 1.0]);
 
             let die = ServerDie {
@@ -1826,12 +1848,16 @@ mod tests {
             id: "d1".to_string(),
             dice_type: DiceType::D20,
             presentation: Some(make_presentation("die_lucky_d20")),
+            position: None,
+            rotation: None,
         }]).unwrap();
 
         let duplicate = room.spawn_dice("p1", vec![SpawnDiceEntry {
             id: "d2".to_string(),
             dice_type: DiceType::D20,
             presentation: Some(make_presentation("die_lucky_d20")),
+            position: None,
+            rotation: None,
         }]);
 
         assert_eq!(duplicate.unwrap_err(), RoomError::DuplicateInventoryDie);
@@ -1850,6 +1876,8 @@ mod tests {
             id: "d1".to_string(),
             dice_type: DiceType::D20,
             presentation: Some(presentation.clone()),
+            position: None,
+            rotation: None,
         }]).unwrap();
 
         assert_eq!(spawned[0].presentation.as_ref(), Some(&presentation));
@@ -1939,6 +1967,92 @@ mod tests {
         assert!(die.face_value.is_some(), "Settled die should have a face value");
         let value = die.face_value.unwrap();
         assert!((1..=6).contains(&value), "D6 should show 1-6, got {value}");
+    }
+
+    // --- Carried-dice spawn (explicit position/rotation, Shared-ADR-005) ---
+
+    fn carried_request(id: &str, position: [f32; 3], rotation: Option<[f32; 4]>) -> DiceSpawnRequest {
+        DiceSpawnRequest {
+            id: id.to_string(),
+            dice_type: DiceType::D6,
+            presentation: None,
+            position: Some(position),
+            rotation,
+        }
+    }
+
+    #[test]
+    fn test_spawn_honors_explicit_position() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Test")).unwrap();
+        let placed = [1.5, 0.6, -2.0];
+        room.spawn_dice_with_physics("p1", vec![carried_request("d1", placed, None)]).unwrap();
+        let die = room.dice.get("d1").unwrap();
+        assert_eq!(die.position, placed, "carried die spawns at its exact resting position");
+    }
+
+    #[test]
+    fn test_spawn_clamps_out_of_bounds_position() {
+        use crate::physics::{CEILING_Y, GROUND_Y};
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Test")).unwrap();
+        // A stray/hostile position far outside the arena must be pinned inside.
+        room.spawn_dice_with_physics("p1", vec![carried_request("d1", [1000.0, 500.0, -1000.0], None)])
+            .unwrap();
+        let die = room.dice.get("d1").unwrap();
+        assert!(die.position[0].abs() <= room.bounds.half_x, "x clamped inside arena, got {}", die.position[0]);
+        assert!(die.position[2].abs() <= room.bounds.half_z, "z clamped inside arena, got {}", die.position[2]);
+        assert!(
+            die.position[1] <= CEILING_Y && die.position[1] >= GROUND_Y,
+            "y clamped to arena height, got {}",
+            die.position[1]
+        );
+    }
+
+    #[test]
+    fn test_spawn_honors_rotation_and_reproduces_face() {
+        use crate::face_detection::detect_face_value;
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Test")).unwrap();
+        let carried_rot = [0.0f32, 0.0, 0.0, 1.0];
+        room.spawn_dice_with_physics("p1", vec![carried_request("d1", [0.0, 0.6, 0.0], Some(carried_rot))])
+            .unwrap();
+        let die = room.dice.get("d1").unwrap();
+        // Quaternion equality up to sign/normalization: dot ≈ ±1.
+        let dot = die.rotation[0] * carried_rot[0]
+            + die.rotation[1] * carried_rot[1]
+            + die.rotation[2] * carried_rot[2]
+            + die.rotation[3] * carried_rot[3];
+        assert!(dot.abs() > 0.999, "carried orientation applied to body, got {:?}", die.rotation);
+        // Whatever face that orientation shows is what the settle detector will report.
+        assert_eq!(
+            detect_face_value(die.rotation, DiceType::D6),
+            detect_face_value(carried_rot, DiceType::D6),
+            "carried orientation reproduces the same face"
+        );
+    }
+
+    #[test]
+    fn test_carried_die_settles_without_wandering() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Test")).unwrap();
+        // Flat (identity) orientation, small drop: no horizontal launch.
+        let placed = [1.0f32, 1.0, -1.5];
+        room.spawn_dice_with_physics("p1", vec![carried_request("d1", placed, Some([0.0, 0.0, 0.0, 1.0]))])
+            .unwrap();
+        let mut settled = false;
+        for _ in 0..600 {
+            let (_, newly, _) = room.physics_tick();
+            if !newly.is_empty() {
+                settled = true;
+                break;
+            }
+        }
+        assert!(settled, "carried die settles");
+        let die = room.dice.get("d1").unwrap();
+        assert!(die.face_value.is_some(), "settled carried die has a face value");
+        assert!((die.position[0] - placed[0]).abs() < 0.75, "x stayed near placed, got {}", die.position[0]);
+        assert!((die.position[2] - placed[2]).abs() < 0.75, "z stayed near placed, got {}", die.position[2]);
     }
 
     #[test]

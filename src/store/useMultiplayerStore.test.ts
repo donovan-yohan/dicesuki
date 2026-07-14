@@ -914,4 +914,63 @@ describe('useMultiplayerStore', () => {
       expect(close).not.toHaveBeenCalled()
     })
   })
+
+  describe('spawnCarriedDice', () => {
+    it('sends every carried die in one spawn_dice message with its transform', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+      })
+
+      useMultiplayerStore.getState().spawnCarriedDice([
+        {
+          diceType: 'd20',
+          presentation: { inventoryDieId: 'inv-1', baseColor: '#abcdef' },
+          position: [1, 2, 3],
+          rotation: [0, 0, 0, 1],
+        },
+        {
+          diceType: 'd6',
+          position: [-1, 0.5, 2],
+          rotation: [0.1, 0.2, 0.3, 0.9],
+        },
+      ])
+
+      expect(send).toHaveBeenCalledTimes(1)
+      const payload = JSON.parse(send.mock.calls[0][0])
+      expect(payload.type).toBe('spawn_dice')
+      expect(payload.dice).toHaveLength(2)
+      expect(payload.dice[0]).toMatchObject({
+        diceType: 'd20',
+        presentation: { inventoryDieId: 'inv-1', baseColor: '#abcdef' },
+        position: [1, 2, 3],
+        rotation: [0, 0, 0, 1],
+      })
+      expect(typeof payload.dice[0].id).toBe('string')
+      expect(payload.dice[1]).toMatchObject({
+        diceType: 'd6',
+        position: [-1, 0.5, 2],
+        rotation: [0.1, 0.2, 0.3, 0.9],
+      })
+      // Carried inventory dice are marked pending so they can't be double-spawned.
+      expect(useMultiplayerStore.getState().pendingInventoryDieIds.has('inv-1')).toBe(true)
+    })
+
+    it('is a no-op when disconnected or given no dice', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+      })
+      useMultiplayerStore.getState().spawnCarriedDice([])
+      expect(send).not.toHaveBeenCalled()
+
+      useMultiplayerStore.setState({ connectionStatus: 'disconnected' })
+      useMultiplayerStore.getState().spawnCarriedDice([
+        { diceType: 'd6', position: [0, 0, 0], rotation: [0, 0, 0, 1] },
+      ])
+      expect(send).not.toHaveBeenCalled()
+    })
+  })
 })

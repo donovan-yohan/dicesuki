@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useMultiplayerStore } from '../../store/useMultiplayerStore'
+import { useMultiplayerStore, SOLO_WORKER_SERVER_URL } from '../../store/useMultiplayerStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { connectionIndicator } from './connectionIndicator'
 import { RoomShare } from './RoomShare'
+import { SoloRoomControls } from './SoloRoomControls'
 import {
   getMotionControl,
   getRoller,
@@ -32,6 +33,7 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
   const selectedPlayerId = useMultiplayerStore((s) => s.selectedPlayerId)
   const setSelectedPlayerId = useMultiplayerStore((s) => s.setSelectedPlayerId)
   const roomId = useMultiplayerStore((s) => s.roomId)
+  const serverUrl = useMultiplayerStore((s) => s.serverUrl)
   const isHost = useMultiplayerStore((s) => s.isHost)
   const roomSettings = useMultiplayerStore((s) => s.roomSettings)
   const setMotionControl = useMultiplayerStore((s) => s.setMotionControl)
@@ -47,6 +49,9 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
   const roomThemeId = getRoomThemeId(roomSettings)
   const roomIsPublic = isRoomPublic(roomSettings)
   const roomName = getRoomName(roomSettings)
+  // Solo runs the in-browser worker room (sentinel serverUrl). The panel then
+  // becomes the "go online" entry point instead of showing live-room controls.
+  const isSolo = serverUrl === SOLO_WORKER_SERVER_URL
 
   // Local draft for the room-name input so we only push an update_settings on
   // commit (blur/Enter), not on every keystroke. Re-seed when the authoritative
@@ -104,6 +109,10 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
             <span className="text-xs">{playersArray.length}/8</span>
           </div>
 
+          {isSolo ? (
+            <SoloRoomControls />
+          ) : (
+          <>
           {/* Share controls: copy link, native share, QR (issue #77) */}
           <RoomShare />
 
@@ -427,6 +436,8 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
               Sets the shared table look. Your dice skins stay your own.
             </span>
           </div>
+          </>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

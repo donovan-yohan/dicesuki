@@ -3,15 +3,14 @@
  *
  * New themed flyout panel for app settings.
  * Includes theme selector and other settings.
+ *
+ * Multiplayer entry points (create/browse a server room) live in the in-scene
+ * PlayerPanel now — the panel is the single "go online" surface (Shared-ADR-005).
  */
 
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
-import { useOnlineStatus } from '../../hooks/useOnlineStatus'
-import { useCreateRoom, type CreateRoomError } from '../../hooks/useCreateRoom'
 import { ThemeSelector } from '../ThemeSelector'
-import { RoomThemePicker } from '../multiplayer/RoomThemePicker'
 import { FlyoutPanel } from './FlyoutPanel'
 import { AccountSection } from './AccountSection'
 import { ArtistTestingPanel } from './artist-tools/ArtistTestingPanel'
@@ -24,15 +23,7 @@ interface SettingsPanelProps {
 export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showThemeSelector, setShowThemeSelector] = useState(false)
   const [showArtistPanel, setShowArtistPanel] = useState(false)
-  // Shared room theme chosen before creating a multiplayer room (#76). null
-  // means "each player's own" — no shared room theme is applied.
-  const [roomThemeId, setRoomThemeId] = useState<string | null>(null)
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
-  const navigate = useNavigate()
-  const publicRoom = useCreateRoom({ themeId: roomThemeId })
-  // Multiplayer needs the network; solo does not. When offline we disable the
-  // multiplayer entry points and explain why rather than let them time out (#116).
-  const isOnline = useOnlineStatus()
 
   return (
     <>
@@ -45,122 +36,6 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       >
         {/* Account Section (#81) — hidden entirely when Supabase is unconfigured */}
         <AccountSection />
-
-        {/* Multiplayer Section */}
-        <div className="mb-8">
-          <h3
-            className="text-sm font-semibold mb-3"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
-            Multiplayer
-          </h3>
-
-          {/* Room theme picker: choose the shared table look before creating a
-              multiplayer room. Applied host-side right after join (#76). */}
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <span
-                className="text-xs font-semibold uppercase"
-                style={{ letterSpacing: '0.06em', color: 'var(--color-text-secondary)' }}
-              >
-                Room Theme
-              </span>
-            </div>
-            <RoomThemePicker
-              value={roomThemeId}
-              onChange={setRoomThemeId}
-              label="Room theme for new multiplayer room"
-            />
-            <p className="mt-1.5 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              Sets the shared table look everyone sees. You can change it live later.
-            </p>
-          </div>
-
-          {!isOnline && (
-            <p
-              role="status"
-              className="mt-3 text-xs rounded-lg p-3"
-              style={{
-                color: 'var(--color-text-muted)',
-                backgroundColor: 'rgba(148, 163, 184, 0.12)',
-                border: '1px solid rgba(148, 163, 184, 0.25)',
-              }}
-            >
-              You're offline. Solo dice still roll — reconnect to create or join
-              multiplayer rooms.
-            </p>
-          )}
-
-          <button
-            onClick={publicRoom.createRoom}
-            disabled={publicRoom.isCreating || !isOnline}
-            title={!isOnline ? 'Unavailable offline' : undefined}
-            className="mt-3 w-full flex items-center justify-between p-4 rounded-lg transition-all"
-            style={{
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              cursor: !isOnline ? 'not-allowed' : publicRoom.isCreating ? 'wait' : 'pointer',
-              opacity: !isOnline || publicRoom.isCreating ? 0.6 : 1,
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🌐</span>
-              <div className="text-left">
-                <div
-                  className="font-semibold text-sm"
-                  style={{ color: 'var(--color-text-primary)' }}
-                >
-                  {publicRoom.phase === 'waking'
-                    ? 'Server waking up, retrying…'
-                    : publicRoom.isCreating
-                      ? 'Creating Room...'
-                      : 'Create Multiplayer Room'}
-                </div>
-                <div
-                  className="text-xs"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  {publicRoom.wakingMessage ?? 'Roll dice with friends in real-time'}
-                </div>
-              </div>
-            </div>
-            <span style={{ color: 'var(--color-accent)' }}>→</span>
-          </button>
-
-          <RoomErrorMessage error={publicRoom.error} onDismiss={publicRoom.clearError} />
-
-          <button
-            onClick={() => navigate('/rooms')}
-            disabled={!isOnline}
-            title={!isOnline ? 'Unavailable offline' : undefined}
-            className="mt-3 w-full flex items-center justify-between p-4 rounded-lg transition-all"
-            style={{
-              backgroundColor: 'rgba(34, 197, 94, 0.1)',
-              border: '1px solid rgba(34, 197, 94, 0.3)',
-              cursor: !isOnline ? 'not-allowed' : 'pointer',
-              opacity: !isOnline ? 0.6 : 1,
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🔍</span>
-              <div className="text-left">
-                <div
-                  className="font-semibold text-sm"
-                  style={{ color: 'var(--color-text-primary)' }}
-                >
-                  Browse Public Rooms
-                </div>
-                <div
-                  className="text-xs"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  Find and join open tables
-                </div>
-              </div>
-            </div>
-            <span style={{ color: 'var(--color-accent)' }}>→</span>
-          </button>
-        </div>
 
         {/* Theme Section */}
         <div className="mb-8">
@@ -323,44 +198,5 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         </div>
       )}
     </>
-  )
-}
-
-function RoomErrorMessage({
-  error,
-  onDismiss,
-}: {
-  error: CreateRoomError | null
-  onDismiss: () => void
-}) {
-  if (!error) return null
-
-  return (
-    <div
-      className="mt-2 p-3 rounded-lg text-xs flex items-start justify-between gap-3"
-      role="alert"
-      style={{
-        backgroundColor: 'rgba(239, 68, 68, 0.15)',
-        border: '1px solid rgba(239, 68, 68, 0.3)',
-        color: '#fca5a5',
-      }}
-    >
-      <span>
-        <strong>{error.title}.</strong> {error.message}
-        {error.command && (
-          <span className="block mt-1">
-            Run <code>{error.command}</code>, then try again.
-          </span>
-        )}
-      </span>
-      <button
-        onClick={onDismiss}
-        className="opacity-60 hover:opacity-100"
-        style={{ color: '#fca5a5' }}
-        aria-label="Dismiss room server error"
-      >
-        ✕
-      </button>
-    </div>
   )
 }

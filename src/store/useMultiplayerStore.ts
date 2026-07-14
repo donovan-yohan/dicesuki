@@ -20,6 +20,7 @@ import {
   setRoomName as withRoomName,
 } from '../lib/multiplayerMessages'
 import type { RoomVisibility } from '../lib/multiplayerMessages'
+import type { CarriedDie } from '../lib/roomCarry'
 import { MOTION_IMPULSE_MIN_INTERVAL_MS } from '../config/physicsConfig'
 import { getWsServerUrl } from '../lib/multiplayerServer'
 import { createWorkerRoomTransport } from '../lib/workerRoomTransport'
@@ -156,6 +157,12 @@ interface MultiplayerState {
 
   // Game actions
   spawnDice: (diceType: DiceShape, presentation?: DicePresentationMetadata) => void
+  /**
+   * Recreate a batch of carried dice (Shared-ADR-005) in one spawn message, each
+   * at its explicit resting position/rotation. Used by the "Go Online" flow to
+   * bring a solo room's dice into a fresh server room.
+   */
+  spawnCarriedDice: (dice: CarriedDie[]) => void
   removeDice: (diceIds: string[]) => void
   roll: () => void
   updateColor: (color: string) => void
@@ -679,6 +686,34 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       type: 'spawn_dice',
       dice: [{ id, diceType, presentation }],
     }))
+  },
+
+  spawnCarriedDice: (dice: CarriedDie[]) => {
+    const { connectionStatus, socket, pendingInventoryDieIds } = get()
+    if (!socket || connectionStatus !== 'connected' || dice.length === 0) {
+      return
+    }
+
+    const entries = dice.map((die) => ({
+      id: createDiceSpawnId(die.presentation?.inventoryDieId ?? die.diceType),
+      diceType: die.diceType,
+      presentation: die.presentation,
+      position: die.position,
+      rotation: die.rotation,
+    }))
+
+    // Mark carried inventory dice pending so the toolbar/panel can't also spawn
+    // them before the server acknowledges (mirrors `spawnDice`).
+    const inventoryIds = dice
+      .map((die) => die.presentation?.inventoryDieId)
+      .filter((id): id is string => Boolean(id))
+    if (inventoryIds.length > 0) {
+      const next = new Set(pendingInventoryDieIds)
+      inventoryIds.forEach((id) => next.add(id))
+      set({ pendingInventoryDieIds: next })
+    }
+
+    socket.send(JSON.stringify({ type: 'spawn_dice', dice: entries }))
   },
 
   removeDice: (diceIds: string[]) => {
