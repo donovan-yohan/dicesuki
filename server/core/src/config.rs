@@ -22,9 +22,13 @@ use crate::physics;
 /// A snapshot of the engine physics constants the client consumes at runtime.
 ///
 /// Field names serialize to camelCase to match the WebSocket JSON protocol
-/// (Shared-ADR-002). Values are always [`EngineConfig::current`] — there is no
-/// per-room variation today, but shipping the config per `room_state` keeps the
-/// door open for future per-room tuning without another protocol change.
+/// (Shared-ADR-002). Every engine-feel value is shared by all rooms; only the
+/// arena footprint (`arenaHalfX`/`arenaHalfZ`) varies per room, so a room ships
+/// [`EngineConfig::for_arena`] with its actual bounds on `room_state.config` —
+/// [`crate::physics::ArenaBounds::default`] (9:16) for the native multiplayer
+/// server, an aspect-fit for the in-browser solo room. [`EngineConfig::current`]
+/// is the default-arena projection used before any room exists (the wasm
+/// pre-join getter).
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineConfig {
@@ -34,7 +38,6 @@ pub struct EngineConfig {
     // Material
     pub dice_restitution: f32,
     pub dice_friction: f32,
-    pub edge_chamfer_radius: f32,
 
     // Settle / knock detection
     pub linear_velocity_threshold: f32,
@@ -43,7 +46,7 @@ pub struct EngineConfig {
     pub knock_wake_linear_speed: f32,
     pub knock_wake_angular_speed: f32,
 
-    // Roll impulse + torque (the roll-feel truth)
+    // Roll impulse + spin (the roll-feel truth)
     pub roll_horizontal_min: f32,
     pub roll_horizontal_max: f32,
     pub roll_vertical_min: f32,
@@ -68,7 +71,7 @@ pub struct EngineConfig {
     pub motion_impulse_min_interval_ms: u64,
     pub motion_impulse_max_magnitude: f32,
 
-    // Arena bounds (fixed 9:16 portrait)
+    // Arena bounds (per room: default 9:16 portrait, aspect-fit for solo)
     pub arena_half_x: f32,
     pub arena_half_z: f32,
     pub arena_ground_y: f32,
@@ -88,7 +91,6 @@ impl EngineConfig {
 
             dice_restitution: physics::DICE_RESTITUTION,
             dice_friction: physics::DICE_FRICTION,
-            edge_chamfer_radius: physics::EDGE_CHAMFER_RADIUS,
 
             linear_velocity_threshold: physics::LINEAR_VELOCITY_THRESHOLD,
             angular_velocity_threshold: physics::ANGULAR_VELOCITY_THRESHOLD,
@@ -123,6 +125,22 @@ impl EngineConfig {
             arena_ceiling_y: physics::CEILING_Y,
             arena_wall_height: physics::WALL_HEIGHT,
             arena_wall_thickness: physics::WALL_THICKNESS,
+        }
+    }
+
+    /// [`EngineConfig::current`] with the arena footprint replaced by `bounds`.
+    ///
+    /// Every engine constant is shared by all rooms; only the arena's X/Z
+    /// half-extents vary per room (Shared-ADR-007). A [`crate::room::Room`] builds
+    /// its `room_state.config` from this so the client receives the ACTUAL walls
+    /// its room simulates — [`crate::physics::ArenaBounds::default`] for the fixed
+    /// multiplayer arena, an aspect-fitted footprint for the in-browser solo room.
+    #[must_use]
+    pub fn for_arena(bounds: &physics::ArenaBounds) -> Self {
+        Self {
+            arena_half_x: bounds.half_x,
+            arena_half_z: bounds.half_z,
+            ..Self::current()
         }
     }
 
@@ -164,10 +182,50 @@ mod tests {
         );
     }
 
+    /// `current()` must remain the fixed default arena: it is what the wasm
+    /// pre-join `engine_config_json()` getter and the native server both project,
+    /// so the drift guard above stays meaningful when per-room bounds exist.
+    #[test]
+    fn engine_config_current_still_defaults_to_the_fixed_arena() {
+        let c = EngineConfig::current();
+        assert!((c.arena_half_x - physics::WALL_HALF_X).abs() < f32::EPSILON);
+        assert!((c.arena_half_z - physics::WALL_HALF_Z).abs() < f32::EPSILON);
+    }
+
+    /// `for_arena` overrides ONLY the arena footprint; every other engine constant
+    /// still comes from `current()`. This is what lets a room ship its actual walls
+    /// on `room_state.config` without forking any physics-feel value.
+    #[test]
+    fn engine_config_for_arena_overrides_only_bounds() {
+        let bounds = physics::ArenaBounds { half_x: 7.25, half_z: 12.5 };
+        let c = EngineConfig::for_arena(&bounds);
+        let base = EngineConfig::current();
+
+        assert!((c.arena_half_x - 7.25).abs() < f32::EPSILON);
+        assert!((c.arena_half_z - 12.5).abs() < f32::EPSILON);
+        // Everything else is untouched relative to current().
+        assert!((c.gravity - base.gravity).abs() < f32::EPSILON);
+        assert!((c.roll_torque_magnitude - base.roll_torque_magnitude).abs() < f32::EPSILON);
+        assert!((c.arena_ground_y - base.arena_ground_y).abs() < f32::EPSILON);
+        assert!((c.arena_ceiling_y - base.arena_ceiling_y).abs() < f32::EPSILON);
+        assert!((c.arena_wall_height - base.arena_wall_height).abs() < f32::EPSILON);
+        assert_eq!(c.rest_duration_ms, base.rest_duration_ms);
+    }
+
+    /// A default-arena `for_arena` is byte-identical to `current()` — solo at 9:16
+    /// and multiplayer serialize the same config.
+    #[test]
+    fn engine_config_for_arena_default_equals_current() {
+        assert_eq!(
+            EngineConfig::for_arena(&physics::ArenaBounds::default()),
+            EngineConfig::current()
+        );
+    }
+
     #[test]
     fn engine_config_serializes_camel_case() {
         let json = EngineConfig::current_json();
-        assert!(json.contains("\"rollTorqueMagnitude\":5"));
+        assert!(json.contains("\"rollTorqueMagnitude\":25.2"));
         assert!(json.contains("\"arenaHalfX\":4.5"));
         assert!(json.contains("\"arenaHalfZ\":8"));
         // No snake_case leaked through.

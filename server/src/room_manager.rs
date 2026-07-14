@@ -31,7 +31,12 @@ impl RoomManager {
 
     pub fn create_room(&mut self) -> (String, SharedRoom) {
         let room_id = nanoid::nanoid!(6);
-        let room = Arc::new(RwLock::new(Room::new(room_id.clone())));
+        // The native multiplayer server always uses the fixed 9:16 arena; only the
+        // in-browser solo room fits its arena to the window (Shared-ADR-007).
+        let room = Arc::new(RwLock::new(Room::new(
+            room_id.clone(),
+            crate::physics::ArenaBounds::default(),
+        )));
         self.rooms.insert(room_id.clone(), room.clone());
         (room_id, room)
     }

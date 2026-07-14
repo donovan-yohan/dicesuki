@@ -340,7 +340,6 @@ export interface EngineConfig {
   gravity: number
   diceRestitution: number
   diceFriction: number
-  edgeChamferRadius: number
   linearVelocityThreshold: number
   angularVelocityThreshold: number
   restDurationMs: number

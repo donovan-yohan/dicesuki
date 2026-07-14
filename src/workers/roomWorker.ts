@@ -65,19 +65,23 @@ function startTicking(): void {
   }, TICK_MS)
 }
 
-function createRoom(roomId: string): void {
+function createRoom(roomId: string, viewportAspect?: number): void {
   if (room !== null) return
   // The callback fires once per outbound `ServerMessage`, forwarding its JSON to
-  // the main thread. We ignore the value the room methods also return.
-  room = new WasmRoom(roomId, (json: string) => post({ type: 'message', data: json }))
+  // the main thread. We ignore the value the room methods also return. The arena
+  // is sized to `viewportAspect` in core; passing `undefined` keeps the fixed
+  // 9:16 arena. The shim forwards the number and nothing else (Shared-ADR-007).
+  room = new WasmRoom(roomId, viewportAspect, (json: string) =>
+    post({ type: 'message', data: json }),
+  )
   startTicking()
 }
 
-async function handleInit(roomId: string): Promise<void> {
+async function handleInit(roomId: string, viewportAspect?: number): Promise<void> {
   try {
     if (wasmReady === null) wasmReady = init(wasmUrl)
     await wasmReady
-    createRoom(roomId)
+    createRoom(roomId, viewportAspect)
     // Flush anything that raced ahead of instantiation.
     const queued = pending.splice(0)
     for (const data of queued) room?.handleMessage(data)
@@ -102,7 +106,7 @@ function shutdown(): void {
 ctx.onmessage = ({ data }) => {
   switch (data.type) {
     case 'init':
-      void handleInit(data.roomId)
+      void handleInit(data.roomId, data.viewportAspect)
       break
     case 'send':
       if (room !== null) {

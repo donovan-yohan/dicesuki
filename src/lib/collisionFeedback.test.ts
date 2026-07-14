@@ -40,7 +40,7 @@ describe('collisionFeedback', () => {
 
     it('maps hard hits to strong', () => {
       expect(impactSpeedToIntensity(COLLISION_IMPACT_STRONG_SPEED)).toBe('strong')
-      expect(impactSpeedToIntensity(20)).toBe('strong')
+      expect(impactSpeedToIntensity(COLLISION_IMPACT_STRONG_SPEED + 10)).toBe('strong')
     })
   })
 

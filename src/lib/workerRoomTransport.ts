@@ -16,7 +16,10 @@
 
 /** Messages the transport (main thread) sends to the worker. */
 export type WorkerInbound =
-  | { type: 'init'; roomId: string }
+  // `viewportAspect` (width / height), when present, sizes the solo arena to the
+  // window at room creation; absent, the room uses the fixed 9:16 arena. Sizing
+  // policy lives in core — this only carries the number (Shared-ADR-007).
+  | { type: 'init'; roomId: string; viewportAspect?: number }
   | { type: 'send'; data: string }
   | { type: 'close' }
 
@@ -79,7 +82,7 @@ export class WorkerRoomTransport {
   private _readyState: TransportReadyState = TransportReadyState.CONNECTING
   private readonly worker: WorkerLike
 
-  constructor(worker: WorkerLike, roomId: string) {
+  constructor(worker: WorkerLike, roomId: string, viewportAspect?: number) {
     this.worker = worker
 
     worker.onmessage = ({ data }) => {
@@ -103,7 +106,13 @@ export class WorkerRoomTransport {
       this.onerror?.(event)
     }
 
-    worker.postMessage({ type: 'init', roomId })
+    // Only carry viewportAspect when known, so a fixed-arena init stays
+    // `{ type, roomId }` (the worker falls back to the default 9:16 arena).
+    worker.postMessage(
+      viewportAspect === undefined
+        ? { type: 'init', roomId }
+        : { type: 'init', roomId, viewportAspect },
+    )
   }
 
   /** Current connection state, mirroring `WebSocket.readyState`. */
@@ -150,9 +159,12 @@ export class WorkerRoomTransport {
  * separate from the class so the class stays trivially unit-testable with a mock
  * worker. Consumed by #114 when solo is routed through the worker.
  */
-export function createWorkerRoomTransport(roomId: string): WorkerRoomTransport {
+export function createWorkerRoomTransport(
+  roomId: string,
+  viewportAspect?: number,
+): WorkerRoomTransport {
   const worker = new Worker(new URL('../workers/roomWorker.ts', import.meta.url), {
     type: 'module',
   }) as unknown as WorkerLike
-  return new WorkerRoomTransport(worker, roomId)
+  return new WorkerRoomTransport(worker, roomId, viewportAspect)
 }
