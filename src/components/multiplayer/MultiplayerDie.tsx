@@ -25,6 +25,12 @@ interface MultiplayerDieProps {
   color: string
   presentation?: DicePresentationMetadata
   tRef: MutableRefObject<number>
+  /**
+   * Whether the local player owns this die. Drives interactivity and the
+   * owner-attribution ring: the ring is drawn only when this is `false` (under
+   * OTHER players' dice), since the local player already knows their own — so a
+   * solo room, where every die is local-owned, shows no rings.
+   */
   isOwnedByLocalPlayer: boolean
   renderDeviceTier?: RenderDeviceTier
   onDragStart?: (event: ThreeEvent<PointerEvent>, dieId: string) => void
@@ -128,17 +134,20 @@ export function MultiplayerDie({
         onPointerEnter={isOwnedByLocalPlayer ? handlePointerEnter : undefined}
         onPointerLeave={handlePointerLeave}
       />
-      {/* Owner attribution ring — flat torus in the owner's player color */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={1}>
-        <torusGeometry args={[OWNER_RING_RADIUS, OWNER_RING_TUBE, 8, 32]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={0.85}
-          toneMapped={false}
-          depthWrite={false}
-        />
-      </mesh>
+      {/* Owner attribution ring — flat torus in the owner's player color.
+          Only drawn under other players' dice; the local player knows their own. */}
+      {!isOwnedByLocalPlayer && (
+        <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={1}>
+          <torusGeometry args={[OWNER_RING_RADIUS, OWNER_RING_TUBE, 8, 32]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={0.85}
+            toneMapped={false}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
     </group>
   )
 }
