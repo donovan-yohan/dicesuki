@@ -170,19 +170,26 @@ export const HAPTIC_THROTTLE_MS = 100
 // ============================================================================
 
 /**
- * Impact speed (m/s) mapping a room `dice_knocked` event to a *medium* haptic/SFX
- * pulse. In a room there is no client physics, so impact strength comes from the
- * server-reported `impactSpeed`. Below this: light; at/above: medium.
- * - `3.0` (current): a firm nudge.
+ * Impact speed (engine U/s) mapping a room `dice_knocked` event to a *medium*
+ * haptic/SFX pulse. In a room there is no client physics, so impact strength comes
+ * from the server-reported `impactSpeed` (a die's linear speed at the knock, in
+ * the engine's U/s — 62.5 U = 1 m). Below this: light; at/above: medium.
+ * - `26.25` (current): a firm nudge — 0.12 × the engine velocity cap
+ *   (`maxDiceVelocity` = 218.75 U/s), ≈ 1.65× the 15.9 U/s knock-wake floor, so the
+ *   softest knocks stay light. A client haptic tier boundary (a client concern per
+ *   Shared-ADR-007), expressed in the shared U/s unit; rescaled from the old 3.0
+ *   when impact speeds were in old units (≈0.05 m). Recommended `0.10`–`0.15` × cap.
  */
-export const COLLISION_IMPACT_MEDIUM_SPEED = 3.0
+export const COLLISION_IMPACT_MEDIUM_SPEED = 26.25
 
 /**
- * Impact speed (m/s) mapping a room `dice_knocked` event to a *strong* pulse — a
- * hard cross-player smack. At/above this: strong.
- * - `7.0` (current): a solid throw connecting.
+ * Impact speed (engine U/s) mapping a room `dice_knocked` event to a *strong*
+ * pulse — a hard cross-player smack. At/above this: strong.
+ * - `61.25` (current): a solid throw connecting — 0.28 × the engine velocity cap
+ *   (218.75 U/s), ≈ 3.85× the 15.9 U/s knock-wake floor. Same rescale/rationale as
+ *   `COLLISION_IMPACT_MEDIUM_SPEED`. Recommended `0.25`–`0.35` × cap.
  */
-export const COLLISION_IMPACT_STRONG_SPEED = 7.0
+export const COLLISION_IMPACT_STRONG_SPEED = 61.25
 
 // ============================================================================
 // MULTIPLAYER INPUT THROTTLES & MOTION SEND POLICY (client)
@@ -204,32 +211,46 @@ export const MULTIPLAYER_DRAG_THROTTLE_MS = 33
 export const MOTION_IMPULSE_MIN_INTERVAL_MS = 50
 
 /**
- * Magnitude (world units) the client clamps a shake impulse to before sending, so
- * it never emits an impulse the room would scale down anyway. Mirrors the room's
- * authoritative clamp (`motionImpulseMaxMagnitude`), which is defined once in
+ * Magnitude (engine U/s target Δv) the client clamps a shake impulse to before
+ * sending, so it never emits an impulse the room would scale down anyway. Mirrors
+ * the room's authoritative clamp (`motionImpulseMaxMagnitude`), defined once in
  * `dicesuki-core` and delivered via `EngineConfig`.
- * - `30` (current). Recommended `15` (gentle) – `40` (energetic).
+ * - `156.25` (current): the room clamp — peak vigorous-shake hand speed 2.5 m/s ×
+ *   62.5 U/m. Rescaled from the old `30` (old units) by the same factor the SI
+ *   recalibration applied to the clamp (156.25 / 30 = 5.208), so the whole shake
+ *   mapping below keeps its clamp-relative shape. Recommended `94`–`188` U/s.
  */
-export const MOTION_IMPULSE_MAX_MAGNITUDE = 30
+export const MOTION_IMPULSE_MAX_MAGNITUDE = 156.25
 
 /**
- * Upward (world +Y) component of a shake-to-roll impulse. Mostly upward so dice
- * hop off the table and tumble, mirroring the single-player shake feel.
- * - `4` (current): a firm toss that clears the tray. Recommended `3`–`6`.
+ * Upward (world +Y) component (engine U/s) of a shake-to-roll impulse. Mostly
+ * upward so dice hop off the table and tumble, mirroring the single-player shake.
+ * - `20.83` (current): the old `4` rescaled by 156.25 / 30 = 5.208 (preserving its
+ *   13.3% share of the clamp). As a real quantity that is ≈ 0.333 m/s, at the
+ *   `ROLL_VERTICAL_MIN` (0.3 m/s) end of the toss vertical band — a firm hop that
+ *   clears the tray. Recommended `16`–`31` U/s (0.25–0.5 m/s).
  */
-export const SHAKE_IMPULSE_VERTICAL = 4
+export const SHAKE_IMPULSE_VERTICAL = 20.83
 
 /**
  * Scale applied to the sensor's effective-gravity horizontal (X/Z) components when
- * mapping a shake to a world-space impulse, giving horizontal energy in the shake
- * direction. - `0.3` (current). Recommended `0.2` (subtle) – `0.5` (skittery).
+ * mapping a shake to a world-space impulse (U/s), giving horizontal energy in the
+ * shake direction. Not dimensionless in effect: it converts a sensor magnitude
+ * (unchanged by the recalibration) into an engine-U/s impulse component, so it
+ * rescales with the impulse units.
+ * - `1.5625` (current): the old `0.3` rescaled by 156.25 / 30 = 5.208, keeping the
+ *   horizontal energy the same fraction of the clamp as before. Recommended `1.0`
+ *   (subtle) – `2.6` (skittery).
  */
-export const SHAKE_IMPULSE_HORIZONTAL_SCALE = 0.3
+export const SHAKE_IMPULSE_HORIZONTAL_SCALE = 1.5625
 
 /**
- * Peak random horizontal jitter (world units) added to each shake impulse so
+ * Peak random horizontal jitter (engine U/s) added to each shake impulse so
  * identically-stacked dice scatter instead of translating in lockstep. Applied as
  * `(rng() - 0.5) * 2 * SHAKE_IMPULSE_JITTER` on X and Z.
- * - `1.5` (current). Recommended `0` (deterministic) – `3` (chaotic).
+ * - `7.8125` (current): the old `1.5` rescaled by 156.25 / 30 = 5.208, so the
+ *   scatter stays the same fraction of the clamp (≈5%) rather than becoming
+ *   negligible against the rescaled vertical/horizontal terms. Recommended `0`
+ *   (deterministic) – `16` (chaotic).
  */
-export const SHAKE_IMPULSE_JITTER = 1.5
+export const SHAKE_IMPULSE_JITTER = 7.8125

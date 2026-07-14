@@ -38,7 +38,6 @@ pub struct EngineConfig {
     // Material
     pub dice_restitution: f32,
     pub dice_friction: f32,
-    pub edge_chamfer_radius: f32,
 
     // Settle / knock detection
     pub linear_velocity_threshold: f32,
@@ -47,7 +46,7 @@ pub struct EngineConfig {
     pub knock_wake_linear_speed: f32,
     pub knock_wake_angular_speed: f32,
 
-    // Roll impulse + torque (the roll-feel truth)
+    // Roll impulse + spin (the roll-feel truth)
     pub roll_horizontal_min: f32,
     pub roll_horizontal_max: f32,
     pub roll_vertical_min: f32,
@@ -92,7 +91,6 @@ impl EngineConfig {
 
             dice_restitution: physics::DICE_RESTITUTION,
             dice_friction: physics::DICE_FRICTION,
-            edge_chamfer_radius: physics::EDGE_CHAMFER_RADIUS,
 
             linear_velocity_threshold: physics::LINEAR_VELOCITY_THRESHOLD,
             angular_velocity_threshold: physics::ANGULAR_VELOCITY_THRESHOLD,
@@ -227,7 +225,7 @@ mod tests {
     #[test]
     fn engine_config_serializes_camel_case() {
         let json = EngineConfig::current_json();
-        assert!(json.contains("\"rollTorqueMagnitude\":5"));
+        assert!(json.contains("\"rollTorqueMagnitude\":25.2"));
         assert!(json.contains("\"arenaHalfX\":4.5"));
         assert!(json.contains("\"arenaHalfZ\":8"));
         // No snake_case leaked through.

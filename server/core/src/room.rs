@@ -13,12 +13,13 @@ use crate::sink::MessageSink;
 use crate::physics::{
     ArenaBounds, PhysicsWorld, REST_DURATION_MS, MAX_DICE_VELOCITY,
     DRAG_FOLLOW_SPEED, DRAG_DISTANCE_BOOST, DRAG_DISTANCE_THRESHOLD,
-    DRAG_ROLL_FACTOR, DRAG_SPIN_FACTOR,
+    DRAG_ROLL_FACTOR, DRAG_SPIN_FACTOR, DRAG_MIN_MOVEMENT, DRAG_RELEASE_ANGULAR_DAMPING,
+    DRAG_ROLL_ANGULAR_BOUND_FACTOR, SETTLED_ORIENTATION_KNOCK_ANGLE,
     THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
     ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
     MOTION_IMPULSE_MIN_INTERVAL_MS, MOTION_IMPULSE_MAX_MAGNITUDE,
 };
-use crate::dice::{create_dice_body, generate_roll_impulse, generate_roll_torque, generate_spawn_position};
+use crate::dice::{create_dice_body, generate_roll_impulse, generate_roll_spin, generate_spawn_position};
 use crate::face_detection::detect_face_value;
 use log::warn;
 
@@ -261,6 +262,12 @@ pub struct ServerDie {
     pub rest_start_tick: Option<u64>,
     pub drag_state: Option<DragState>,
     pub last_snapshot_position: [f32; 3],
+    /// Orientation (quaternion `[x, y, z, w]`) captured when this die last settled,
+    /// or `None` while rolling/dragged. Baseline for the quasi-static tip check in
+    /// [`Room::wake_knocked_dice`]: a settled die that rotates past
+    /// [`SETTLED_ORIENTATION_KNOCK_ANGLE`] from it has changed face and must
+    /// re-detect, even if it never crossed the velocity knock thresholds.
+    pub settled_rotation: Option<[f32; 4]>,
 }
 
 pub struct DiceSpawnRequest {
@@ -309,6 +316,15 @@ fn is_outside_escape_bounds(position: [f32; 3], bounds: &ArenaBounds) -> bool {
         || position[2].abs() > bounds.escape_half_z()
         || position[1] < ESCAPE_RESET_MIN_Y
         || position[1] > ESCAPE_RESET_MAX_Y
+}
+
+/// Angle (radians, in `[0, π]`) between two unit quaternions `[x, y, z, w]`,
+/// i.e. the magnitude of the rotation that carries one orientation onto the other.
+/// Sign-agnostic (`q` and `-q` are the same orientation).
+fn quat_angle(a: [f32; 4], b: [f32; 4]) -> f32 {
+    let dot = a[0].mul_add(b[0], a[1].mul_add(b[1], a[2].mul_add(b[2], a[3] * b[3])));
+    // cos(θ/2) = |a·b| for unit quaternions; clamp guards f32 drift past ±1.
+    2.0 * dot.abs().min(1.0).acos()
 }
 
 pub struct Room {
@@ -528,13 +544,16 @@ impl Room {
         for die_id in &target_ids {
             if let Some(die) = self.dice.get_mut(die_id) {
                 if let Some(handle) = die.body_handle {
-                    self.physics.apply_impulse(handle, clamped);
+                    // `clamped` is a target Δv (U/s); apply it mass-scaled so a
+                    // shake imparts the same velocity to every die type.
+                    self.physics.apply_velocity_impulse(handle, clamped);
                 }
                 // Re-wake the die so it re-enters the settle pipeline and its
                 // authoritative face rebroadcasts once it comes to rest.
                 die.is_rolling = true;
                 die.face_value = None;
                 die.rest_start_tick = None;
+                die.settled_rotation = None;
             }
         }
 
@@ -851,9 +870,13 @@ impl Room {
         }
         self.validate_spawn_entries(owner_id, &entries)?;
 
+        // Fan successive dice across lanes/rows so a batch (e.g. a saved roll)
+        // never spawns every die inside one collider. `n` is the die's index
+        // across the whole room: existing dice count + its position in the batch.
+        let spawn_index_base = self.dice.len();
         let mut spawned = Vec::new();
-        for entry in entries {
-            let position = generate_spawn_position();
+        for (batch_index, entry) in entries.into_iter().enumerate() {
+            let position = generate_spawn_position(spawn_index_base + batch_index, &self.bounds);
             let body_handle = create_dice_body(entry.dice_type, position, &mut self.physics);
             let rotation = self.physics.get_rotation(body_handle).unwrap_or([0.0, 0.0, 0.0, 1.0]);
 
@@ -870,6 +893,7 @@ impl Room {
                 rest_start_tick: None,
                 drag_state: None,
                 last_snapshot_position: position,
+                settled_rotation: None,
             };
             spawned.push(DiceState {
                 id: entry.id.clone(),
@@ -930,12 +954,16 @@ impl Room {
             if let Some(die) = self.dice.get_mut(dice_id) {
                 if let Some(handle) = die.body_handle {
                     let impulse = generate_roll_impulse();
-                    let torque = generate_roll_torque();
-                    self.physics.apply_impulse(handle, [impulse.x, impulse.y, impulse.z]);
-                    self.physics.apply_torque_impulse(handle, [torque.x, torque.y, torque.z]);
+                    let spin = generate_roll_spin();
+                    // Roll impulse is a target Δv (U/s) and spin a target Δω (rad/s);
+                    // apply both mass/inertia-scaled so every die type — not just the
+                    // calibrated d6 — launches and tumbles at the same rate.
+                    self.physics.apply_velocity_impulse(handle, [impulse.x, impulse.y, impulse.z]);
+                    self.physics.apply_spin_impulse(handle, [spin.x, spin.y, spin.z]);
                     die.is_rolling = true;
                     die.face_value = None;
                     die.rest_start_tick = None;
+                    die.settled_rotation = None;
                 }
             }
         }
@@ -1015,7 +1043,15 @@ impl Room {
                     return None;
                 }
                 let handle = die.body_handle?;
-                self.physics.is_knocked(handle)
+                // A knock is either a fast bump (velocity thresholds) OR a
+                // quasi-static tip: a slowly-shoved settled die that rotated past
+                // SETTLED_ORIENTATION_KNOCK_ANGLE from its settle orientation has
+                // changed face below the speed thresholds and must re-detect (FIX 5).
+                let knocked_by_speed = self.physics.is_knocked(handle);
+                let knocked_by_tip = die.settled_rotation.is_some_and(|settled| {
+                    quat_angle(settled, die.rotation) > SETTLED_ORIENTATION_KNOCK_ANGLE
+                });
+                (knocked_by_speed || knocked_by_tip)
                     .then(|| (id.clone(), self.physics.get_linear_speed(handle)))
             })
             .collect();
@@ -1025,6 +1061,7 @@ impl Room {
                 die.is_rolling = true;
                 die.face_value = None;
                 die.rest_start_tick = None;
+                die.settled_rotation = None;
             }
         }
 
@@ -1074,6 +1111,12 @@ impl Room {
                 DRAG_FOLLOW_SPEED
             };
 
+            // The die's ACTUAL ground speed this tick (before we overwrite velocity
+            // with the chase command below). Used as `v_chase` for the spin bound:
+            // it is ~0 when the die is hovering in place or pinned against a wall,
+            // and ≈ the chase speed when it is genuinely following the cursor.
+            let actual_speed = self.physics.get_linear_speed(handle);
+
             // Set linear velocity toward target
             self.physics.set_linear_velocity(handle, [dx * speed_mult, dy * speed_mult, dz * speed_mult]);
 
@@ -1082,7 +1125,19 @@ impl Room {
             let delta_z = target[2] - last[2];
             let move_speed = (delta_x * delta_x + delta_z * delta_z).sqrt();
 
-            if move_speed > 0.001 {
+            // Rolling-without-slipping bound (risk 5): the per-message drag delta is
+            // re-applied every 60 Hz tick between the ~30 Hz `drag_move` messages, so
+            // without a ceiling it pumps unbounded spin into a hovered die. Cap the
+            // drag-applied angular velocity at ω = DRAG_ROLL_ANGULAR_BOUND_FACTOR ×
+            // v_chase — the fastest a die *rolling* on the table at its actual ground
+            // speed could spin — by skipping the torque on any tick where the die
+            // already exceeds it. Using the ACTUAL speed (not the commanded one) means
+            // a hovered or wall-pinned die, which barely moves, is allowed almost no
+            // drag spin, which is exactly the windup case.
+            let angular_bound = DRAG_ROLL_ANGULAR_BOUND_FACTOR * actual_speed;
+            if move_speed > DRAG_MIN_MOVEMENT
+                && self.physics.get_angular_speed(handle) < angular_bound
+            {
                 let dir_x = delta_x / move_speed;
                 let dir_z = delta_z / move_speed;
 
@@ -1118,10 +1173,13 @@ impl Room {
             })
             .collect();
 
-        for die_id in escaped_ids {
+        // Recovered dice re-drop from spawn height, fanned out (offset by the
+        // current dice count) so several simultaneous escapees don't stack.
+        let dice_count = self.dice.len();
+        for (offset, die_id) in escaped_ids.into_iter().enumerate() {
+            let reset_position = generate_spawn_position(dice_count + offset, &self.bounds);
             if let Some(die) = self.dice.get_mut(&die_id) {
                 let Some(handle) = die.body_handle else { continue };
-                let reset_position = generate_spawn_position();
                 self.physics.reset_body_to_position(handle, reset_position);
                 die.position = reset_position;
                 die.rotation = [0.0, 0.0, 0.0, 1.0];
@@ -1129,6 +1187,7 @@ impl Room {
                 die.rest_start_tick = None;
                 die.drag_state = None;
                 die.is_rolling = true;
+                die.settled_rotation = None;
                 warn!("Reset escaped die {die_id} back into room {}", self.id);
             }
         }
@@ -1136,12 +1195,14 @@ impl Room {
 
     /// Build a `PhysicsSnapshot` message for this tick.
     ///
-    /// Includes dice that are rolling, being dragged, or have moved more than 1cm since the
-    /// last snapshot. Updates `last_snapshot_position` for all included dice.
-    /// Returns `None` if no dice qualify for the snapshot.
+    /// Includes dice that are rolling, being dragged, or have moved more than ~1 mm
+    /// (0.0625 U) since the last snapshot. Updates `last_snapshot_position` for all
+    /// included dice. Returns `None` if no dice qualify for the snapshot.
     fn build_physics_snapshot(&mut self) -> Option<ServerMessage> {
-        // 1cm movement threshold for snapshot filtering
-        const POSITION_DELTA_THRESHOLD: f32 = 0.01;
+        // ~1 mm real movement threshold (0.0625 U at U = 16 mm) for snapshot
+        // filtering. At g = 613 the prior 0.01 U (= 0.16 mm) re-entered settled dice
+        // on solver micro-drift; 1 mm real preserves the original "1 cm" intent.
+        const POSITION_DELTA_THRESHOLD: f32 = 0.0625;
 
         let dice_snapshots: Vec<DiceSnapshot> = self.dice.values()
             .filter(|d| {
@@ -1214,6 +1275,9 @@ impl Room {
                             let face_value = detect_face_value(rotation, dice_type);
                             die.is_rolling = false;
                             die.face_value = Some(face_value);
+                            // Baseline for the quasi-static tip check (FIX 5): the
+                            // orientation this face was read at.
+                            die.settled_rotation = Some(rotation);
                             newly_settled.push((dice_id.clone(), face_value));
                         }
                         _ => {}
@@ -1351,8 +1415,8 @@ impl Room {
         if let Some(handle) = die.body_handle {
             if let Some(throw_vel) = calculate_throw_velocity(velocity_history) {
                 self.physics.set_linear_velocity(handle, throw_vel);
-                // Dampen angular velocity (same 0.75 factor as client)
-                self.physics.scale_angular_velocity(handle, 0.75);
+                // Dampen angular velocity on release (bleeds off drilling spin).
+                self.physics.scale_angular_velocity(handle, DRAG_RELEASE_ANGULAR_DAMPING);
             }
         }
 
@@ -1464,9 +1528,10 @@ impl Room {
         }
         self.validate_spawn_entries(owner_id, &entries)?;
 
+        let spawn_index_base = self.dice.len();
         let mut spawned = Vec::new();
-        for entry in entries {
-            let position = [0.0, 2.0, 0.0];
+        for (batch_index, entry) in entries.into_iter().enumerate() {
+            let position = generate_spawn_position(spawn_index_base + batch_index, &self.bounds);
             let rotation = [0.0, 0.0, 0.0, 1.0];
             let die = ServerDie {
                 id: entry.id.clone(),
@@ -1481,6 +1546,7 @@ impl Room {
                 rest_start_tick: None,
                 drag_state: None,
                 last_snapshot_position: position,
+                settled_rotation: None,
             };
             spawned.push(DiceState {
                 id: entry.id.clone(),
@@ -2722,7 +2788,7 @@ mod tests {
 
         // Manually apply velocity to d2's rigid body to simulate collision displacement
         if let Some(handle) = room.dice.get("d2").unwrap().body_handle {
-            room.physics.set_linear_velocity(handle, [5.0, 0.0, 0.0]);
+            room.physics.set_linear_velocity(handle, [10.0, 0.0, 0.0]);
         }
 
         // Step physics so position updates
@@ -3125,7 +3191,7 @@ mod physics_tick_helper_tests {
         mark_settled(&mut room, "d1", 4);
 
         let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
-        room.physics.set_linear_velocity(handle, [5.0, 0.0, 0.0]);
+        room.physics.set_linear_velocity(handle, [20.0, 0.0, 0.0]);
 
         let knocked = room.wake_knocked_dice();
 
@@ -3166,7 +3232,7 @@ mod physics_tick_helper_tests {
         room.start_drag("p1", "d1", [0.0; 3], [pos[0] + 4.0, 2.0, pos[2]]).unwrap();
 
         let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
-        room.physics.set_linear_velocity(handle, [6.0, 0.0, 0.0]);
+        room.physics.set_linear_velocity(handle, [20.0, 0.0, 0.0]);
 
         let knocked = room.wake_knocked_dice();
         assert!(knocked.is_empty(), "Dragged die should not be reported as knocked");
@@ -3181,7 +3247,7 @@ mod physics_tick_helper_tests {
         room.dice.get_mut("d1").unwrap().face_value = None;
 
         let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
-        room.physics.set_linear_velocity(handle, [8.0, 0.0, 0.0]);
+        room.physics.set_linear_velocity(handle, [20.0, 0.0, 0.0]);
 
         let knocked = room.wake_knocked_dice();
         assert!(knocked.is_empty(), "An already-rolling die is not a fresh knock");
@@ -3207,8 +3273,11 @@ mod physics_tick_helper_tests {
         assert!(!room.dice.get("d1").unwrap().is_rolling, "Die is settled before the knock");
 
         // 2. Knock it: apply a strong sideways+spin impulse, as another player's throw would.
+        //    100 U/s (1.6 m/s) stays above the 15.9 U/s knock threshold even in the worst
+        //    case where the die settled flush against a wall and this single physics_tick
+        //    bounces it back (die↔wall restitution 0.30 ⇒ ~30 U/s post-bounce > 15.9).
         let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
-        room.physics.set_linear_velocity(handle, [7.0, 1.0, 0.0]);
+        room.physics.set_linear_velocity(handle, [100.0, 2.0, 0.0]);
         room.physics.set_angular_velocity(handle, [4.0, 4.0, 4.0]);
 
         // 3. One tick re-wakes it and reports the knock.
@@ -3230,5 +3299,144 @@ mod physics_tick_helper_tests {
         let face = resettled_face.unwrap();
         assert!((1..=6).contains(&face), "Rebroadcast D6 face must be 1-6, got {face}");
         assert_eq!(room.dice.get("d1").unwrap().face_value, Some(face), "Authoritative face is updated");
+    }
+
+    // ── drag hover-spin windup bound (FIX 2) ─────────────────────────────────
+
+    /// Sustaining a consistent-direction drag delta every tick must NOT wind angular
+    /// velocity up without bound: the rolling-without-slipping cap holds ω near
+    /// DRAG_ROLL_ANGULAR_BOUND_FACTOR × v_chase for a long drag.
+    #[test]
+    fn test_sustained_drag_delta_bounds_angular_velocity() {
+        let mut room = make_room_with_player_and_die("d1");
+        let start = room.dice.get("d1").unwrap().position;
+        // Sweep the cursor back and forth along Z inside the arena, feeding the same
+        // per-tick delta throughout each sweep — the re-applied-every-tick drag delta
+        // that drives the windup. The die tracks the cursor, so its actual ground
+        // speed (hence the spin bound) stays modest.
+        let mut target = [start[0].clamp(-2.0, 2.0), 2.0, 0.0];
+        room.start_drag("p1", "d1", [0.0; 3], target).unwrap();
+
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        let step = 0.15_f32; // ≈ 9 U/s cursor speed, well above DRAG_MIN_MOVEMENT
+        let mut z = 0.0_f32;
+        let mut dir = 1.0_f32;
+        let mut max_omega = 0.0_f32;
+        for _ in 0..240 {
+            z += dir * step;
+            if z > 5.0 {
+                z = 5.0;
+                dir = -1.0;
+            } else if z < -5.0 {
+                z = -5.0;
+                dir = 1.0;
+            }
+            target[2] = z;
+            room.update_drag("p1", "d1", target).unwrap();
+            room.apply_drag_forces();
+            room.physics.step();
+            max_omega = max_omega.max(room.physics.get_angular_speed(handle));
+        }
+
+        // With the bound, ω saturates near DRAG_ROLL_ANGULAR_BOUND_FACTOR × v_chase
+        // (measured ~24 rad/s here). WITHOUT the bound the same-direction delta
+        // re-applies torque every tick of a sweep (no floor contact to damp it),
+        // winding ω to ~74 rad/s; the 40 threshold cleanly separates the two.
+        assert!(
+            max_omega < 40.0,
+            "sustained drag delta must not wind ω up without bound, got {max_omega}"
+        );
+    }
+
+    // ── quasi-static tip re-detection (FIX 5) ────────────────────────────────
+
+    /// A settled die slowly tipped onto a new face — below both velocity knock
+    /// thresholds the whole time — must be re-detected via the orientation-drift
+    /// check and rebroadcast a fresh authoritative face.
+    #[test]
+    fn test_quasi_static_tip_resettles_and_updates_face() {
+        // Hamilton product of quaternions in `[x, y, z, w]` form.
+        fn qmul(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
+            let (ax, ay, az, aw) = (a[0], a[1], a[2], a[3]);
+            let (bx, by, bz, bw) = (b[0], b[1], b[2], b[3]);
+            [
+                aw * bx + ax * bw + ay * bz - az * by,
+                aw * by - ax * bz + ay * bw + az * bx,
+                aw * bz + ax * by - ay * bx + az * bw,
+                aw * bw - ax * bx - ay * by - az * bz,
+            ]
+        }
+
+        let mut room = make_room_with_player_and_die("d1");
+
+        // 1. Roll and settle naturally so the real pipeline records settled_rotation.
+        room.roll_player_dice("p1");
+        let mut first_face = None;
+        for _ in 0..1200 {
+            let (_, s, _) = room.physics_tick();
+            if let Some((_, f)) = s.iter().find(|(id, _)| id == "d1") {
+                first_face = Some(*f);
+                break;
+            }
+        }
+        assert!(first_face.is_some(), "die settles with an initial face");
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        let settled = room.physics.get_rotation(handle).unwrap();
+
+        // 2. Quasi-statically tip the body 90° about X (a valid new resting face) at
+        //    rest — below both velocity knock thresholds — as a dragged neighbour
+        //    slowly bulldozing it would. The relative rotation is exactly 90°.
+        let tipped = qmul([0.707_106_77, 0.0, 0.0, 0.707_106_77], settled);
+        room.physics.set_rotation(handle, tipped);
+        room.physics.set_linear_velocity(handle, [0.0, 0.0, 0.0]);
+        room.physics.set_angular_velocity(handle, [0.0, 0.0, 0.0]);
+        assert!(
+            !room.physics.is_knocked(handle),
+            "the tip stays below the velocity knock thresholds (speed-based knock cannot fire)"
+        );
+
+        // 3. One tick syncs the tipped orientation and the drift check re-wakes it.
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.iter().any(|(id, _)| id == "d1"), "quasi-static tip must register as a knock");
+        assert!(room.dice.get("d1").unwrap().is_rolling, "tipped die is rolling again");
+        assert!(room.dice.get("d1").unwrap().face_value.is_none(), "stale face cleared after tip");
+
+        // 4. It re-settles and rebroadcasts a fresh authoritative face.
+        let mut resettled = None;
+        for _ in 0..1200 {
+            let (_, s, _) = room.physics_tick();
+            if let Some((_, f)) = s.iter().find(|(id, _)| id == "d1") {
+                resettled = Some(*f);
+                break;
+            }
+        }
+        assert!(resettled.is_some(), "tipped die must re-settle with a fresh face");
+        assert_eq!(
+            room.dice.get("d1").unwrap().face_value,
+            resettled,
+            "authoritative face_value is updated after the tip"
+        );
+    }
+
+    /// The mirror of the tip check: a settled die that only micro-drifts in
+    /// orientation (below SETTLED_ORIENTATION_KNOCK_ANGLE) must stay settled, so
+    /// solver jitter never wipes a valid face.
+    #[test]
+    fn test_sub_threshold_orientation_drift_keeps_settled() {
+        let mut room = make_room_with_player_and_die("d1");
+        mark_settled(&mut room, "d1", 4);
+        {
+            let die = room.dice.get_mut("d1").unwrap();
+            die.settled_rotation = Some([0.0, 0.0, 0.0, 1.0]);
+            // ~10° about X (< 22.5° threshold).
+            die.rotation = [0.087_155_74, 0.0, 0.0, 0.996_194_7];
+        }
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        room.physics.set_linear_velocity(handle, [0.0, 0.0, 0.0]);
+        room.physics.set_angular_velocity(handle, [0.0, 0.0, 0.0]);
+
+        let knocked = room.wake_knocked_dice();
+        assert!(knocked.is_empty(), "sub-threshold orientation drift must not re-wake a settled die");
+        assert_eq!(room.dice.get("d1").unwrap().face_value, Some(4), "valid face preserved");
     }
 }

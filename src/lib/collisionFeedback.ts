@@ -22,8 +22,8 @@ import {
 let lastCollisionTime = -HAPTIC_THROTTLE_MS
 
 /**
- * Map a server-reported impact speed (m/s) to a feedback intensity.
- * Exported for testing and reuse.
+ * Map a server-reported impact speed (engine U/s — the die's linear speed at the
+ * knock; 62.5 U = 1 m) to a feedback intensity. Exported for testing and reuse.
  */
 export function impactSpeedToIntensity(impactSpeed: number): HapticIntensity {
   if (impactSpeed >= COLLISION_IMPACT_STRONG_SPEED) return 'strong'
