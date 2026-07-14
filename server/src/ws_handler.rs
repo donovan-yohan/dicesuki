@@ -339,6 +339,30 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
+            ClientMessage::SetArena { aspect } if is_joined => {
+                let mut room_guard = room.write().await;
+                match room_guard.set_arena(&player_id, aspect) {
+                    Ok(config) => {
+                        room_guard.broadcast(&ServerMessage::ArenaChanged { config });
+                        // Moved dice (if any) re-settle via the sim loop; start it if
+                        // the resize woke the room.
+                        crate::simulation::maybe_start_simulation(&mut room_guard, room.clone());
+                    }
+                    Err(err) => {
+                        let message = match err {
+                            RoomError::NotHost => {
+                                "Only the host can resize the arena".to_string()
+                            }
+                            _ => format!("Failed to resize arena: {}", err.code()),
+                        };
+                        let _ = tx.send(ServerMessage::Error {
+                            code: err.code().to_string(),
+                            message,
+                        });
+                    }
+                }
+            }
+
             ClientMessage::MotionImpulse { impulse } if is_joined => {
                 let mut room_guard = room.write().await;
                 match room_guard.apply_motion_impulse(&player_id, impulse) {

@@ -822,6 +822,55 @@ impl Room {
         Ok(())
     }
 
+    /// Host-only: resize the shared arena to `aspect` (Shared-ADR-009).
+    ///
+    /// The arena footprint becomes [`ArenaBounds::from_aspect`] (area-preserving,
+    /// clamped). The walls are rebuilt in place so every existing die survives; any
+    /// die now outside the new (possibly smaller) arena is moved back inside
+    /// **keeping its orientation**, so a resize never re-rolls a settled face. Dice
+    /// already inside do not move. If any die moved, the room is marked simulating so
+    /// the moved dice re-settle and their new positions reach clients.
+    ///
+    /// Returns the new [`EngineConfig`] for the caller to broadcast to all players.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(RoomError::NotHost)` if `player_id` is not the host; the arena is
+    /// left unchanged in that case.
+    pub fn set_arena(&mut self, player_id: &str, aspect: f32) -> Result<crate::config::EngineConfig, RoomError> {
+        if !self.is_host(player_id) {
+            return Err(RoomError::NotHost);
+        }
+
+        let bounds = ArenaBounds::from_aspect(aspect);
+        self.physics.rebuild_arena(bounds);
+        self.bounds = bounds;
+
+        // Pull any die now outside the new arena back inside, preserving orientation
+        // (face unchanged). `clamp_spawn_position` returns its input unchanged when
+        // already inside, so dice within bounds are left untouched.
+        let mut moved_any = false;
+        for die in self.dice.values_mut() {
+            let Some(handle) = die.body_handle else { continue };
+            let clamped = clamp_spawn_position(die.position, &self.bounds);
+            if clamped != die.position {
+                self.physics.move_body_keep_rotation(handle, clamped);
+                die.position = clamped;
+                die.last_snapshot_position = clamped;
+                die.settled_rotation = None;
+                moved_any = true;
+            }
+        }
+        if moved_any {
+            // Wake the sim so moved dice re-settle (resolving any overlap from the
+            // shrink) and their new positions broadcast; mirrors the spawn path.
+            self.is_simulating = true;
+        }
+
+        self.touch();
+        Ok(crate::config::EngineConfig::for_arena(&self.bounds))
+    }
+
     /// Remove specific dice. Returns IDs that were actually removed.
     pub fn remove_dice(&mut self, player_id: &str, dice_ids: &[String]) -> Vec<String> {
         let mut removed = Vec::new();
@@ -2053,6 +2102,96 @@ mod tests {
         assert!(die.face_value.is_some(), "settled carried die has a face value");
         assert!((die.position[0] - placed[0]).abs() < 0.75, "x stayed near placed, got {}", die.position[0]);
         assert!((die.position[2] - placed[2]).abs() < 0.75, "z stayed near placed, got {}", die.position[2]);
+    }
+
+    // --- Host-resizable arena (Shared-ADR-009) ---
+
+    fn settle_one(room: &mut Room) {
+        for _ in 0..400 {
+            let (_, settled, _) = room.physics_tick();
+            if !settled.is_empty() {
+                break;
+            }
+        }
+    }
+
+    #[test]
+    fn test_set_arena_is_host_gated() {
+        let mut room = Room::new("t".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Host")).unwrap();
+        room.add_player(make_player("p2", "Guest")).unwrap();
+        room.host_id = Some("p1".to_string());
+        let before = room.bounds;
+        assert_eq!(room.set_arena("p2", 1.0).unwrap_err(), RoomError::NotHost);
+        assert_eq!(room.bounds, before, "a non-host resize leaves the arena unchanged");
+    }
+
+    #[test]
+    fn test_set_arena_changes_bounds_and_returns_config() {
+        let mut room = Room::new("t".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Host")).unwrap();
+        room.host_id = Some("p1".to_string());
+
+        let config = room.set_arena("p1", 16.0 / 9.0).unwrap();
+        let expected = ArenaBounds::from_aspect(16.0 / 9.0);
+        assert!((room.bounds.half_x - expected.half_x).abs() < 1e-4);
+        assert!((room.bounds.half_z - expected.half_z).abs() < 1e-4);
+        assert!((config.arena_half_x - expected.half_x).abs() < 1e-4);
+        assert!((config.arena_half_z - expected.half_z).abs() < 1e-4);
+
+        // 16:9 is the transpose of 9:16 (area preserved by from_aspect).
+        let portrait = ArenaBounds::from_aspect(9.0 / 16.0);
+        assert!((room.bounds.half_x - portrait.half_z).abs() < 1e-3);
+        assert!((room.bounds.half_z - portrait.half_x).abs() < 1e-3);
+    }
+
+    #[test]
+    fn test_set_arena_leaves_centered_die_and_body_intact() {
+        let mut room = Room::new("t".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Host")).unwrap();
+        room.host_id = Some("p1".to_string());
+        room.spawn_dice_with_physics("p1", vec![carried_request("d1", [0.0, 0.6, 0.0], Some([0.0, 0.0, 0.0, 1.0]))])
+            .unwrap();
+        settle_one(&mut room);
+        let pos_before = room.dice.get("d1").unwrap().position;
+        let face_before = room.dice.get("d1").unwrap().face_value;
+
+        // Square arena still contains the center: the die must not move.
+        room.set_arena("p1", 1.0).unwrap();
+        let die = room.dice.get("d1").unwrap();
+        assert_eq!(die.position, pos_before, "a centered die is untouched by a resize");
+        assert_eq!(die.face_value, face_before, "face unchanged");
+        assert!(die.body_handle.is_some());
+        // The die body survives the arena rebuild — its position is still readable.
+        assert!(room.physics.get_position(die.body_handle.unwrap()).is_some());
+    }
+
+    #[test]
+    fn test_set_arena_pulls_outside_die_in_preserving_face() {
+        // Wide arena, a settled die near the +X wall.
+        let mut room = Room::new("t".to_string(), ArenaBounds::from_aspect(2.4));
+        room.add_player(make_player("p1", "Host")).unwrap();
+        room.host_id = Some("p1".to_string());
+        let far_x = room.bounds.half_x - 0.5;
+        room.spawn_dice_with_physics("p1", vec![carried_request("d1", [far_x, 0.6, 0.0], Some([0.0, 0.0, 0.0, 1.0]))])
+            .unwrap();
+        settle_one(&mut room);
+        let face_before = room.dice.get("d1").unwrap().face_value;
+        let rot_before = room.dice.get("d1").unwrap().rotation;
+
+        // Shrink to portrait: far_x is now well outside the new arena.
+        room.set_arena("p1", 9.0 / 16.0).unwrap();
+        let die = room.dice.get("d1").unwrap();
+        assert!(
+            die.position[0].abs() <= room.bounds.half_x,
+            "die pulled inside the new arena, got x={}",
+            die.position[0]
+        );
+        // The move keeps orientation, so the face is unchanged (no re-roll).
+        let r = die.rotation;
+        let dot = r[0] * rot_before[0] + r[1] * rot_before[1] + r[2] * rot_before[2] + r[3] * rot_before[3];
+        assert!(dot.abs() > 0.999, "orientation preserved by the resize move");
+        assert_eq!(die.face_value, face_before, "face preserved by the resize move");
     }
 
     #[test]
