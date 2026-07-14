@@ -38,6 +38,7 @@ import type { DiceShape } from '../types/diceShape'
 import type { InventoryDie } from '../types/inventory'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useUIStore } from '../store/useUIStore'
+import { swapsAxes } from '../lib/viewRotation'
 
 // Components
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
@@ -335,26 +336,38 @@ function MultiplayerCamera() {
   // frames THOSE, so a host-chosen shared shape fits every viewport (letterboxing
   // when the arena aspect differs from the window) and reflows on a resize.
   const engineConfig = useEngineConfig()
+  // This client's local view rotation (ADR 009) — camera-only, never the world.
+  const viewRotation = useUIStore((s) => s.viewRotation)
 
   useEffect(() => {
     if (!('fov' in camera)) return // Only for PerspectiveCamera
     const perspCamera = camera as THREE.PerspectiveCamera
     const halfFovV = ((perspCamera.fov * Math.PI) / 180) / 2
 
+    // A 90°/270° view swaps which arena axis maps to the viewport height vs width,
+    // so the fit uses swapped half-extents.
+    const swap = swapsAxes(viewRotation)
     const cameraHeight = engineConfig
       ? arenaFitCameraHeight(
-          engineConfig.arenaHalfX,
-          engineConfig.arenaHalfZ,
+          swap ? engineConfig.arenaHalfZ : engineConfig.arenaHalfX,
+          swap ? engineConfig.arenaHalfX : engineConfig.arenaHalfZ,
           size.width,
           size.height,
           perspCamera.fov,
         )
       // Pre-config fallback (before room_state arrives): legacy fixed-scale framing.
       : size.height / resolvePixelsPerUnit() / (2 * Math.tan(halfFovV))
+
     perspCamera.position.set(0, cameraHeight, 0)
     perspCamera.lookAt(0, 0, 0)
+    // Client-only view rotation: spin the camera about the vertical (view) axis.
+    // Pointer raycasts use this camera, so drag/throw stay correct for free; only
+    // the sensor-derived motion impulse needs a matching rotation (ADR 009).
+    if (viewRotation !== 0) {
+      perspCamera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), (viewRotation * Math.PI) / 180)
+    }
     perspCamera.updateProjectionMatrix()
-  }, [camera, size.width, size.height, engineConfig])
+  }, [camera, size.width, size.height, engineConfig, viewRotation])
 
   return null
 }
@@ -619,6 +632,31 @@ function SceneContent() {
           </button>
         </div>
       )}
+
+      {/* Top-Right: rotate my view 90° — client-only, per-device (ADR 009) */}
+      <div
+        className="fixed z-40"
+        style={{
+          top: '144px',
+          right: '16px',
+          pointerEvents: isUIVisible ? 'auto' : 'none',
+        }}
+      >
+        <button
+          onClick={() => useUIStore.getState().rotateViewCW()}
+          className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
+          style={{
+            ...TOP_RIGHT_BUTTON_STYLES,
+            opacity: isUIVisible ? 1 : 0,
+            transform: isUIVisible ? 'scale(1)' : 'scale(0.8)',
+          }}
+          aria-label="Rotate view 90 degrees"
+          title="Rotate my view 90°"
+          data-testid="rotate-view-button"
+        >
+          🔄
+        </button>
+      </div>
 
       {/* Mini UI Toggle - shows when UI hidden */}
       <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
