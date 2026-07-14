@@ -41,15 +41,15 @@
 
 use rapier3d::prelude::*;
 
-/// Standard gravity acceleration (U/s²) applied to the physics world.
-/// - `-613.1` (current): Earth's 9.81 m/s² expressed in engine units —
-///   9.81 ÷ 0.016 m/U = 613.125 U/s² (locked; the constant carries a brief
-///   rounding to -613.1). At U = 16 mm this is *real* gravity on the real die,
-///   not a feel factor.
-/// - Recommended range: `-613` (Earth, the physical value) is the anchor; `-490`
-///   (Moon-ish, floatier) – `-800` (heavier-than-Earth, snappier) span the
-///   plausible tuning band. Magnitude, not sign, is the knob.
-pub const GRAVITY: f32 = -613.1;
+/// Gravity acceleration (U/s²). **A FEEL constant, not Earth (ADR-008 amendment):**
+/// a real 16 mm die at 1 g settles in ~0.5 s — too fast to read as a *roll*, and the
+/// tumble timescale √(L/g) moves only with g — so gravity is a chosen playfeel knob
+/// (restitution/friction stay physically grounded). Magnitude, not sign, is the knob.
+/// - `-240.0` (current): ~0.39× Earth — a floaty, longer roll whose apex still clears
+///   the lid (38²/(2·240) + spawn 6.25 ≈ 9.25 U < the 10 U lid underside).
+/// - Range `-200` (floaty) – `-450` (snappy); `-613.1` (= 9.81 ÷ 0.016) is the
+///   physically-real anchor if realism is ever prioritized over feel again.
+pub const GRAVITY: f32 = -240.0;
 
 /// Restitution (bounciness) of the dice material. Die↔die pairs combine to this
 /// value via Rapier's `Average` rule; die↔arena averages with [`ARENA_RESTITUTION`].
@@ -162,26 +162,29 @@ pub const SETTLED_ORIENTATION_KNOCK_ANGLE: f32 = std::f32::consts::FRAC_PI_8;
 /// Minimum horizontal (XZ-plane) target Δv (U/s) for a button roll. Applied on the
 /// d6 (mass 1 M) as a velocity via [`PhysicsWorld::apply_velocity_impulse`], so the
 /// number IS the launch speed.
-/// - `31.25` (current): the casual tabletop release floor 0.5 m/s (0.5–2.5 m/s
-///   band, cf. Kapitaniak 2012) × 62.5 = 31.25 U/s.
-/// - Recommended range `19`–`50` U/s (0.3–0.8 m/s).
-pub const ROLL_HORIZONTAL_MIN: f32 = 31.25;
+/// - `22.0` (current): feel-tuned down (ADR-008) from the SI casual-release floor
+///   31.25 (0.5 m/s × 62.5) — dice were crossing the tray too fast at the softened
+///   gravity. Still a firm launch.
+/// - Recommended range `15`–`35` U/s.
+pub const ROLL_HORIZONTAL_MIN: f32 = 22.0;
 /// Maximum horizontal (XZ-plane) target Δv (U/s) for a button roll. See
 /// [`ROLL_HORIZONTAL_MIN`].
-/// - `93.75` (current): the casual in-tray ceiling 1.5 m/s × 62.5 (faster is a
-///   throw, governed by the throw clamps); crosses the 25.6 cm tray in ~0.17 s.
-/// - Recommended range `62`–`125` U/s (1.0–2.0 m/s).
-pub const ROLL_HORIZONTAL_MAX: f32 = 93.75;
+/// - `58.0` (current): feel-tuned down (ADR-008) from the SI in-tray ceiling 93.75
+///   (1.5 m/s × 62.5) so a roll reads as a tumble, not a skid across the tray.
+/// - Recommended range `40`–`80` U/s.
+pub const ROLL_HORIZONTAL_MAX: f32 = 58.0;
 /// Minimum upward (Y) target Δv (U/s) for a button roll.
 /// - `18.75` (current): the casual toss vertical band floor 0.3 m/s × 62.5 (hop
 ///   height v²/2g = 4.6 mm).
 /// - Recommended range `18.75`–`50` U/s (0.3–0.8 m/s).
 pub const ROLL_VERTICAL_MIN: f32 = 18.75;
 /// Maximum upward (Y) target Δv (U/s) for a button roll. See [`ROLL_VERTICAL_MIN`].
-/// - `50.0` (current): the casual toss vertical band top 0.8 m/s × 62.5 (hop
-///   3.3 cm; the apex clears the lid — see the module sanity check).
-/// - Recommended range `18.75`–`50` U/s (0.3–0.8 m/s).
-pub const ROLL_VERTICAL_MAX: f32 = 50.0;
+/// - `38.0` (current): feel-tuned down (ADR-008) from 50 so that, at the softened
+///   gravity (a lower g raises hop height v²/2g), a roll's apex stays well under
+///   the lid ([`CEILING_Y`]) instead of tapping it — 38²/(2·240) + [`SPAWN_HEIGHT`]
+///   ≈ 9.25 U < 10.0 underside.
+/// - Recommended range `18.75`–`45` U/s.
+pub const ROLL_VERTICAL_MAX: f32 = 38.0;
 
 /// **The single roll-feel spin truth.** Each axis of a rolled die receives a
 /// random target angular velocity (a spin RATE) in
@@ -191,18 +194,15 @@ pub const ROLL_VERTICAL_MAX: f32 = 50.0;
 /// rate rather than a rate that scales with hull inertia. The hand imparts a spin
 /// rate, not a torque.
 ///
-/// - `25.2` (current): the casual hand-spin band *center* 4 rev/s = 25.13 rad/s,
-///   per axis. This is the *same physical roll* as the previous torque-impulse
-///   formulation (`T = 4.2 M·U²/s`, which gave the d6 a per-axis Δω = 6·T = 25.2
-///   rad/s): the constant is now expressed directly as that Δω, so the d6 is
-///   numerically unchanged while non-d6 hulls (d4/d20/…), which used to spin
-///   several times faster off the raw torque, now match it. SI check: for the d6,
-///   I·ω = (1/6)·25.2 = 4.2 torque-impulse units — the old constant. The *only*
-///   spin definition in the codebase, reaching solo and multiplayer identically
-///   (closing the historical `±1` vs `±5` divergence, issue #117).
-/// - Recommended range: `18.8` (gentle, ~3 rev/s) – `31.4` (energetic, ~5 rev/s)
-///   rad/s.
-pub const ROLL_TORQUE_MAGNITUDE: f32 = 25.2;
+/// - `24.0` (current): feel-tuned (ADR-008). An initial bump to 40 over-rotated the
+///   dice at the softened [`GRAVITY`] (where a lower g lets spin persist longer
+///   before friction kills it), so it was pulled back to ~3.8 rev/s per axis — a
+///   clear tumble that no longer spins excessively. Because
+///   [`PhysicsWorld::apply_spin_impulse`] normalizes by each hull's inertia, this
+///   remains the *one* spin RATE every die type receives identically (solo and
+///   multiplayer), closing the historical `±1` vs `±5` divergence (issue #117).
+/// - Recommended range: `18` (gentle) – `40` (energetic). A feel knob.
+pub const ROLL_TORQUE_MAGNITUDE: f32 = 24.0;
 
 /// Base cursor-pursuit gain (1/s) for how aggressively a dragged die chases the
 /// cursor: `set_linvel(displacement × gain)`. A control-loop constant, not a
@@ -232,48 +232,42 @@ pub const DRAG_DISTANCE_THRESHOLD: f32 = 3.75;
 ///   value was rejected — physical value or nothing.)
 /// - Range `0.0`–`1.0`; non-zero is a deliberate non-physical flourish.
 pub const DRAG_SPIN_FACTOR: f32 = 0.0;
-/// How much cursor motion induces rolling ("ball on a surface") on a dragged die.
-/// - `2.45` (current): anchored to the slip-to-roll grip time of a cube on felt,
-///   t = v / (2.5 · μ_pair · g) = 68 ms at the characteristic 0.5 m/s drag with
-///   μ_pair = 0.30. `update_drag` keeps the per-message delta and
-///   `apply_drag_forces` re-applies it every 60 Hz tick (verified), so
-///   dω/dt = 12·F·v and τ = 1/(6F) ⇒ F = 2.45.
-/// - Range `1.5`–`3.5`. The windup this once risked (risk 5) is now bounded by
-///   [`DRAG_ROLL_ANGULAR_BOUND_FACTOR`].
-pub const DRAG_ROLL_FACTOR: f32 = 2.45;
-/// Bound on drag-applied angular velocity, as a multiple of a dragged die's
-/// actual ground speed: [`crate::room::Room::apply_drag_forces`] skips the drag
-/// torque on any tick where the die's angular speed already exceeds
-/// `DRAG_ROLL_ANGULAR_BOUND_FACTOR × v_chase` (`v_chase` = the die's actual linear
-/// speed this tick, so a hovered or wall-pinned die that barely moves is allowed
-/// almost no drag spin — the windup case).
-/// - `2.0` (current): the rolling-without-slipping rate ω = v / r for a die
-///   pivoting on its contact edge — with the half-edge r = 0.5 U, ω = v / 0.5 =
-///   2·v. A dragged die cannot spin faster than a die *rolling* along the table at
-///   the same ground speed, so this is the physical ceiling, not a feel factor.
-///   It exists because the per-message drag delta ([`DRAG_ROLL_FACTOR`]) is
-///   re-applied every 60 Hz tick between the ~30 Hz `drag_move` messages; without
-///   the bound it pumps ω up without limit over a long hover-drag (risk 5), which
-///   [`DRAG_RELEASE_ANGULAR_DAMPING`] = 1.0 (physical release) no longer masks.
-/// - Range `1.0`–`4.0` (× chase speed). Derived from geometry, not tuned.
-pub const DRAG_ROLL_ANGULAR_BOUND_FACTOR: f32 = 2.0;
+/// Rolling rate a dragged die spins at, per unit of its horizontal chase speed
+/// (rad/s per U/s). [`crate::room::Room::apply_drag_forces`] steers the die's
+/// angular velocity toward a **target** ω = this · chase_speed about the rolling
+/// axis (perpendicular to travel) rather than accumulating torque impulses, so the
+/// spin is proportional to cursor speed, inertia-independent (every die type spins
+/// the same), and decays to zero as the cursor slows — no windup to bound.
+/// - `0.5` (current): half the physical roll-without-slip rate (ω = v/r, r = 0.5 U
+///   ⇒ 2·v) — a calm roll; slow cursor motion barely turns the die, fast motion
+///   tumbles it. A feel knob.
+/// - Range `0.2` (barely rolls) – `2.0` (physical roll).
+pub const DRAG_ROLL_FACTOR: f32 = 0.5;
+/// Per-tick approach rate (0–1) with which a dragged die's angular velocity chases
+/// its target rolling ω (see [`DRAG_ROLL_FACTOR`]): each 60 Hz tick ω moves this
+/// fraction toward the target — an exponential approach, time constant ≈ (1/rate) ticks.
+/// - `0.12` (current): τ ≈ 8 ticks ≈ 140 ms — neither instant nor sluggish.
+/// - Range `0.05` (very floaty) – `0.3` (snappy).
+pub const DRAG_ANGULAR_RESPONSE: f32 = 0.12;
+/// Inset (U) from each arena wall that a drag target is clamped to, so a
+/// velocity-driven grabbed die ([`crate::room::Room::apply_drag_forces`]) can't be
+/// pushed through a wall; clamping the die's *center* this far in keeps even a
+/// corner-toward-wall orientation inside the inner face.
+/// - `1.0` (current): the largest die circumradius ([`crate::dice::dice_circumradius`],
+///   d4/d8/d10/d20), above the d6 half-diagonal 0.866, so it covers every die type.
+/// - Range `0.87` (d6 corner; larger dice may nick) – `1.1` (never clips).
+pub const DRAG_WALL_MARGIN: f32 = 1.0;
 /// Height (U) of the invisible plane a drag is projected onto.
 ///
 /// **Currently unused by the room:** the drag target's y arrives from the client
 /// `drag_move` message, so this constant is documentation of the intended plane,
-/// kept truthful. It equals the client raycast plane (`DRAG_PLANE_HEIGHT = 2` in
+/// kept truthful. It equals the client raycast plane (`DRAG_PLANE_HEIGHT = 2.0` in
 /// `physicsConfig.ts`) whose y the server actually receives.
-/// - `2.0` (current): a finger hovering ~3.2 cm above the felt. With the computed
-///   per-tick gravity sag at gain 20 (~0.26 U) a face-down dragged die's bottom
-///   sits at 2.0 − 0.26 − 0.5 = 1.24 U, clearing a settled die's top (1.0 U).
-/// - Recommended range `1.9`–`2.5` U (lower plows dragged dice through settled ones).
+/// - `2.0` (current): a grabbed d6 rises ~1.5 U off the felt — a clear pickup that
+///   lifts the die above the settled pile, still low enough to stay under the cursor.
+/// - Recommended range `0.9`–`3.5` U (lower risks sinking the biggest dice; higher
+///   pulls the die off the cursor under the perspective camera's parallax).
 pub const DRAG_PLANE_HEIGHT: f32 = 2.0;
-/// Minimum per-message cursor movement (U) below which no drag torque is applied,
-/// gating out sensor/quantization jitter.
-/// - `0.06` (current): capacitive-touch jitter ≈ 1 mm per message = 0.0625 U
-///   (unanimous), carried as 0.06. Recommended `0.03`–`0.1` U. (Hoisted from an
-///   inline literal per Shared-ADR-007.)
-pub const DRAG_MIN_MOVEMENT: f32 = 0.06;
 /// Multiplier applied to a die's angular velocity on drag release.
 /// - `1.0` (current): a physical release keeps all spin (hands don't brake spin);
 ///   the physical value is 1.0. The former `0.75` was an artifact compensator for
@@ -288,12 +282,14 @@ pub const DRAG_RELEASE_ANGULAR_DAMPING: f32 = 1.0;
 ///   speed (unanimous). `0.5` is an artificial gentle throw.
 /// - Range `0.5`–`1.0`.
 pub const THROW_VELOCITY_SCALE: f32 = 1.0;
-/// Upward (Y) velocity (U/s) added on release to give thrown dice a dynamic arc.
-/// - `31.25` (current): the drag plane is horizontal, so release history carries
-///   ~zero vy; this reinstates the real toss vertical component 0.5 m/s (mid of the
-///   0.3–0.8 m/s band) × 62.5 = 31.25 U/s.
-/// - Range `18.75`–`50` U/s (0.3–0.8 m/s).
-pub const THROW_UPWARD_BOOST: f32 = 31.25;
+/// Upward (Y) velocity (U/s) added on release to a thrown die.
+/// - `0.0` (current): none. The die releases at the (low) drag height with the
+///   cursor's horizontal velocity and simply arcs down under gravity INTO the other
+///   dice. Any real upward boost from the horizontal drag plane made a released die
+///   gain height and sail up over the pile instead of hitting it.
+/// - Range `0`–`10` U/s. Above ~12 (peak rise > 0.3 U at g = 240) a throw starts to
+///   clear a settled die rather than strike it.
+pub const THROW_UPWARD_BOOST: f32 = 0.0;
 /// Minimum release speed (U/s) for a drag-release to count as a throw rather than a
 /// drop-in-place.
 /// - `15.9` (current): the tipping-energy bound 0.255 m/s × 62.5 — below it a
@@ -347,7 +343,7 @@ pub const GROUND_Y: f32 = -0.5;
 /// - `10.5` (current): a virtual containment lid whose underside sits at 16 cm
 ///   (10 U) above the floor + the slab's `0.5` half-thickness (real trays are open;
 ///   a 15–20 cm lid is the plausible band). Clearance: the worst roll apex is
-///   spawn 6.25 + 50²/(2·613.125) + half-diagonal 0.87 = 9.16 U < 10.0 underside.
+///   spawn 6.25 + 38²/(2·240) ≈ 9.25 U < 10.0 underside.
 ///   [`ESCAPE_RESET_MAX_Y`] auto-follows to 18.5. Recommended `9`–`12` U.
 pub const CEILING_Y: f32 = 10.5;
 /// Arena half-width along X (U): 9 U = 14.4 cm wide total. Consumed by the client
@@ -396,13 +392,15 @@ pub const ESCAPE_RESET_MAX_Y: f32 = CEILING_Y + ESCAPE_RESET_MARGIN;
 ///   × 62.5 = 6.25 U. Free-fall ≈ 137 ms, impact ≈ 1.34 m/s; the die top clears the
 ///   raised lid underside. Recommended `5`–`9.4` U (8–15 cm).
 pub const SPAWN_HEIGHT: f32 = 6.25;
-/// Horizontal (X) spacing between the three spawn lanes (U).
-/// - `1.12` (keep): 1.12 U = 1.79 cm center-to-center hand scatter (real-plausible
-///   as-is).
-pub const SPAWN_LANE_SPACING: f32 = 1.12;
+/// Horizontal (X) spacing between spawn lanes (U).
+/// - `1.4` (current): widened from 1.12 now that colliders match the full-size
+///   meshes (die circumradius up to 1.0 U vs the old ~0.5 hulls), so adjacent
+///   dropped dice clear each other instead of spawning interpenetrated.
+pub const SPAWN_LANE_SPACING: f32 = 1.4;
 /// Depth (Z) spacing between successive spawn rows (U).
-/// - `1.34` (keep): 1.34 U = 2.14 cm row pitch.
-pub const SPAWN_ROW_SPACING: f32 = 1.34;
+/// - `1.6` (current): widened from 1.34 for the full-size colliders (see
+///   [`SPAWN_LANE_SPACING`]).
+pub const SPAWN_ROW_SPACING: f32 = 1.6;
 /// Half-width (U) of the uniform random jitter added to each spawn axis, so dice in
 /// the same lane/row do not stack perfectly.
 /// - `0.22` (keep): ±0.22 U = ±3.5 mm release scatter; the fan-out invariant
@@ -411,19 +409,31 @@ pub const SPAWN_ROW_SPACING: f32 = 1.34;
 pub const SPAWN_JITTER: f32 = 0.22;
 /// Inset (U) kept between the spawn fan-out and the arena walls, so a large batch
 /// (up to `MAX_DICE`) never fans a lane/row into or past a wall.
-/// - `1.5` (keep): a 2.4 cm inset > half-diagonal 0.87 U + jitter. Clamps lane X to
-///   `±(half_x − margin)` and row Z to `half_z − margin`. Recommended `1.0`–`2.5` U.
-pub const SPAWN_WALL_MARGIN: f32 = 1.5;
+/// - `1.6` (current): a bit above the largest die circumradius (1.0 U) so a spawned
+///   die never straddles a wall. Clamps lane X to `±(half_x − margin)` and row Z to
+///   `half_z − margin`. Recommended `1.2`–`2.5` U.
+pub const SPAWN_WALL_MARGIN: f32 = 1.6;
 /// Vertical gap (U) between successive spawn layers. When a batch exceeds the
 /// lane × row grid that fits the current arena, the overflow dice drop from a
 /// higher layer (`y = SPAWN_HEIGHT + layer × SPAWN_LAYER_SPACING`) — a second
 /// handful dropped above the first — instead of clamping onto an already-occupied
 /// cell (which interpenetrated dice in big batches / small arenas).
-/// - `1.5` (current): 2.4 cm, greater than one die edge (1 U) so stacked layers
-///   never spawn overlapping. For any in-range arena (aspect ∈ [0.4, 2.4]) the
-///   layer-0 grid already holds a full `MAX_DICE` batch, so layering is the
-///   guarded overflow, never hit by a legal roll. Recommended `1.25`–`2.0` U.
-pub const SPAWN_LAYER_SPACING: f32 = 1.5;
+/// - `2.2` (current): greater than the largest die diameter (~2 U for a circumradius
+///   1.0 die) so stacked layers never spawn overlapping now that colliders match the
+///   full-size meshes. For any in-range arena the layer-0 grid already holds a full
+///   `MAX_DICE` batch, so layering is the guarded overflow, never hit by a legal
+///   roll. Recommended `2.0`–`3.0` U.
+pub const SPAWN_LAYER_SPACING: f32 = 2.2;
+
+/// Smallest arena half-extent (U) [`ArenaBounds::from_half_extents`] will produce.
+/// - `3.0` (current): 6 U = 9.6 cm across — room for a die (half-diagonal 0.87 U)
+///   plus the [`SPAWN_WALL_MARGIN`] fan-out on the smallest phone viewport. Below
+///   this the spawn grid has no room to separate dice.
+pub const ARENA_MIN_HALF_EXTENT: f32 = 3.0;
+/// Largest arena half-extent (U) [`ArenaBounds::from_half_extents`] will produce.
+/// - `24.0` (current): 48 U = 76.8 cm across — a big-monitor ceiling that keeps the
+///   playfield dense enough to find dice and bounds per-tick broad-phase cost.
+pub const ARENA_MAX_HALF_EXTENT: f32 = 24.0;
 
 /// Horizontal footprint (floor half-extents, world units) of a room's arena.
 ///
@@ -479,6 +489,40 @@ impl ArenaBounds {
         }
     }
 
+    /// Build the arena to match a **full world width × depth** (the visible
+    /// viewport at the fixed on-screen dice scale — ADR-008 amendment): the browser
+    /// renders dice at a constant CSS-px size (a die reads as a real 16 mm die) and
+    /// asks for an arena whose world size *equals* the viewport at that scale, so a
+    /// larger canvas yields a larger box rather than magnifying the dice. The walls
+    /// therefore frame exactly what the camera shows. Supersedes the area-preserving
+    /// [`ArenaBounds::from_aspect`] for solo play (fixed 36 U², aspect-only).
+    ///
+    /// `width`/`depth` are full extents (X across the screen, Z down it). Each is
+    /// halved into Rapier's centered-cuboid convention and clamped via
+    /// [`ArenaBounds::from_half_extents`].
+    #[must_use]
+    pub fn from_dimensions(width: f32, depth: f32) -> Self {
+        Self::from_half_extents(width / 2.0, depth / 2.0)
+    }
+
+    /// Build the arena from centered half-extents (Rapier's convention), clamped to
+    /// `[ARENA_MIN_HALF_EXTENT, ARENA_MAX_HALF_EXTENT]` so a tiny viewport still
+    /// fits dice + spawn margin and a huge monitor cannot demand an arena so large
+    /// it starves the playfield or inflates physics cost. Non-finite inputs fall
+    /// back to the clamp minimum. Prefer [`ArenaBounds::from_dimensions`] at the
+    /// viewport boundary, where full width×depth reads more naturally.
+    #[must_use]
+    pub fn from_half_extents(half_x: f32, half_z: f32) -> Self {
+        let clamp = |v: f32| {
+            if v.is_finite() {
+                v.clamp(ARENA_MIN_HALF_EXTENT, ARENA_MAX_HALF_EXTENT)
+            } else {
+                ARENA_MIN_HALF_EXTENT
+            }
+        };
+        Self { half_x: clamp(half_x), half_z: clamp(half_z) }
+    }
+
     /// Horizontal (X) escape threshold: how far past the wall on X a die may drift
     /// before the room recovers it. See [`ESCAPE_RESET_MARGIN`].
     #[must_use]
@@ -494,13 +538,20 @@ impl ArenaBounds {
     }
 }
 
-/// Physics substeps run per 60 Hz room tick. Each [`PhysicsWorld::step`] advances
-/// the world by `PHYSICS_SUBSTEPS × (1/120 s)` = one 1/60 s tick, halving per-substep
-/// travel and gravity injection (Δv ≈ 5.11 U/s per substep at g = 613) so fast dice
-/// resolve contacts before tunnelling and the [`LINEAR_VELOCITY_THRESHOLD`] settle
-/// margin holds against solver jitter. The room loop still calls `step()` once per
-/// tick, so tick count and snapshot cadence are unchanged.
-pub const PHYSICS_SUBSTEPS: usize = 2;
+/// Physics substeps run per 60 Hz room tick (each [`PhysicsWorld::step`] runs this
+/// many). Smaller per-substep travel (alongside dice CCD) is what stops a *fast
+/// throw* from tunnelling THROUGH another die within one substep.
+/// - `4` (current): at the throw ceiling (~156 U/s) a die moves ≈0.5 U per substep,
+///   well under its ~1 U half-extent, so it lands the collision; `2` let fast
+///   dice-vs-dice throws slip through. The extra substeps cost a little CPU.
+pub const PHYSICS_SUBSTEPS: usize = 4;
+
+/// Global playback rate: sim-seconds advanced per real second (a slow-motion knob) —
+/// the whole simulation plays at this fraction of real speed while every trajectory
+/// keeps its shape (unlike lowering gravity, which also floats arcs).
+/// - `0.8` (current): 20 % slower than real time — a calmer, more readable settle.
+/// - Range `0.5` (dreamy slow-mo) – `1.0` (real-time); below ~0.4 dice look underwater.
+pub const TIME_SCALE: f32 = 0.8;
 
 pub struct PhysicsWorld {
     pub(crate) rigid_body_set: RigidBodySet,
@@ -588,10 +639,14 @@ impl PhysicsWorld {
             collider_set.insert_with_parent(wall_collider, wall_handle, &mut rigid_body_set);
         }
 
-        // One 60 Hz room tick is integrated as PHYSICS_SUBSTEPS × 1/120 s substeps
-        // (see `step`), so the per-substep timestep is halved.
+        // One 60 Hz room tick is integrated as PHYSICS_SUBSTEPS substeps that sum to
+        // TIME_SCALE/60 s (see `step`), so dt is derived from the substep count —
+        // changing PHYSICS_SUBSTEPS keeps the per-tick sim-time (and thus the pace)
+        // fixed. The TIME_SCALE factor plays the whole sim back at a fraction of real
+        // speed (slow-mo) without changing trajectory shapes.
+        #[allow(clippy::cast_precision_loss)] // PHYSICS_SUBSTEPS is a tiny integer
         let integration_parameters = IntegrationParameters {
-            dt: 1.0 / 120.0,
+            dt: TIME_SCALE / (60.0 * PHYSICS_SUBSTEPS as f32),
             ..IntegrationParameters::default()
         };
 
@@ -611,9 +666,10 @@ impl PhysicsWorld {
         }
     }
 
-    /// Step the physics simulation by one 60 Hz room tick: [`PHYSICS_SUBSTEPS`] ×
-    /// 1/120 s substeps run back-to-back, so callers still advance the world by
-    /// 1/60 s per call (tick count and snapshot cadence are unaffected).
+    /// Step the physics simulation by one 60 Hz room tick: [`PHYSICS_SUBSTEPS`]
+    /// substeps of `dt = TIME_SCALE/(60·PHYSICS_SUBSTEPS)` s run back-to-back, so
+    /// each call advances the world by `TIME_SCALE/60` s (tick count and snapshot
+    /// cadence are unaffected).
     pub fn step(&mut self) {
         for _ in 0..PHYSICS_SUBSTEPS {
             self.physics_pipeline.step(
@@ -664,6 +720,15 @@ impl PhysicsWorld {
     pub fn get_angular_speed(&self, handle: RigidBodyHandle) -> f32 {
         self.rigid_body_set.get(handle)
             .map_or(0.0, |rb| rb.angvel().magnitude())
+    }
+
+    /// Get angular velocity as a `[x, y, z]` vector (rad/s).
+    #[must_use]
+    pub fn get_angular_velocity(&self, handle: RigidBodyHandle) -> Option<[f32; 3]> {
+        self.rigid_body_set.get(handle).map(|rb| {
+            let w = rb.angvel();
+            [w.x, w.y, w.z]
+        })
     }
 
     /// Check if a body is at rest (below velocity thresholds)
@@ -852,6 +917,31 @@ mod tests {
                 "half_x/half_z tracks aspect for {aspect}"
             );
         }
+    }
+
+    #[test]
+    fn from_dimensions_equals_viewport_and_halves_into_bounds() {
+        // A full width×depth maps to half-extents of half that size (Rapier's
+        // centered-cuboid convention), so the arena literally spans the viewport.
+        let b = ArenaBounds::from_dimensions(12.0, 20.0);
+        assert!((b.half_x - 6.0).abs() < 1e-6, "half_x is width/2");
+        assert!((b.half_z - 10.0).abs() < 1e-6, "half_z is depth/2");
+    }
+
+    #[test]
+    fn from_half_extents_clamps_to_sane_range() {
+        // Tiny viewport → pinned to the minimum so dice + spawn margin still fit.
+        let small = ArenaBounds::from_dimensions(0.5, 0.5);
+        assert_eq!(small.half_x, ARENA_MIN_HALF_EXTENT);
+        assert_eq!(small.half_z, ARENA_MIN_HALF_EXTENT);
+        // Huge monitor → pinned to the maximum so physics cost/density stay bounded.
+        let big = ArenaBounds::from_dimensions(1000.0, 1000.0);
+        assert_eq!(big.half_x, ARENA_MAX_HALF_EXTENT);
+        assert_eq!(big.half_z, ARENA_MAX_HALF_EXTENT);
+        // Non-finite falls back to the minimum, never NaN/inf.
+        let nan = ArenaBounds::from_half_extents(f32::NAN, f32::INFINITY);
+        assert_eq!(nan.half_x, ARENA_MIN_HALF_EXTENT);
+        assert_eq!(nan.half_z, ARENA_MIN_HALF_EXTENT);
     }
 
     #[test]

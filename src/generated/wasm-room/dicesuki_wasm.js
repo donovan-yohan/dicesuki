@@ -39,22 +39,26 @@ export class WasmRoom {
     /**
      * Construct an empty solo room.
      *
-     * `room_id` labels the room in `room_state`. `aspect` (optional) is the
-     * host window's aspect ratio (width / height); when present the arena is
-     * fitted to it via [`ArenaBounds::from_aspect`], otherwise the fixed 9:16
-     * arena is used. All sizing policy lives in core — the worker only forwards
-     * the number (epic #111 anti-drift guardrail). `on_message` (optional) is
-     * called with each outbound protocol JSON string as it is produced; it
-     * is the worker's `postMessage` pump. Every mutating method also returns
-     * the same messages as an array, so a purely polling host works too.
+     * `room_id` labels the room in `room_state`. `arena_width`/`arena_depth`
+     * (optional, full world extents — X across the screen, Z down it) are the
+     * arena footprint the host derives from its viewport at the fixed on-screen
+     * dice scale (ADR-008 amendment): when BOTH are present the arena is sized
+     * to them via [`ArenaBounds::from_dimensions`] (halved + clamped in core),
+     * so a larger canvas yields a larger box at unchanged dice size; otherwise
+     * the fixed 9:16 arena is used. All sizing/clamp policy lives in core — the
+     * worker only forwards the numbers (epic #111 anti-drift guardrail).
+     * `on_message` (optional) is called with each outbound protocol JSON string
+     * as it is produced; it is the worker's `postMessage` pump. Every mutating
+     * method also returns the same messages as an array, so a polling host works.
      * @param {string} room_id
-     * @param {number | null} [aspect]
+     * @param {number | null} [arena_width]
+     * @param {number | null} [arena_depth]
      * @param {Function | null} [on_message]
      */
-    constructor(room_id, aspect, on_message) {
+    constructor(room_id, arena_width, arena_depth, on_message) {
         const ptr0 = passStringToWasm0(room_id, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmroom_new(ptr0, len0, isLikeNone(aspect) ? 0x100000001 : Math.fround(aspect), isLikeNone(on_message) ? 0 : addHeapObject(on_message));
+        const ret = wasm.wasmroom_new(ptr0, len0, isLikeNone(arena_width) ? 0x100000001 : Math.fround(arena_width), isLikeNone(arena_depth) ? 0x100000001 : Math.fround(arena_depth), isLikeNone(on_message) ? 0 : addHeapObject(on_message));
         this.__wbg_ptr = ret >>> 0;
         WasmRoomFinalization.register(this, this.__wbg_ptr, this);
         return this;

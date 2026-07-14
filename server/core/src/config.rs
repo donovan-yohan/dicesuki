@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn engine_config_serializes_camel_case() {
         let json = EngineConfig::current_json();
-        assert!(json.contains("\"rollTorqueMagnitude\":25.2"));
+        assert!(json.contains("\"rollTorqueMagnitude\":24"));
         assert!(json.contains("\"arenaHalfX\":4.5"));
         assert!(json.contains("\"arenaHalfZ\":8"));
         // No snake_case leaked through.

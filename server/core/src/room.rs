@@ -13,13 +13,13 @@ use crate::sink::MessageSink;
 use crate::physics::{
     ArenaBounds, PhysicsWorld, REST_DURATION_MS, MAX_DICE_VELOCITY,
     DRAG_FOLLOW_SPEED, DRAG_DISTANCE_BOOST, DRAG_DISTANCE_THRESHOLD,
-    DRAG_ROLL_FACTOR, DRAG_SPIN_FACTOR, DRAG_MIN_MOVEMENT, DRAG_RELEASE_ANGULAR_DAMPING,
-    DRAG_ROLL_ANGULAR_BOUND_FACTOR, SETTLED_ORIENTATION_KNOCK_ANGLE,
+    DRAG_ROLL_FACTOR, DRAG_ANGULAR_RESPONSE, DRAG_RELEASE_ANGULAR_DAMPING,
+    DRAG_WALL_MARGIN, SETTLED_ORIENTATION_KNOCK_ANGLE,
     THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
     ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
     MOTION_IMPULSE_MIN_INTERVAL_MS, MOTION_IMPULSE_MAX_MAGNITUDE,
 };
-use crate::dice::{create_dice_body, generate_roll_impulse, generate_roll_spin, generate_spawn_position};
+use crate::dice::{create_dice_body_with_material, generate_roll_impulse, generate_roll_spin, generate_spawn_position};
 use crate::face_detection::detect_face_value;
 use log::warn;
 
@@ -246,7 +246,6 @@ pub struct DragState {
     pub dragger_id: String,
     pub grab_offset: [f32; 3],
     pub target_position: [f32; 3],
-    pub last_target_position: [f32; 3],
 }
 
 pub struct ServerDie {
@@ -877,7 +876,8 @@ impl Room {
         let mut spawned = Vec::new();
         for (batch_index, entry) in entries.into_iter().enumerate() {
             let position = generate_spawn_position(spawn_index_base + batch_index, &self.bounds);
-            let body_handle = create_dice_body(entry.dice_type, position, &mut self.physics);
+            let material = entry.presentation.as_ref().and_then(|p| p.material.as_deref());
+            let body_handle = create_dice_body_with_material(entry.dice_type, position, &mut self.physics, material);
             let rotation = self.physics.get_rotation(body_handle).unwrap_or([0.0, 0.0, 0.0, 1.0]);
 
             let die = ServerDie {
@@ -887,7 +887,12 @@ impl Room {
                 presentation: entry.presentation.clone(),
                 position,
                 rotation,
-                is_rolling: false,
+                // A freshly spawned die drops from SPAWN_HEIGHT and must fall +
+                // settle immediately, so it starts "rolling" (active). Without this
+                // the room reports is_simulating = false and the worker skips ticks,
+                // leaving the die frozen mid-air until some other interaction wakes
+                // the loop.
+                is_rolling: true,
                 face_value: None,
                 body_handle: Some(body_handle),
                 rest_start_tick: None,
@@ -907,6 +912,12 @@ impl Room {
                 player.dice_ids.push(entry.id.clone());
             }
             self.dice.insert(entry.id, die);
+        }
+
+        // Newly spawned dice are falling; wake the sim loop so they drop and settle
+        // right away (mirrors the roll path).
+        if !spawned.is_empty() {
+            self.is_simulating = true;
         }
 
         self.touch();
@@ -1086,7 +1097,6 @@ impl Room {
             let handle = die.body_handle.expect("body_handle is Some: filter on dragged_ids requires body_handle.is_some()");
             let drag = die.drag_state.as_ref().expect("drag_state is Some: filter on dragged_ids requires drag_state.is_some()");
             let target = drag.target_position;
-            let last = drag.last_target_position;
 
             // Read current position via the PhysicsWorld API
             let current = match self.physics.get_position(handle) {
@@ -1111,46 +1121,27 @@ impl Room {
                 DRAG_FOLLOW_SPEED
             };
 
-            // The die's ACTUAL ground speed this tick (before we overwrite velocity
-            // with the chase command below). Used as `v_chase` for the spin bound:
-            // it is ~0 when the die is hovering in place or pinned against a wall,
-            // and ≈ the chase speed when it is genuinely following the cursor.
-            let actual_speed = self.physics.get_linear_speed(handle);
+            // The chase velocity we command this tick (die follows the cursor).
+            let vx = dx * speed_mult;
+            let vy = dy * speed_mult;
+            let vz = dz * speed_mult;
+            self.physics.set_linear_velocity(handle, [vx, vy, vz]);
 
-            // Set linear velocity toward target
-            self.physics.set_linear_velocity(handle, [dx * speed_mult, dy * speed_mult, dz * speed_mult]);
-
-            // Apply rotational torque based on movement direction
-            let delta_x = target[0] - last[0];
-            let delta_z = target[2] - last[2];
-            let move_speed = (delta_x * delta_x + delta_z * delta_z).sqrt();
-
-            // Rolling-without-slipping bound (risk 5): the per-message drag delta is
-            // re-applied every 60 Hz tick between the ~30 Hz `drag_move` messages, so
-            // without a ceiling it pumps unbounded spin into a hovered die. Cap the
-            // drag-applied angular velocity at ω = DRAG_ROLL_ANGULAR_BOUND_FACTOR ×
-            // v_chase — the fastest a die *rolling* on the table at its actual ground
-            // speed could spin — by skipping the torque on any tick where the die
-            // already exceeds it. Using the ACTUAL speed (not the commanded one) means
-            // a hovered or wall-pinned die, which barely moves, is allowed almost no
-            // drag spin, which is exactly the windup case.
-            let angular_bound = DRAG_ROLL_ANGULAR_BOUND_FACTOR * actual_speed;
-            if move_speed > DRAG_MIN_MOVEMENT
-                && self.physics.get_angular_speed(handle) < angular_bound
-            {
-                let dir_x = delta_x / move_speed;
-                let dir_z = delta_z / move_speed;
-
-                // Roll torque: perpendicular to movement (cross product with UP)
-                let roll_x = -dir_z * move_speed * DRAG_ROLL_FACTOR;
-                let roll_z = dir_x * move_speed * DRAG_ROLL_FACTOR;
-
-                // Spin torque: along movement direction
-                let spin_x = dir_x * move_speed * DRAG_SPIN_FACTOR;
-                let spin_z = dir_z * move_speed * DRAG_SPIN_FACTOR;
-
-                self.physics.apply_torque_impulse(handle, [roll_x + spin_x, 0.0, roll_z + spin_z]);
-            }
+            // Steer angular velocity toward a rolling target (up × horizontal-vel)
+            // = (vz, 0, -vx) · DRAG_ROLL_FACTOR, approached by DRAG_ANGULAR_RESPONSE
+            // each tick. See those consts.
+            let target_omega = [
+                vz * DRAG_ROLL_FACTOR,
+                0.0,
+                -vx * DRAG_ROLL_FACTOR,
+            ];
+            let current_omega = self.physics.get_angular_velocity(handle).unwrap_or([0.0; 3]);
+            let new_omega = [
+                current_omega[0] + (target_omega[0] - current_omega[0]) * DRAG_ANGULAR_RESPONSE,
+                current_omega[1] + (target_omega[1] - current_omega[1]) * DRAG_ANGULAR_RESPONSE,
+                current_omega[2] + (target_omega[2] - current_omega[2]) * DRAG_ANGULAR_RESPONSE,
+            ];
+            self.physics.set_angular_velocity(handle, new_omega);
         }
     }
 
@@ -1354,7 +1345,6 @@ impl Room {
             dragger_id: player_id.to_string(),
             grab_offset,
             target_position: world_position,
-            last_target_position: world_position,
         });
         // Clear rolling state — dragging takes precedence
         die.is_rolling = false;
@@ -1377,11 +1367,20 @@ impl Room {
         die_id: &str,
         world_position: [f32; 3],
     ) -> Result<(), RoomError> {
+        // Clamp the cursor target inside the arena so a dragged die (whose velocity
+        // is overwritten each tick, overriding the contact solver) cannot be driven
+        // through a wall. Y is left untouched (the hover plane). See DRAG_WALL_MARGIN.
+        let max_x = (self.bounds.half_x - DRAG_WALL_MARGIN).max(0.0);
+        let max_z = (self.bounds.half_z - DRAG_WALL_MARGIN).max(0.0);
+        let clamped = [
+            world_position[0].clamp(-max_x, max_x),
+            world_position[1],
+            world_position[2].clamp(-max_z, max_z),
+        ];
         let die = self.dice.get_mut(die_id).ok_or(RoomError::DieNotFound)?;
         match &mut die.drag_state {
             Some(drag) if drag.dragger_id == player_id => {
-                drag.last_target_position = drag.target_position;
-                drag.target_position = world_position;
+                drag.target_position = clamped;
                 Ok(())
             }
             Some(_) => Err(RoomError::NotDragger),
@@ -1784,6 +1783,27 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(room.dice_count(), 1);
         assert!(room.dice.get("d1").unwrap().body_handle.is_some());
+    }
+
+    #[test]
+    fn spawned_die_wakes_sim_and_falls_without_interaction() {
+        // Regression: a spawned die used to hang mid-air until some other
+        // interaction woke the loop. Spawn must set is_simulating (so the worker
+        // ticks) and mark the die rolling, so it drops from SPAWN_HEIGHT on its own.
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+
+        assert!(room.is_simulating, "spawn must wake the sim loop");
+        assert!(room.dice.get("d1").unwrap().is_rolling, "spawned die is active (falling)");
+
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        let y0 = room.physics.get_position(handle).unwrap()[1];
+        for _ in 0..30 {
+            room.physics.step();
+        }
+        let y1 = room.physics.get_position(handle).unwrap()[1];
+        assert!(y1 < y0 - 0.5, "die must fall on its own without interaction: {y0} -> {y1}");
     }
 
     #[test]
@@ -2983,6 +3003,14 @@ mod physics_tick_helper_tests {
         let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(player).unwrap();
         room.spawn_dice_with_physics("p1", vec![(die_id.to_string(), DiceType::D6)]).unwrap();
+        // Hand back an IDLE die (as if it had already settled) so state-specific
+        // tests start from rest. Spawn now marks new dice rolling + wakes the sim so
+        // they fall on their own; that behavior is covered directly by
+        // `spawned_die_wakes_sim_and_falls_without_interaction`.
+        if let Some(die) = room.dice.get_mut(die_id) {
+            die.is_rolling = false;
+        }
+        room.is_simulating = false;
         room
     }
 
@@ -3301,50 +3329,94 @@ mod physics_tick_helper_tests {
         assert_eq!(room.dice.get("d1").unwrap().face_value, Some(face), "Authoritative face is updated");
     }
 
-    // ── drag hover-spin windup bound (FIX 2) ─────────────────────────────────
-
-    /// Sustaining a consistent-direction drag delta every tick must NOT wind angular
-    /// velocity up without bound: the rolling-without-slipping cap holds ω near
-    /// DRAG_ROLL_ANGULAR_BOUND_FACTOR × v_chase for a long drag.
+    /// A drag target beyond a wall is clamped to the arena interior so a dragged
+    /// die (velocity-driven, overriding the contact solver) can't be pushed through
+    /// the wall. Y is left untouched.
     #[test]
-    fn test_sustained_drag_delta_bounds_angular_velocity() {
+    fn update_drag_clamps_target_inside_the_arena() {
         let mut room = make_room_with_player_and_die("d1");
-        let start = room.dice.get("d1").unwrap().position;
-        // Sweep the cursor back and forth along Z inside the arena, feeding the same
-        // per-tick delta throughout each sweep — the re-applied-every-tick drag delta
-        // that drives the windup. The die tracks the cursor, so its actual ground
-        // speed (hence the spin bound) stays modest.
-        let mut target = [start[0].clamp(-2.0, 2.0), 2.0, 0.0];
-        room.start_drag("p1", "d1", [0.0; 3], target).unwrap();
+        room.start_drag("p1", "d1", [0.0; 3], [0.0, 3.5, 0.0]).unwrap();
+        // Aim far outside every wall (+X, +Z) and above.
+        room.update_drag("p1", "d1", [100.0, 3.5, 100.0]).unwrap();
+        let t = room.dice.get("d1").unwrap().drag_state.as_ref().unwrap().target_position;
+        let max_x = room.bounds.half_x - DRAG_WALL_MARGIN;
+        let max_z = room.bounds.half_z - DRAG_WALL_MARGIN;
+        assert!((t[0] - max_x).abs() < 1e-4, "x clamped to interior: {}", t[0]);
+        assert!((t[2] - max_z).abs() < 1e-4, "z clamped to interior: {}", t[2]);
+        assert!((t[1] - 3.5).abs() < 1e-4, "y (hover plane) untouched: {}", t[1]);
+        // A target already inside is passed through unchanged.
+        room.update_drag("p1", "d1", [1.0, 3.5, -2.0]).unwrap();
+        let t2 = room.dice.get("d1").unwrap().drag_state.as_ref().unwrap().target_position;
+        assert_eq!(t2, [1.0, 3.5, -2.0]);
+    }
 
+    // ── drag rotation: proportional to cursor speed, decelerates when still ───
+
+    /// Peak drag-spin over a bounded back-and-forth sweep at the given cursor step.
+    fn peak_drag_omega(step: f32) -> f32 {
+        let mut room = make_room_with_player_and_die("d1");
         let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
-        let step = 0.15_f32; // ≈ 9 U/s cursor speed, well above DRAG_MIN_MOVEMENT
-        let mut z = 0.0_f32;
-        let mut dir = 1.0_f32;
-        let mut max_omega = 0.0_f32;
-        for _ in 0..240 {
+        room.start_drag("p1", "d1", [0.0; 3], [0.0, 3.5, 0.0]).unwrap();
+        let (mut z, mut dir, mut peak) = (0.0_f32, 1.0_f32, 0.0_f32);
+        for _ in 0..200 {
             z += dir * step;
-            if z > 5.0 {
-                z = 5.0;
+            if z > 3.0 {
+                z = 3.0;
                 dir = -1.0;
-            } else if z < -5.0 {
-                z = -5.0;
+            } else if z < -3.0 {
+                z = -3.0;
                 dir = 1.0;
             }
-            target[2] = z;
-            room.update_drag("p1", "d1", target).unwrap();
+            room.update_drag("p1", "d1", [0.0, 3.5, z]).unwrap();
             room.apply_drag_forces();
             room.physics.step();
-            max_omega = max_omega.max(room.physics.get_angular_speed(handle));
+            peak = peak.max(room.physics.get_angular_speed(handle));
         }
+        peak
+    }
 
-        // With the bound, ω saturates near DRAG_ROLL_ANGULAR_BOUND_FACTOR × v_chase
-        // (measured ~24 rad/s here). WITHOUT the bound the same-direction delta
-        // re-applies torque every tick of a sweep (no floor contact to damp it),
-        // winding ω to ~74 rad/s; the 40 threshold cleanly separates the two.
+    /// Drag spin must scale with how fast the cursor moves: a faster sweep spins the
+    /// die more. (Inertia-independent SET-toward-target replaces the old
+    /// torque-accumulating drag; there is no windup to bound.)
+    #[test]
+    fn drag_spin_scales_with_cursor_speed() {
+        let slow = peak_drag_omega(0.05);
+        let fast = peak_drag_omega(0.20);
+        assert!(slow > 0.0, "a moving cursor must roll the die, got {slow}");
         assert!(
-            max_omega < 40.0,
-            "sustained drag delta must not wind ω up without bound, got {max_omega}"
+            fast > slow * 1.5,
+            "faster cursor must spin the die more: slow={slow} fast={fast}"
+        );
+    }
+
+    /// Drag spin must decelerate toward zero when the cursor stops moving (the
+    /// target ω falls with the chase speed, and ω approaches it each tick).
+    #[test]
+    fn drag_spin_decelerates_when_cursor_holds_still() {
+        let mut room = make_room_with_player_and_die("d1");
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        room.start_drag("p1", "d1", [0.0; 3], [0.0, 3.5, 0.0]).unwrap();
+        // Build up spin with a brisk sweep.
+        let (mut z, mut dir) = (0.0_f32, 1.0_f32);
+        for _ in 0..80 {
+            z += dir * 0.2;
+            if z > 3.0 { z = 3.0; dir = -1.0; } else if z < -3.0 { z = -3.0; dir = 1.0; }
+            room.update_drag("p1", "d1", [0.0, 3.5, z]).unwrap();
+            room.apply_drag_forces();
+            room.physics.step();
+        }
+        let moving = room.physics.get_angular_speed(handle);
+        assert!(moving > 0.5, "sweep should have built spin, got {moving}");
+        // Hold the cursor still — spin must bleed off.
+        for _ in 0..90 {
+            room.update_drag("p1", "d1", [0.0, 3.5, z]).unwrap();
+            room.apply_drag_forces();
+            room.physics.step();
+        }
+        let still = room.physics.get_angular_speed(handle);
+        assert!(
+            still < moving * 0.3,
+            "spin must decelerate when the cursor stops: moving={moving} still={still}"
         );
     }
 

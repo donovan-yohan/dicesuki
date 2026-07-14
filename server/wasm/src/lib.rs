@@ -56,20 +56,31 @@ mod wasm {
     impl WasmRoom {
         /// Construct an empty solo room.
         ///
-        /// `room_id` labels the room in `room_state`. `aspect` (optional) is the
-        /// host window's aspect ratio (width / height); when present the arena is
-        /// fitted to it via [`ArenaBounds::from_aspect`], otherwise the fixed 9:16
-        /// arena is used. All sizing policy lives in core — the worker only forwards
-        /// the number (epic #111 anti-drift guardrail). `on_message` (optional) is
-        /// called with each outbound protocol JSON string as it is produced; it
-        /// is the worker's `postMessage` pump. Every mutating method also returns
-        /// the same messages as an array, so a purely polling host works too.
+        /// `room_id` labels the room in `room_state`. `arena_width`/`arena_depth`
+        /// (optional, full world extents — X across the screen, Z down it) are the
+        /// arena footprint the host derives from its viewport at the fixed on-screen
+        /// dice scale (ADR-008 amendment): when BOTH are present the arena is sized
+        /// to them via [`ArenaBounds::from_dimensions`] (halved + clamped in core),
+        /// so a larger canvas yields a larger box at unchanged dice size; otherwise
+        /// the fixed 9:16 arena is used. All sizing/clamp policy lives in core — the
+        /// worker only forwards the numbers (epic #111 anti-drift guardrail).
+        /// `on_message` (optional) is called with each outbound protocol JSON string
+        /// as it is produced; it is the worker's `postMessage` pump. Every mutating
+        /// method also returns the same messages as an array, so a polling host works.
         #[wasm_bindgen(constructor)]
         #[must_use]
-        pub fn new(room_id: String, aspect: Option<f32>, on_message: Option<Function>) -> Self {
+        pub fn new(
+            room_id: String,
+            arena_width: Option<f32>,
+            arena_depth: Option<f32>,
+            on_message: Option<Function>,
+        ) -> Self {
             // Readable panics in the browser console during development.
             console_error_panic_hook::set_once();
-            let bounds = aspect.map_or_else(ArenaBounds::default, ArenaBounds::from_aspect);
+            let bounds = match (arena_width, arena_depth) {
+                (Some(w), Some(d)) => ArenaBounds::from_dimensions(w, d),
+                _ => ArenaBounds::default(),
+            };
             Self {
                 host: RoomHost::new(room_id, bounds),
                 on_message,

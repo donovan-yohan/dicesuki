@@ -5,8 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
-// Arena bounds come from the room's engine config (Shared-ADR-007), the single
-// source of truth in dicesuki-core — not a copied client constant.
+import { resolvePixelsPerUnit } from '../config/renderScale'
 import { useEngineConfig } from '../config/engineConfig'
 
 // Contexts
@@ -178,6 +177,34 @@ function ThemedLighting() {
   const currentTheme = useEnvironmentTheme()
   const lighting = currentTheme.environment.lighting
   const { size } = useThree()
+  const dirLightRef = useRef<THREE.DirectionalLight>(null)
+
+  // Size the shadow frustum to the arena's half-diagonal × 1.4 (tilt allowance for
+  // the angled light) + margin: a fixed ±10 box clipped corner dice out of the
+  // shadow map. Bounds from the room EngineConfig (Shared-ADR-007); fallback pre-config.
+  const config = useEngineConfig()
+  const shadowExtent = useMemo(() => {
+    const hx = config?.arenaHalfX
+    const hz = config?.arenaHalfZ
+    if (hx === undefined || hz === undefined) return 16
+    const halfDiagonal = Math.hypot(hx, hz)
+    return halfDiagonal * 1.4 + 3 // tilt allowance (~1/cos40°) + margin
+  }, [config])
+
+  useEffect(() => {
+    const light = dirLightRef.current
+    if (!light) return
+    const cam = light.shadow.camera as THREE.OrthographicCamera
+    cam.left = -shadowExtent
+    cam.right = shadowExtent
+    cam.top = shadowExtent
+    cam.bottom = -shadowExtent
+    // Depth range along the light axis: generous so no die is clipped near/far even
+    // for a large arena viewed from the angled light.
+    cam.near = 0.5
+    cam.far = shadowExtent * 4 + 40
+    cam.updateProjectionMatrix()
+  }, [shadowExtent])
 
   // Mobile detection for performance optimization
   const isMobile = size.width < 768
@@ -208,16 +235,14 @@ function ThemedLighting() {
         intensity={lighting.ambient.intensity}
       />
       <directionalLight
+        ref={dirLightRef}
         position={lighting.directional.position}
         color={lighting.directional.color}
         intensity={lighting.directional.intensity}
         castShadow
         shadow-mapSize-width={shadowMapSize}
         shadow-mapSize-height={shadowMapSize}
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-10}
+        // Frustum bounds are set to the arena size in the effect above.
       />
 
       {/* Torch lights on walls for dungeon theme */}
@@ -299,40 +324,30 @@ function MultiplayerDiceRenderer({ renderDeviceTier }: { renderDeviceTier: Rende
 }
 
 /**
- * Camera controller for multiplayer mode.
- * Adjusts camera height so the full 9:16 arena is visible on any screen.
+ * Camera controller. Fixed zoom so a die always covers `DICE_PIXELS_PER_UNIT` CSS px
+ * whatever the canvas size; camera height derives from the CSS height (a bigger
+ * canvas shows MORE arena, not bigger dice). The solo arena is sized from the SAME
+ * scale, so the walls frame exactly what this camera shows. `?ppu=NN` overrides it.
  */
 function MultiplayerCamera() {
   const { camera, size } = useThree()
-  // Arena half-extents come from the room's engine config (Shared-ADR-007): the
-  // single source of truth in dicesuki-core, not a copied client constant.
-  const config = useEngineConfig()
-  const arenaHalfX = config?.arenaHalfX
-  const arenaHalfZ = config?.arenaHalfZ
 
   useEffect(() => {
     if (!('fov' in camera)) return // Only for PerspectiveCamera
-    if (arenaHalfX === undefined || arenaHalfZ === undefined) return // wait for config
     const perspCamera = camera as THREE.PerspectiveCamera
-    const aspect = size.width / size.height
 
-    const fovRad = (perspCamera.fov * Math.PI) / 180
-    const halfFovV = fovRad / 2
+    const pixelsPerUnit = resolvePixelsPerUnit()
 
-    // Calculate height needed to see full arena depth (Z axis)
-    const heightForZ = arenaHalfZ / Math.tan(halfFovV)
-
-    // Calculate height needed to see full arena width (X axis)
-    const halfFovH = Math.atan(Math.tan(halfFovV) * aspect)
-    const heightForX = arenaHalfX / Math.tan(halfFovH)
-
-    // Use the larger height (ensures both dimensions fit) + margin
-    const cameraHeight = Math.max(heightForZ, heightForX) * 1.05 // 5% margin
+    const halfFovV = ((perspCamera.fov * Math.PI) / 180) / 2
+    // Visible world height at the floor (y=0) that maps the CSS px height to the
+    // fixed scale, then the camera height that produces that visible span.
+    const worldHeightVisible = size.height / pixelsPerUnit
+    const cameraHeight = worldHeightVisible / (2 * Math.tan(halfFovV))
 
     perspCamera.position.set(0, cameraHeight, 0)
     perspCamera.lookAt(0, 0, 0)
     perspCamera.updateProjectionMatrix()
-  }, [camera, size.width, size.height, arenaHalfX, arenaHalfZ])
+  }, [camera, size.width, size.height])
 
   return null
 }

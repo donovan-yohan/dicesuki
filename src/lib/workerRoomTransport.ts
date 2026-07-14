@@ -16,10 +16,11 @@
 
 /** Messages the transport (main thread) sends to the worker. */
 export type WorkerInbound =
-  // `viewportAspect` (width / height), when present, sizes the solo arena to the
-  // window at room creation; absent, the room uses the fixed 9:16 arena. Sizing
-  // policy lives in core — this only carries the number (Shared-ADR-007).
-  | { type: 'init'; roomId: string; viewportAspect?: number }
+  // `arenaWidth`/`arenaDepth` (full world extents), when BOTH present, size the
+  // solo arena to equal the viewport at the fixed on-screen dice scale (ADR-008
+  // amendment) at room creation; absent, the room uses the fixed 9:16 arena.
+  // Sizing/clamp policy lives in core — this only carries the numbers (Shared-ADR-007).
+  | { type: 'init'; roomId: string; arenaWidth?: number; arenaDepth?: number }
   | { type: 'send'; data: string }
   | { type: 'close' }
 
@@ -82,7 +83,12 @@ export class WorkerRoomTransport {
   private _readyState: TransportReadyState = TransportReadyState.CONNECTING
   private readonly worker: WorkerLike
 
-  constructor(worker: WorkerLike, roomId: string, viewportAspect?: number) {
+  constructor(
+    worker: WorkerLike,
+    roomId: string,
+    arenaWidth?: number,
+    arenaDepth?: number,
+  ) {
     this.worker = worker
 
     worker.onmessage = ({ data }) => {
@@ -106,12 +112,12 @@ export class WorkerRoomTransport {
       this.onerror?.(event)
     }
 
-    // Only carry viewportAspect when known, so a fixed-arena init stays
+    // Only carry the arena dims when BOTH are known, so a fixed-arena init stays
     // `{ type, roomId }` (the worker falls back to the default 9:16 arena).
     worker.postMessage(
-      viewportAspect === undefined
+      arenaWidth === undefined || arenaDepth === undefined
         ? { type: 'init', roomId }
-        : { type: 'init', roomId, viewportAspect },
+        : { type: 'init', roomId, arenaWidth, arenaDepth },
     )
   }
 
@@ -161,10 +167,11 @@ export class WorkerRoomTransport {
  */
 export function createWorkerRoomTransport(
   roomId: string,
-  viewportAspect?: number,
+  arenaWidth?: number,
+  arenaDepth?: number,
 ): WorkerRoomTransport {
   const worker = new Worker(new URL('../workers/roomWorker.ts', import.meta.url), {
     type: 'module',
   }) as unknown as WorkerLike
-  return new WorkerRoomTransport(worker, roomId, viewportAspect)
+  return new WorkerRoomTransport(worker, roomId, arenaWidth, arenaDepth)
 }

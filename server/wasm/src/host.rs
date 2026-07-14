@@ -70,7 +70,8 @@ pub struct RoomHost {
 
 impl RoomHost {
     /// Create a host owning a fresh, empty room with the given id and arena
-    /// `bounds`. Solo passes an aspect-fitted footprint ([`ArenaBounds::from_aspect`]);
+    /// `bounds`. Solo passes a viewport-fitted footprint
+    /// ([`ArenaBounds::from_half_extents`], the fixed-on-screen-scale fit);
     /// the default keeps the fixed 9:16 arena.
     #[must_use]
     pub fn new(room_id: String, bounds: ArenaBounds) -> Self {

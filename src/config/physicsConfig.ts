@@ -37,10 +37,13 @@ export const POLYHEDRON_DETAIL_LEVEL = 0
 
 /**
  * Y-coordinate (world units) of the invisible plane a pointer drag is raycast
- * onto. This is a client input-mapping height, not the server drag-target height.
- * - `2.0` (current): natural above-table feel. `3.0` higher; `1.0` near the table.
+ * onto — the height a grabbed die hovers at. This is a client input-mapping
+ * height, not the server drag-target height.
+ * - `2.0` (current): a grabbed d6 rises ~1.5 U off the table — a clear pickup that
+ *   lifts the die above the settled pile. Well above the tallest die's resting
+ *   center (~0.8 U for the d20) so nothing is pulled into the floor.
  */
-export const DRAG_PLANE_HEIGHT = 2
+export const DRAG_PLANE_HEIGHT = 2.0
 
 /**
  * Number of recent position+timestamp samples the client keeps during a drag to

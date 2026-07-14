@@ -8,6 +8,7 @@ import {
   FaceRenderer,
   disposeAllTextures,
 } from '../lib/textureRendering'
+import { buildDiceFaceMaterial } from '../lib/diceMaterial'
 import { type DiceRenderLodPolicy, resolveLodTextureSize } from '../lib/renderLod'
 
 /**
@@ -31,6 +32,14 @@ export interface DiceMaterialConfig {
 
   /** Custom face renderer (defaults to renderSimpleNumber) */
   faceRenderer?: FaceRenderer
+
+  /**
+   * Optional per-texel material MASK renderer. When set, its green channel drives
+   * roughness and its blue channel drives metalness (material.roughness/metalness
+   * are forced to 1 so the map is authoritative), letting e.g. a metal die keep
+   * matte painted numbers on metallic faces. See `renderMetalMaskD20`.
+   */
+  materialMaskRenderer?: FaceRenderer
 
   /** Texture size (defaults to 512) */
   textureSize?: number
@@ -75,6 +84,7 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
     metalness = 0.1,
     emissiveIntensity,
     faceRenderer = renderSimpleNumber,
+    materialMaskRenderer,
     textureSize = 512,
     lodPolicy,
     debugMode = false,
@@ -99,28 +109,25 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
       return solidMaterial
     }
 
-    // Production mode: create materials with face textures
+    // Production mode: create materials with face textures. Construction goes
+    // through the shared `buildDiceFaceMaterial` so the tray and the inventory
+    // previews build byte-identical materials from the same resolution.
     try {
+      const resolution = { roughness, metalness, faceRenderer, materialMaskRenderer }
+      const extras =
+        emissiveIntensity !== undefined && emissiveIntensity > 0
+          ? { emissive: color, emissiveIntensity }
+          : undefined
       const materialsArray = createFaceMaterialsArray(shape, (faceValue) => {
-        // Render face value to canvas texture
-        const texture = renderDiceFaceToTexture(faceValue, color, faceRenderer, resolvedTextureSize)
-
-        // Create material with texture
-        const material = new THREE.MeshStandardMaterial({
-          map: texture,
-          roughness,
-          metalness,
-          flatShading: shape === 'd10',
+        const material = buildDiceFaceMaterial({
+          shape,
+          faceValue,
+          color,
+          resolution,
+          textureSize: resolvedTextureSize,
+          extras,
         })
-
-        // Add emissive glow if specified
-        if (emissiveIntensity !== undefined && emissiveIntensity > 0) {
-          material.emissive = new THREE.Color(color)
-          material.emissiveIntensity = emissiveIntensity
-        }
-
         material.userData.renderLod = lodPolicy
-
         return material
       })
 
@@ -145,7 +152,7 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
       console.log(`[useDiceMaterials] Using solid color fallback for ${shape}`)
       return fallbackMaterial
     }
-  }, [shape, color, roughness, metalness, emissiveIntensity, faceRenderer, resolvedTextureSize, lodPolicy, debugMode])
+  }, [shape, color, roughness, metalness, emissiveIntensity, faceRenderer, materialMaskRenderer, resolvedTextureSize, lodPolicy, debugMode])
 
   // Cleanup materials and textures on unmount or when dependencies change
   useEffect(() => {
@@ -155,12 +162,10 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
 
       materialArray.forEach((material) => {
         if (material instanceof THREE.MeshStandardMaterial) {
-          // Dispose texture if present
-          if (material.map) {
-            material.map.dispose()
-          }
-
-          // Dispose material
+          material.map?.dispose()
+          // matte-metal numbers add a mask assigned to both metalness/roughness
+          // slots (same texture) — dispose once.
+          material.metalnessMap?.dispose()
           material.dispose()
         }
       })
