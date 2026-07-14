@@ -19,7 +19,7 @@ use crate::physics::{
     ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
     MOTION_IMPULSE_MIN_INTERVAL_MS, MOTION_IMPULSE_MAX_MAGNITUDE,
 };
-use crate::dice::{clamp_spawn_position, create_dice_body_with_material, generate_roll_impulse, generate_roll_spin, generate_spawn_position};
+use crate::dice::{clamp_position_within, clamp_spawn_position, create_dice_body_with_material, generate_roll_impulse, generate_roll_spin, generate_spawn_position};
 use crate::face_detection::detect_face_value;
 use log::warn;
 
@@ -846,23 +846,32 @@ impl Room {
         self.physics.rebuild_arena(bounds);
         self.bounds = bounds;
 
-        // Pull any die now outside the new arena back inside, preserving orientation
-        // (face unchanged). `clamp_spawn_position` returns its input unchanged when
-        // already inside, so dice within bounds are left untouched.
+        // Pull any die now genuinely past the new walls back inside, preserving its
+        // orientation. The clearance is the drag/collision margin (not the larger
+        // spawn fan-out inset), so a die merely resting near a wall — including when
+        // that axis GREW — is left where it is. `clamp_position_within` returns its
+        // input unchanged when inside, so an equality test detects a real move.
         let mut moved_any = false;
         for die in self.dice.values_mut() {
             let Some(handle) = die.body_handle else { continue };
-            let clamped = clamp_spawn_position(die.position, &self.bounds);
+            let clamped = clamp_position_within(die.position, &self.bounds, DRAG_WALL_MARGIN);
             if clamped != die.position {
                 self.physics.move_body_keep_rotation(handle, clamped);
                 die.position = clamped;
-                die.last_snapshot_position = clamped;
+                // Re-enter the settle pipeline exactly like every other wake path
+                // (roll, escape-reset, knock): without `is_rolling` the moved die is
+                // excluded from `build_physics_snapshot` and its new position would
+                // never reach clients. The preserved orientation re-detects the same
+                // face on re-settle.
+                die.is_rolling = true;
+                die.face_value = None;
+                die.rest_start_tick = None;
                 die.settled_rotation = None;
                 moved_any = true;
             }
         }
         if moved_any {
-            // Wake the sim so moved dice re-settle (resolving any overlap from the
+            // Wake the sim so moved dice re-settle (resolving any overlap from a
             // shrink) and their new positions broadcast; mirrors the spawn path.
             self.is_simulating = true;
         }
@@ -2181,17 +2190,54 @@ mod tests {
 
         // Shrink to portrait: far_x is now well outside the new arena.
         room.set_arena("p1", 9.0 / 16.0).unwrap();
+        {
+            let die = room.dice.get("d1").unwrap();
+            assert!(
+                die.position[0].abs() <= room.bounds.half_x,
+                "die pulled inside the new arena, got x={}",
+                die.position[0]
+            );
+            // Re-enters the settle pipeline so the moved position actually broadcasts.
+            assert!(die.is_rolling, "a moved die is marked rolling so its new position is sent");
+        }
+
+        // It re-settles in place (at rest, orientation preserved) to the SAME face.
+        settle_one(&mut room);
         let die = room.dice.get("d1").unwrap();
-        assert!(
-            die.position[0].abs() <= room.bounds.half_x,
-            "die pulled inside the new arena, got x={}",
-            die.position[0]
-        );
-        // The move keeps orientation, so the face is unchanged (no re-roll).
+        assert!(die.position[0].abs() <= room.bounds.half_x, "stays inside after settling");
         let r = die.rotation;
         let dot = r[0] * rot_before[0] + r[1] * rot_before[1] + r[2] * rot_before[2] + r[3] * rot_before[3];
-        assert!(dot.abs() > 0.999, "orientation preserved by the resize move");
-        assert_eq!(die.face_value, face_before, "face preserved by the resize move");
+        assert!(dot.abs() > 0.999, "orientation preserved across the resize move");
+        assert_eq!(die.face_value, face_before, "same face after re-settling (no re-roll)");
+    }
+
+    #[test]
+    fn test_set_arena_uses_collision_margin_not_spawn_margin() {
+        // A die resting in the band between the collision clearance (DRAG_WALL_MARGIN
+        // ≈ 1.0) and the larger spawn fan-out inset (SPAWN_WALL_MARGIN = 1.6) is a
+        // VALID resting spot and must NOT be yanked by a resize — the clamp must use
+        // the collision margin, not the spawn margin.
+        let mut room = Room::new("t".to_string(), ArenaBounds::from_aspect(1.0)); // half 6
+        room.add_player(make_player("p1", "Host")).unwrap();
+        room.host_id = Some("p1".to_string());
+        room.spawn_dice_with_physics("p1", vec![carried_request("d1", [0.0, 0.6, 0.0], Some([0.0, 0.0, 0.0, 1.0]))])
+            .unwrap();
+        settle_one(&mut room);
+
+        // Place at x = 4.7: clearance 1.3 from the wall (> 1.0) but within the 1.6
+        // spawn inset. Bypass the spawn clamp with a direct body move — dice settle
+        // here in normal play.
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        let y = room.dice.get("d1").unwrap().position[1];
+        let resting = [4.7, y, 0.0];
+        room.physics.move_body_keep_rotation(handle, resting);
+        room.dice.get_mut("d1").unwrap().position = resting;
+
+        // Re-apply the SAME square shape: a valid near-wall die must not move.
+        room.set_arena("p1", 1.0).unwrap();
+        let die = room.dice.get("d1").unwrap();
+        assert_eq!(die.position, resting, "a valid near-wall die is not yanked by a resize");
+        assert!(!die.is_rolling, "an untouched die is not woken");
     }
 
     #[test]
