@@ -46,6 +46,33 @@ export function resolveArenaFill(): number {
   return pct / 100
 }
 
+/**
+ * Camera height (world units) for the top-down perspective camera of vertical
+ * field-of-view `fovDeg` to frame an arena of half-extents `arenaHalfX`×`arenaHalfZ`
+ * inside a `viewportW`×`viewportH` px window, inset by `fill` (Shared-ADR-009).
+ *
+ * Both axes must fit, so the tighter constraint wins and the slack axis is
+ * letterboxed — a host-chosen shared arena shape then fits any viewport. When the
+ * arena aspect equals the viewport aspect (solo fit-to-window, or 9:16 on a 9:16
+ * screen) the two constraints coincide and this equals the fixed-scale framing —
+ * the 9:16 fixed point is preserved.
+ */
+export function arenaFitCameraHeight(
+  arenaHalfX: number,
+  arenaHalfZ: number,
+  viewportW: number,
+  viewportH: number,
+  fovDeg: number,
+  fill: number = resolveArenaFill(),
+): number {
+  const halfFovV = ((fovDeg * Math.PI) / 180) / 2
+  const viewportAspect = viewportW / viewportH
+  const needForDepth = (2 * arenaHalfZ) / fill
+  const needForWidth = (2 * arenaHalfX) / fill / viewportAspect
+  const worldHeightVisible = Math.max(needForDepth, needForWidth)
+  return worldHeightVisible / (2 * Math.tan(halfFovV))
+}
+
 /** Read a positive numeric query param, validated, else `fallback`. DOM-guarded. */
 function readNumberParam(
   key: string,

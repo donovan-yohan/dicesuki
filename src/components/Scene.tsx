@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
-import { resolvePixelsPerUnit } from '../config/renderScale'
+import { resolvePixelsPerUnit, arenaFitCameraHeight } from '../config/renderScale'
 import { useEngineConfig } from '../config/engineConfig'
 
 // Contexts
@@ -331,23 +331,30 @@ function MultiplayerDiceRenderer({ renderDeviceTier }: { renderDeviceTier: Rende
  */
 function MultiplayerCamera() {
   const { camera, size } = useThree()
+  // The room delivers its actual arena bounds (Shared-ADR-007/009). The camera
+  // frames THOSE, so a host-chosen shared shape fits every viewport (letterboxing
+  // when the arena aspect differs from the window) and reflows on a resize.
+  const engineConfig = useEngineConfig()
 
   useEffect(() => {
     if (!('fov' in camera)) return // Only for PerspectiveCamera
     const perspCamera = camera as THREE.PerspectiveCamera
-
-    const pixelsPerUnit = resolvePixelsPerUnit()
-
     const halfFovV = ((perspCamera.fov * Math.PI) / 180) / 2
-    // Visible world height at the floor (y=0) that maps the CSS px height to the
-    // fixed scale, then the camera height that produces that visible span.
-    const worldHeightVisible = size.height / pixelsPerUnit
-    const cameraHeight = worldHeightVisible / (2 * Math.tan(halfFovV))
 
+    const cameraHeight = engineConfig
+      ? arenaFitCameraHeight(
+          engineConfig.arenaHalfX,
+          engineConfig.arenaHalfZ,
+          size.width,
+          size.height,
+          perspCamera.fov,
+        )
+      // Pre-config fallback (before room_state arrives): legacy fixed-scale framing.
+      : size.height / resolvePixelsPerUnit() / (2 * Math.tan(halfFovV))
     perspCamera.position.set(0, cameraHeight, 0)
     perspCamera.lookAt(0, 0, 0)
     perspCamera.updateProjectionMatrix()
-  }, [camera, size.width, size.height])
+  }, [camera, size.width, size.height, engineConfig])
 
   return null
 }

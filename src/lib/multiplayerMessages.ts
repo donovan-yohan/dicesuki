@@ -294,6 +294,15 @@ export interface MotionImpulseMessage {
   impulse: [number, number, number]
 }
 
+/**
+ * Host-only: resize the shared arena to `aspect` (width/height). The server
+ * derives area-preserving bounds and broadcasts an `arena_changed` (Shared-ADR-009).
+ */
+export interface SetArenaMessage {
+  type: 'set_arena'
+  aspect: number
+}
+
 export type ClientMessage =
   | JoinMessage
   | SpawnDiceMessage
@@ -306,6 +315,7 @@ export type ClientMessage =
   | DragEndMessage
   | UpdateSettingsMessage
   | MotionImpulseMessage
+  | SetArenaMessage
 
 // ==========================================
 // Server → Client Messages
@@ -410,6 +420,16 @@ export interface SettingsUpdatedMessage {
   settings: RoomSettings
 }
 
+/**
+ * The host resized the shared arena (Shared-ADR-009). Carries the room's new
+ * `EngineConfig` (arena bounds) so every client reflows walls, shadows, and
+ * camera. Unlike `room_state.config` this is broadcast mid-session, not join-only.
+ */
+export interface ArenaChangedMessage {
+  type: 'arena_changed'
+  config: EngineConfig
+}
+
 export interface PlayerJoinedMessage {
   type: 'player_joined'
   player: PlayerInfo
@@ -480,6 +500,7 @@ export type ServerMessage =
   | RoomStateMessage
   | HostChangedMessage
   | SettingsUpdatedMessage
+  | ArenaChangedMessage
   | PlayerJoinedMessage
   | PlayerLeftMessage
   | DiceSpawnedMessage

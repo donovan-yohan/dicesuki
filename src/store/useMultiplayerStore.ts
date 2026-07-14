@@ -186,6 +186,13 @@ interface MultiplayerState {
    */
   setRoomTheme: (themeId: string | null) => void
   /**
+   * Host-only: resize the shared arena to `aspect` (width/height). The server
+   * re-validates, derives area-preserving bounds, and broadcasts `arena_changed`
+   * (Shared-ADR-009). No-op for non-hosts. The solo player is the host, so this
+   * works in solo too.
+   */
+  setArena: (aspect: number) => void
+  /**
    * Send a device-motion (shake/gravity) impulse. Policy-aware: silently drops
    * when motion is disabled (`off`) and throttles to `MOTION_IMPULSE_MIN_INTERVAL_MS`.
    * The server remains authoritative over which dice the impulse affects.
@@ -486,6 +493,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         break
       }
 
+      case 'arena_changed': {
+        // Host resized the shared arena (Shared-ADR-009): adopt the new engine
+        // config so walls, shadows, and camera reflow. Same write as room_state.
+        set({ engineConfig: msg.config })
+        break
+      }
+
       case 'player_joined': {
         const { players } = get()
         const newPlayers = new Map(players)
@@ -765,6 +779,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     // Host-only; the server sanitizes and re-validates. Merge to preserve others.
     if (!get().isHost) return
     get().updateSettings(withRoomName(get().roomSettings, name))
+  },
+
+  setArena: (aspect: number) => {
+    // Host-only; the server re-validates. Sends a dedicated set_arena message;
+    // the room replies with a broadcast arena_changed carrying the new bounds.
+    if (!get().isHost) return
+    get().sendMessage({ type: 'set_arena', aspect })
   },
 
   sendMotionImpulse: (impulse: [number, number, number]) => {
