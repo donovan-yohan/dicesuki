@@ -14,6 +14,7 @@ import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDragStore } from '../../store/useDragStore'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
+import { TRASH_DROP_ZONE_ID } from '../../lib/trashDropZone'
 import type { DiceShape } from '../../types/diceShape'
 import type { InventoryDie } from '../../types/inventory'
 import { SharedInventoryDicePreviewCanvas } from '../panels/SharedInventoryDicePreviewCanvas'
@@ -376,7 +377,7 @@ function TrashButton({ onClick }: { onClick: () => void }) {
 
   return (
     <motion.button
-      id="trash-drop-zone"
+      id={TRASH_DROP_ZONE_ID}
       type="button"
       onClick={onClick}
       className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-xl transition-all"

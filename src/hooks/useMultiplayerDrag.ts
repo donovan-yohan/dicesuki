@@ -9,6 +9,7 @@ import {
 } from '../config/physicsConfig'
 import type { VelocityHistoryEntry } from '../lib/multiplayerMessages'
 import { getRoller } from '../lib/multiplayerMessages'
+import { isOverTrashZone } from '../lib/trashDropZone'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useDragStore } from '../store/useDragStore'
 
@@ -26,6 +27,7 @@ export function useMultiplayerDrag() {
   const moveDrag = useMultiplayerStore((s) => s.moveDrag)
   const endDrag = useMultiplayerStore((s) => s.endDrag)
   const setDraggedDiceId = useDragStore((s) => s.setDraggedDiceId)
+  const onDiceDelete = useDragStore((s) => s.onDiceDelete)
 
   const isDraggingRef = useRef(false)
   const currentDieIdRef = useRef<string | null>(null)
@@ -126,12 +128,21 @@ export function useMultiplayerDrag() {
     }
   }, [getPointerWorldPosition, moveDrag])
 
-  const endDragHandler = useCallback(() => {
+  const endDragHandler = useCallback((pointerEvent?: PointerEvent) => {
     if (!isDraggingRef.current) return
     const dieId = currentDieIdRef.current
     if (!dieId) return
 
-    endDrag(dieId, velocityHistoryRef.current)
+    // Released over the trash target → delete the die instead of throwing it.
+    // `removeDie` fully drops the die (and its physics body) server-side, drag
+    // state included, so there is no `drag_end`/throw to send first.
+    const overTrash =
+      pointerEvent != null && isOverTrashZone(pointerEvent.clientX, pointerEvent.clientY)
+    if (overTrash && onDiceDelete) {
+      onDiceDelete(dieId)
+    } else {
+      endDrag(dieId, velocityHistoryRef.current)
+    }
     setDraggedDiceId(null)
 
     // Release pointer capture
@@ -148,11 +159,11 @@ export function useMultiplayerDrag() {
     dragOffsetRef.current = null
     capturedElementRef.current = null
     velocityHistoryRef.current = []
-  }, [endDrag, setDraggedDiceId])
+  }, [endDrag, setDraggedDiceId, onDiceDelete])
 
   const onPointerUp = useCallback((event: PointerEvent) => {
     if (!isDraggingRef.current || event.pointerId !== currentPointerIdRef.current) return
-    endDragHandler()
+    endDragHandler(event)
   }, [endDragHandler])
 
   const onPointerCancel = useCallback((event: PointerEvent) => {
