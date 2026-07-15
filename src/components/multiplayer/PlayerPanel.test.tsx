@@ -172,6 +172,41 @@ describe('PlayerPanel motion control', () => {
     expect(off).toBeDisabled()
     expect(screen.getByRole('radio', { name: /whole room/i })).toBeDisabled()
   })
+
+  it('gives the host a Fit-my-window arena button that sends the window aspect', () => {
+    // Arrange: local player is the host with a connected socket.
+    const send = vi.fn()
+    setRoster([player('a', 'Alice')], { localPlayerId: 'a', hostId: 'a' })
+    useMultiplayerStore.setState({
+      isHost: true,
+      roomSettings: { version: 1 },
+      socket: { send } as unknown as WebSocket,
+    })
+    renderPanel()
+
+    // Act: fit the shared arena to the host's browser window (ADR 009 auto preset).
+    fireEvent.click(screen.getByTestId('arena-preset-fit'))
+
+    // Assert: a set_arena with a positive aspect went to the server.
+    expect(send).toHaveBeenCalledTimes(1)
+    const payload = JSON.parse(send.mock.calls[0][0])
+    expect(payload.type).toBe('set_arena')
+    expect(typeof payload.aspect).toBe('number')
+    expect(payload.aspect).toBeGreaterThan(0)
+  })
+
+  it('shows the Fit-my-window arena button disabled for non-hosts', () => {
+    // Arrange: local player is not the host.
+    setRoster([player('a', 'Alice'), player('b', 'Bob')], {
+      localPlayerId: 'b',
+      hostId: 'a',
+    })
+    useMultiplayerStore.setState({ isHost: false, roomSettings: { version: 1 } })
+    renderPanel()
+
+    // Assert: the auto/fit control is present but read-only for non-hosts.
+    expect(screen.getByTestId('arena-preset-fit')).toBeDisabled()
+  })
 })
 
 describe('PlayerPanel delegated roller', () => {

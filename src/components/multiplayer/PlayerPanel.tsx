@@ -346,7 +346,7 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
             className="flex flex-col gap-1.5 px-3 py-2.5"
             style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
           >
-            <RoomSizeControl disabled={!isHost} />
+            <RoomSizeControl showAuto disabled={!isHost} />
           </div>
 
           {/* Motion control: host sets the room's device-motion policy; everyone
