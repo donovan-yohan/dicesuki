@@ -360,9 +360,9 @@ Expected: Skill content loads, begins Phase 1 analysis.
 
 ---
 
-### Task 2: Apply harness:init to Daisu Project
+### Task 2: Apply harness:init to Dicesuki Project
 
-This task is the real test — applying the skill to the daisu-app project's 1,080-line CLAUDE.md.
+This task is the real test — applying the skill to the dicesuki project's 1,080-line CLAUDE.md.
 
 **Files:**
 - Modify: `CLAUDE.md` (rewrite as ~100-line map)

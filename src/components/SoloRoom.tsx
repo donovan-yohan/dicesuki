@@ -6,6 +6,7 @@ import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useDiceStore } from '../store/useDiceStore'
 import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { usePlayerIdentityStore } from '../store/usePlayerIdentityStore'
+import { StartupGate, type StartupPhase } from './brand/StartupSplash'
 
 /**
  * SoloRoom — the default `/` experience (issue #114, epic #111).
@@ -32,15 +33,22 @@ const SOLO_ROOM_ID = 'solo'
 
 export function SoloRoom() {
   const connectionStatus = useMultiplayerStore((s) => s.connectionStatus)
+  const connectionError = useMultiplayerStore((s) => s.connectionError)
+  const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
+  const engineConfig = useMultiplayerStore((s) => s.engineConfig)
   const connect = useMultiplayerStore((s) => s.connect)
   const disconnect = useMultiplayerStore((s) => s.disconnect)
   const rememberedName = usePlayerIdentityStore((s) => s.displayName)
   const rememberedColor = usePlayerIdentityStore((s) => s.color)
 
   const didSeedDefaultRef = useRef(false)
+  const didAttemptConnectionRef = useRef(false)
 
   const backend = useMultiplayerDiceBackend()
   const { addDie } = backend
+  const roomIsReady =
+    connectionStatus === 'connected' && localPlayerId !== null && engineConfig !== null
+  const startupPhase: StartupPhase = connectionStatus === 'connected' ? 'room' : 'engine'
 
   // Seed a single d20 FROM THE INVENTORY in the center of an empty table when the
   // solo room opens, so the app never boots to an empty tray (center-out spawn
@@ -49,7 +57,7 @@ export function SoloRoom() {
   // on the table is an inventory die, never an invented one. Guarded so it seeds
   // once per connected session and never stomps a table that already has dice.
   useEffect(() => {
-    if (connectionStatus !== 'connected') {
+    if (!roomIsReady) {
       didSeedDefaultRef.current = false
       return
     }
@@ -58,7 +66,7 @@ export function SoloRoom() {
     if (useMultiplayerStore.getState().dice.size === 0) {
       addDie('d20')
     }
-  }, [connectionStatus, addDie])
+  }, [roomIsReady, addDie])
 
   // Open the solo worker room on mount; disconnect + reset on unmount. Reset and
   // connect are paired in ONE effect so React StrictMode's dev remount
@@ -67,6 +75,7 @@ export function SoloRoom() {
   // (guarded on the live status so we never stack two workers). The body reads
   // identity via `getState()` so it does not re-run when name/color change.
   useEffect(() => {
+    didAttemptConnectionRef.current = true
     useDiceStore.getState().reset()
     useDiceManagerStore.getState().removeAllDice()
     if (useMultiplayerStore.getState().connectionStatus === 'disconnected') {
@@ -80,26 +89,40 @@ export function SoloRoom() {
     }
   }, [connect, disconnect])
 
-  // The wasm room boots near-instantly, but wait for the join round-trip so the
-  // scene never renders (or lets the player spawn) before a local player exists.
-  if (connectionStatus !== 'connected') {
+  const startupFailed =
+    connectionStatus === 'error' ||
+    (didAttemptConnectionRef.current && connectionStatus === 'disconnected')
+
+  if (startupFailed) {
+    const retry = () => {
+      useDiceStore.getState().reset()
+      useDiceManagerStore.getState().removeAllDice()
+      const { displayName, color } = usePlayerIdentityStore.getState()
+      connect(SOLO_ROOM_ID, displayName || 'You', color, undefined, 'worker')
+    }
+
     return (
       <div
-        data-testid="solo-room-loading"
-        style={{
-          width: '100vw',
-          height: '100dvh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          background: '#1a1a2e',
-          fontFamily: 'system-ui, sans-serif',
-        }}
+        role="alert"
+        className="w-full h-full flex items-center justify-center bg-[#fff8f5] text-[#3f1d3f]"
       >
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Starting your table…</p>
+        <div className="text-center max-w-md px-6">
+          <img
+            src="/brand/dicesuki-wordmark.svg"
+            alt="Dicesuki"
+            className="w-56 max-w-[70vw] mx-auto mb-8"
+          />
+          <h1 className="text-2xl font-bold mb-3">Couldn’t start your table</h1>
+          <p className="text-[#654665] mb-6">
+            {connectionError ?? 'The local dice engine stopped before the room was ready.'}
+          </p>
+          <button
+            type="button"
+            onClick={retry}
+            className="px-5 py-3 rounded-lg bg-[#3f1d3f] text-white font-semibold"
+          >
+            Try again
+          </button>
         </div>
       </div>
     )
@@ -107,15 +130,21 @@ export function SoloRoom() {
 
   return (
     <div
-      data-testid="solo-room"
+      data-testid={roomIsReady ? 'solo-room' : 'solo-room-loading'}
       data-connection-status={connectionStatus}
+      data-local-player-ready={localPlayerId ? 'true' : 'false'}
+      data-engine-ready={engineConfig ? 'true' : 'false'}
       data-player-color={rememberedColor}
       data-remembered-name={rememberedName}
       style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden' }}
     >
-      <DiceBackendProvider value={backend}>
-        <Scene />
-      </DiceBackendProvider>
+      <StartupGate ready={roomIsReady} phase={startupPhase}>
+        {(onContentReady) => (
+          <DiceBackendProvider value={backend}>
+            <Scene onReady={onContentReady} />
+          </DiceBackendProvider>
+        )}
+      </StartupGate>
     </div>
   )
 }

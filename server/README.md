@@ -1,4 +1,4 @@
-# Daisu server workspace
+# Dicesuki server workspace
 
 A Cargo workspace with two crates (issue #112):
 

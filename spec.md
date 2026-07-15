@@ -1,4 +1,4 @@
-# Daisu - Physics Dice Simulator - Technical Specification
+# Dicesuki - Physics Dice Simulator - Technical Specification
 
 **Last Updated**: 2025-11-11
 **Current Phase**: Phase 1 (In Progress)
@@ -7,7 +7,7 @@
 
 ## Project Overview
 
-Daisu is a web-based physics dice simulator with realistic 3D dice rolling mechanics, device motion integration, and customizable skins. The MVP focuses on delivering a high-quality single D6 experience with mobile-first optimization.
+Dicesuki is a web-based physics dice simulator with realistic 3D dice rolling mechanics, device motion integration, and customizable skins. The MVP focuses on delivering a high-quality single D6 experience with mobile-first optimization.
 
 ---
 

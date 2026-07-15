@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="preload" as="image" href="/brand/dicesuki-icon.svg" type="image/svg+xml" />
+    <link rel="preload" as="image" href="/brand/dicesuki-wordmark.svg" type="image/svg+xml" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dicesuki - 3D Dice Simulator</title>
     <meta name="description" content="Roll physics-based 3D dice together on Dicesuki — no install, right in your browser." />
@@ -14,10 +16,66 @@
     <meta property="og:title" content="Dicesuki — 3D Dice Simulator" />
     <meta property="og:description" content="Roll physics-based 3D dice together on Dicesuki — no install, right in your browser." />
     <meta name="twitter:card" content="summary" />
-    <meta name="theme-color" content="#5865F2" />
+    <meta name="theme-color" content="#3F1D3F" />
+    <style>
+      html, body, #root { width: 100%; height: 100%; margin: 0; background: #fff8f5; }
+      .startup-splash-shell {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        padding: 24px;
+        box-sizing: border-box;
+        background:
+          radial-gradient(circle at 18% 16%, rgba(249, 135, 151, 0.22), transparent 34%),
+          radial-gradient(circle at 82% 78%, rgba(156, 137, 196, 0.24), transparent 38%),
+          #fff8f5;
+      }
+      .startup-splash-shell__content {
+        display: flex;
+        width: min(84vw, 448px);
+        flex-direction: column;
+        align-items: center;
+      }
+      .startup-splash-shell__icon { width: min(72vw, 336px); height: auto; }
+      .startup-splash-shell__wordmark { width: min(78vw, 384px); height: auto; margin-top: 11px; }
+      .startup-splash-shell__progress {
+        width: min(72vw, 336px);
+        height: 10px;
+        margin-top: 32px;
+        overflow: hidden;
+        border: 2px solid rgba(63, 29, 63, 0.14);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+      }
+      .startup-splash-shell__progress::before {
+        display: block;
+        width: 12%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #f98797 0%, #9c89c4 100%);
+        content: '';
+      }
+      .startup-splash-shell__status {
+        margin: 14px 0 0;
+        color: rgba(63, 29, 63, 0.72);
+        font: 600 14px/1.25 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        letter-spacing: 0.02em;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="startup-splash-shell" role="status" aria-label="Loading Dicesuki">
+        <div class="startup-splash-shell__content">
+          <img class="startup-splash-shell__icon" src="/brand/dicesuki-icon.svg" alt="" />
+          <img class="startup-splash-shell__wordmark" src="/brand/dicesuki-wordmark.svg" alt="Dicesuki" />
+          <div class="startup-splash-shell__progress" aria-hidden="true"></div>
+          <p class="startup-splash-shell__status">Loading Dicesuki…</p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

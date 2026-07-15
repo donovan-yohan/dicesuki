@@ -1,6 +1,6 @@
 // External libraries
 import { Environment } from '@react-three/drei'
-import { Canvas, useThree } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
@@ -385,7 +385,23 @@ function MultiplayerCamera() {
  * - UI state (settledDice, rollHistory) is in Zustand store
  * - Only UI components subscribe to store, not the Scene component
  */
-function SceneContent() {
+interface SceneProps {
+  onReady?: () => void
+}
+
+function SceneReadySignal({ onReady }: SceneProps) {
+  const didSignalRef = useRef(false)
+
+  useFrame(() => {
+    if (!onReady || didSignalRef.current) return
+    didSignalRef.current = true
+    onReady()
+  })
+
+  return null
+}
+
+function SceneContent({ onReady }: SceneProps) {
   // Get requestPermission from state context
   const { requestPermission } = useDeviceMotionState()
 
@@ -526,6 +542,7 @@ function SceneContent() {
           left: 0
         }}
       >
+        <SceneReadySignal onReady={onReady} />
         {/* Camera already configured via Canvas props */}
 
         {/* Themed Background */}
@@ -729,8 +746,8 @@ function SceneContent() {
  * (WASM worker room) and MultiplayerRoom (network room) each supply their own
  * room backend before mounting Scene.
  */
-function Scene() {
-  return <SceneContent />
+function Scene({ onReady }: SceneProps) {
+  return <SceneContent onReady={onReady} />
 }
 
 /**

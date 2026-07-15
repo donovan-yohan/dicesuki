@@ -6,7 +6,7 @@
 
 ## Context
 
-Daisu supports multiple visual themes as purchasable cosmetic skins. Themes affect the entire visual experience: UI colors and typography, dice materials and colors, 3D environment (floor, walls, lighting), and future assets (icons, sounds, backgrounds). Themes must be swappable at runtime without page reload, and users should be able to override specific aspects of a theme for mix-and-match customization.
+Dicesuki supports multiple visual themes as purchasable cosmetic skins. Themes affect the entire visual experience: UI colors and typography, dice materials and colors, 3D environment (floor, walls, lighting), and future assets (icons, sounds, backgrounds). Themes must be swappable at runtime without page reload, and users should be able to override specific aspects of a theme for mix-and-match customization.
 
 The theme system must cover:
 - **UI layer:** Colors, typography, spacing, border radius, shadows, gradients

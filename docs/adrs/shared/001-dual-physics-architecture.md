@@ -6,7 +6,7 @@
 
 ## Context
 
-Daisu operates in two modes:
+Dicesuki operates in two modes:
 
 1. **Single-player:** One user rolls dice locally on their device. Physics runs entirely in the browser.
 2. **Multiplayer:** Up to 8 players share a room, roll dice on a shared table, and see each other's results in real-time. Physics must be authoritative (one source of truth) to prevent desync.

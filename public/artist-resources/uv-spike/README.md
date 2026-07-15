@@ -1,6 +1,6 @@
 # UV/full-AI dice texture spike (#31)
 
-This artifact evaluates whether full AI-rendered dice texture atlases can carry both material art and face numerals for D6/D20 dice in Daisu.
+This artifact evaluates whether full AI-rendered dice texture atlases can carry both material art and face numerals for D6/D20 dice in Dicesuki.
 
 ## Deliverables
 
@@ -17,7 +17,7 @@ This artifact evaluates whether full AI-rendered dice texture atlases can carry 
 
 ### D6 canonical orientation
 
-Daisu maps D6 faces in `src/lib/geometries.ts` as:
+Dicesuki maps D6 faces in `src/lib/geometries.ts` as:
 
 | Value | Direction | Net position in template |
 |---|---|---|

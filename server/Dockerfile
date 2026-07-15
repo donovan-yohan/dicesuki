@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Multi-stage build for the Daisu multiplayer room server.
+# Multi-stage build for the Dicesuki multiplayer room server.
 # Build context is ./server (see server/render.yaml -> dockerContext).
 #
 #   docker build -t daisu-server ./server

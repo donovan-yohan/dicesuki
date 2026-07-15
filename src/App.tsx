@@ -10,6 +10,7 @@ import { initDataSync } from './lib/dataSync'
 import DiceFaceTestHarness from './components/test/DiceFaceTestHarness'
 import { MultiplayerRoom } from './components/multiplayer/MultiplayerRoom'
 import { RoomBrowser } from './components/multiplayer/RoomBrowser'
+import { StartupSplash } from './components/brand/StartupSplash'
 
 function MainApp() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
@@ -35,24 +36,22 @@ function MainApp() {
 
   // Loading state
   if (isCompatible === null) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-900 text-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Checking device compatibility...</p>
-        </div>
-      </div>
-    )
+    return <StartupSplash phase="device" />
   }
 
   // Device not compatible
   if (!isCompatible) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-900 text-white">
+      <div className="w-full h-full flex items-center justify-center bg-[#fff8f5] text-[#3f1d3f]">
         <div className="text-center max-w-md px-4">
+          <img
+            src="/brand/dicesuki-wordmark.svg"
+            alt="Dicesuki"
+            className="w-56 max-w-[70vw] mx-auto mb-8"
+          />
           <h1 className="text-2xl font-bold mb-4">Device Not Supported</h1>
-          <p className="text-gray-300 mb-2">{errorMessage}</p>
-          <p className="text-sm text-gray-400">
+          <p className="text-[#654665] mb-2">{errorMessage}</p>
+          <p className="text-sm text-[#806880]">
             This app requires a mid-range or better device for optimal performance.
           </p>
         </div>

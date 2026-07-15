@@ -1,6 +1,6 @@
 # Production Dice Assets
 
-This folder contains production-ready custom dice assets for the Daisu app.
+This folder contains production-ready custom dice assets for the Dicesuki app.
 
 ## Folder Structure
 
