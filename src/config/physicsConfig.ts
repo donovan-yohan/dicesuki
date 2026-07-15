@@ -78,6 +78,17 @@ export const MOTION_ACCEL_SCALE = 25
 export const MOTION_DEADZONE = 1.0
 
 /**
+ * Low-pass retention (0..1) for the gravity estimate used to recover movement
+ * acceleration on devices whose gravity-removed `DeviceMotionEvent.acceleration`
+ * channel is null (common on Android). The estimate follows `alpha·prev + (1−alpha)·
+ * total`; movement = total − estimate. Higher = slower to follow, so a static tilt is
+ * absorbed (excluded) while a sustained push survives longer.
+ * - `0.8` (current): the standard Android gravity-filter constant at ~60 Hz.
+ *   Recommended `0.7`–`0.9`.
+ */
+export const MOTION_GRAVITY_LOWPASS = 0.8
+
+/**
  * Minimum acceleration magnitude (m/s²) that flags a shake for UI feedback
  * (DeviceMotionButton's "Shaking!" indicator). This is NOT a physics input — the
  * continuous field drives the dice; this only lights up the UI.
