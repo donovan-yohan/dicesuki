@@ -541,6 +541,10 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         const newDice = new Map(dice)
         for (const id of msg.diceIds) {
           newDice.delete(id)
+          // Mirror the removal into the roll-result store so the top-of-screen
+          // total and per-die chips drop the deleted die's face — otherwise its
+          // settled value lingers and later rolls appear to add to a stale sum.
+          useDiceStore.getState().removeDieState(id)
         }
         set({ dice: newDice })
         break
