@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useMultiplayerStore } from './useMultiplayerStore'
+import { useDiceStore } from './useDiceStore'
 import type { ServerMessage } from '../lib/multiplayerMessages'
 
 describe('useMultiplayerStore', () => {
@@ -490,6 +491,35 @@ describe('useMultiplayerStore', () => {
       expect(state.dice.size).toBe(1)
       expect(state.dice.get('d1')?.diceType).toBe('d20')
       expect(state.localPlayerId).toBe('p2') // Last player = local
+    })
+
+    it('dice_removed prunes the die from the roll-result store so the top HUD total drops it', () => {
+      // Arrange: a die on the table that has settled with a face value, mirrored
+      // into useDiceStore (the source the top-of-screen total/chips render from).
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'room_state',
+        roomId: 'r',
+        hostId: 'p1',
+        players: [{ id: 'p1', displayName: 'A', color: '#fff' }],
+        dice: [{ id: 'd1', ownerId: 'p1', diceType: 'd6', position: [0, 0, 0], rotation: [0, 0, 0, 1] }],
+        settings: { version: 1 },
+      })
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'die_settled',
+        diceId: 'd1',
+        faceValue: 4,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0, 1],
+      })
+      expect(useDiceStore.getState().settledDice.has('d1')).toBe(true)
+
+      // Act: delete the die.
+      useMultiplayerStore.getState().handleServerMessage({ type: 'dice_removed', diceIds: ['d1'] })
+
+      // Assert: pruned from BOTH the live dice map and the roll-result store, so its
+      // value no longer feeds the top total.
+      expect(useMultiplayerStore.getState().dice.has('d1')).toBe(false)
+      expect(useDiceStore.getState().settledDice.has('d1')).toBe(false)
     })
 
     it('should preserve inventory presentation metadata from room_state', () => {
