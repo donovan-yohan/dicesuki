@@ -38,6 +38,11 @@ export function RoomBrowser() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
+            <img
+              src="/brand/dicesuki-wordmark.svg"
+              alt="Dicesuki"
+              className="w-40 max-w-[46vw] mb-4"
+            />
             <h1 className="text-2xl font-bold">Public Rooms</h1>
             <p className="text-sm" style={{ color: colors.text.muted }}>
               Drop in and roll with anyone

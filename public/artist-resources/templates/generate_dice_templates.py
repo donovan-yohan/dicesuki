@@ -1,5 +1,5 @@
 """
-Daisu Dice Template Generator
+Dicesuki Dice Template Generator
 ==============================
 
 This Blender Python script generates properly configured dice templates
@@ -18,7 +18,7 @@ Each dice will be:
 - Centered at origin
 - Ready to customize and export
 
-Created for: Daisu Dice Simulator
+Created for: Dicesuki Dice Simulator
 Version: 1.0
 """
 
@@ -270,7 +270,7 @@ def setup_scene():
 def main():
     """Generate all dice templates"""
     print("=" * 50)
-    print("Daisu Dice Template Generator")
+    print("Dicesuki Dice Template Generator")
     print("=" * 50)
 
     # Clean scene
@@ -312,7 +312,7 @@ def main():
     print("2. Select one dice to export")
     print("3. File > Export > glTF 2.0 (.glb)")
     print("4. Use settings from ARTIST_GUIDE.md")
-    print("5. Upload to Daisu for testing!")
+    print("5. Upload to Dicesuki for testing!")
     print("\nTIP: Each dice is a separate object.")
     print("     Select one at a time to work on it.")
 

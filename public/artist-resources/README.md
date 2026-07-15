@@ -1,6 +1,6 @@
-# Artist Resources - Daisu Custom Dice
+# Artist Resources - Dicesuki Custom Dice
 
-Welcome! This folder contains everything you need to create custom dice for Daisu.
+Welcome! This folder contains everything you need to create custom dice for Dicesuki.
 
 ---
 
@@ -10,7 +10,7 @@ Welcome! This folder contains everything you need to create custom dice for Dais
 **[Artist Guide](documentation/ARTIST_GUIDE.md)** - Complete step-by-step guide for creating custom dice in Blender
 - Blender setup and modeling guidelines
 - Export settings and best practices
-- Testing workflow in Daisu
+- Testing workflow in Dicesuki
 - Troubleshooting and tips
 
 ---
@@ -63,7 +63,7 @@ Example GLB files showing:
 2. **Read the guide** - Open [ARTIST_GUIDE.md](documentation/ARTIST_GUIDE.md)
 3. **Customize a die** - Start with D6 (easiest)
 4. **Export as GLB** - Follow export settings in guide
-5. **Test in Daisu** - Settings → Developer Tools → Artist Testing Platform
+5. **Test in Dicesuki** - Settings → Developer Tools → Artist Testing Platform
 
 ---
 

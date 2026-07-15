@@ -1,4 +1,4 @@
-# Daisu - 3D Dice Simulator
+# Dicesuki - 3D Dice Simulator
 
 > A physics-based 3D dice simulator with single-player and multiplayer support.
 

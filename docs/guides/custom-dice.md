@@ -16,7 +16,7 @@ Custom dice uploaded through the Artist Testing Platform persist across page rel
 ### Database Schema
 ```typescript
 // IndexedDB Database
-DB_NAME = 'DaisuCustomDiceDB'
+DB_NAME = 'DicesukiCustomDiceDB'
 STORE_NAME = 'customDiceModels'
 
 // Key-Value Structure
@@ -93,7 +93,7 @@ export async function saveCustomDiceModel(diceId: string, fileData: ArrayBuffer 
 - Check browser console for `[CustomDiceDB]` logs
 - Verify IndexedDB save succeeded: `✓ Saved model for dice: ...`
 - Verify blob URL regeneration: `[InventoryStore] Regenerated blob URL for die: ...`
-- Check Application > IndexedDB > DaisuCustomDiceDB in DevTools
+- Check Application > IndexedDB > DicesukiCustomDiceDB in DevTools
 
 ## Testing Workflow
 

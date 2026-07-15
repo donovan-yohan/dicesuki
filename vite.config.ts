@@ -25,7 +25,13 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       // Extra static files to precache that Vite doesn't fingerprint.
-      includeAssets: ['icons/favicon.svg', 'icons/apple-touch-icon.png'],
+      includeAssets: [
+        'brand/dicesuki-icon.svg',
+        'brand/dicesuki-wordmark.svg',
+        'brand/dicesuki-lockup.svg',
+        'icons/favicon.svg',
+        'icons/apple-touch-icon.png',
+      ],
       manifest: {
         name: 'Dicesuki — 3D Dice Simulator',
         short_name: 'Dicesuki',
@@ -36,8 +42,8 @@ export default defineConfig({
         scope: '/',
         display: 'standalone',
         orientation: 'portrait-primary',
-        background_color: '#0b0b16',
-        theme_color: '#5865F2',
+        background_color: '#fff8f5',
+        theme_color: '#3f1d3f',
         categories: ['games', 'entertainment'],
         icons: [
           { src: 'icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },

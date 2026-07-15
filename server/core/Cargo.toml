@@ -2,7 +2,7 @@
 name = "dicesuki-core"
 version = "0.1.0"
 edition = "2021"
-description = "Pure game logic (physics, dice, room simulation, protocol, face detection) for Daisu — no async runtime or web-server dependencies. Compiles native and to wasm32-unknown-unknown."
+description = "Pure game logic (physics, dice, room simulation, protocol, face detection) for Dicesuki — no async runtime or web-server dependencies. Compiles native and to wasm32-unknown-unknown."
 license = "MIT"
 repository = "https://github.com/donovan-yohan/dicesuki"
 publish = false

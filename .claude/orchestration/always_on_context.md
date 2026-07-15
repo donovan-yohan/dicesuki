@@ -1,7 +1,7 @@
 # Always-On Context (200-500 tokens)
 
 ## Project Identity
-**Name**: Daisu Dice Simulator
+**Name**: Dicesuki
 **Tech Stack**: React 19 + Three.js + Rapier Physics + Zustand
 **Purpose**: Realistic 3D dice rolling with haptic feedback and inventory management
 

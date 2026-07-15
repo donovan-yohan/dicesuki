@@ -6,7 +6,7 @@
 
 ## Context
 
-Daisu is a mobile-first dice simulator that requires realistic 3D rendering and physics. Users roll polyhedral dice (d4, d6, d8, d10, d12, d20) on a virtual table with drag-to-throw, device motion (tilt/shake), and haptic feedback. The simulation must run at 60fps on mid-range mobile devices while providing accurate face detection to determine roll results.
+Dicesuki is a mobile-first dice simulator that requires realistic 3D rendering and physics. Users roll polyhedral dice (d4, d6, d8, d10, d12, d20) on a virtual table with drag-to-throw, device motion (tilt/shake), and haptic feedback. The simulation must run at 60fps on mid-range mobile devices while providing accurate face detection to determine roll results.
 
 Key requirements:
 - Realistic 3D rendering of polyhedral dice with customizable materials

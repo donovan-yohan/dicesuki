@@ -1,8 +1,8 @@
-# Artist Guide - Creating Custom Dice for Daisu
+# Artist Guide - Creating Custom Dice for Dicesuki
 
 **For Artists, 3D Modelers, and Designers**
 
-This guide will walk you through creating custom dice models in Blender and testing them in Daisu.
+This guide will walk you through creating custom dice models in Blender and testing them in Dicesuki.
 
 ---
 
@@ -11,7 +11,7 @@ This guide will walk you through creating custom dice models in Blender and test
 1. Download the Blender template file
 2. Customize your dice design
 3. Export as GLB
-4. Upload to Daisu
+4. Upload to Dicesuki
 5. Test and verify
 
 **Time needed:** 15-30 minutes (first time)
@@ -20,7 +20,7 @@ This guide will walk you through creating custom dice models in Blender and test
 
 ## 🎨 What You'll Create
 
-Custom 3D dice models that work perfectly in the Daisu dice simulator with:
+Custom 3D dice models that work perfectly in the Dicesuki dice simulator with:
 - ✅ Realistic physics (rolling, bouncing, settling)
 - ✅ Accurate face detection (shows the correct number)
 - ✅ Beautiful materials and textures
@@ -244,11 +244,11 @@ If too large:
 
 ---
 
-## 🧪 Testing in Daisu
+## 🧪 Testing in Dicesuki
 
 ### Step 1: Open Artist Testing Platform
 
-1. Open Daisu app in browser
+1. Open Dicesuki app in browser
 2. Click **⚙️ Settings** icon (top-right)
 3. Scroll to **Developer Tools**
 4. Click **Artist Testing Platform**
@@ -477,4 +477,4 @@ Follow this guide, use the templates, and test your dice in the preview. If some
 
 **Last Updated:** 2025-11-16
 **Version:** 1.0
-**For:** Daisu Artist Testing Platform
+**For:** Dicesuki Artist Testing Platform

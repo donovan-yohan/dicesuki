@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
 #
-# Multi-stage build for the Daisu multiplayer room server.
+# Multi-stage build for the Dicesuki multiplayer room server.
 # Build context is ./server (see server/render.yaml -> dockerContext).
 #
-#   docker build -t daisu-server ./server
-#   docker run --rm -p 8080:8080 daisu-server
+#   docker build -t dicesuki-server ./server
+#   docker run --rm -p 8080:8080 dicesuki-server
 #
 # The image ships ONLY the Rust room server (REST + WebSocket). The frontend
 # is a static Vite SPA hosted separately (see docs/guides/deployment.md).

@@ -1,4 +1,4 @@
-# Daisu - 3D Dice Simulator
+# Dicesuki - 3D Dice Simulator
 
 A mobile-optimized 3D dice rolling simulator built with React Three Fiber and Rapier physics.
 

@@ -68,6 +68,10 @@ describe('RoomBrowser', () => {
     )
     renderBrowser()
 
+    expect(screen.getByRole('img', { name: 'Dicesuki' })).toHaveAttribute(
+      'src',
+      '/brand/dicesuki-wordmark.svg',
+    )
     expect(screen.getByText('Poker Night')).toBeInTheDocument()
     expect(screen.getByText('neon')).toBeInTheDocument()
     expect(screen.getByText(/3 players/)).toBeInTheDocument()

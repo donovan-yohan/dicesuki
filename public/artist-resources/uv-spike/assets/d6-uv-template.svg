@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="760" height="760" viewBox="0 0 760 760" role="img" aria-labelledby="title desc">
-<title id="title">Daisu D6 UV atlas template</title>
+<title id="title">Dicesuki D6 UV atlas template</title>
 <desc id="desc">Canonical D6 cube-cross template with face labels, orientation arrows, bleed, safe zones, and seam danger zones.</desc>
 <rect width="760" height="760" fill="#101217"/>
-<text x="38" y="38" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700">D6 UV atlas template — Daisu canonical orientation</text>
+<text x="38" y="38" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700">D6 UV atlas template — Dicesuki canonical orientation</text>
 <text x="38" y="64" fill="#94a3b8" font-family="Inter, Arial, sans-serif" font-size="13">Body: 160px islands · cyan = bleed · gold = safe zone · magenta = seam danger edge</text>
 <defs>
   <marker id="arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#facc15"/></marker>

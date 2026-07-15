@@ -10,6 +10,7 @@ import { getRoomServerConfig, READINESS_MAX_RETRIES } from '../../lib/multiplaye
 import { preflightRoom, type PreflightResult } from '../../lib/roomPreflight'
 import { consumePendingRoomSetup, fitCarriedDice } from '../../lib/roomCarry'
 import Scene from '../Scene'
+import { StartupGate, StartupSplash } from '../brand/StartupSplash'
 
 export function MultiplayerRoom() {
   const { roomId } = useParams<{ roomId: string }>()
@@ -19,6 +20,7 @@ export function MultiplayerRoom() {
   const roomClosedNotice = useMultiplayerStore((s) => s.roomClosedNotice)
   const playerCount = useMultiplayerStore((s) => s.players.size)
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
+  const engineConfig = useMultiplayerStore((s) => s.engineConfig)
   const diceCount = useMultiplayerStore((s) => s.dice.size)
   const isHost = useMultiplayerStore((s) => s.isHost)
   const connect = useMultiplayerStore((s) => s.connect)
@@ -48,6 +50,8 @@ export function MultiplayerRoom() {
   const [wakingNotice, setWakingNotice] = useState<string | null>(null)
 
   const multiplayerBackend = useMultiplayerDiceBackend()
+  const roomIsReady =
+    connectionStatus === 'connected' && localPlayerId !== null && engineConfig !== null
 
   // Clear local dice state on mount; disconnect and reset on unmount
   useEffect(() => {
@@ -137,6 +141,11 @@ export function MultiplayerRoom() {
         color: 'white',
         background: '#1a1a2e',
       }}>
+        <img
+          src="/brand/dicesuki-wordmark.svg"
+          alt="Dicesuki"
+          style={{ width: 'min(68vw, 240px)', height: 'auto', marginBottom: '0.75rem' }}
+        />
         <h1>Join Room</h1>
         <p style={{ opacity: 0.7 }}>Room: {roomId}</p>
         <p style={{ opacity: 0.7, maxWidth: '28rem', textAlign: 'center' }}>
@@ -327,22 +336,10 @@ export function MultiplayerRoom() {
     )
   }
 
-  // Show connecting state
-  if (connectionStatus === 'connecting') {
-    return (
-      <div style={{
-        width: '100vw',
-        height: '100dvh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'white',
-        background: '#1a1a2e',
-        fontFamily: 'system-ui, sans-serif',
-      }}>
-        Connecting to {serverConfig.label.toLowerCase()} room {roomId}...
-      </div>
-    )
+  // Keep the branded loader up through the join round-trip. A live WebSocket is
+  // not enough: `localPlayerId` arrives with room_state after the socket opens.
+  if (connectionStatus === 'connecting' || (connectionStatus === 'connected' && !roomIsReady)) {
+    return <StartupSplash phase={connectionStatus === 'connecting' ? 'multiplayer' : 'room'} />
   }
 
   // Connected — render the unified Scene with multiplayer backend
@@ -352,12 +349,17 @@ export function MultiplayerRoom() {
       data-connection-status={connectionStatus}
       data-player-count={playerCount}
       data-local-player-ready={localPlayerId ? 'true' : 'false'}
+      data-engine-ready={engineConfig ? 'true' : 'false'}
       data-dice-count={diceCount}
       style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden' }}
     >
-      <DiceBackendProvider value={multiplayerBackend}>
-        <Scene />
-      </DiceBackendProvider>
+      <StartupGate ready={roomIsReady} phase="room">
+        {(onContentReady) => (
+          <DiceBackendProvider value={multiplayerBackend}>
+            <Scene onReady={onContentReady} />
+          </DiceBackendProvider>
+        )}
+      </StartupGate>
     </div>
   )
 }

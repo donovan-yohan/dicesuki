@@ -6,7 +6,7 @@
 
 ## Context
 
-Daisu has no auth, profiles, or durable storage today. Inventory, saved rolls, and
+Dicesuki has no auth, profiles, or durable storage today. Inventory, saved rolls, and
 settings live in `localStorage` via zustand/persist (Frontend-ADR-002). Epic #66
 requires a backend platform that provides:
 

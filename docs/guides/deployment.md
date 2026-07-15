@@ -1,10 +1,10 @@
 # Deployment & Playtest
 
-> How to run the Daisu playtest stack: the Rust room server + the static frontend.
+> How to run the Dicesuki playtest stack: the Rust room server + the static frontend.
 
 ## Architecture recap
 
-Daisu is two independently deployable pieces:
+Dicesuki is two independently deployable pieces:
 
 | Piece | What it is | How it's served |
 |-------|-----------|-----------------|

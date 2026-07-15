@@ -247,6 +247,7 @@ const RECONNECT_BASE_DELAY_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 8000
 const ROOM_CLOSED_MESSAGE =
   'Lost connection to this room. It may have been closed after a period of inactivity. Rejoin to start again.'
+const SOLO_ENGINE_STOPPED_MESSAGE = 'The local dice engine stopped unexpectedly.'
 
 /**
  * Server `error` codes that can only occur while attempting to join (before a
@@ -366,7 +367,11 @@ function establishConnection(
     // re-spinning a fresh wasm room would silently lose all table state. Treat an
     // unexpected close as terminal rather than reconnecting.
     if (lastJoin?.transport === 'worker') {
-      set({ connectionStatus: 'disconnected', socket: null })
+      set({
+        connectionStatus: 'disconnected',
+        socket: null,
+        connectionError: SOLO_ENGINE_STOPPED_MESSAGE,
+      })
       return
     }
 
