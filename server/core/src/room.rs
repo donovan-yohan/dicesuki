@@ -1350,6 +1350,11 @@ impl Room {
                             // orientation this face was read at.
                             die.settled_rotation = Some(rotation);
                             newly_settled.push((dice_id.clone(), face_value));
+                            // Freeze the body so it stops micro-drifting under the
+                            // resting contact solver (resting-die jitter). Woken
+                            // again by contact/drag/motion. `die` (borrows self.dice)
+                            // and self.physics are disjoint fields.
+                            self.physics.sleep_body(handle);
                         }
                         _ => {}
                     }
@@ -3497,6 +3502,61 @@ mod physics_tick_helper_tests {
         assert!((1..=6).contains(face_value), "D6 face value must be 1-6, got {face_value}");
         assert!(!room.dice.get("d1").unwrap().is_rolling, "Die should no longer be rolling");
         assert!(room.dice.get("d1").unwrap().face_value.is_some(), "Die should have a face value");
+    }
+
+    /// Regression: once a die settles, its body is put to sleep and MUST NOT
+    /// drift when the simulation keeps stepping. Before the fix, resting dice
+    /// were re-solved every substep and micro-drifted (visible jitter). Also
+    /// asserts the body stays wakeable (a shove re-rolls it).
+    #[test]
+    fn test_settled_die_is_frozen_and_does_not_jitter() {
+        let mut room = make_room_with_player_and_die("d1");
+        room.roll_player_dice("p1");
+        let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+
+        // Drive to physical rest.
+        let mut at_rest = false;
+        for _ in 0..600 {
+            room.physics.step();
+            if room.physics.is_at_rest(handle) {
+                at_rest = true;
+                break;
+            }
+        }
+        assert!(at_rest, "die should come to rest");
+
+        // Settle it through the room pipeline (record rest start, cross threshold).
+        room.tick_count = 100;
+        room.check_settled_dice();
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+        let rest_ticks = (REST_DURATION_MS as f64 / (1000.0 / 60.0)) as u64 + 1;
+        room.tick_count = 100 + rest_ticks;
+        assert!(!room.check_settled_dice().is_empty(), "die should settle");
+
+        // Capture pose, then keep stepping. A slept body is excluded from
+        // integration, so the pose must be bit-stable (no jitter).
+        let before = room.physics.get_position(handle).expect("position");
+        for _ in 0..180 {
+            room.physics.step();
+        }
+        let after = room.physics.get_position(handle).expect("position");
+        let drift = ((after[0] - before[0]).powi(2)
+            + (after[1] - before[1]).powi(2)
+            + (after[2] - before[2]).powi(2))
+        .sqrt();
+        assert!(drift < 1e-4, "settled die drifted {drift} U after sleeping (jitter regression)");
+        assert!(
+            room.physics.get_linear_speed(handle) < 1e-4,
+            "slept die must report zero linear speed"
+        );
+
+        // Still wakeable: a hard shove must re-roll it (knock detection intact).
+        room.physics.set_linear_velocity(handle, [40.0, 0.0, 0.0]);
+        room.physics.step();
+        assert!(
+            !room.wake_knocked_dice().is_empty(),
+            "a shoved settled die must wake and re-roll"
+        );
     }
 
     // ── wake_knocked_dice ────────────────────────────────────────────────────
