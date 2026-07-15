@@ -901,6 +901,44 @@ impl PhysicsWorld {
         }
     }
 
+    /// Zero a body's velocity and put it to sleep so a settled die stops
+    /// integrating and holds its pose exactly.
+    ///
+    /// Dice are created `can_sleep(false)` so they never auto-sleep mid-tumble;
+    /// the cost is that a resting die is re-solved every substep, and under the
+    /// large engine gravity the contact solver keeps injecting sub-threshold
+    /// penetration-correction velocity that never damps out. That micro-drift
+    /// dithers the authoritative snapshot (crossing `POSITION_DELTA_THRESHOLD`
+    /// intermittently) and renders as visible resting-die jitter. Forcing sleep
+    /// at the settle point — already gated on `REST_DURATION_MS` of sub-threshold
+    /// motion — freezes the body: a sleeping body is excluded from integration,
+    /// so it cannot drift. Contact from a moving die (Rapier auto-wakes on
+    /// contact with an active body) or any applied impulse/velocity (roll, drag,
+    /// motion) wakes it again, so knock re-detection still works.
+    ///
+    /// Velocities are zeroed with `wake_up = false` so the subsequent `sleep()`
+    /// is not immediately undone.
+    ///
+    /// `can_sleep(false)` at body creation sets `normalized_linear_threshold =
+    /// -1.0`, which the island manager reads as "never sleepable" and force-wakes
+    /// every step — so a bare `sleep()` does not stick. We restore this body's
+    /// default sleep thresholds first so the forced sleep persists. The die stays
+    /// otherwise identical: its `time_until_sleep` (2 s) is far longer than the
+    /// ~0.5 s settle gate, so this explicit call — never Rapier's auto-sleep — is
+    /// what freezes a settled die; the enabled thresholds only let that freeze
+    /// hold (and act as a belt-and-suspenders if a die is ever near-still for 2 s).
+    pub fn sleep_body(&mut self, handle: RigidBodyHandle) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            rb.set_linvel(vector![0.0, 0.0, 0.0], false);
+            rb.set_angvel(vector![0.0, 0.0, 0.0], false);
+            let activation = rb.activation_mut();
+            activation.normalized_linear_threshold =
+                RigidBodyActivation::default_normalized_linear_threshold();
+            activation.angular_threshold = RigidBodyActivation::default_angular_threshold();
+            rb.sleep();
+        }
+    }
+
     /// Returns the number of rigid bodies currently in the simulation.
     #[must_use]
     pub fn body_count(&self) -> usize {
