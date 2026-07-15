@@ -1,7 +1,7 @@
 # Exec Plan — Host-Resizable Shared Arena & Per-Client View Rotation
 
 * Date: 2026/07/14
-* Status: Active (planning) — awaiting approval to build
+* Status: Completed — resize shipped in PR #130; view rotation in the follow-up PR
 * ADR: [Shared ADR 009](../../adrs/shared/009-host-resizable-arena-and-view-rotation.md) (Proposed)
 * Scope: two related features — (1) host resizes the shared, server-authoritative arena
   via presets (16:9 / 9:16 / 1:1 / host-window), solo included with an "auto" option;

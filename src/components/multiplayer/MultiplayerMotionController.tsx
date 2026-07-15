@@ -4,6 +4,7 @@ import { useDeviceMotionRef } from '../../contexts/DeviceMotionContext'
 import { useUIStore } from '../../store/useUIStore'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { shakeImpulseForFrame } from '../../lib/motionImpulse'
+import { rotateXZ } from '../../lib/viewRotation'
 
 /**
  * Bridges DeviceMotion shake detection into a room.
@@ -36,7 +37,12 @@ export function MultiplayerMotionController() {
     })
     wasShakingRef.current = isShakingRef.current
     if (impulse) {
-      useMultiplayerStore.getState().sendMotionImpulse(impulse)
+      // Align the world-space toss with this client's view rotation so a tilt
+      // tosses dice toward where the player sees "that way" (ADR 009). Drag/throw
+      // ride the actual camera, so only this sensor-derived vector needs rotating.
+      const viewRotation = useUIStore.getState().viewRotation
+      const aligned = viewRotation === 0 ? impulse : rotateXZ(impulse, viewRotation)
+      useMultiplayerStore.getState().sendMotionImpulse(aligned)
     }
   })
 
