@@ -15,21 +15,19 @@ export function DeviceMotionProvider({ children }: { children: ReactNode }) {
   const deviceMotion = useDeviceMotion()
 
   const refValue = useMemo<DeviceMotionRefContextValue>(() => ({
-    gravityRef: deviceMotion.gravityRef,
+    motionFieldRef: deviceMotion.motionFieldRef,
     isShakingRef: deviceMotion.isShakingRef,
-  }), [deviceMotion.gravityRef, deviceMotion.isShakingRef])
+  }), [deviceMotion.motionFieldRef, deviceMotion.isShakingRef])
 
   const stateValue = useMemo<DeviceMotionStateContextValue>(() => ({
     isSupported: deviceMotion.isSupported,
     permissionState: deviceMotion.permissionState,
     isShaking: deviceMotion.isShaking,
-    gravityVector: deviceMotion.gravityVector,
     requestPermission: deviceMotion.requestPermission,
   }), [
     deviceMotion.isSupported,
     deviceMotion.permissionState,
     deviceMotion.isShaking,
-    deviceMotion.gravityVector,
     deviceMotion.requestPermission,
   ])
 

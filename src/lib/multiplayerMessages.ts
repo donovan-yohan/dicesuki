@@ -285,13 +285,15 @@ export function setRoomName(settings: RoomSettings, name: string): RoomSettings 
 }
 
 /**
- * Device-motion (shake/gravity) input. `impulse` is a world-space vector the
- * server applies to the dice the sender may affect under the room's
- * `motionControl` policy. Rate-limited and magnitude-clamped server-side.
+ * Continuous device-motion field (Shared-ADR-010). `field` is a world-space
+ * acceleration (engine U/s²) — the "shake your dice box" pseudo-force — the server
+ * applies each tick to the dice the sender may affect under the room's
+ * `motionControl` policy. Latched with a staleness timeout and magnitude-clamped
+ * server-side. Streamed while motion is engaged; a single zero field stops it.
  */
-export interface MotionImpulseMessage {
-  type: 'motion_impulse'
-  impulse: [number, number, number]
+export interface MotionFieldMessage {
+  type: 'motion_field'
+  field: [number, number, number]
 }
 
 /**
@@ -314,7 +316,7 @@ export type ClientMessage =
   | DragMoveMessage
   | DragEndMessage
   | UpdateSettingsMessage
-  | MotionImpulseMessage
+  | MotionFieldMessage
   | SetArenaMessage
 
 // ==========================================
@@ -383,8 +385,8 @@ export interface EngineConfig {
   dragDistanceThreshold: number
   dragSpinFactor: number
   dragRollFactor: number
-  motionImpulseMinIntervalMs: number
-  motionImpulseMaxMagnitude: number
+  motionFieldMaxAccel: number
+  motionFieldStaleMs: number
   arenaHalfX: number
   arenaHalfZ: number
   arenaGroundY: number

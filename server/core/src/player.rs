@@ -29,9 +29,14 @@ pub struct Player {
     /// When the connection dropped, used to expire the grace window. `None`
     /// while connected.
     pub disconnected_at: Option<Instant>,
-    /// Timestamp of the last accepted `motion_impulse` from this player, used to
-    /// rate-limit device-motion input. `None` until the first impulse.
-    pub last_motion_impulse_at: Option<Instant>,
+    /// This player's latest device-motion field (U/s²): the continuous "shake your
+    /// dice box" acceleration applied each tick to their own dice (Shared-ADR-010).
+    /// `[0, 0, 0]` when motion is idle. Clamped to `MOTION_FIELD_MAX_ACCEL` when set.
+    pub motion_field: [f32; 3],
+    /// When `motion_field` was last updated, used to expire a stale field
+    /// (`MOTION_FIELD_STALE_MS`) so dice stop if updates cease without a closing
+    /// zero. `None` until the first `motion_field` message.
+    pub motion_field_at: Option<Instant>,
 }
 
 impl Player {
@@ -53,7 +58,8 @@ impl Player {
             user_id: None,
             connected: true,
             disconnected_at: None,
-            last_motion_impulse_at: None,
+            motion_field: [0.0, 0.0, 0.0],
+            motion_field_at: None,
         }
     }
 

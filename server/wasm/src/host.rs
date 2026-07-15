@@ -216,10 +216,12 @@ impl RoomHost {
                 }
             }
 
-            ClientMessage::MotionImpulse { impulse } if self.joined => {
-                // Motion is high-frequency; a dropped/rate-limited impulse is
-                // silently ignored, matching the server.
-                let _ = self.room.apply_motion_impulse(SOLO_PLAYER_ID, impulse);
+            ClientMessage::MotionField { field } if self.joined => {
+                // Motion is high-frequency; a field dropped because motion is
+                // disabled is silently ignored, matching the native server. A
+                // non-zero field sets `is_simulating`, which the worker's persistent
+                // tick timer (roomWorker.ts) picks up — no explicit start needed.
+                let _ = self.room.set_motion_field(SOLO_PLAYER_ID, field);
             }
 
             ClientMessage::Leave if self.joined => {

@@ -53,50 +53,43 @@ export const DRAG_PLANE_HEIGHT = 2.0
 export const VELOCITY_HISTORY_SIZE = 5
 
 // ============================================================================
-// DEVICE MOTION (Tilt & Shake sensor scaling — client)
+// DEVICE MOTION (sensor scaling & shake detection — client)
 // ============================================================================
 
 /**
- * Scale factor mapping device tilt angle to an effective-gravity force.
- * - `15` (current): strong tilt response. `25` very responsive; `5` subtle.
+ * Scale mapping the phone's linear acceleration (m/s²) to the engine-unit motion
+ * field (U/s²) — the continuous "shake your dice box" pseudo-force the room applies
+ * to the local player's own dice (Shared-ADR-010). This is the tunable feel knob:
+ * the full physical scale is 62.5 U/m, and the engine runs at ≈0.39× real gravity
+ * (−240 vs −613 U/s²), so ~25 keeps the shake proportional to the engine's floaty
+ * feel rather than overpowering it. The room re-clamps to its authoritative
+ * `motionFieldMaxAccel`, so this only shapes feel, never safety.
+ * - `25` (current): a lively but controllable box. Higher = more violent slides;
+ *   lower = subtler. Recommended `10` (gentle) – `62.5` (full physical scale).
  */
-export const GRAVITY_SCALE = 15
+export const MOTION_ACCEL_SCALE = 25
 
 /**
- * Scale factor for the linear-acceleration pseudo-force when the phone moves.
- * - `15` (current): moderate. `25` high sensitivity; `5` low.
+ * Minimum linear-acceleration magnitude (m/s²) that registers as motion, filtering
+ * hand tremors and sensor noise so a still — or statically tilted — phone produces
+ * a zero field and the dice settle (Shared-ADR-010: shake the box, don't tilt it).
+ * - `1.0` (current): filters small vibrations. `3.0` only large moves; `0.5` very sensitive.
  */
-export const ACCELERATION_SCALE = 15
+export const MOTION_DEADZONE = 1.0
 
 /**
- * Minimum acceleration magnitude (m/s²) to detect a shake.
+ * Minimum acceleration magnitude (m/s²) that flags a shake for UI feedback
+ * (DeviceMotionButton's "Shaking!" indicator). This is NOT a physics input — the
+ * continuous field drives the dice; this only lights up the UI.
  * - `20` (current): moderate. `30` needs hard shaking; `10` triggers on light shakes.
  */
 export const SHAKE_THRESHOLD = 20
 
 /**
- * Duration (ms) the shake state persists after detection, preventing rapid retrigger.
- * - `500` (current): half-second cooldown. `1000` full second; `250` quick re-shake.
+ * Duration (ms) the shake UI state persists after detection, preventing flicker.
+ * - `500` (current): half-second. `1000` full second; `250` quick re-shake.
  */
 export const SHAKE_DURATION = 500
-
-/**
- * Minimum tilt (m/s²) to register as an actual tilt, filtering sensor noise.
- * - `2.0` (current): filters minor jitter. `5.0` needs significant tilt; `0.5` very sensitive.
- */
-export const TILT_DEADZONE = 2.0
-
-/**
- * Minimum linear acceleration (m/s²) to register, filtering hand tremors.
- * - `1.0` (current): filters small vibrations. `3.0` only large moves; `0.5` very sensitive.
- */
-export const ACCELERATION_DEADZONE = 1.0
-
-/**
- * Throttle (ms) for UI updates driven by motion events (perf).
- * - `100` (current): ~10fps UI. `50` smoother/more CPU; `200` more performant.
- */
-export const UI_UPDATE_THROTTLE = 100
 
 // ============================================================================
 // HAPTIC FEEDBACK (client vibration mapping)
@@ -205,55 +198,13 @@ export const COLLISION_IMPACT_STRONG_SPEED = 61.25
 export const MULTIPLAYER_DRAG_THROTTLE_MS = 33
 
 /**
- * Minimum interval (ms) between `motion_impulse` messages the client sends. A
- * client-side send throttle so a shaking phone does not flood the socket; the
- * room's authoritative rate-limit (`motionImpulseMinIntervalMs`) is defined in
- * `dicesuki-core` and delivered via `EngineConfig`.
- * - `50` ≈ 20Hz (current). Recommended `33` (30Hz) – `100` (10Hz).
+ * Interval (ms) between `motion_field` messages the client streams while device
+ * motion is engaged. A client-side send throttle so a moving phone does not flood
+ * the socket; the room latches the last field and integrates it every tick, with
+ * its own authoritative staleness (`motionFieldStaleMs`) and magnitude clamp
+ * (`motionFieldMaxAccel`) defined once in `dicesuki-core` and delivered via
+ * `EngineConfig`.
+ * - `33` ≈ 30Hz (current): smooth for a continuous field. Recommended `33` (30Hz) –
+ *   `100` (10Hz).
  */
-export const MOTION_IMPULSE_MIN_INTERVAL_MS = 50
-
-/**
- * Magnitude (engine U/s target Δv) the client clamps a shake impulse to before
- * sending, so it never emits an impulse the room would scale down anyway. Mirrors
- * the room's authoritative clamp (`motionImpulseMaxMagnitude`), defined once in
- * `dicesuki-core` and delivered via `EngineConfig`.
- * - `156.25` (current): the room clamp — peak vigorous-shake hand speed 2.5 m/s ×
- *   62.5 U/m. Rescaled from the old `30` (old units) by the same factor the SI
- *   recalibration applied to the clamp (156.25 / 30 = 5.208), so the whole shake
- *   mapping below keeps its clamp-relative shape. Recommended `94`–`188` U/s.
- */
-export const MOTION_IMPULSE_MAX_MAGNITUDE = 156.25
-
-/**
- * Upward (world +Y) component (engine U/s) of a shake-to-roll impulse. Mostly
- * upward so dice hop off the table and tumble, mirroring the single-player shake.
- * - `20.83` (current): the old `4` rescaled by 156.25 / 30 = 5.208 (preserving its
- *   13.3% share of the clamp). As a real quantity that is ≈ 0.333 m/s, at the
- *   `ROLL_VERTICAL_MIN` (0.3 m/s) end of the toss vertical band — a firm hop that
- *   clears the tray. Recommended `16`–`31` U/s (0.25–0.5 m/s).
- */
-export const SHAKE_IMPULSE_VERTICAL = 20.83
-
-/**
- * Scale applied to the sensor's effective-gravity horizontal (X/Z) components when
- * mapping a shake to a world-space impulse (U/s), giving horizontal energy in the
- * shake direction. Not dimensionless in effect: it converts a sensor magnitude
- * (unchanged by the recalibration) into an engine-U/s impulse component, so it
- * rescales with the impulse units.
- * - `1.5625` (current): the old `0.3` rescaled by 156.25 / 30 = 5.208, keeping the
- *   horizontal energy the same fraction of the clamp as before. Recommended `1.0`
- *   (subtle) – `2.6` (skittery).
- */
-export const SHAKE_IMPULSE_HORIZONTAL_SCALE = 1.5625
-
-/**
- * Peak random horizontal jitter (engine U/s) added to each shake impulse so
- * identically-stacked dice scatter instead of translating in lockstep. Applied as
- * `(rng() - 0.5) * 2 * SHAKE_IMPULSE_JITTER` on X and Z.
- * - `7.8125` (current): the old `1.5` rescaled by 156.25 / 30 = 5.208, so the
- *   scatter stays the same fraction of the clamp (≈5%) rather than becoming
- *   negligible against the rescaled vertical/horizontal terms. Recommended `0`
- *   (deterministic) – `16` (chaotic).
- */
-export const SHAKE_IMPULSE_JITTER = 7.8125
+export const MOTION_FIELD_SEND_THROTTLE_MS = 33

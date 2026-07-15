@@ -1,12 +1,13 @@
 import { createContext, useContext, type MutableRefObject } from 'react'
-import * as THREE from 'three'
+import type { MotionField } from '../lib/motionField'
 
 /**
  * Ref context - Contains only the stable refs
  * This context NEVER changes, so components subscribing to it never re-render
  */
 export interface DeviceMotionRefContext {
-  gravityRef: MutableRefObject<THREE.Vector3>
+  /** Continuous "dice box" field in engine units (U/s²); `[0,0,0]` when still. */
+  motionFieldRef: MutableRefObject<MotionField>
   isShakingRef: MutableRefObject<boolean>
 }
 
@@ -18,7 +19,6 @@ export interface DeviceMotionStateContext {
   isSupported: boolean
   permissionState: 'prompt' | 'granted' | 'denied' | 'unsupported'
   isShaking: boolean
-  gravityVector: THREE.Vector3
   requestPermission: () => Promise<void>
 }
 
@@ -26,7 +26,7 @@ export const DeviceMotionRefContext = createContext<DeviceMotionRefContext | nul
 export const DeviceMotionStateContext = createContext<DeviceMotionStateContext | null>(null)
 
 /**
- * Hook to access ONLY the gravityRef (for physics)
+ * Hook to access ONLY the motion refs (for physics)
  * Components using this will NEVER re-render from device motion updates
  */
 export function useDeviceMotionRef(): DeviceMotionRefContext {

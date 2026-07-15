@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { Vector3 } from 'three'
 import type { DeviceMotionStateContext } from '../../contexts/DeviceMotionContext'
 
 // Mock the DeviceMotion browser API at the module level (Frontend-ADR-004) so we
@@ -21,7 +20,6 @@ const makeMotionState = (
   isSupported: true,
   permissionState: 'granted',
   isShaking: false,
-  gravityVector: new Vector3(0, -9.81, 0),
   requestPermission: vi.fn(async () => {}),
   ...over,
 })

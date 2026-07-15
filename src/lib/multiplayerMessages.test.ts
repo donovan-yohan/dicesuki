@@ -192,9 +192,9 @@ describe('multiplayerMessages', () => {
   })
 
   describe('motion control protocol', () => {
-    it('type-checks a motion_impulse message', () => {
-      const msg: ClientMessage = { type: 'motion_impulse', impulse: [1, -2, 0.5] }
-      expect(msg.type).toBe('motion_impulse')
+    it('type-checks a motion_field message', () => {
+      const msg: ClientMessage = { type: 'motion_field', field: [1, -2, 0.5] }
+      expect(msg.type).toBe('motion_field')
     })
 
     it('getMotionControl reads the setting and defaults when absent/invalid', () => {

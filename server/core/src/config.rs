@@ -67,9 +67,9 @@ pub struct EngineConfig {
     pub drag_spin_factor: f32,
     pub drag_roll_factor: f32,
 
-    // Motion control policy (mirrored client-side)
-    pub motion_impulse_min_interval_ms: u64,
-    pub motion_impulse_max_magnitude: f32,
+    // Device-motion field (Shared-ADR-010; mirrored client-side)
+    pub motion_field_max_accel: f32,
+    pub motion_field_stale_ms: u64,
 
     // Arena bounds (per room: default 9:16 portrait, aspect-fit for solo)
     pub arena_half_x: f32,
@@ -116,8 +116,8 @@ impl EngineConfig {
             drag_spin_factor: physics::DRAG_SPIN_FACTOR,
             drag_roll_factor: physics::DRAG_ROLL_FACTOR,
 
-            motion_impulse_min_interval_ms: physics::MOTION_IMPULSE_MIN_INTERVAL_MS,
-            motion_impulse_max_magnitude: physics::MOTION_IMPULSE_MAX_MAGNITUDE,
+            motion_field_max_accel: physics::MOTION_FIELD_MAX_ACCEL,
+            motion_field_stale_ms: physics::MOTION_FIELD_STALE_MS,
 
             arena_half_x: physics::WALL_HALF_X,
             arena_half_z: physics::WALL_HALF_Z,
@@ -176,10 +176,10 @@ mod tests {
         assert!((c.arena_half_x - physics::WALL_HALF_X).abs() < f32::EPSILON);
         assert!((c.arena_half_z - physics::WALL_HALF_Z).abs() < f32::EPSILON);
         assert_eq!(c.rest_duration_ms, physics::REST_DURATION_MS);
-        assert_eq!(
-            c.motion_impulse_min_interval_ms,
-            physics::MOTION_IMPULSE_MIN_INTERVAL_MS
+        assert!(
+            (c.motion_field_max_accel - physics::MOTION_FIELD_MAX_ACCEL).abs() < f32::EPSILON
         );
+        assert_eq!(c.motion_field_stale_ms, physics::MOTION_FIELD_STALE_MS);
     }
 
     /// `current()` must remain the fixed default arena: it is what the wasm
