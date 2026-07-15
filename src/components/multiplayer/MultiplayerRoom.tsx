@@ -50,7 +50,8 @@ export function MultiplayerRoom() {
   const [wakingNotice, setWakingNotice] = useState<string | null>(null)
 
   const multiplayerBackend = useMultiplayerDiceBackend()
-  const roomIsReady = connectionStatus === 'connected' && localPlayerId !== null
+  const roomIsReady =
+    connectionStatus === 'connected' && localPlayerId !== null && engineConfig !== null
 
   // Clear local dice state on mount; disconnect and reset on unmount
   useEffect(() => {
