@@ -22,6 +22,38 @@
 export const DICE_PIXELS_PER_UNIT = 65
 
 /**
+ * On-screen scale for phone-sized screens. The desktop-calibrated
+ * {@link DICE_PIXELS_PER_UNIT} makes dice dominate a small viewport (few
+ * dice-widths across), so phones use a smaller fixed scale: dice read smaller and
+ * the tray fits more of them. Still a *fixed* real-world size (ADR-008), just
+ * calibrated for small screens. Live-tune with `?ppu=NN`.
+ * - `46` (current): ~29% smaller than desktop. Recommended ~40–56.
+ */
+export const MOBILE_DICE_PIXELS_PER_UNIT = 46
+
+/**
+ * A viewport whose SHORTER side is ≤ this (CSS px) is treated as a phone and uses
+ * {@link MOBILE_DICE_PIXELS_PER_UNIT}. Short-side keying catches phones in either
+ * orientation while leaving tablets/desktops on the desktop scale.
+ */
+export const MOBILE_VIEWPORT_MAX_PX = 600
+
+/**
+ * The device-appropriate base scale before any `?ppu` override: the smaller mobile
+ * scale on phone-sized viewports, else the desktop scale. DOM-guarded (falls back
+ * to desktop off-DOM / in tests).
+ */
+function baseDicePixelsPerUnit(): number {
+  if (typeof window !== 'undefined') {
+    const shortSide = Math.min(window.innerWidth, window.innerHeight)
+    if (shortSide > 0 && shortSide <= MOBILE_VIEWPORT_MAX_PX) {
+      return MOBILE_DICE_PIXELS_PER_UNIT
+    }
+  }
+  return DICE_PIXELS_PER_UNIT
+}
+
+/**
  * Fraction of the viewport the arena fills (each dimension). Below 1 so the walls
  * sit inside the frustum with a visible border instead of clipping at the screen
  * edge. `0.9` (current): a ~5%-per-side margin that frames the tray. Override live
@@ -34,7 +66,7 @@ export const ARENA_VIEWPORT_FILL = 0.9
  * otherwise {@link DICE_PIXELS_PER_UNIT}. Guarded for non-DOM/test contexts.
  */
 export function resolvePixelsPerUnit(): number {
-  return readNumberParam('ppu', DICE_PIXELS_PER_UNIT, (v) => v > 0)
+  return readNumberParam('ppu', baseDicePixelsPerUnit(), (v) => v > 0)
 }
 
 /**
