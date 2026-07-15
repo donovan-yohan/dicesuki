@@ -337,7 +337,7 @@ export function MultiplayerRoom() {
 
   // Keep the branded loader up through the join round-trip. A live WebSocket is
   // not enough: `localPlayerId` arrives with room_state after the socket opens.
-  if (connectionStatus === 'connecting' || !roomIsReady) {
+  if (connectionStatus === 'connecting' || (connectionStatus === 'connected' && !roomIsReady)) {
     return <StartupSplash phase={connectionStatus === 'connecting' ? 'multiplayer' : 'room'} />
   }
 

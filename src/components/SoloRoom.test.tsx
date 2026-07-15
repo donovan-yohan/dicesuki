@@ -35,7 +35,7 @@ describe('SoloRoom startup', () => {
 
     act(() => {
       useMultiplayerStore.setState({
-        connectionStatus: 'error',
+        connectionStatus: 'disconnected',
         connectionError: 'The worker could not start.',
       })
     })

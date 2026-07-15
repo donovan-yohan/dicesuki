@@ -42,8 +42,6 @@ export function SoloRoom() {
   const rememberedColor = usePlayerIdentityStore((s) => s.color)
 
   const didSeedDefaultRef = useRef(false)
-  const didAttemptConnectionRef = useRef(false)
-
   const backend = useMultiplayerDiceBackend()
   const { addDie } = backend
   const roomIsReady =
@@ -75,7 +73,6 @@ export function SoloRoom() {
   // (guarded on the live status so we never stack two workers). The body reads
   // identity via `getState()` so it does not re-run when name/color change.
   useEffect(() => {
-    didAttemptConnectionRef.current = true
     useDiceStore.getState().reset()
     useDiceManagerStore.getState().removeAllDice()
     if (useMultiplayerStore.getState().connectionStatus === 'disconnected') {
@@ -91,7 +88,7 @@ export function SoloRoom() {
 
   const startupFailed =
     connectionStatus === 'error' ||
-    (didAttemptConnectionRef.current && connectionStatus === 'disconnected')
+    (connectionStatus === 'disconnected' && connectionError !== null)
 
   if (startupFailed) {
     const retry = () => {
