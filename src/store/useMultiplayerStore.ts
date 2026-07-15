@@ -21,7 +21,7 @@ import {
 } from '../lib/multiplayerMessages'
 import type { RoomVisibility } from '../lib/multiplayerMessages'
 import type { CarriedDie } from '../lib/roomCarry'
-import { MOTION_IMPULSE_MIN_INTERVAL_MS } from '../config/physicsConfig'
+import { MOTION_FIELD_SEND_THROTTLE_MS } from '../config/physicsConfig'
 import { getWsServerUrl } from '../lib/multiplayerServer'
 import { createWorkerRoomTransport } from '../lib/workerRoomTransport'
 import { arenaDimensionsForViewport } from '../config/renderScale'
@@ -193,12 +193,13 @@ interface MultiplayerState {
    */
   setArena: (aspect: number) => void
   /**
-   * Send a device-motion (shake/gravity) impulse. Policy-aware: silently drops
-   * when motion is disabled (`off`) and throttles to `MOTION_IMPULSE_MIN_INTERVAL_MS`.
-   * The server remains authoritative over which dice the impulse affects.
-   * The DeviceMotion sensor that feeds this lands in #74.
+   * Stream the local player's device-motion field (Shared-ADR-010). Policy-aware:
+   * silently drops when motion is disabled (`off`) and throttles to
+   * `MOTION_FIELD_SEND_THROTTLE_MS`. A zero field always passes the throttle so
+   * motion stops promptly. The server latches the field and remains authoritative
+   * over which dice it affects.
    */
-  sendMotionImpulse: (impulse: [number, number, number]) => void
+  sendMotionField: (field: [number, number, number]) => void
 
   // Drag actions
   startDrag: (dieId: string, grabOffset: [number, number, number], worldPosition: [number, number, number]) => void
@@ -257,9 +258,13 @@ const JOIN_ERROR_CODES = new Set(['ROOM_FULL', 'INVALID_NAME', 'INVALID_COLOR', 
 
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
-/** Timestamp (performance.now) of the last sent motion impulse, for throttling.
- *  Starts at -Infinity so the first impulse always passes the throttle. */
-let lastMotionImpulseSentAt = Number.NEGATIVE_INFINITY
+/** Timestamp (performance.now) of the last sent motion field, for throttling.
+ *  Starts at -Infinity so the first field always passes the throttle. */
+let lastMotionFieldSentAt = Number.NEGATIVE_INFINITY
+/** Whether the last sent motion field was the zero (stop) field. Lets a single
+ *  stop through while motion is enabled, then suppresses the steady stream of
+ *  zeros a held-still phone would otherwise emit every frame. */
+let lastMotionFieldWasZero = false
 
 function clearReconnectTimer() {
   if (reconnectTimer !== null) {
@@ -788,18 +793,30 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     get().sendMessage({ type: 'set_arena', aspect })
   },
 
-  sendMotionImpulse: (impulse: [number, number, number]) => {
+  sendMotionField: (field: [number, number, number]) => {
     // Optimistic policy gate: when motion is disabled room-wide there is nothing
     // to send. The server re-checks the policy and ownership authoritatively.
     if (getMotionControl(get().roomSettings) === 'off') return
 
-    // Throttle to the shared rate limit so the server never rejects our own
-    // impulses for arriving too fast.
-    const now = performance.now()
-    if (now - lastMotionImpulseSentAt < MOTION_IMPULSE_MIN_INTERVAL_MS) return
-    lastMotionImpulseSentAt = now
+    // Throttle the continuous stream so a moving phone doesn't flood the socket. A
+    // zero field (motion stopping) skips the throttle so the dice stop promptly —
+    // but only the FIRST zero after motion: a held-still phone (motion on, no shake)
+    // emits a zero field every frame, and those must not flood the socket.
+    const isZero = field[0] === 0 && field[1] === 0 && field[2] === 0
+    if (isZero) {
+      if (lastMotionFieldWasZero) return
+      lastMotionFieldWasZero = true
+      lastMotionFieldSentAt = performance.now()
+      get().sendMessage({ type: 'motion_field', field })
+      return
+    }
 
-    get().sendMessage({ type: 'motion_impulse', impulse })
+    const now = performance.now()
+    if (now - lastMotionFieldSentAt < MOTION_FIELD_SEND_THROTTLE_MS) return
+    lastMotionFieldSentAt = now
+    lastMotionFieldWasZero = false
+
+    get().sendMessage({ type: 'motion_field', field })
   },
 
   startDrag: (dieId, grabOffset, worldPosition) => {

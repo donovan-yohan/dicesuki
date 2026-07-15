@@ -163,7 +163,7 @@ describe('useMultiplayerStore', () => {
       expect(send).not.toHaveBeenCalled()
     })
 
-    it('sendMotionImpulse does nothing when motion is off', () => {
+    it('sendMotionField does nothing when motion is off', () => {
       const send = vi.fn()
       useMultiplayerStore.setState({
         connectionStatus: 'connected',
@@ -171,12 +171,12 @@ describe('useMultiplayerStore', () => {
         roomSettings: { version: 1, motionControl: 'off' },
       })
 
-      useMultiplayerStore.getState().sendMotionImpulse([1, 0, 0])
+      useMultiplayerStore.getState().sendMotionField([1, 0, 0])
 
       expect(send).not.toHaveBeenCalled()
     })
 
-    it('sendMotionImpulse sends, then throttles, then sends again after the interval', () => {
+    it('sendMotionField sends, then throttles, then sends again after the interval', () => {
       vi.useFakeTimers({ toFake: ['performance'] })
       try {
         const send = vi.fn()
@@ -187,15 +187,53 @@ describe('useMultiplayerStore', () => {
         })
 
         const store = useMultiplayerStore.getState()
-        store.sendMotionImpulse([1, 0, 0])
-        store.sendMotionImpulse([2, 0, 0]) // within throttle window — dropped
+        store.sendMotionField([1, 0, 0])
+        store.sendMotionField([2, 0, 0]) // within throttle window — dropped
         expect(send).toHaveBeenCalledTimes(1)
         const first = JSON.parse(send.mock.calls[0][0])
-        expect(first).toEqual({ type: 'motion_impulse', impulse: [1, 0, 0] })
+        expect(first).toEqual({ type: 'motion_field', field: [1, 0, 0] })
 
-        vi.advanceTimersByTime(60) // > MOTION_IMPULSE_MIN_INTERVAL_MS (50)
-        store.sendMotionImpulse([3, 0, 0])
+        vi.advanceTimersByTime(40) // > MOTION_FIELD_SEND_THROTTLE_MS (33)
+        store.sendMotionField([3, 0, 0])
         expect(send).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('sendMotionField lets a zero field through immediately to stop motion', () => {
+      vi.useFakeTimers({ toFake: ['performance'] })
+      try {
+        const send = vi.fn()
+        useMultiplayerStore.setState({
+          connectionStatus: 'connected',
+          socket: { send } as unknown as WebSocket,
+          roomSettings: { version: 1, motionControl: 'own_dice' },
+        })
+
+        // Advance well past any throttle state carried over from a prior test so
+        // this case stands on its own regardless of order.
+        vi.advanceTimersByTime(1000)
+
+        const store = useMultiplayerStore.getState()
+        store.sendMotionField([5, 0, 0]) // sends (call 1)
+        store.sendMotionField([2, 0, 0]) // within throttle → dropped
+        // A zero field bypasses the throttle so the dice stop promptly (call 2).
+        store.sendMotionField([0, 0, 0])
+        expect(send).toHaveBeenCalledTimes(2)
+        const stop = JSON.parse(send.mock.calls[1][0])
+        expect(stop).toEqual({ type: 'motion_field', field: [0, 0, 0] })
+
+        // A held-still phone (motion on) emits a zero field every frame; only the
+        // first stop is sent — subsequent zeros must not flood the socket.
+        store.sendMotionField([0, 0, 0])
+        store.sendMotionField([0, 0, 0])
+        expect(send).toHaveBeenCalledTimes(2)
+
+        // Resuming motion sends again (and re-arms the stop).
+        vi.advanceTimersByTime(1000)
+        store.sendMotionField([4, 0, 0])
+        expect(send).toHaveBeenCalledTimes(3)
       } finally {
         vi.useRealTimers()
       }

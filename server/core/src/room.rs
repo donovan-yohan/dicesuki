@@ -17,7 +17,7 @@ use crate::physics::{
     DRAG_WALL_MARGIN, SETTLED_ORIENTATION_KNOCK_ANGLE,
     THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
     ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
-    MOTION_IMPULSE_MIN_INTERVAL_MS, MOTION_IMPULSE_MAX_MAGNITUDE,
+    MOTION_FIELD_MAX_ACCEL, MOTION_FIELD_STALE_MS, TICK_DT,
 };
 use crate::dice::{clamp_position_within, clamp_spawn_position, create_dice_body_with_material, generate_roll_impulse, generate_roll_spin, generate_spawn_position};
 use crate::face_detection::detect_face_value;
@@ -45,8 +45,6 @@ pub enum RoomError {
     DuplicateDiceId,
     DuplicateInventoryDie,
     NotHost,
-    /// A `motion_impulse` arrived before the per-player rate-limit window elapsed.
-    MotionRateLimited,
     /// Device-motion input is disabled for this room (`motionControl == off`), or
     /// the sender is not permitted to affect any dice under the current policy.
     MotionNotAllowed,
@@ -70,7 +68,6 @@ impl RoomError {
             RoomError::DuplicateDiceId => "DUPLICATE_DICE_ID",
             RoomError::DuplicateInventoryDie => "DUPLICATE_INVENTORY_DIE",
             RoomError::NotHost => "NOT_HOST",
-            RoomError::MotionRateLimited => "MOTION_RATE_LIMITED",
             RoomError::MotionNotAllowed => "MOTION_NOT_ALLOWED",
         }
     }
@@ -91,7 +88,6 @@ impl std::fmt::Display for RoomError {
             RoomError::DuplicateDiceId => "Duplicate dice ID in spawn request",
             RoomError::DuplicateInventoryDie => "That inventory die is already on the table",
             RoomError::NotHost => "Only the host can change room settings",
-            RoomError::MotionRateLimited => "Motion input is being sent too quickly",
             RoomError::MotionNotAllowed => "Motion input is not allowed in this room",
         };
         write!(f, "{msg}")
@@ -175,7 +171,7 @@ pub fn sanitize_room_name(raw: &str) -> String {
 /// Host-controlled policy governing which dice a player's device-motion
 /// (shake/gravity) input may affect. Stored in [`RoomSettings`] under
 /// [`MOTION_CONTROL_SETTING`] and enforced server-side by
-/// [`Room::apply_motion_impulse`] via [`Room::can_apply_motion`].
+/// [`Room::set_motion_field`] via [`Room::can_apply_motion`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MotionControl {
     /// Motion input is disabled room-wide; no dice respond to shake/gravity.
@@ -505,24 +501,25 @@ impl Room {
         }
     }
 
-    /// Apply a device-motion impulse from `player_id` to every die the sender is
-    /// allowed to affect under the room's `motionControl` policy.
+    /// Latch `player_id`'s device-motion field (Shared-ADR-010): the continuous
+    /// "shake your dice box" acceleration (U/s², world space) applied every tick to
+    /// the dice the sender may affect under the room's `motionControl` policy. The
+    /// field is clamped to `MOTION_FIELD_MAX_ACCEL` and stored on the player;
+    /// [`Room::apply_motion_forces`] integrates it each tick until a new field
+    /// arrives or it goes stale (`MOTION_FIELD_STALE_MS`). A zero field stops the
+    /// player's motion immediately.
     ///
-    /// The impulse is clamped to `MOTION_IMPULSE_MAX_MAGNITUDE` and accepted at
-    /// most once per `MOTION_IMPULSE_MIN_INTERVAL_MS` per player. Affected dice
-    /// re-enter the settle pipeline so their authoritative face rebroadcasts.
-    /// Returns the ids of the dice that were nudged (may be empty).
+    /// A non-zero field (re)starts the simulation loop so an idle room wakes.
     ///
     /// # Errors
     ///
     /// - `PlayerNotFound` if `player_id` is not in the room.
     /// - `MotionNotAllowed` if motion is disabled room-wide (`motionControl == off`).
-    /// - `MotionRateLimited` if called again within the rate-limit window.
-    pub fn apply_motion_impulse(
+    pub fn set_motion_field(
         &mut self,
         player_id: &str,
-        impulse: [f32; 3],
-    ) -> Result<Vec<String>, RoomError> {
+        field: [f32; 3],
+    ) -> Result<(), RoomError> {
         if !self.players.contains_key(player_id) {
             return Err(RoomError::PlayerNotFound);
         }
@@ -530,50 +527,78 @@ impl Room {
             return Err(RoomError::MotionNotAllowed);
         }
 
-        // Per-player rate limit.
-        let now = Instant::now();
-        let last = self.players.get(player_id)
-            .expect("player exists: contains_key checked above")
-            .last_motion_impulse_at;
-        if let Some(last) = last {
-            if now.duration_since(last) < Duration::from_millis(MOTION_IMPULSE_MIN_INTERVAL_MS) {
-                return Err(RoomError::MotionRateLimited);
-            }
-        }
+        // Clamp so a miscalibrated/malicious client cannot fling dice; the per-tick
+        // MAX_DICE_VELOCITY clamp is the final bound on the resulting speed.
+        let clamped = clamp_impulse(field, MOTION_FIELD_MAX_ACCEL);
+        let is_active = clamped != [0.0, 0.0, 0.0];
 
-        // Clamp magnitude so a shake can never launch dice out of the arena.
-        let clamped = clamp_impulse(impulse, MOTION_IMPULSE_MAX_MAGNITUDE);
+        let player = self.players.get_mut(player_id)
+            .expect("player exists: contains_key checked above");
+        player.motion_field = clamped;
+        player.motion_field_at = Some(Instant::now());
 
-        // Every die the sender may affect under the current policy.
-        let target_ids: Vec<String> = self.dice.iter()
-            .filter(|(_, die)| self.can_apply_motion(player_id, die))
-            .map(|(id, _)| id.clone())
-            .collect();
-
-        for die_id in &target_ids {
-            if let Some(die) = self.dice.get_mut(die_id) {
-                if let Some(handle) = die.body_handle {
-                    // `clamped` is a target Δv (U/s); apply it mass-scaled so a
-                    // shake imparts the same velocity to every die type.
-                    self.physics.apply_velocity_impulse(handle, clamped);
-                }
-                // Re-wake the die so it re-enters the settle pipeline and its
-                // authoritative face rebroadcasts once it comes to rest.
-                die.is_rolling = true;
-                die.face_value = None;
-                die.rest_start_tick = None;
-                die.settled_rotation = None;
-            }
-        }
-
-        if let Some(player) = self.players.get_mut(player_id) {
-            player.last_motion_impulse_at = Some(now);
-        }
-        if !target_ids.is_empty() {
+        // A live field must keep (or start) the physics loop so the movement — and
+        // the eventual re-settle when it stops — is simulated and broadcast.
+        if is_active {
             self.is_simulating = true;
         }
         self.touch();
-        Ok(target_ids)
+        Ok(())
+    }
+
+    /// Integrate every player's latched motion field into their own dice for this
+    /// tick (Shared-ADR-010). Runs before `step()`, like [`Room::apply_drag_forces`].
+    ///
+    /// For each player whose field is non-zero and fresher than
+    /// `MOTION_FIELD_STALE_MS`, applies `field × `[`TICK_DT`] as a mass-scaled
+    /// velocity delta to the dice they may affect under `can_apply_motion`, and
+    /// re-wakes any settled die it pushes so its authoritative face re-detects.
+    fn apply_motion_forces(&mut self) {
+        let now = Instant::now();
+        let stale = Duration::from_millis(MOTION_FIELD_STALE_MS);
+
+        // Snapshot the active (player_id, field) pairs so the dice mutation below
+        // does not hold a borrow of `self.players`.
+        let active: Vec<(String, [f32; 3])> = self.players.iter()
+            .filter_map(|(id, p)| {
+                let at = p.motion_field_at?;
+                if now.duration_since(at) >= stale {
+                    return None;
+                }
+                if p.motion_field == [0.0, 0.0, 0.0] {
+                    return None;
+                }
+                Some((id.clone(), p.motion_field))
+            })
+            .collect();
+
+        for (player_id, field) in active {
+            let delta_v = [field[0] * TICK_DT, field[1] * TICK_DT, field[2] * TICK_DT];
+            let target_ids: Vec<String> = self.dice.iter()
+                .filter(|(_, die)| self.can_apply_motion(&player_id, die))
+                .map(|(id, _)| id.clone())
+                .collect();
+
+            for die_id in &target_ids {
+                if let Some(die) = self.dice.get_mut(die_id) {
+                    if let Some(handle) = die.body_handle {
+                        self.physics.apply_velocity_impulse(handle, delta_v);
+                    }
+                    // A settled die the field pushes must re-enter the settle
+                    // pipeline so its authoritative face re-detects and rebroadcasts.
+                    if !die.is_rolling {
+                        die.is_rolling = true;
+                        die.face_value = None;
+                        die.rest_start_tick = None;
+                        die.settled_rotation = None;
+                    }
+                }
+            }
+
+            if !target_ids.is_empty() {
+                self.is_simulating = true;
+            }
+        }
     }
 
     /// Full when occupied seats (connected players **and** seats held during the
@@ -1071,6 +1096,10 @@ impl Room {
     /// `knocked_dice` is a list of `(dice_id, impact_speed)` for already-settled dice
     /// that were bumped back into motion this tick (e.g. by another player's throw).
     pub fn physics_tick(&mut self) -> PhysicsTickResult {
+        // 0. Integrate each player's device-motion field into their own dice
+        //    (before stepping physics), like drag forces (Shared-ADR-010).
+        self.apply_motion_forces();
+
         // 1. Apply drag forces to dice being dragged (before stepping physics)
         self.apply_drag_forces();
 
@@ -2598,6 +2627,18 @@ mod tests {
         room
     }
 
+    /// Like `make_two_player_room_with_dice`, but each die has a real physics body
+    /// (`spawn_dice_with_physics`) so tests can assert the motion field actually
+    /// moves the dice.
+    fn make_two_player_room_with_physics_dice() -> Room {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Host")).unwrap();
+        room.add_player(make_player("p2", "Guest")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D20)]).unwrap();
+        room.spawn_dice_with_physics("p2", vec![("d2".to_string(), DiceType::D6)]).unwrap();
+        room
+    }
+
     #[test]
     fn test_motion_control_defaults_to_own_dice() {
         let room = Room::new("test".to_string(), ArenaBounds::default());
@@ -2652,56 +2693,121 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_motion_impulse_off_is_rejected() {
+    fn test_motion_field_off_is_rejected() {
         let mut room = make_two_player_room_with_dice();
         set_motion_control(&mut room, MotionControl::Off);
         assert_eq!(
-            room.apply_motion_impulse("p1", [1.0, 0.0, 0.0]).unwrap_err(),
+            room.set_motion_field("p1", [1.0, 0.0, 0.0]).unwrap_err(),
             RoomError::MotionNotAllowed,
         );
     }
 
     #[test]
-    fn test_apply_motion_impulse_own_dice_affects_only_own() {
+    fn test_motion_field_unknown_player() {
+        let mut room = make_two_player_room_with_dice();
+        set_motion_control(&mut room, MotionControl::Room);
+        assert_eq!(
+            room.set_motion_field("ghost", [1.0, 0.0, 0.0]).unwrap_err(),
+            RoomError::PlayerNotFound,
+        );
+    }
+
+    /// Closes the coverage gap the discrete path never had: a latched field
+    /// actually MOVES the sender's own dice, and only those, under `own_dice`.
+    #[test]
+    fn test_motion_field_own_dice_moves_only_own() {
+        let mut room = make_two_player_room_with_physics_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        let d1 = room.dice["d1"].body_handle.unwrap();
+        let d2 = room.dice["d2"].body_handle.unwrap();
+        // Zero both bodies so spawn velocity doesn't confound the measurement.
+        room.physics.set_linear_velocity(d1, [0.0, 0.0, 0.0]);
+        room.physics.set_linear_velocity(d2, [0.0, 0.0, 0.0]);
+
+        room.set_motion_field("p1", [500.0, 0.0, 0.0]).unwrap();
+        room.apply_motion_forces();
+
+        assert!(
+            room.physics.get_linear_speed(d1) > 0.0,
+            "p1's own die must be pushed by the field"
+        );
+        assert!(
+            room.physics.get_linear_speed(d2) < 1e-6,
+            "another player's die must be untouched under own_dice"
+        );
+        assert!(room.is_simulating, "a live field wakes the room");
+    }
+
+    /// Under `room`, one player's field moves every die on the table.
+    #[test]
+    fn test_motion_field_room_moves_all_dice() {
+        let mut room = make_two_player_room_with_physics_dice();
+        set_motion_control(&mut room, MotionControl::Room);
+        let d1 = room.dice["d1"].body_handle.unwrap();
+        let d2 = room.dice["d2"].body_handle.unwrap();
+        room.physics.set_linear_velocity(d1, [0.0, 0.0, 0.0]);
+        room.physics.set_linear_velocity(d2, [0.0, 0.0, 0.0]);
+
+        room.set_motion_field("p2", [0.0, 0.0, 500.0]).unwrap();
+        room.apply_motion_forces();
+
+        assert!(room.physics.get_linear_speed(d1) > 0.0);
+        assert!(room.physics.get_linear_speed(d2) > 0.0);
+    }
+
+    /// A settled die pushed by the field re-enters the settle pipeline so its
+    /// authoritative face re-detects and rebroadcasts.
+    #[test]
+    fn test_motion_field_rewakes_settled_die() {
         let mut room = make_two_player_room_with_dice();
         set_motion_control(&mut room, MotionControl::OwnDice);
-        let affected = room.apply_motion_impulse("p1", [1.0, 2.0, 0.0]).unwrap();
-        assert_eq!(affected, vec!["d1".to_string()]);
-        // The affected die is re-woken so its face rebroadcasts.
-        assert!(room.dice["d1"].is_rolling);
-        assert!(!room.dice["d2"].is_rolling);
+        {
+            let die = room.dice.get_mut("d1").unwrap();
+            die.is_rolling = false;
+            die.face_value = Some(3);
+            die.rest_start_tick = None;
+            die.settled_rotation = Some(die.rotation);
+        }
+
+        room.set_motion_field("p1", [500.0, 0.0, 0.0]).unwrap();
+        room.apply_motion_forces();
+
+        assert!(room.dice["d1"].is_rolling, "field must re-wake a settled die");
+        assert!(room.dice["d1"].face_value.is_none(), "a re-woken die clears its face");
     }
 
+    /// A stale field (no update within `MOTION_FIELD_STALE_MS`) stops being applied,
+    /// so dice settle if motion updates simply cease.
     #[test]
-    fn test_apply_motion_impulse_room_affects_all_dice() {
-        let mut room = make_two_player_room_with_dice();
-        set_motion_control(&mut room, MotionControl::Room);
-        let mut affected = room.apply_motion_impulse("p2", [0.0, 1.0, 0.0]).unwrap();
-        affected.sort();
-        assert_eq!(affected, vec!["d1".to_string(), "d2".to_string()]);
-    }
+    fn test_motion_field_expires_when_stale() {
+        let mut room = make_two_player_room_with_physics_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        let d1 = room.dice["d1"].body_handle.unwrap();
+        room.physics.set_linear_velocity(d1, [0.0, 0.0, 0.0]);
 
-    #[test]
-    fn test_apply_motion_impulse_is_rate_limited_per_player() {
-        let mut room = make_two_player_room_with_dice();
-        set_motion_control(&mut room, MotionControl::Room);
-        assert!(room.apply_motion_impulse("p1", [1.0, 0.0, 0.0]).is_ok());
-        // Immediate second impulse from the same player is inside the window.
-        assert_eq!(
-            room.apply_motion_impulse("p1", [1.0, 0.0, 0.0]).unwrap_err(),
-            RoomError::MotionRateLimited,
+        room.set_motion_field("p1", [500.0, 0.0, 0.0]).unwrap();
+        // Backdate the field past the staleness window.
+        room.players.get_mut("p1").unwrap().motion_field_at =
+            Some(Instant::now() - Duration::from_millis(MOTION_FIELD_STALE_MS + 50));
+
+        room.apply_motion_forces();
+        assert!(
+            room.physics.get_linear_speed(d1) < 1e-6,
+            "a stale field must not push dice"
         );
-        // A different player is tracked independently and is not blocked.
-        assert!(room.apply_motion_impulse("p2", [1.0, 0.0, 0.0]).is_ok());
     }
 
+    /// The field magnitude is clamped so a bad client cannot fling dice.
     #[test]
-    fn test_apply_motion_impulse_unknown_player() {
+    fn test_motion_field_is_clamped() {
         let mut room = make_two_player_room_with_dice();
-        set_motion_control(&mut room, MotionControl::Room);
-        assert_eq!(
-            room.apply_motion_impulse("ghost", [1.0, 0.0, 0.0]).unwrap_err(),
-            RoomError::PlayerNotFound,
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        room.set_motion_field("p1", [1.0e9, 0.0, 0.0]).unwrap();
+        let f = room.players["p1"].motion_field;
+        let mag = (f[0] * f[0] + f[1] * f[1] + f[2] * f[2]).sqrt();
+        assert!(
+            (mag - MOTION_FIELD_MAX_ACCEL).abs() < 1e-2,
+            "field magnitude clamped to MOTION_FIELD_MAX_ACCEL, got {mag}"
         );
     }
 
@@ -2758,19 +2864,27 @@ mod tests {
         set_roller(&mut room, Some("p2"));
         assert!(!room.can_apply_motion("p2", &room.dice["d1"]));
         assert_eq!(
-            room.apply_motion_impulse("p2", [1.0, 0.0, 0.0]).unwrap_err(),
+            room.set_motion_field("p2", [1.0, 0.0, 0.0]).unwrap_err(),
             RoomError::MotionNotAllowed,
         );
     }
 
     #[test]
-    fn test_roller_motion_impulse_affects_all_under_own_dice() {
-        let mut room = make_two_player_room_with_dice();
+    fn test_roller_motion_field_moves_all_under_own_dice() {
+        let mut room = make_two_player_room_with_physics_dice();
         set_motion_control(&mut room, MotionControl::OwnDice);
         set_roller(&mut room, Some("p2"));
-        let mut affected = room.apply_motion_impulse("p2", [0.0, 1.0, 0.0]).unwrap();
-        affected.sort();
-        assert_eq!(affected, vec!["d1".to_string(), "d2".to_string()]);
+        let d1 = room.dice["d1"].body_handle.unwrap();
+        let d2 = room.dice["d2"].body_handle.unwrap();
+        room.physics.set_linear_velocity(d1, [0.0, 0.0, 0.0]);
+        room.physics.set_linear_velocity(d2, [0.0, 0.0, 0.0]);
+
+        // p2 is the roller: their field moves every die, including p1's.
+        room.set_motion_field("p2", [0.0, 0.0, 500.0]).unwrap();
+        room.apply_motion_forces();
+
+        assert!(room.physics.get_linear_speed(d1) > 0.0);
+        assert!(room.physics.get_linear_speed(d2) > 0.0);
     }
 
     #[test]

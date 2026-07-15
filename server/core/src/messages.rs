@@ -83,12 +83,14 @@ pub enum ClientMessage {
     UpdateSettings {
         settings: RoomSettings,
     },
-    /// Device-motion (shake/gravity) input. The `impulse` is a world-space
-    /// vector applied to the dice the sender is allowed to affect under the
-    /// room's `motionControl` policy. Rate-limited and magnitude-clamped
-    /// server-side. Which dice it touches is decided by `Room::can_apply_motion`.
-    MotionImpulse {
-        impulse: [f32; 3],
+    /// Continuous device-motion field (Shared-ADR-010): `field` is a world-space
+    /// acceleration (U/s²) — the non-inertial pseudo-force of the sender's dice box
+    /// — applied every physics tick to the dice the sender may affect under the
+    /// room's `motionControl` policy (`Room::can_apply_motion`). Latched with a
+    /// staleness timeout and magnitude-clamped server-side. Sent continuously while
+    /// motion is engaged; a single zero field stops it.
+    MotionField {
+        field: [f32; 3],
     },
     /// Host-only: resize the shared arena to the given aspect ratio (width/height).
     /// The server derives area-preserving bounds via `ArenaBounds::from_aspect` and
@@ -532,14 +534,14 @@ mod tests {
 
     #[test]
     #[allow(clippy::float_cmp)]
-    fn test_deserialize_motion_impulse() {
-        let json = r#"{"type":"motion_impulse","impulse":[1.5,-2.0,0.5]}"#;
+    fn test_deserialize_motion_field() {
+        let json = r#"{"type":"motion_field","field":[1.5,-2.0,0.5]}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ClientMessage::MotionImpulse { impulse } => {
-                assert_eq!(impulse, [1.5, -2.0, 0.5]);
+            ClientMessage::MotionField { field } => {
+                assert_eq!(field, [1.5, -2.0, 0.5]);
             }
-            _ => panic!("Expected MotionImpulse message"),
+            _ => panic!("Expected MotionField message"),
         }
     }
 

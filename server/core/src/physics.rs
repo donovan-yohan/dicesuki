@@ -302,8 +302,8 @@ pub const MIN_THROW_SPEED: f32 = 15.9;
 /// launches.
 /// - `156.25` (current): the top of the casual toss-into-tray band 2.5 m/s × 62.5
 ///   (UNLV craps 4.5–4.9 m/s is the wrong regime for a 25.6 cm tray). Post-boost
-///   √(156.25² + 31.25²) = 159.3 U/s stays below [`MAX_DICE_VELOCITY`]. Equals
-///   [`MOTION_IMPULSE_MAX_MAGNITUDE`] (both the fastest real hand launch).
+///   √(156.25² + 31.25²) = 159.3 U/s stays below [`MAX_DICE_VELOCITY`] — the
+///   fastest real hand launch.
 /// - Range `94`–`188` U/s (1.5–3.0 m/s).
 pub const MAX_THROW_SPEED: f32 = 156.25;
 
@@ -317,22 +317,28 @@ pub const MAX_THROW_SPEED: f32 = 156.25;
 /// - Range `188`–`250` U/s (3.0–4.0 m/s).
 pub const MAX_DICE_VELOCITY: f32 = 218.75;
 
-/// Minimum interval (ms) between accepted `motion_impulse` messages per player.
-/// Device-motion input arriving faster than this is dropped so a shaking phone
-/// cannot flood the physics loop.
-/// - `50` (≈20Hz, keep): an anti-flood policy above the 3–5 Hz physical shake
-///   rate. Recommended `33` (30Hz) – `100` (10Hz).
-pub const MOTION_IMPULSE_MIN_INTERVAL_MS: u64 = 50;
-/// Maximum magnitude of a single motion impulse, expressed as a target Δv (U/s):
-/// applied mass-scaled via [`PhysicsWorld::apply_velocity_impulse`] so a shake
-/// imparts the same velocity to every die type. Every incoming impulse is clamped
-/// to this length so a miscalibrated/malicious client cannot launch dice out of the
-/// arena.
-/// - `156.25` (current): the peak hand speed of a vigorous shake, v = 2πfA at
-///   4 Hz / 10 cm stroke = 2.5 m/s × 62.5. Equals [`MAX_THROW_SPEED`] (both the
-///   fastest real hand launch) and sits under [`MAX_DICE_VELOCITY`].
-/// - Range `94`–`188` U/s (1.5–3.0 m/s).
-pub const MOTION_IMPULSE_MAX_MAGNITUDE: f32 = 156.25;
+/// Maximum magnitude (U/s²) of a per-player device-motion field — the continuous
+/// "shake your dice box" acceleration applied each tick to the sender's own dice
+/// (Shared-ADR-010). It is the non-inertial pseudo-force of the player's dice box
+/// (the negated hand acceleration), applied mass-scaled via
+/// [`PhysicsWorld::apply_velocity_impulse`] as `field × `[`TICK_DT`] each tick so
+/// every die type gains the same velocity. Every incoming field is clamped to this
+/// length so a miscalibrated/malicious client cannot fling dice; the per-tick
+/// [`MAX_DICE_VELOCITY`] clamp is the final bound on the resulting speed.
+/// - `2500.0` (current): ≈10.4× engine gravity (~40 m/s²) — comfortably above the
+///   peak acceleration of a vigorous 4 Hz / 10 cm hand shake (2πf)²A ≈ 2 kU/s², so
+///   real motion is never clipped while abuse is still bounded.
+/// - Range `1000`–`4000` U/s².
+pub const MOTION_FIELD_MAX_ACCEL: f32 = 2500.0;
+
+/// How long (ms) a player's latched motion field keeps being applied after its last
+/// `motion_field` update before it is treated as zero (Shared-ADR-010). The client
+/// streams the field while motion is engaged and sends a single zero on disable;
+/// this staleness latch guarantees dice stop and settle if updates merely cease
+/// (tab backgrounded, disconnect) without a closing zero ever arriving.
+/// - `200` (current): ~6 missed frames at the ~30 Hz client send rate. Range
+///   `100`–`500`.
+pub const MOTION_FIELD_STALE_MS: u64 = 200;
 
 /// Ground plane center height (U) of the fixed 9:16 portrait arena: the slab's
 /// **center**, so the floor surface sits at y = 0 (the 1 U slab is the 1.6 cm tray
@@ -552,6 +558,12 @@ pub const PHYSICS_SUBSTEPS: usize = 4;
 /// - `0.8` (current): 20 % slower than real time — a calmer, more readable settle.
 /// - Range `0.5` (dreamy slow-mo) – `1.0` (real-time); below ~0.4 dice look underwater.
 pub const TIME_SCALE: f32 = 0.8;
+
+/// Sim-time (s) advanced by one 60 Hz room tick = [`TIME_SCALE`] / 60. A continuous
+/// acceleration field (the device-motion "dice box", Shared-ADR-010) is integrated
+/// once per tick as a velocity delta of `field × TICK_DT`, so it respects the same
+/// slow-mo playback as the rest of the simulation.
+pub const TICK_DT: f32 = TIME_SCALE / 60.0;
 
 pub struct PhysicsWorld {
     pub(crate) rigid_body_set: RigidBodySet,

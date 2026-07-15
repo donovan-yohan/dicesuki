@@ -363,19 +363,21 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
-            ClientMessage::MotionImpulse { impulse } if is_joined => {
+            ClientMessage::MotionField { field } if is_joined => {
                 let mut room_guard = room.write().await;
-                match room_guard.apply_motion_impulse(&player_id, impulse) {
-                    Ok(affected) if !affected.is_empty() => {
-                        // Dice were nudged — make sure the physics loop is running so
-                        // the movement (and eventual re-settle) is broadcast.
+                match room_guard.set_motion_field(&player_id, field) {
+                    Ok(()) => {
+                        // A live field wakes the room; make sure the physics loop is
+                        // running so the movement (and eventual re-settle) broadcasts.
+                        // `set_motion_field` only sets `is_simulating` for a non-zero
+                        // field, so a closing zero won't needlessly restart the loop.
                         crate::simulation::maybe_start_simulation(&mut room_guard, room.clone());
                     }
-                    // No dice affected (sender owns none), or rate-limited / disabled:
-                    // silently ignore. Motion is high-frequency; surfacing an error per
-                    // dropped impulse would spam the client. `motionControl` state is
-                    // already visible to every client via `settings_updated`.
-                    Ok(_) | Err(_) => {}
+                    // Motion disabled for this room, or unknown player: silently
+                    // ignore. Motion is high-frequency; surfacing an error per dropped
+                    // field would spam the client, and `motionControl` state is already
+                    // visible to every client via `settings_updated`.
+                    Err(_) => {}
                 }
             }
 

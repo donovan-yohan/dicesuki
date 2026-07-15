@@ -57,8 +57,8 @@ const FORBIDDEN_ENGINE_EXPORTS = [
 
 describe('physicsConfig.ts carries no engine constants (Shared-ADR-007)', () => {
   it.each(FORBIDDEN_ENGINE_EXPORTS)('does not export %s', (name) => {
-    // Exact `export const NAME =` — GRAVITY_SCALE / ACCELERATION_SCALE (client
-    // sensor scaling) are unaffected because the boundary `\b` and ` =` anchor it.
+    // Exact `export const NAME =` — client sensor-scaling constants like
+    // MOTION_ACCEL_SCALE are unaffected because the ` =` anchor pins the exact name.
     const pattern = new RegExp(`export const ${name}\\s*=`)
     expect(physicsConfigSrc).not.toMatch(pattern)
   })
@@ -119,8 +119,8 @@ describe('the client receives engine constants from room_state, not a literal', 
       dragDistanceThreshold: 3,
       dragSpinFactor: 0.33,
       dragRollFactor: 0.5,
-      motionImpulseMinIntervalMs: 50,
-      motionImpulseMaxMagnitude: 30,
+      motionFieldMaxAccel: 2500,
+      motionFieldStaleMs: 200,
       arenaHalfX: 7.25, // deliberately non-default
       arenaHalfZ: 12.5, // deliberately non-default
       arenaGroundY: -0.5,
