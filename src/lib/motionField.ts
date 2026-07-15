@@ -54,3 +54,54 @@ export function computeMotionField(
 
   return [-ax * scale, -az * scale, ay * scale]
 }
+
+/**
+ * Running low-pass estimate of the gravity vector (device frame), used to derive
+ * the dynamic movement acceleration when a device does not expose a gravity-removed
+ * linear channel (`DeviceMotionEvent.acceleration` is null — common on Android).
+ */
+export interface GravityEstimate {
+  x: number
+  y: number
+  z: number
+  initialized: boolean
+}
+
+/** A fresh, uninitialized gravity estimate. */
+export function initialGravityEstimate(): GravityEstimate {
+  return { x: 0, y: 0, z: 0, initialized: false }
+}
+
+/**
+ * Derive the phone's dynamic (movement) acceleration from
+ * `accelerationIncludingGravity` by subtracting a low-pass gravity estimate,
+ * returning the movement vector and the updated estimate. This is the fallback for
+ * devices whose gravity-removed `DeviceMotionEvent.acceleration` is null.
+ *
+ * A static tilt is constant, so it is absorbed into the gravity estimate and
+ * excluded from the movement — preserving "shake the box, don't tilt it." `alpha`
+ * is the estimate's retention (0..1): higher tracks gravity more slowly, so more of
+ * a sustained push survives as movement. The first sample seeds the estimate
+ * directly so there is no startup transient.
+ */
+export function dynamicAccelFromTotal(
+  total: SensorAcceleration,
+  gravity: GravityEstimate,
+  alpha: number,
+): { linear: SensorAcceleration; gravity: GravityEstimate } {
+  const tx = total.x ?? 0
+  const ty = total.y ?? 0
+  const tz = total.z ?? 0
+  const next: GravityEstimate = gravity.initialized
+    ? {
+        x: alpha * gravity.x + (1 - alpha) * tx,
+        y: alpha * gravity.y + (1 - alpha) * ty,
+        z: alpha * gravity.z + (1 - alpha) * tz,
+        initialized: true,
+      }
+    : { x: tx, y: ty, z: tz, initialized: true }
+  return {
+    linear: { x: tx - next.x, y: ty - next.y, z: tz - next.z },
+    gravity: next,
+  }
+}

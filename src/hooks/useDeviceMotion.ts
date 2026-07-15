@@ -2,10 +2,18 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   MOTION_ACCEL_SCALE,
   MOTION_DEADZONE,
+  MOTION_GRAVITY_LOWPASS,
   SHAKE_THRESHOLD,
   SHAKE_DURATION,
 } from '../config/physicsConfig'
-import { computeMotionField, type MotionField } from '../lib/motionField'
+import {
+  computeMotionField,
+  dynamicAccelFromTotal,
+  initialGravityEstimate,
+  type GravityEstimate,
+  type MotionField,
+  type SensorAcceleration,
+} from '../lib/motionField'
 
 type PermissionState = 'prompt' | 'granted' | 'denied' | 'unsupported'
 
@@ -56,6 +64,9 @@ export function useDeviceMotion(): DeviceMotionState {
   // Real-time refs read by physics/UI without triggering React re-renders.
   const motionFieldRef = useRef<MotionField>([0, 0, 0])
   const isShakingRef = useRef<boolean>(false)
+  // Gravity low-pass state for the accelerationIncludingGravity fallback (used only
+  // when the device leaves the gravity-removed linear channel null).
+  const gravityEstimateRef = useRef<GravityEstimate>(initialGravityEstimate())
 
   const shakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -92,10 +103,25 @@ export function useDeviceMotion(): DeviceMotionState {
 
     const handleMotion = (event: DeviceMotionEvent) => {
       // Linear acceleration (gravity removed) drives the "shake the box" field.
-      // The pure mapping (negate + scale to engine units, with a deadzone) lives in
-      // motionField.ts so it stays testable and free of the static tilt term.
+      // Prefer the sensor's gravity-removed channel; when a device leaves it null
+      // (common on Android), recover the movement acceleration by high-passing
+      // accelerationIncludingGravity (a running gravity estimate absorbs the static
+      // tilt). The pure mapping/derivation lives in motionField.ts so it stays
+      // testable and free of the static tilt term.
+      let linear: SensorAcceleration | null | undefined = event.acceleration
+      const hasLinear =
+        !!linear && (linear.x !== null || linear.y !== null || linear.z !== null)
+      if (!hasLinear && event.accelerationIncludingGravity) {
+        const derived = dynamicAccelFromTotal(
+          event.accelerationIncludingGravity,
+          gravityEstimateRef.current,
+          MOTION_GRAVITY_LOWPASS
+        )
+        gravityEstimateRef.current = derived.gravity
+        linear = derived.linear
+      }
       motionFieldRef.current = computeMotionField(
-        event.acceleration,
+        linear,
         MOTION_ACCEL_SCALE,
         MOTION_DEADZONE
       )
@@ -131,8 +157,10 @@ export function useDeviceMotion(): DeviceMotionState {
       if (shakeTimeoutRef.current) {
         clearTimeout(shakeTimeoutRef.current)
       }
-      // Drop any residual field so a re-grant doesn't resume a stale push.
+      // Drop any residual field (and gravity estimate) so a re-grant doesn't
+      // resume a stale push or a stale gravity baseline.
       motionFieldRef.current = [0, 0, 0]
+      gravityEstimateRef.current = initialGravityEstimate()
     }
   }, [permissionState])
 
