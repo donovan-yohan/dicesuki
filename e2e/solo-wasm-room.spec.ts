@@ -15,19 +15,27 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => window.localStorage.clear())
 })
 
-test('shows the branded first-paint shell before React starts', async ({ browser }) => {
-  const context = await browser.newContext({ javaScriptEnabled: false })
-  const page = await context.newPage()
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`shows the branded ${colorScheme} first-paint shell before React starts`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false, colorScheme })
+    const page = await context.newPage()
 
-  await page.goto('/')
+    await page.goto('/')
 
-  const shell = page.locator('.startup-splash-shell')
-  await expect(shell).toBeVisible()
-  await expect(shell.getByRole('img', { name: 'Dicesuki' })).toBeVisible()
-  await expect(shell).toContainText('Loading Dicesuki…')
+    const shell = page.locator('.startup-splash-shell')
+    await expect(shell).toBeVisible()
+    await expect(shell.getByRole('img', { name: 'Dicesuki' })).toBeVisible()
+    await expect(shell).toContainText('Loading Dicesuki…')
+    await expect(shell).toHaveCSS(
+      'background-color',
+      colorScheme === 'light' ? 'rgb(243, 235, 226)' : 'rgb(26, 16, 29)',
+    )
 
-  await context.close()
-})
+    await context.close()
+  })
+}
 
 test('loads a connected solo room on / with no native server and no network room socket', async ({
   page,

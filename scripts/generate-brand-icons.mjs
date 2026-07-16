@@ -31,7 +31,7 @@ try {
           height: 100%;
           margin: 0;
           overflow: hidden;
-          background: #fff8f5;
+          background: #f3ebe2;
         }
         body {
           display: grid;
