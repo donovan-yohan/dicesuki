@@ -42,7 +42,9 @@ function MainApp() {
   // Device not compatible
   if (!isCompatible) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-[#fff8f5] text-[#3f1d3f]">
+      <div
+        className="w-full h-full flex items-center justify-center [background-color:var(--startup-splash-bg)] [color:var(--startup-splash-text)]"
+      >
         <div className="text-center max-w-md px-4">
           <img
             src="/brand/dicesuki-wordmark.svg"
@@ -50,8 +52,8 @@ function MainApp() {
             className="w-56 max-w-[70vw] mx-auto mb-8"
           />
           <h1 className="text-2xl font-bold mb-4">Device Not Supported</h1>
-          <p className="text-[#654665] mb-2">{errorMessage}</p>
-          <p className="text-sm text-[#806880]">
+          <p className="mb-2">{errorMessage}</p>
+          <p className="text-sm">
             This app requires a mid-range or better device for optimal performance.
           </p>
         </div>

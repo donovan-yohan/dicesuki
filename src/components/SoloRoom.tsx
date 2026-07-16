@@ -101,7 +101,7 @@ export function SoloRoom() {
     return (
       <div
         role="alert"
-        className="w-full h-full flex items-center justify-center bg-[#fff8f5] text-[#3f1d3f]"
+        className="w-full h-full flex items-center justify-center [background-color:var(--startup-splash-bg)] [color:var(--startup-splash-text)]"
       >
         <div className="text-center max-w-md px-6">
           <img
@@ -110,13 +110,13 @@ export function SoloRoom() {
             className="w-56 max-w-[70vw] mx-auto mb-8"
           />
           <h1 className="text-2xl font-bold mb-3">Couldn’t start your table</h1>
-          <p className="text-[#654665] mb-6">
+          <p className="mb-6">
             {connectionError ?? 'The local dice engine stopped before the room was ready.'}
           </p>
           <button
             type="button"
             onClick={retry}
-            className="px-5 py-3 rounded-lg bg-[#3f1d3f] text-white font-semibold"
+            className="px-5 py-3 rounded-lg bg-[#f98797] text-[#3f1d3f] font-semibold"
           >
             Try again
           </button>

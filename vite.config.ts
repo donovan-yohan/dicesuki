@@ -42,7 +42,7 @@ export default defineConfig({
         scope: '/',
         display: 'standalone',
         orientation: 'portrait-primary',
-        background_color: '#fff8f5',
+        background_color: '#f3ebe2',
         theme_color: '#3f1d3f',
         categories: ['games', 'entertainment'],
         icons: [

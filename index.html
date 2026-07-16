@@ -16,9 +16,33 @@
     <meta property="og:title" content="Dicesuki — 3D Dice Simulator" />
     <meta property="og:description" content="Roll physics-based 3D dice together on Dicesuki — no install, right in your browser." />
     <meta name="twitter:card" content="summary" />
-    <meta name="theme-color" content="#3F1D3F" />
+    <meta name="theme-color" content="#f3ebe2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a101d" media="(prefers-color-scheme: dark)" />
     <style>
-      html, body, #root { width: 100%; height: 100%; margin: 0; background: #fff8f5; }
+      :root {
+        --startup-splash-bg: #f3ebe2;
+        --startup-splash-text: rgba(75, 41, 72, 0.78);
+        --startup-splash-border: rgba(63, 29, 63, 0.16);
+        --startup-splash-track: rgba(255, 255, 255, 0.48);
+        --startup-splash-pink-glow: rgba(249, 135, 151, 0.13);
+        --startup-splash-purple-glow: rgba(156, 137, 196, 0.16);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --startup-splash-bg: #1a101d;
+          --startup-splash-text: rgba(250, 238, 247, 0.82);
+          --startup-splash-border: rgba(250, 238, 247, 0.18);
+          --startup-splash-track: rgba(255, 255, 255, 0.1);
+          --startup-splash-pink-glow: rgba(249, 135, 151, 0.12);
+          --startup-splash-purple-glow: rgba(156, 137, 196, 0.2);
+        }
+      }
+      html, body, #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: var(--startup-splash-bg);
+      }
       .startup-splash-shell {
         position: fixed;
         inset: 0;
@@ -28,9 +52,9 @@
         padding: 24px;
         box-sizing: border-box;
         background:
-          radial-gradient(circle at 18% 16%, rgba(249, 135, 151, 0.22), transparent 34%),
-          radial-gradient(circle at 82% 78%, rgba(156, 137, 196, 0.24), transparent 38%),
-          #fff8f5;
+          radial-gradient(circle at 18% 16%, var(--startup-splash-pink-glow), transparent 34%),
+          radial-gradient(circle at 82% 78%, var(--startup-splash-purple-glow), transparent 38%),
+          var(--startup-splash-bg);
       }
       .startup-splash-shell__content {
         display: flex;
@@ -45,9 +69,9 @@
         height: 10px;
         margin-top: 32px;
         overflow: hidden;
-        border: 2px solid rgba(63, 29, 63, 0.14);
+        border: 2px solid var(--startup-splash-border);
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.72);
+        background: var(--startup-splash-track);
       }
       .startup-splash-shell__progress::before {
         display: block;
@@ -59,7 +83,7 @@
       }
       .startup-splash-shell__status {
         margin: 14px 0 0;
-        color: rgba(63, 29, 63, 0.72);
+        color: var(--startup-splash-text);
         font: 600 14px/1.25 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         letter-spacing: 0.02em;
       }
