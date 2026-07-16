@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-const publicDir = `${process.cwd()}/public/`
+const publicDir = resolve(process.cwd(), 'public')
 
 async function readSvg(relativePath: string) {
-  const source = await readFile(`${publicDir}${relativePath}`, 'utf8')
+  const source = await readFile(resolve(publicDir, relativePath), 'utf8')
   const document = new DOMParser().parseFromString(source, 'image/svg+xml')
   const svg = document.documentElement
 
