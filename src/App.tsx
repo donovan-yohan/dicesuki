@@ -56,8 +56,8 @@ function MainApp() {
             className="w-56 max-w-[70vw] mx-auto mb-8"
           />
           <h1 className="text-2xl font-bold mb-4">Device Not Supported</h1>
-          <p className="mb-2 opacity-80">{errorMessage}</p>
-          <p className="text-sm opacity-65">
+          <p className="mb-2">{errorMessage}</p>
+          <p className="text-sm">
             This app requires a mid-range or better device for optimal performance.
           </p>
         </div>

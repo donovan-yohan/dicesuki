@@ -114,7 +114,7 @@ export function SoloRoom() {
             className="w-56 max-w-[70vw] mx-auto mb-8"
           />
           <h1 className="text-2xl font-bold mb-3">Couldn’t start your table</h1>
-          <p className="mb-6 opacity-80">
+          <p className="mb-6">
             {connectionError ?? 'The local dice engine stopped before the room was ready.'}
           </p>
           <button
