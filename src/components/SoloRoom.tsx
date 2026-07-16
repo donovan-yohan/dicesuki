@@ -101,11 +101,7 @@ export function SoloRoom() {
     return (
       <div
         role="alert"
-        className="w-full h-full flex items-center justify-center"
-        style={{
-          backgroundColor: 'var(--startup-splash-bg)',
-          color: 'var(--startup-splash-text)',
-        }}
+        className="w-full h-full flex items-center justify-center [background-color:var(--startup-splash-bg)] [color:var(--startup-splash-text)]"
       >
         <div className="text-center max-w-md px-6">
           <img
