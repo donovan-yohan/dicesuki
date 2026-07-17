@@ -142,10 +142,11 @@ describe('collectible catalog edition integration', () => {
     )
 
     const outsidePath = path.join(root, 'outside.glb')
-    const symlinkPath = path.join(path.dirname(modelPath), 'escape.glb')
+    const symlinkPath = path.join(path.dirname(modelPath), 'escape', 'model.glb')
     fs.writeFileSync(outsidePath, 'outside bytes')
+    fs.mkdirSync(path.dirname(symlinkPath), { recursive: true })
     fs.symlinkSync(outsidePath, symlinkPath)
-    expect(() => resolvePublicModelFilePath(root, '/dice/test-set/d6/escape.glb')).toThrow(
+    expect(() => resolvePublicModelFilePath(root, '/dice/test-set/d6/escape/model.glb')).toThrow(
       /must not use symbolic links/,
     )
   })

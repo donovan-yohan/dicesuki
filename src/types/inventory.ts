@@ -129,6 +129,7 @@ export interface InventoryDie {
   // Custom dice (for artist-created models)
   customAsset?: {
     modelUrl: string            // Blob URL for current session
+    thumbnailUrl?: string       // Lightweight catalog/card preview
     assetId?: string            // IndexedDB key for persistence (optional for backwards compatibility)
     storage?: 'bundled' | 'indexeddb'
     metadata: DiceMetadata

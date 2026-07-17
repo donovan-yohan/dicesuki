@@ -145,4 +145,35 @@ describe('InventoryPanel', () => {
     expect(screen.getByText('Showing 30 of 30 dice')).toBeInTheDocument()
     expect(screen.getByText('Batch Die 29')).toBeInTheDocument()
   })
+
+  it('uses lazy thumbnails without mounting a 3D preview canvas for catalog GLBs', () => {
+    addNamedDie('Hearthwood D6', 'd6', 'uncommon', 'cozy-forest-imagegen-set', {
+      customAsset: {
+        modelUrl: '/dice/cozy-forest-imagegen-set/hearthwood-d6/model.glb',
+        thumbnailUrl: '/dice/cozy-forest-imagegen-set/hearthwood-d6/thumbnail.png',
+        storage: 'bundled',
+        metadata: {
+          version: '1.0',
+          diceType: 'd6',
+          name: 'Hearthwood D6',
+          artist: 'Dicesuki',
+          created: '2026-07-17',
+          scale: 1.1,
+          faceNormals: [],
+          physics: { density: 0.38, restitution: 0.3, friction: 0.6 },
+          colliderType: 'hull',
+          colliderArgs: {},
+        },
+      },
+    })
+
+    renderInventory()
+
+    const thumbnail = screen.getByRole('img', { name: /hearthwood d6 preview/i })
+    expect(thumbnail).toHaveAttribute('src', '/dice/cozy-forest-imagegen-set/hearthwood-d6/thumbnail.png')
+    expect(thumbnail).toHaveAttribute('loading', 'lazy')
+    expect(thumbnail).toHaveAttribute('decoding', 'async')
+    expect(screen.queryByTestId('dice-preview')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('inventory-preview-canvas')).not.toBeInTheDocument()
+  })
 })

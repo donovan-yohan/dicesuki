@@ -73,7 +73,7 @@ Use this workflow for any catalog change:
 3. Prepare exactly one new edition and migration:
 
    ```bash
-   npm run prepare:collectible-edition -- 0005 <edition-slug>
+   npm run prepare:collectible-edition -- <next-migration-number> <edition-slug>
    ```
 
    This writes a new edition manifest, a delta-only migration, and the compiled

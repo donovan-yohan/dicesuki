@@ -1777,6 +1777,7 @@ mod tests {
             accent_color: Some("#ffffff".to_string()),
             material: Some("plastic".to_string()),
             custom_asset_id: None,
+            custom_asset_version_id: None,
             custom_asset_name: None,
             unsupported_reason: None,
         }

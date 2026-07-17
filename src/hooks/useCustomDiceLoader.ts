@@ -38,7 +38,18 @@ function convertFaceNormals(metadataFaceNormals: FaceNormal[]): DiceFace[] {
  *
  * const { scene, faceNormals, isLoading } = useCustomDiceLoader(asset)
  */
-export function useCustomDiceLoader(asset: CustomDiceAsset | null) {
+export function useCustomDiceLoader(
+  asset: CustomDiceAsset | null,
+  {
+    useDraco = true,
+    castShadow = true,
+    receiveShadow = true,
+  }: {
+    useDraco?: boolean
+    castShadow?: boolean
+    receiveShadow?: boolean
+  } = {},
+) {
   // Load GLB model using React Three Fiber's useGLTF hook
   // This hook handles caching and automatic disposal
   // Note: We must call useGLTF unconditionally (React hooks rule)
@@ -46,7 +57,7 @@ export function useCustomDiceLoader(asset: CustomDiceAsset | null) {
   // Blob URLs are regenerated on app load via regenerateCustomDiceBlobUrls()
   const modelUrl = asset?.modelUrl || 'data:text/plain,'
 
-  const gltf = useGLTF(modelUrl, true)
+  const gltf = useGLTF(modelUrl, useDraco)
 
   // Convert metadata face normals to DiceFace format
   const faceNormals = useMemo(() => {
@@ -69,8 +80,8 @@ export function useCustomDiceLoader(asset: CustomDiceAsset | null) {
     cloned.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh
-        mesh.castShadow = true
-        mesh.receiveShadow = true
+        mesh.castShadow = castShadow
+        mesh.receiveShadow = receiveShadow
 
         // Ensure material receives lighting
         if (mesh.material) {
@@ -81,7 +92,7 @@ export function useCustomDiceLoader(asset: CustomDiceAsset | null) {
     })
 
     return cloned
-  }, [scene])
+  }, [castShadow, receiveShadow, scene])
 
   return {
     scene: clonedScene,

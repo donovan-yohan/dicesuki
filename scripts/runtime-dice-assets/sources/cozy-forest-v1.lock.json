@@ -1,0 +1,61 @@
+{
+  "contractVersion": 1,
+  "sourceCommit": "7393d112c5e062570ec7caf37970206c4d05c08c",
+  "release": {
+    "tag": "imagegen-cozy-forest-authoring-v1",
+    "assetName": "cozy-forest-imagegen-authoring-v1.tar.gz",
+    "url": "https://github.com/donovan-yohan/dicesuki/releases/download/imagegen-cozy-forest-authoring-v1/cozy-forest-imagegen-authoring-v1.tar.gz",
+    "bytes": 38155598,
+    "sha256": "dd3e305fe94f868b0c4f08287441fe83f0ea116d5375426d65cfef2d57dbeae8"
+  },
+  "files": [
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/acorn-compass-d10/model.glb",
+      "sha256": "ac99c2eea7a329468a21328614590c3dd3e98b1fb1a526b4dfcbcce6d8de7a09"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cozy-forest-acorn-compass-d10-face-9.png",
+      "sha256": "074e4fc6ca2cec428fed87182cb908eb5b66d6070d9a525e1e309ed37318969e"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/elder-canopy-d20/model.glb",
+      "sha256": "5a7800bf8ff8a2720f6174c989e6cbc0b6e5752661cdd2b8827c6d1efcec8aec"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cozy-forest-elder-canopy-d20-face-20.png",
+      "sha256": "32b338396ad1f3538e3168230fdc5d62f568d361281374dbbb3a9b2979e46d91"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/fernlight-d8/model.glb",
+      "sha256": "472ca9c1b88c43598a009b6224f0b2c15a66b0ce0cdf266773c8a808aebffeeb"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cozy-forest-fernlight-d8-face-8.png",
+      "sha256": "5e6a2f3a46f4b19fad76eee1500b2df22fad8241c79e830e19f7793bacb0fc4d"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/grovekeeper-d12/model.glb",
+      "sha256": "0def8383c66030449286bfec646596223525b90c7e99d7e6304b78560eafae88"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cozy-forest-grovekeeper-d12-face-12.png",
+      "sha256": "7522295b393ea7b28505d5acb177b0059346551361a1c61ce23c0dc38aafafc6"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/hearthwood-d6/model.glb",
+      "sha256": "0e5740a82a5c9e00ecc7fcfcb064b5212e2b8e0f12776d617a3d5b3f2bad4ece"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cozy-forest-hearthwood-d6-face-6.png",
+      "sha256": "09417131f23f44fbb1d238eb70b20513c5822d98b68358b298b1200158f2f0eb"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/mossheart-d4/model.glb",
+      "sha256": "52b8ac5996be97cc1e39f17c99054f9b3b89c727b5fff960d9de22a364285ebb"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cozy-forest-mossheart-d4-face-4.png",
+      "sha256": "ab94c4693e0fe50442ae9eb248b677c02542988ca2ebcea29c585f950317a678"
+    }
+  ]
+}

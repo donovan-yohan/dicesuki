@@ -122,6 +122,66 @@
       "assetVersionId": "celestial-gold/d8/epic@1/asset@1"
     },
     {
+      "id": "cozy-forest-imagegen-set/acorn-compass-d10@1",
+      "catalogKey": "cozy-forest-imagegen-set/acorn-compass-d10",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cozy-forest-imagegen-set",
+      "diceType": "d10",
+      "rarity": "rare",
+      "assetVersionId": "cozy-forest-imagegen-set/acorn-compass-d10@1/asset@1"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/elder-canopy-d20@1",
+      "catalogKey": "cozy-forest-imagegen-set/elder-canopy-d20",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cozy-forest-imagegen-set",
+      "diceType": "d20",
+      "rarity": "epic",
+      "assetVersionId": "cozy-forest-imagegen-set/elder-canopy-d20@1/asset@1"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/fernlight-d8@1",
+      "catalogKey": "cozy-forest-imagegen-set/fernlight-d8",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cozy-forest-imagegen-set",
+      "diceType": "d8",
+      "rarity": "uncommon",
+      "assetVersionId": "cozy-forest-imagegen-set/fernlight-d8@1/asset@1"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/grovekeeper-d12@1",
+      "catalogKey": "cozy-forest-imagegen-set/grovekeeper-d12",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cozy-forest-imagegen-set",
+      "diceType": "d12",
+      "rarity": "rare",
+      "assetVersionId": "cozy-forest-imagegen-set/grovekeeper-d12@1/asset@1"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/hearthwood-d6@1",
+      "catalogKey": "cozy-forest-imagegen-set/hearthwood-d6",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cozy-forest-imagegen-set",
+      "diceType": "d6",
+      "rarity": "uncommon",
+      "assetVersionId": "cozy-forest-imagegen-set/hearthwood-d6@1/asset@1"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/mossheart-d4@1",
+      "catalogKey": "cozy-forest-imagegen-set/mossheart-d4",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cozy-forest-imagegen-set",
+      "diceType": "d4",
+      "rarity": "uncommon",
+      "assetVersionId": "cozy-forest-imagegen-set/mossheart-d4@1/asset@1"
+    },
+    {
       "id": "devil-set/devil-d6@1",
       "catalogKey": "devil-set/devil-d6",
       "contractVersion": 1,
@@ -818,6 +878,885 @@
         }
       },
       "metadataSha256": "e99c99c5cdc59670efff5e74e1c36f513e7dc0915781825ce3ee275eac2ab8f2"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/acorn-compass-d10@1/asset@1",
+      "catalogItemId": "cozy-forest-imagegen-set/acorn-compass-d10@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cozy-forest-imagegen-set/acorn-compass-d10/model.glb",
+      "modelSha256": "668cfdd644dbb99d9dfbbafa7f09d1384ef377029deb8fa7784ba14941a020f8",
+      "metadata": {
+        "source": "production",
+        "name": "Acorn Compass D10",
+        "description": "Acorn Compass D10 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d10",
+          "name": "Acorn Compass D10",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "rare",
+          "description": "Acorn Compass D10 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cozy-forest",
+            "woodland",
+            "moss",
+            "brass",
+            "codex-imagegen",
+            "d10",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map",
+            "planar-kite-faces",
+            "two-triangles-per-kite"
+          ],
+          "faceNormals": [
+            {
+              "value": 0,
+              "normal": [
+                -0.599991,
+                0.67081,
+                -0.435919
+              ]
+            },
+            {
+              "value": 1,
+              "normal": [
+                0.599991,
+                -0.67081,
+                -0.435919
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.229176,
+                0.67081,
+                -0.705331
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                -0.229176,
+                -0.67081,
+                -0.705331
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.741629,
+                0.67081,
+                0
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.741629,
+                -0.67081,
+                0
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.229176,
+                0.67081,
+                0.705331
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.229176,
+                -0.67081,
+                0.705331
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.599991,
+                0.67081,
+                0.435919
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.599991,
+                -0.67081,
+                0.435919
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.38,
+            "restitution": 0.3,
+            "friction": 0.7
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cozy-forest-imagegen-set/acorn-compass-d10/thumbnail.png",
+          "thumbnailSha256": "10ddb35dbb4cfa8840a0e934a7f24e4070b3e47874b980231264b4988441be85",
+          "thumbnailBytes": 55756,
+          "modelBytes": 247168,
+          "embeddedTextureBytes": 243712,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "dcbf62d59b0b7b36e397a68b74a5fbcbfa0ff5d8aa3c28c39d7f68b07a3c4a8a"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/elder-canopy-d20@1/asset@1",
+      "catalogItemId": "cozy-forest-imagegen-set/elder-canopy-d20@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cozy-forest-imagegen-set/elder-canopy-d20/model.glb",
+      "modelSha256": "5c4837e22e9345db3cecff2208fd6e19f8ee8b0bc223a1ee7cb2c6b4ddda55b0",
+      "metadata": {
+        "source": "production",
+        "name": "Elder Canopy D20",
+        "description": "Elder Canopy D20 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d20",
+          "name": "Elder Canopy D20",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "epic",
+          "description": "Elder Canopy D20 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cozy-forest",
+            "woodland",
+            "moss",
+            "brass",
+            "codex-imagegen",
+            "d20",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0.934172,
+                0.356822
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0,
+                0.934172,
+                -0.356822
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.934172,
+                0.356822,
+                0
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.356822,
+                0,
+                0.934172
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.934172,
+                -0.356822,
+                0
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                -0.356822,
+                0,
+                -0.934172
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0.356822,
+                0,
+                0.934172
+              ]
+            },
+            {
+              "value": 13,
+              "normal": [
+                0.934172,
+                0.356822,
+                0
+              ]
+            },
+            {
+              "value": 14,
+              "normal": [
+                0.356822,
+                0,
+                -0.934172
+              ]
+            },
+            {
+              "value": 15,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 16,
+              "normal": [
+                0.934172,
+                -0.356822,
+                0
+              ]
+            },
+            {
+              "value": 17,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 18,
+              "normal": [
+                0,
+                -0.934172,
+                0.356822
+              ]
+            },
+            {
+              "value": 19,
+              "normal": [
+                0,
+                -0.934172,
+                -0.356822
+              ]
+            },
+            {
+              "value": 20,
+              "normal": [
+                0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.38,
+            "restitution": 0.3,
+            "friction": 0.7
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cozy-forest-imagegen-set/elder-canopy-d20/thumbnail.png",
+          "thumbnailSha256": "c34b8240098b46f3ec82ea1f4a910bfdad7394cd3c6b2ea6d551b6baf1b84a8a",
+          "thumbnailBytes": 61833,
+          "modelBytes": 533008,
+          "embeddedTextureBytes": 529552,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "99811f42404c1d71b50d870d01f6f311e7d23b02dcfb8523df31104fcad86e97"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/fernlight-d8@1/asset@1",
+      "catalogItemId": "cozy-forest-imagegen-set/fernlight-d8@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cozy-forest-imagegen-set/fernlight-d8/model.glb",
+      "modelSha256": "cc62d163554bee26dc87014a14318abde32db980f088490b486117f110562867",
+      "metadata": {
+        "source": "production",
+        "name": "Fernlight D8",
+        "description": "Fernlight D8 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d8",
+          "name": "Fernlight D8",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "uncommon",
+          "description": "Fernlight D8 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cozy-forest",
+            "woodland",
+            "moss",
+            "brass",
+            "codex-imagegen",
+            "d8",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.38,
+            "restitution": 0.3,
+            "friction": 0.7
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cozy-forest-imagegen-set/fernlight-d8/thumbnail.png",
+          "thumbnailSha256": "e0076a06e92ee9f77609653d0af92b61f952f1cc2ca80826ea78be4d9269855c",
+          "thumbnailBytes": 38636,
+          "modelBytes": 317260,
+          "embeddedTextureBytes": 314956,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "76bc102112a72f3ede1076c163b6922b0070d0630626958a367052e7e017ab2a"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/grovekeeper-d12@1/asset@1",
+      "catalogItemId": "cozy-forest-imagegen-set/grovekeeper-d12@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cozy-forest-imagegen-set/grovekeeper-d12/model.glb",
+      "modelSha256": "725b47d403a8362ef80a19009b562bf89ddfe1436b4013a68a6c2eb5a5994b85",
+      "metadata": {
+        "source": "production",
+        "name": "Grovekeeper D12",
+        "description": "Grovekeeper D12 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d12",
+          "name": "Grovekeeper D12",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.25,
+          "rarity": "rare",
+          "description": "Grovekeeper D12 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cozy-forest",
+            "woodland",
+            "moss",
+            "brass",
+            "codex-imagegen",
+            "d12",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                0.850651,
+                0.525731
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.850651,
+                0.525731,
+                0
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.525731,
+                0,
+                -0.850651
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.525731,
+                0,
+                -0.850651
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0.850651,
+                -0.525731
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.850651,
+                0.525731,
+                0
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.850651,
+                -0.525731,
+                0
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                0,
+                -0.850651,
+                0.525731
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.525731,
+                0,
+                0.850651
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                -0.525731,
+                0,
+                0.850651
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.850651,
+                -0.525731,
+                0
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0,
+                -0.850651,
+                -0.525731
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.38,
+            "restitution": 0.3,
+            "friction": 0.7
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cozy-forest-imagegen-set/grovekeeper-d12/thumbnail.png",
+          "thumbnailSha256": "42fba4e0d0cc89626bbd64bc60cbdaa48290303aa766a05a4d31a9a08c44a846",
+          "thumbnailBytes": 61434,
+          "modelBytes": 693844,
+          "embeddedTextureBytes": 688848,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "61b0987ebd8a4e805b7bf7125c61657a8883c8a8b3e7517280a6be5cf78408cf"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/hearthwood-d6@1/asset@1",
+      "catalogItemId": "cozy-forest-imagegen-set/hearthwood-d6@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cozy-forest-imagegen-set/hearthwood-d6/model.glb",
+      "modelSha256": "56a4abc148a8c7f9330ff0af595409f42ed443ddeba761057aded19c43bb312b",
+      "metadata": {
+        "source": "production",
+        "name": "Hearthwood D6",
+        "description": "Hearthwood D6 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d6",
+          "name": "Hearthwood D6",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.1,
+          "rarity": "uncommon",
+          "description": "Hearthwood D6 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cozy-forest",
+            "woodland",
+            "moss",
+            "brass",
+            "codex-imagegen",
+            "d6",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                -1,
+                0
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0,
+                -1
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.38,
+            "restitution": 0.3,
+            "friction": 0.7
+          },
+          "colliderType": "roundCuboid",
+          "colliderArgs": {
+            "halfExtents": [
+              0.5,
+              0.5,
+              0.5
+            ],
+            "borderRadius": 0.06
+          }
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cozy-forest-imagegen-set/hearthwood-d6/thumbnail.png",
+          "thumbnailSha256": "a371ece8919f58ae4e6e4672eb6b802db0d17de18b7d724c45b82d5862c1f71b",
+          "thumbnailBytes": 56199,
+          "modelBytes": 874020,
+          "embeddedTextureBytes": 871424,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "4ac67bfe02879d32d80908ecc9f869fb2c1500d31670c86498915a53f8ae0bd1"
+    },
+    {
+      "id": "cozy-forest-imagegen-set/mossheart-d4@1/asset@1",
+      "catalogItemId": "cozy-forest-imagegen-set/mossheart-d4@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cozy-forest-imagegen-set/mossheart-d4/model.glb",
+      "modelSha256": "2d9a5300c430ad405aff5006a9678ab2e9a6954b4d9c510c6ae0a029ec1a4e4d",
+      "metadata": {
+        "source": "production",
+        "name": "Mossheart D4",
+        "description": "Mossheart D4 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d4",
+          "name": "Mossheart D4",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "uncommon",
+          "description": "Mossheart D4 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cozy-forest",
+            "woodland",
+            "moss",
+            "brass",
+            "codex-imagegen",
+            "d4",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.38,
+            "restitution": 0.3,
+            "friction": 0.7
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cozy-forest-imagegen-set/mossheart-d4/thumbnail.png",
+          "thumbnailSha256": "180536c7312f25e2347649f83e145b651eabd22f57d48a487d232cf1a7ca39a6",
+          "thumbnailBytes": 32966,
+          "modelBytes": 623716,
+          "embeddedTextureBytes": 621794,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "2454860af20dfb1ae2060f6939058653639ffe202ee355487018d5093619a65c"
     },
     {
       "id": "devil-set/devil-d6@1/asset@1",

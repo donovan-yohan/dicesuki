@@ -159,6 +159,9 @@ export interface DiceMetadata {
 
   /** Set ID this dice belongs to (derived from folder if not specified) */
   setId?: string
+
+  /** Immutable canonical dice geometry/UV reference used for authoring. */
+  canonicalReferenceVersion?: number
 }
 
 /**

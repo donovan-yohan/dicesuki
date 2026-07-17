@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -27,10 +28,27 @@ function repository() {
   git(root, 'init', '-q')
   git(root, 'config', 'user.name', 'Catalog Test')
   git(root, 'config', 'user.email', 'catalog-test@example.invalid')
+  const model = 'model-v1'
+  const thumbnail = 'thumbnail-v1'
+  const hash = (value: string) => crypto.createHash('sha256').update(value).digest('hex')
+  write(root, 'public/dice/test-set/test-d6/model.glb', model)
+  write(root, 'public/dice/test-set/test-d6/thumbnail.png', thumbnail)
   write(root, 'supabase/catalog/editions/0001-initial.json', JSON.stringify({
     edition: 1,
     slug: 'initial',
     migration: '0004_collectible_catalog.sql',
+    assetVersions: [{
+      id: 'test-set/test-d6@1/asset@1',
+      assetKind: 'gltf',
+      modelPath: '/dice/test-set/test-d6/model.glb',
+      modelSha256: hash(model),
+      metadata: {
+        delivery: {
+          thumbnailPath: '/dice/test-set/test-d6/thumbnail.png',
+          thumbnailSha256: hash(thumbnail),
+        },
+      },
+    }],
   }))
   write(root, 'supabase/catalog/collectible_catalog_v1.sql', '-- v1\n')
   write(root, 'supabase/migrations/0004_collectible_catalog.sql', '-- migration 4\n')
@@ -50,10 +68,27 @@ describe('immutable catalog history guard', () => {
   it('anchors every published manifest, its migration, and the v1 SQL', () => {
     const { root, baseline } = repository()
     expect(immutableCatalogPathsAtRef(baseline, root)).toEqual([
+      'public/dice/test-set/test-d6/model.glb',
+      'public/dice/test-set/test-d6/thumbnail.png',
       'supabase/catalog/collectible_catalog_v1.sql',
       'supabase/catalog/editions/0001-initial.json',
       'supabase/migrations/0004_collectible_catalog.sql',
     ])
+  })
+
+  it('rejects replacement of frozen model and thumbnail bytes', () => {
+    const { root, baseline } = repository()
+    const modelPath = 'public/dice/test-set/test-d6/model.glb'
+    const thumbnailPath = 'public/dice/test-set/test-d6/thumbnail.png'
+
+    write(root, modelPath, 'replacement-model')
+    expect(changedImmutableCatalogPaths(baseline, root)).toEqual([modelPath])
+    expect(() => validateCurrentCatalogAnchors(root)).toThrow(/model.*frozen SHA-256/)
+
+    write(root, modelPath, 'model-v1')
+    write(root, thumbnailPath, 'replacement-thumbnail')
+    expect(changedImmutableCatalogPaths(baseline, root)).toEqual([thumbnailPath])
+    expect(() => validateCurrentCatalogAnchors(root)).toThrow(/thumbnail.*frozen SHA-256/)
   })
 
   it('allows a new edition while rejecting joint history and migration rewrites', () => {

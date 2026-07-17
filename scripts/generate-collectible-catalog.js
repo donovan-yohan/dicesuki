@@ -62,23 +62,26 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'))
 }
 
-export function resolvePublicModelFilePath(rootDir, publicModelPath) {
-  if (typeof publicModelPath !== 'string' || !publicModelPath.startsWith('/dice/')) {
-    throw new Error('Catalog model path must start with /dice/')
+function resolvePublicDiceFilePath(rootDir, publicAssetPath, expectedFileName) {
+  if (typeof publicAssetPath !== 'string' || !publicAssetPath.startsWith('/dice/')) {
+    throw new Error('Catalog asset path must start with /dice/')
   }
-  const segments = publicModelPath.slice(1).split('/')
+  const segments = publicAssetPath.slice(1).split('/')
   if (segments.some(
     segment => !segment || segment === '.' || segment === '..' || segment.includes('\\'),
   )) {
-    throw new Error(`Catalog model path ${publicModelPath} is not a safe public path`)
+    throw new Error(`Catalog asset path ${publicAssetPath} is not a safe public path`)
+  }
+  if (segments.at(-1) !== expectedFileName) {
+    throw new Error(`Catalog asset path ${publicAssetPath} must end with ${expectedFileName}`)
   }
   const publicRoot = path.resolve(rootDir, 'public')
   const candidate = path.resolve(publicRoot, ...segments)
   if (!candidate.startsWith(`${publicRoot}${path.sep}`)) {
-    throw new Error(`Catalog model path ${publicModelPath} escapes the public directory`)
+    throw new Error(`Catalog asset path ${publicAssetPath} escapes the public directory`)
   }
   if (!fs.existsSync(candidate)) {
-    throw new Error(`Catalog model path ${publicModelPath} does not exist`)
+    throw new Error(`Catalog asset path ${publicAssetPath} does not exist`)
   }
 
   const publicRootStat = fs.lstatSync(publicRoot)
@@ -90,20 +93,24 @@ export function resolvePublicModelFilePath(rootDir, publicModelPath) {
     current = path.join(current, segment)
     const stat = fs.lstatSync(current)
     if (stat.isSymbolicLink()) {
-      throw new Error(`Catalog model path ${publicModelPath} must not use symbolic links`)
+      throw new Error(`Catalog asset path ${publicAssetPath} must not use symbolic links`)
     }
     const finalSegment = index === segments.length - 1
     if ((finalSegment && !stat.isFile()) || (!finalSegment && !stat.isDirectory())) {
-      throw new Error(`Catalog model path ${publicModelPath} must resolve to a regular file`)
+      throw new Error(`Catalog asset path ${publicAssetPath} must resolve to a regular file`)
     }
   })
 
   const realPublicRoot = fs.realpathSync(publicRoot)
   const realCandidate = fs.realpathSync(candidate)
   if (!realCandidate.startsWith(`${realPublicRoot}${path.sep}`)) {
-    throw new Error(`Catalog model path ${publicModelPath} escapes the real public directory`)
+    throw new Error(`Catalog asset path ${publicAssetPath} escapes the real public directory`)
   }
   return candidate
+}
+
+export function resolvePublicModelFilePath(rootDir, publicModelPath) {
+  return resolvePublicDiceFilePath(rootDir, publicModelPath, 'model.glb')
 }
 
 function positiveVersion(value, label) {
@@ -267,6 +274,17 @@ function productionEntries(source, paths) {
     if (setMetadata.id !== setId) {
       throw new Error(`${setMetadataPath} id must match its directory`)
     }
+    const runtimeManifestPath = path.join(setPath, 'runtime-assets.json')
+    const runtimeManifest = fs.existsSync(runtimeManifestPath)
+      ? readJson(runtimeManifestPath)
+      : null
+    if (runtimeManifest && runtimeManifest.setId !== setId) {
+      throw new Error(`${runtimeManifestPath} setId must match its directory`)
+    }
+    const runtimeAssets = new Map(
+      (runtimeManifest?.assets ?? []).map(asset => [asset.catalogKey, asset]),
+    )
+    const consumedRuntimeAssets = new Set()
 
     const diceDirectories = fs.readdirSync(setPath, { withFileTypes: true })
       .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
@@ -298,6 +316,43 @@ function productionEntries(source, paths) {
       if (!fs.existsSync(publishedModelFilePath)) {
         throw new Error(`Catalog model path ${publishedModelPath} does not exist`)
       }
+      const runtimeAsset = runtimeAssets.get(catalogKey)
+      let delivery
+      if (runtimeAsset) {
+        consumedRuntimeAssets.add(catalogKey)
+        if (runtimeAsset.model?.path !== publishedModelPath) {
+          throw new Error(`${runtimeManifestPath} model path must match ${catalogKey}`)
+        }
+        const thumbnailFilePath = resolvePublicDiceFilePath(
+          paths.rootDir,
+          runtimeAsset.thumbnail?.path,
+          'thumbnail.png',
+        )
+        const modelBytes = fs.statSync(publishedModelFilePath).size
+        const thumbnailBytes = fs.statSync(thumbnailFilePath).size
+        const modelSha256 = sha256(fs.readFileSync(publishedModelFilePath))
+        const thumbnailSha256 = sha256(fs.readFileSync(thumbnailFilePath))
+        if (
+          runtimeAsset.model?.bytes !== modelBytes ||
+          runtimeAsset.model?.sha256 !== modelSha256 ||
+          runtimeAsset.thumbnail?.bytes !== thumbnailBytes ||
+          runtimeAsset.thumbnail?.sha256 !== thumbnailSha256
+        ) {
+          throw new Error(`${runtimeManifestPath} delivery metadata is stale for ${catalogKey}`)
+        }
+        delivery = {
+          thumbnailPath: runtimeAsset.thumbnail.path,
+          thumbnailSha256,
+          thumbnailBytes,
+          modelBytes,
+          embeddedTextureBytes: runtimeAsset.model.embeddedTextureBytes,
+          textureFormat: runtimeAsset.model.textureFormat,
+          maxTextureDimension: runtimeAsset.model.maxTextureDimension,
+          canonicalReferenceVersion: runtimeManifest.canonicalReferenceVersion,
+        }
+      } else if (runtimeManifest) {
+        throw new Error(`${runtimeManifestPath} has no delivery record for ${catalogKey}`)
+      }
       const metadata = {
         source: 'production',
         name: diceMetadata.name,
@@ -311,6 +366,7 @@ function productionEntries(source, paths) {
         },
         vfx: {},
         diceMetadata,
+        ...(delivery ? { delivery } : {}),
       }
       entries.push({
         item,
@@ -322,6 +378,11 @@ function productionEntries(source, paths) {
           metadata,
         ),
       })
+    }
+    const orphanedRuntimeAssets = [...runtimeAssets.keys()]
+      .filter(catalogKey => !consumedRuntimeAssets.has(catalogKey))
+    if (orphanedRuntimeAssets.length > 0) {
+      throw new Error(`${runtimeManifestPath} has orphaned assets: ${orphanedRuntimeAssets.join(', ')}`)
     }
   }
 

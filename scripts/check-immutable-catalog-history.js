@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
@@ -33,6 +34,42 @@ function pathExistsAtRef(ref, filePath, cwd) {
   }
 }
 
+function publicCatalogAssetRepoPath(publicPath, expectedFileName) {
+  if (typeof publicPath !== 'string' || !publicPath.startsWith('/dice/')) {
+    throw new Error(`Historical catalog asset path is not under /dice/: ${publicPath}`)
+  }
+  const segments = publicPath.slice(1).split('/')
+  if (
+    segments.at(-1) !== expectedFileName ||
+    segments.some(segment => !segment || segment === '.' || segment === '..' || segment.includes('\\'))
+  ) {
+    throw new Error(`Historical catalog asset path is not canonical: ${publicPath}`)
+  }
+  return `public/${segments.join('/')}`
+}
+
+function addHistoricalAssetPaths(immutablePaths, edition, ref, cwd, editionPath) {
+  for (const asset of edition.assetVersions ?? []) {
+    if (asset.assetKind !== 'gltf') continue
+    const modelPath = publicCatalogAssetRepoPath(asset.modelPath, 'model.glb')
+    if (!pathExistsAtRef(ref, modelPath, cwd)) {
+      throw new Error(`${editionPath} references missing historical model ${modelPath} at ${ref}`)
+    }
+    immutablePaths.add(modelPath)
+
+    if (asset.metadata?.delivery?.thumbnailPath) {
+      const thumbnailPath = publicCatalogAssetRepoPath(
+        asset.metadata.delivery.thumbnailPath,
+        'thumbnail.png',
+      )
+      if (!pathExistsAtRef(ref, thumbnailPath, cwd)) {
+        throw new Error(`${editionPath} references missing historical thumbnail ${thumbnailPath} at ${ref}`)
+      }
+      immutablePaths.add(thumbnailPath)
+    }
+  }
+}
+
 export function immutableCatalogPathsAtRef(ref, cwd = process.cwd()) {
   git(['rev-parse', '--verify', `${ref}^{commit}`], cwd)
 
@@ -55,6 +92,7 @@ export function immutableCatalogPathsAtRef(ref, cwd = process.cwd()) {
       throw new Error(`${editionPath} has no valid migration anchor at ${ref}`)
     }
     immutablePaths.add(`supabase/migrations/${edition.migration}`)
+    addHistoricalAssetPaths(immutablePaths, edition, ref, cwd, editionPath)
   }
 
   return [...immutablePaths].sort()
@@ -74,7 +112,7 @@ export function validateCurrentCatalogAnchors(cwd = process.cwd()) {
   if (editionFileNames.length === 0) throw new Error('No catalog edition manifests found')
 
   const referencedMigrations = new Set()
-  editionFileNames.forEach((fileName, index) => {
+  const editions = editionFileNames.map((fileName, index) => {
     if (!/^\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*\.json$/.test(fileName)) {
       throw new Error(`Invalid catalog edition filename ${fileName}`)
     }
@@ -98,6 +136,7 @@ export function validateCurrentCatalogAnchors(cwd = process.cwd()) {
     if (!fs.existsSync(path.join(paths.migrationsDir, edition.migration))) {
       throw new Error(`Catalog edition ${fileName} references a missing migration`)
     }
+    return { fileName, edition }
   })
 
   const orphanedMigrations = fs.readdirSync(paths.migrationsDir)
@@ -123,6 +162,39 @@ export function validateCurrentCatalogAnchors(cwd = process.cwd()) {
     throw new Error(
       `Catalog DML must be anchored to edition manifests: ${unanchoredCatalogDml.join(', ')}`,
     )
+  }
+
+  validateHistoricalCatalogAssetFiles(editions, cwd)
+}
+
+export function validateHistoricalCatalogAssetFiles(editions, cwd = process.cwd()) {
+  for (const { fileName, edition } of editions) {
+    for (const asset of edition.assetVersions ?? []) {
+      if (asset.assetKind !== 'gltf') continue
+      verifyHistoricalAssetFile(
+        cwd,
+        publicCatalogAssetRepoPath(asset.modelPath, 'model.glb'),
+        asset.modelSha256,
+        `${fileName} model ${asset.id}`,
+      )
+      if (asset.metadata?.delivery?.thumbnailPath) {
+        verifyHistoricalAssetFile(
+          cwd,
+          publicCatalogAssetRepoPath(asset.metadata.delivery.thumbnailPath, 'thumbnail.png'),
+          asset.metadata.delivery.thumbnailSha256,
+          `${fileName} thumbnail ${asset.id}`,
+        )
+      }
+    }
+  }
+}
+
+function verifyHistoricalAssetFile(cwd, relativePath, expectedSha256, label) {
+  const filePath = path.join(cwd, relativePath)
+  if (!fs.existsSync(filePath)) throw new Error(`${label} is missing ${relativePath}`)
+  const actual = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+  if (actual !== expectedSha256) {
+    throw new Error(`${label} bytes do not match frozen SHA-256 at ${relativePath}`)
   }
 }
 

@@ -24,6 +24,7 @@ export interface DicePresentationMetadata {
   accentColor?: string
   material?: string
   customAssetId?: string
+  customAssetVersionId?: string
   customAssetName?: string
   unsupportedReason?: string
 }

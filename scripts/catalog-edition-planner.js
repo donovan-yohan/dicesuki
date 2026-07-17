@@ -221,6 +221,22 @@ function assertAssetMetadata(asset, item) {
   ) {
     throw new Error(`GLB catalog asset ${asset.id} dice metadata rarity must match its item`)
   }
+  if (asset.metadata.delivery !== undefined) {
+    const delivery = asset.metadata.delivery
+    assertRecord(delivery, `GLB catalog asset ${asset.id} delivery metadata`)
+    assertNonEmptyString(delivery.thumbnailPath, `GLB catalog asset ${asset.id} thumbnail path`)
+    assertSha256(delivery.thumbnailSha256, `GLB catalog asset ${asset.id} thumbnail hash`)
+    for (const key of ['thumbnailBytes', 'modelBytes', 'embeddedTextureBytes', 'maxTextureDimension', 'canonicalReferenceVersion']) {
+      assertPositiveInteger(delivery[key], `GLB catalog asset ${asset.id} delivery ${key}`)
+    }
+    if (delivery.textureFormat !== 'image/webp') {
+      throw new Error(`GLB catalog asset ${asset.id} textures must use image/webp`)
+    }
+    const expectedThumbnailPath = asset.modelPath.replace(/model\.glb$/, 'thumbnail.png')
+    if (delivery.thumbnailPath !== expectedThumbnailPath) {
+      throw new Error(`GLB catalog asset ${asset.id} thumbnail path must match its model directory`)
+    }
+  }
 }
 
 function assertAssetShape(asset, itemsById) {

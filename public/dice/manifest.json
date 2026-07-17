@@ -1,7 +1,42 @@
 {
-  "version": "1.0",
-  "generatedAt": "2026-07-13T06:02:44.765Z",
+  "version": "2.0",
   "sets": [
+    {
+      "id": "cozy-forest-imagegen-set",
+      "path": "cozy-forest-imagegen-set",
+      "dice": [
+        {
+          "id": "acorn-compass-d10",
+          "path": "cozy-forest-imagegen-set/acorn-compass-d10",
+          "hasThumbnail": true
+        },
+        {
+          "id": "elder-canopy-d20",
+          "path": "cozy-forest-imagegen-set/elder-canopy-d20",
+          "hasThumbnail": true
+        },
+        {
+          "id": "fernlight-d8",
+          "path": "cozy-forest-imagegen-set/fernlight-d8",
+          "hasThumbnail": true
+        },
+        {
+          "id": "grovekeeper-d12",
+          "path": "cozy-forest-imagegen-set/grovekeeper-d12",
+          "hasThumbnail": true
+        },
+        {
+          "id": "hearthwood-d6",
+          "path": "cozy-forest-imagegen-set/hearthwood-d6",
+          "hasThumbnail": true
+        },
+        {
+          "id": "mossheart-d4",
+          "path": "cozy-forest-imagegen-set/mossheart-d4",
+          "hasThumbnail": true
+        }
+      ]
+    },
     {
       "id": "devil-set",
       "path": "devil-set",
