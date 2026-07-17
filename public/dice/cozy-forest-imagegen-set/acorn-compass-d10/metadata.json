@@ -7,6 +7,7 @@
   "scale": 1,
   "rarity": "rare",
   "description": "Acorn Compass D10 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+  "uvManifestUrl": "/artist-resources/imagegen-uv/theme-sets/templates/d10/d10-mesh-uv-manifest.json",
   "tags": [
     "cozy-forest",
     "woodland",

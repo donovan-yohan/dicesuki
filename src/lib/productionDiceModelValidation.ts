@@ -9,17 +9,39 @@ export interface ProductionDiceModelFaceValidation {
   matchedValue: number
   alignment: number
   uvTriangleCount: number
+  materialIndex: number
 }
 
 interface ModelTriangle {
+  triangleIndex: number
   normal: THREE.Vector3
-  hasValidUv: boolean
+  uv?: [THREE.Vector2, THREE.Vector2, THREE.Vector2]
+}
+
+interface CanonicalUvPoint {
+  u: number
+  v: number
+}
+
+interface CanonicalUvIsland {
+  faceValue: number
+  materialIndex: number
+  triangleIndices?: number[]
+  uvByTriangle?: CanonicalUvPoint[][]
+  uvByVertex?: CanonicalUvPoint[]
+}
+
+export interface CanonicalDiceUvManifest {
+  shape: string
+  islands: CanonicalUvIsland[]
 }
 
 export function validateProductionDiceModelFace(
   scene: THREE.Object3D,
+  diceType: string,
   requestedFace: DiceFace,
   faceNormals: DiceFace[],
+  manifest: CanonicalDiceUvManifest,
 ): ProductionDiceModelFaceValidation {
   const values = new Set(faceNormals.map((face) => face.value))
   if (values.size !== faceNormals.length) {
@@ -35,7 +57,22 @@ export function validateProductionDiceModelFace(
   }
   requestedNormal.normalize()
 
-  const triangles = collectModelTriangles(scene).filter((triangle) => triangle.hasValidUv)
+  if (manifest.shape !== diceType) {
+    throw new Error(`Canonical UV manifest shape ${manifest.shape} does not match dice type ${diceType}`)
+  }
+  const matchingIslands = manifest.islands.filter((island) => island.faceValue === requestedFace.value)
+  if (matchingIslands.length !== 1) {
+    throw new Error(`Canonical UV manifest must contain exactly one island for face ${requestedFace.value}`)
+  }
+  const materialIndexes = new Set(manifest.islands.map((island) => island.materialIndex))
+  if (materialIndexes.size !== manifest.islands.length) {
+    throw new Error('Canonical UV manifest contains duplicate material indexes')
+  }
+  const canonicalIsland = matchingIslands[0]
+  const expectedUvTriangles = getExpectedUvTriangles(canonicalIsland)
+  const expectedTriangleIndices = getExpectedTriangleIndices(canonicalIsland, expectedUvTriangles.length)
+
+  const triangles = collectModelTriangles(scene).filter((triangle) => triangle.uv)
   if (triangles.length === 0) {
     throw new Error('GLB model has no non-degenerate UV-mapped triangles')
   }
@@ -74,20 +111,34 @@ export function validateProductionDiceModelFace(
     throw new Error(`GLB geometry for requested face ${requestedFace.value} is ambiguous`)
   }
 
-  const uvTriangleCount = triangles.filter(
+  const alignedTriangles = triangles.filter(
     (triangle) => triangle.normal.dot(bestNormal!) >= MODEL_FACE_DOT_THRESHOLD,
-  ).length
+  )
+  if (!triangleIndexesMatch(alignedTriangles, expectedTriangleIndices)) {
+    throw new Error(
+      `GLB triangle group for face ${requestedFace.value} does not match canonical `
+      + `material island ${canonicalIsland.materialIndex}`,
+    )
+  }
+  if (!uvTriangleGroupsMatch(alignedTriangles, expectedUvTriangles)) {
+    throw new Error(
+      `GLB UV mapping for face ${requestedFace.value} does not match canonical `
+      + `material island ${canonicalIsland.materialIndex}`,
+    )
+  }
 
   return {
     modelNormal: bestNormal.clone(),
     matchedValue: matchedFace.face.value,
     alignment: bestAlignment,
-    uvTriangleCount,
+    uvTriangleCount: alignedTriangles.length,
+    materialIndex: canonicalIsland.materialIndex,
   }
 }
 
 function collectModelTriangles(scene: THREE.Object3D): ModelTriangle[] {
   const triangles: ModelTriangle[] = []
+  let triangleIndex = 0
   scene.updateWorldMatrix(true, true)
 
   scene.traverse((object) => {
@@ -100,6 +151,7 @@ function collectModelTriangles(scene: THREE.Object3D): ModelTriangle[] {
     const indexCount = index?.count ?? position.count
 
     for (let offset = 0; offset + 2 < indexCount; offset += 3) {
+      const currentTriangleIndex = triangleIndex++
       const indices = [0, 1, 2].map((vertex) => index?.getX(offset + vertex) ?? offset + vertex)
       const vertices = indices.map((vertexIndex) => (
         new THREE.Vector3().fromBufferAttribute(position, vertexIndex).applyMatrix4(object.matrixWorld)
@@ -109,21 +161,93 @@ function collectModelTriangles(scene: THREE.Object3D): ModelTriangle[] {
       if (!isFiniteVector(normal) || normal.lengthSq() === 0) continue
       normal.normalize()
 
-      let hasValidUv = false
+      let triangleUv: ModelTriangle['uv']
       if (uv) {
-        const uvPoints = indices.map((vertexIndex) => new THREE.Vector2().fromBufferAttribute(uv, vertexIndex))
-        hasValidUv = uvPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+        const uvPoints = indices.map(
+          (vertexIndex) => new THREE.Vector2().fromBufferAttribute(uv, vertexIndex),
+        ) as [THREE.Vector2, THREE.Vector2, THREE.Vector2]
+        const hasValidUv = uvPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
           && Math.abs(
             (uvPoints[1].x - uvPoints[0].x) * (uvPoints[2].y - uvPoints[0].y)
             - (uvPoints[2].x - uvPoints[0].x) * (uvPoints[1].y - uvPoints[0].y),
           ) > UV_AREA_EPSILON
+        if (hasValidUv) triangleUv = uvPoints
       }
 
-      triangles.push({ normal, hasValidUv })
+      triangles.push({ triangleIndex: currentTriangleIndex, normal, uv: triangleUv })
     }
   })
 
   return triangles
+}
+
+function getExpectedUvTriangles(island: CanonicalUvIsland): CanonicalUvPoint[][] {
+  const triangles = island.uvByTriangle
+    ?? (island.uvByVertex ? [island.uvByVertex] : [])
+  const expectedTriangleCount = island.triangleIndices?.length ?? triangles.length
+  if (triangles.length === 0 || triangles.length !== expectedTriangleCount) {
+    throw new Error(`Canonical UV island for face ${island.faceValue} has an invalid triangle contract`)
+  }
+  if (triangles.some((triangle) => triangle.length !== 3)) {
+    throw new Error(`Canonical UV island for face ${island.faceValue} contains a non-triangle UV mapping`)
+  }
+  return triangles
+}
+
+function triangleIndexesMatch(
+  actualTriangles: ModelTriangle[],
+  expectedTriangleIndices: number[],
+): boolean {
+  if (actualTriangles.length !== expectedTriangleIndices.length) return false
+  const actual = actualTriangles.map((triangle) => triangle.triangleIndex).sort((left, right) => left - right)
+  const expected = [...expectedTriangleIndices].sort((left, right) => left - right)
+  return actual.every((triangleIndex, index) => triangleIndex === expected[index])
+}
+
+function getExpectedTriangleIndices(island: CanonicalUvIsland, triangleCount: number): number[] {
+  const materialTriangleIndices = Array.from(
+    { length: triangleCount },
+    (_, offset) => island.materialIndex * triangleCount + offset,
+  )
+  if (!island.triangleIndices) return materialTriangleIndices
+
+  const declared = [...island.triangleIndices].sort((left, right) => left - right)
+  if (!declared.every((triangleIndex, index) => triangleIndex === materialTriangleIndices[index])) {
+    throw new Error(`Canonical material island ${island.materialIndex} has inconsistent triangle indices`)
+  }
+  return declared
+}
+
+function uvTriangleGroupsMatch(
+  actualTriangles: ModelTriangle[],
+  expectedTriangles: CanonicalUvPoint[][],
+): boolean {
+  if (actualTriangles.length !== expectedTriangles.length) return false
+  const unmatched = [...expectedTriangles]
+
+  for (const actual of actualTriangles) {
+    if (!actual.uv) return false
+    const matchIndex = unmatched.findIndex((expected) => uvTrianglesMatch(actual.uv!, expected))
+    if (matchIndex === -1) return false
+    unmatched.splice(matchIndex, 1)
+  }
+
+  return unmatched.length === 0
+}
+
+function uvTrianglesMatch(
+  actual: [THREE.Vector2, THREE.Vector2, THREE.Vector2],
+  expected: CanonicalUvPoint[],
+): boolean {
+  const unmatched = [...expected]
+  for (const point of actual) {
+    const matchIndex = unmatched.findIndex(
+      (candidate) => Math.abs(candidate.u - point.x) <= 1e-5 && Math.abs(candidate.v - point.y) <= 1e-5,
+    )
+    if (matchIndex === -1) return false
+    unmatched.splice(matchIndex, 1)
+  }
+  return unmatched.length === 0
 }
 
 function isFiniteVector(vector: THREE.Vector3): boolean {

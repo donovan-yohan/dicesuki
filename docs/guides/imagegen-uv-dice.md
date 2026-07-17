@@ -71,7 +71,7 @@ Run the workshop in this order:
 2. Edit each numbered PNG with Codex ImageGen. Preserve every island, value, and orientation; save the unregistered result with the `-raw.png` suffix.
 3. `npm run register:theme-atlases` snaps ImageGen's small island-level shifts back onto the exact manifest polygons and adds controlled bleed.
 4. `npm run generate:theme-normal-maps` derives relief normals from the registered dice albedos and tileable environment surfaces.
-5. `npm run generate:theme-dice-sets` embeds albedo, normals, UVs, and face-reader metadata in the runtime GLBs and refreshes `public/dice/manifest.json`.
+5. `npm run generate:theme-dice-sets` embeds albedo, normals, UVs, face-reader metadata, and the canonical `uvManifestUrl` proof contract in the runtime GLBs and refreshes `public/dice/manifest.json`.
 6. `npm run test:imagegen-uv` validates topology, face values, UV contracts, and D10 coplanarity.
 7. Start a local production preview with `npm run preview`, then run `DICESUKI_BASE_URL=http://127.0.0.1:4173 npm run capture:theme-workshop`. It captures six GLB geometry/UV-validated proof views per theme, then captures the themed environment around current starter dice in the room-authoritative app. The capture script defaults to this local preview URL; set `DICESUKI_BASE_URL` explicitly for another reachable deployment.
 
@@ -160,4 +160,4 @@ Blender is not required for the generated UV prompt loop, but it is the right ne
 - Every D10 kite contains exactly two coplanar triangles and one value from `0-9`.
 - Hard values are readable after downscaling.
 - Wrapped evidence is checked before promoting an atlas into runtime or GLB assets.
-- The GLB preview harness fails closed unless the exact requested metadata face maps uniquely to a non-degenerate UV-mapped triangle in the loaded model; environment captures exercise the current room-authoritative physics path with starter inventory dice.
+- The GLB preview harness fails closed unless the exact requested metadata face maps uniquely to the loaded model triangles and their UV coordinates match that face's canonical manifest island/material index. D10 promotion requires both triangles of its kite island; environment captures exercise the current room-authoritative physics path with starter inventory dice.

@@ -7,6 +7,7 @@
   "scale": 1,
   "rarity": "epic",
   "description": "An ornate antique-gold and sapphire D20 authored by Codex ImageGen from the canonical numbered mesh UV template.",
+  "uvManifestUrl": "/artist-resources/imagegen-uv/d20-imagegen/d20-mesh-uv-manifest.json",
   "tags": [
     "fantasy",
     "test-fixture",

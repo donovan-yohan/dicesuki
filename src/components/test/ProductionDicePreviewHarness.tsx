@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import type { DiceFace } from '../../lib/geometries'
 import {
   validateProductionDiceModelFace,
+  type CanonicalDiceUvManifest,
   type ProductionDiceModelFaceValidation,
 } from '../../lib/productionDiceModelValidation'
 import type { DiceMetadata } from '../../types/customDice'
@@ -44,19 +45,29 @@ function ProductionDiceModel({
   metadata,
   face,
   faceNormals,
+  uvManifest,
   onValidation,
 }: {
   modelUrl: string
   metadata: DiceMetadata
   face: DiceFace
   faceNormals: DiceFace[]
+  uvManifest: CanonicalDiceUvManifest
   onValidation: (validation: ModelValidationReport) => void
 }) {
   const gltf = useGLTF(modelUrl)
   const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene])
   const validation = useMemo<ModelValidationReport>(() => {
     try {
-      return { result: validateProductionDiceModelFace(scene, face, faceNormals) }
+      return {
+        result: validateProductionDiceModelFace(
+          scene,
+          metadata.diceType,
+          face,
+          faceNormals,
+          uvManifest,
+        ),
+      }
     } catch (validationError) {
       return {
         error: validationError instanceof Error
@@ -64,7 +75,7 @@ function ProductionDiceModel({
           : 'Failed to validate GLB model geometry',
       }
     }
-  }, [face, faceNormals, scene])
+  }, [face, faceNormals, metadata.diceType, scene, uvManifest])
   const rotation = useMemo(
     () => validation.result
       ? rotationFromFaceToCamera({ ...face, normal: validation.result.modelNormal })
@@ -89,10 +100,11 @@ interface ModelValidationReport {
 export default function ProductionDicePreviewHarness() {
   const [searchParams] = useSearchParams()
   const setId = searchParams.get('set') || 'fantasy-set'
-  const diceId = searchParams.get('dice') || 'emerald-d20'
+  const diceId = searchParams.get('dice') || 'aurelian-imagegen-d20'
   const faceValueParam = searchParams.get('faceValue')
   const requestedFaceValue = faceValueParam === null ? Number.NaN : Number(faceValueParam)
   const [metadata, setMetadata] = useState<DiceMetadata | null>(null)
+  const [uvManifest, setUvManifest] = useState<CanonicalDiceUvManifest | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [modelValidation, setModelValidation] = useState<ModelValidationReport | null>(null)
 
@@ -102,18 +114,20 @@ export default function ProductionDicePreviewHarness() {
   useEffect(() => {
     let mounted = true
     setMetadata(null)
+    setUvManifest(null)
     setError(null)
     setModelValidation(null)
 
-    fetch(metadataUrl)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Failed to load ${metadataUrl}`)
+    fetchJson<DiceMetadata>(metadataUrl)
+      .then(async (loadedMetadata) => {
+        if (!loadedMetadata.uvManifestUrl) {
+          throw new Error(`${setId}/${diceId} does not declare a canonical uvManifestUrl`)
         }
-        return response.json()
-      })
-      .then((loadedMetadata: DiceMetadata) => {
-        if (mounted) setMetadata(loadedMetadata)
+        const loadedManifest = await fetchJson<CanonicalDiceUvManifest>(loadedMetadata.uvManifestUrl)
+        if (mounted) {
+          setMetadata(loadedMetadata)
+          setUvManifest(loadedManifest)
+        }
       })
       .catch((loadError) => {
         if (mounted) {
@@ -124,7 +138,7 @@ export default function ProductionDicePreviewHarness() {
     return () => {
       mounted = false
     }
-  }, [metadataUrl])
+  }, [diceId, metadataUrl, setId])
 
   useEffect(() => {
     setModelValidation(null)
@@ -153,7 +167,7 @@ export default function ProductionDicePreviewHarness() {
     )
   }
 
-  if (!metadata || !face) {
+  if (!metadata || !face || !uvManifest) {
     return (
       <div
         data-testid="production-dice-preview"
@@ -173,6 +187,8 @@ export default function ProductionDicePreviewHarness() {
         <div data-testid="model-face-value">{modelValidation?.result?.matchedValue ?? 'validating'}</div>
         <div data-testid="model-face-alignment">{modelValidation?.result?.alignment.toFixed(4) ?? 'validating'}</div>
         <div data-testid="model-face-uv-triangles">{modelValidation?.result?.uvTriangleCount ?? 'validating'}</div>
+        <div data-testid="canonical-material-index">{modelValidation?.result?.materialIndex ?? 'validating'}</div>
+        <div data-testid="canonical-uv-status">{modelValidation?.result ? 'matched' : 'validating'}</div>
         <div data-testid="validation-status">{modelValidation?.result ? 'validated' : 'validating'}</div>
       </div>
       <Canvas camera={{ position: [0, 0, 3], fov: 36, near: 0.1, far: 100 }}>
@@ -186,10 +202,17 @@ export default function ProductionDicePreviewHarness() {
             metadata={metadata}
             face={face}
             faceNormals={faceNormals}
+            uvManifest={uvManifest}
             onValidation={handleModelValidation}
           />
         </Suspense>
       </Canvas>
     </div>
   )
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`Failed to load ${url}`)
+  return response.json() as Promise<T>
 }

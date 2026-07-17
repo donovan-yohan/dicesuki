@@ -6,16 +6,9 @@ const PREVIEW_CASES = [
     dice: 'aurelian-imagegen-d20',
     faceValue: 20,
   },
-  {
-    set: 'fantasy-set',
-    dice: 'emerald-d20',
-    faceValue: 20,
-  },
-  {
-    set: 'dungeon-set',
-    dice: 'iron-d6',
-    faceValue: 6,
-  },
+  { set: 'cozy-forest-imagegen-set', dice: 'mossheart-d4', faceValue: 4 },
+  { set: 'cozy-forest-imagegen-set', dice: 'hearthwood-d6', faceValue: 6 },
+  { set: 'cozy-forest-imagegen-set', dice: 'fernlight-d8', faceValue: 8 },
   {
     set: 'cozy-forest-imagegen-set',
     dice: 'acorn-compass-d10',
@@ -26,6 +19,7 @@ const PREVIEW_CASES = [
     dice: 'elder-canopy-d20',
     faceValue: 20,
   },
+  { set: 'cozy-forest-imagegen-set', dice: 'grovekeeper-d12', faceValue: 12 },
   {
     set: 'dark-dungeon-imagegen-set',
     dice: 'gaoler-key-d10',
@@ -64,6 +58,8 @@ test.describe('production dice preview fixtures', () => {
       await expect(page.locator('[data-testid="requested-value"]')).toHaveText(String(previewCase.faceValue))
       await expect(page.locator('[data-testid="model-face-value"]')).toHaveText(String(previewCase.faceValue))
       await expect(page.locator('[data-testid="model-face-uv-triangles"]')).not.toHaveText('0')
+      await expect(page.locator('[data-testid="canonical-material-index"]')).not.toHaveText('validating')
+      await expect(page.locator('[data-testid="canonical-uv-status"]')).toHaveText('matched')
     })
   }
 

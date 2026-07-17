@@ -55,6 +55,7 @@ for (const theme of THEME_WORKSHOP) {
       scale: 1,
       rarity: shape === 'd20' ? 'epic' : shape === 'd12' || shape === 'd10' ? 'rare' : 'uncommon',
       description: `${die.name} belongs to ${theme.name}, with Codex ImageGen-authored face art and a derived tangent-space normal map.`,
+      uvManifestUrl: `/artist-resources/imagegen-uv/theme-sets/templates/${shape}/${shape}-mesh-uv-manifest.json`,
       tags: [
         ...theme.tags,
         shape,

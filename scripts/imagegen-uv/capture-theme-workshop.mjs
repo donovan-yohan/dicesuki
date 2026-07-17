@@ -91,7 +91,8 @@ try {
         const requested = document.querySelector('[data-testid="requested-value"]')?.textContent
         const modelFace = document.querySelector('[data-testid="model-face-value"]')?.textContent
         const status = document.querySelector('[data-testid="validation-status"]')?.textContent
-        return Boolean(requested && modelFace && requested === modelFace && status === 'validated')
+        const canonicalUv = document.querySelector('[data-testid="canonical-uv-status"]')?.textContent
+        return Boolean(requested && modelFace && requested === modelFace && status === 'validated' && canonicalUv === 'matched')
       })
       if (pageErrors.length > 0) throw new Error(`${url}: ${pageErrors.join('; ')}`)
 

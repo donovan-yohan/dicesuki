@@ -50,6 +50,9 @@ for (const set of PRODUCTION_FIXTURE_SETS) {
       scale: 1.0,
       rarity: die.rarity,
       description: die.description,
+      ...(die.imagegenAtlas
+        ? { uvManifestUrl: `/${die.imagegenAtlas.manifestPath.replace(/^public\//, '')}` }
+        : {}),
       tags: [
         ...set.tags,
         die.diceType,

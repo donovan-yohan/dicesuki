@@ -141,6 +141,9 @@ export interface DiceMetadata {
   /** Optional: Custom tags for filtering/organization */
   tags?: string[]
 
+  /** Canonical UV manifest used to validate face-to-atlas mapping for generated dice. */
+  uvManifestUrl?: string
+
   /** Optional: License information */
   license?: string
 

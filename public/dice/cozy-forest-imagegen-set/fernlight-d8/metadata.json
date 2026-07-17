@@ -7,6 +7,7 @@
   "scale": 1,
   "rarity": "uncommon",
   "description": "Fernlight D8 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+  "uvManifestUrl": "/artist-resources/imagegen-uv/theme-sets/templates/d8/d8-mesh-uv-manifest.json",
   "tags": [
     "cozy-forest",
     "woodland",

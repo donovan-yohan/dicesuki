@@ -26,8 +26,9 @@ try {
     const requested = await page.locator('[data-testid="requested-value"]').textContent()
     const modelFace = await page.locator('[data-testid="model-face-value"]').textContent()
     const status = await page.locator('[data-testid="validation-status"]').textContent()
-    if (requested !== String(faceValue) || modelFace !== String(faceValue) || status !== 'validated') {
-      throw new Error(`Face ${faceValue} mismatch: requested=${requested}, modelFace=${modelFace}, status=${status}`)
+    const canonicalUv = await page.locator('[data-testid="canonical-uv-status"]').textContent()
+    if (requested !== String(faceValue) || modelFace !== String(faceValue) || status !== 'validated' || canonicalUv !== 'matched') {
+      throw new Error(`Face ${faceValue} mismatch: requested=${requested}, modelFace=${modelFace}, status=${status}, canonicalUv=${canonicalUv}`)
     }
 
     const outputPath = path.join(outputDir, `aurelian-imagegen-d20-face${faceValue}.png`)

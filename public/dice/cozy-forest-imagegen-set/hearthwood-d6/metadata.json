@@ -7,6 +7,7 @@
   "scale": 1,
   "rarity": "uncommon",
   "description": "Hearthwood D6 belongs to Cozy Forest Relics, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+  "uvManifestUrl": "/artist-resources/imagegen-uv/theme-sets/templates/d6/d6-mesh-uv-manifest.json",
   "tags": [
     "cozy-forest",
     "woodland",

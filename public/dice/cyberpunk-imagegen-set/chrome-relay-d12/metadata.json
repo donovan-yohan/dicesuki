@@ -7,6 +7,7 @@
   "scale": 1,
   "rarity": "rare",
   "description": "Chrome Relay D12 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+  "uvManifestUrl": "/artist-resources/imagegen-uv/theme-sets/templates/d12/d12-mesh-uv-manifest.json",
   "tags": [
     "cyberpunk",
     "street-tech",
