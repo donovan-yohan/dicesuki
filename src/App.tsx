@@ -6,7 +6,9 @@ import { DeviceMotionProvider } from './contexts/DeviceMotionProvider'
 import { ThemeProvider } from './contexts/ThemeProvider'
 import { useInventoryStore } from './store/useInventoryStore'
 import DiceFaceTestHarness from './components/test/DiceFaceTestHarness'
+import ProductionDicePreviewHarness from './components/test/ProductionDicePreviewHarness'
 import { MultiplayerRoom } from './components/multiplayer/MultiplayerRoom'
+import { ProductionDiceInitializer } from './components/ProductionDiceInitializer'
 
 function MainApp() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
@@ -59,6 +61,7 @@ function MainApp() {
 
   return (
     <div className="w-full h-full">
+      <ProductionDiceInitializer />
       <Scene />
     </div>
   )
@@ -70,6 +73,7 @@ function App() {
       <Routes>
         {/* Dev-only test harness — bypasses device check and providers */}
         <Route path="/test/dice-faces" element={<DiceFaceTestHarness />} />
+        <Route path="/test/production-dice-preview" element={<ProductionDicePreviewHarness />} />
         {/* Multiplayer room route */}
         <Route path="/room/:roomId" element={
           <ThemeProvider>

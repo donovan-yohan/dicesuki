@@ -1,8 +1,8 @@
 // External libraries
 import { Box, Environment } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Physics, RigidBody, useRapier } from '@react-three/rapier'
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { CuboidCollider, Physics, RigidBody, useRapier } from '@react-three/rapier'
+import { Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
@@ -43,6 +43,8 @@ import { useUIStore } from '../store/useUIStore'
 // Components
 import { CustomDice } from './dice/CustomDice'
 import { Dice, DiceHandle } from './dice/Dice'
+import { ThemedSurfaceMaterial } from './environment/ThemedSurfaceMaterial'
+import { useEnvironmentTextureMaps } from './environment/useEnvironmentTextureMaps'
 import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
 import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
@@ -171,14 +173,22 @@ function PhysicsController({ gravityRef }: { gravityRef: React.MutableRefObject<
 function ThemedBackground() {
   const { scene } = useThree()
   const { currentTheme } = useTheme()
-  const bgColor = currentTheme.environment.background.color
+  const background = currentTheme.environment.background
+  const { colorMap } = useEnvironmentTextureMaps({
+    texture: background.equirectangularTexture ?? background.albedoTexture ?? background.colorTexture ?? background.texture,
+  })
 
   useEffect(() => {
-    console.log(`[ThemedBackground] Setting scene background to: ${bgColor} for theme: ${currentTheme.id}`)
-    const color = new THREE.Color(bgColor)
-    scene.background = color
-    console.log(`[ThemedBackground] Scene background object:`, scene.background, 'R:', scene.background.r, 'G:', scene.background.g, 'B:', scene.background.b)
-  }, [scene, bgColor, currentTheme.id])
+    const sceneBackground = colorMap ?? new THREE.Color(background.color)
+    if (colorMap) colorMap.mapping = THREE.EquirectangularReflectionMapping
+    scene.background = sceneBackground
+    if (colorMap) scene.environment = colorMap
+
+    return () => {
+      if (scene.background === sceneBackground) scene.background = null
+      if (scene.environment === colorMap) scene.environment = null
+    }
+  }, [background.color, colorMap, scene])
 
   return null
 }
@@ -331,15 +341,24 @@ function ViewportBoundaries() {
   return (
     <>
       {/* Ground Plane - sized to viewport */}
-      <RigidBody type="fixed" position={[0, -0.5, 0]}>
+      <RigidBody type="fixed" position={[0, -0.5, 0]} colliders={false}>
+        <CuboidCollider args={[bounds.width / 2, 0.5, bounds.height / 2]} />
         <Box
           args={[bounds.width, 1, bounds.height]}
           receiveShadow={env.floor.receiveShadow !== false}
         >
-          <meshStandardMaterial
+          <ThemedSurfaceMaterial
             color={env.floor.color}
             roughness={env.floor.material.roughness}
             metalness={env.floor.material.metalness}
+            texture={env.floor.texture}
+            albedoTexture={env.floor.albedoTexture}
+            colorTexture={env.floor.colorTexture}
+            normalTexture={env.floor.normalTexture}
+            normalScale={env.floor.normalScale}
+            tileSize={env.floor.tileSize}
+            repeat={env.floor.repeat}
+            surfaceSize={[bounds.width, bounds.height]}
           />
         </Box>
       </RigidBody>
@@ -348,45 +367,81 @@ function ViewportBoundaries() {
       {env.walls.visible && (
         <>
           {/* Top wall (positive Z) */}
-          <RigidBody type="fixed" position={[0, wallY, bounds.top]}>
+          <RigidBody type="fixed" position={[0, wallY, bounds.top]} colliders={false}>
+            <CuboidCollider args={[(bounds.width + wallThickness * 2) / 2, wallHeight / 2, wallThickness / 2]} />
             <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
-              <meshStandardMaterial
+              <ThemedSurfaceMaterial
                 color={env.walls.color}
                 roughness={env.walls.material.roughness}
                 metalness={env.walls.material.metalness}
+                texture={env.walls.texture}
+                albedoTexture={env.walls.albedoTexture}
+                colorTexture={env.walls.colorTexture}
+                normalTexture={env.walls.normalTexture}
+                normalScale={env.walls.normalScale}
+                tileSize={env.walls.tileSize}
+                repeat={env.walls.repeat}
+                surfaceSize={[bounds.width + wallThickness * 2, wallHeight]}
               />
             </Box>
           </RigidBody>
 
           {/* Bottom wall (negative Z) */}
-          <RigidBody type="fixed" position={[0, wallY, bounds.bottom]}>
+          <RigidBody type="fixed" position={[0, wallY, bounds.bottom]} colliders={false}>
+            <CuboidCollider args={[(bounds.width + wallThickness * 2) / 2, wallHeight / 2, wallThickness / 2]} />
             <Box args={[bounds.width + wallThickness * 2, wallHeight, wallThickness]} receiveShadow>
-              <meshStandardMaterial
+              <ThemedSurfaceMaterial
                 color={env.walls.color}
                 roughness={env.walls.material.roughness}
                 metalness={env.walls.material.metalness}
+                texture={env.walls.texture}
+                albedoTexture={env.walls.albedoTexture}
+                colorTexture={env.walls.colorTexture}
+                normalTexture={env.walls.normalTexture}
+                normalScale={env.walls.normalScale}
+                tileSize={env.walls.tileSize}
+                repeat={env.walls.repeat}
+                surfaceSize={[bounds.width + wallThickness * 2, wallHeight]}
               />
             </Box>
           </RigidBody>
 
           {/* Right wall (positive X) */}
-          <RigidBody type="fixed" position={[bounds.right, wallY, 0]}>
+          <RigidBody type="fixed" position={[bounds.right, wallY, 0]} colliders={false}>
+            <CuboidCollider args={[wallThickness / 2, wallHeight / 2, bounds.height / 2]} />
             <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
-              <meshStandardMaterial
+              <ThemedSurfaceMaterial
                 color={env.walls.color}
                 roughness={env.walls.material.roughness}
                 metalness={env.walls.material.metalness}
+                texture={env.walls.texture}
+                albedoTexture={env.walls.albedoTexture}
+                colorTexture={env.walls.colorTexture}
+                normalTexture={env.walls.normalTexture}
+                normalScale={env.walls.normalScale}
+                tileSize={env.walls.tileSize}
+                repeat={env.walls.repeat}
+                surfaceSize={[bounds.height, wallHeight]}
               />
             </Box>
           </RigidBody>
 
           {/* Left wall (negative X) */}
-          <RigidBody type="fixed" position={[bounds.left, wallY, 0]}>
+          <RigidBody type="fixed" position={[bounds.left, wallY, 0]} colliders={false}>
+            <CuboidCollider args={[wallThickness / 2, wallHeight / 2, bounds.height / 2]} />
             <Box args={[wallThickness, wallHeight, bounds.height]} receiveShadow>
-              <meshStandardMaterial
+              <ThemedSurfaceMaterial
                 color={env.walls.color}
                 roughness={env.walls.material.roughness}
                 metalness={env.walls.material.metalness}
+                texture={env.walls.texture}
+                albedoTexture={env.walls.albedoTexture}
+                colorTexture={env.walls.colorTexture}
+                normalTexture={env.walls.normalTexture}
+                normalScale={env.walls.normalScale}
+                tileSize={env.walls.tileSize}
+                repeat={env.walls.repeat}
+                surfaceSize={[bounds.height, wallHeight]}
               />
             </Box>
           </RigidBody>
@@ -395,9 +450,25 @@ function ViewportBoundaries() {
 
       {/* Ceiling - prevents dice from flying away when phone upside down */}
       {env.ceiling.visible && (
-        <RigidBody type="fixed" position={[0, 6, 0]}>
+        <RigidBody type="fixed" position={[0, 6, 0]} colliders={false}>
+          <CuboidCollider args={[bounds.width / 2, wallThickness / 2, bounds.height / 2]} />
           <Box args={[bounds.width, wallThickness, bounds.height]}>
-            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            <ThemedSurfaceMaterial
+              color={env.ceiling.color ?? env.walls.color}
+              roughness={env.ceiling.material?.roughness ?? env.walls.material.roughness}
+              metalness={env.ceiling.material?.metalness ?? env.walls.material.metalness}
+              texture={env.ceiling.texture}
+              albedoTexture={env.ceiling.albedoTexture}
+              colorTexture={env.ceiling.colorTexture}
+              normalTexture={env.ceiling.normalTexture}
+              normalScale={env.ceiling.normalScale}
+              tileSize={env.ceiling.tileSize}
+              repeat={env.ceiling.repeat}
+              surfaceSize={[bounds.width, bounds.height]}
+              transparent={!env.ceiling.color && !env.ceiling.texture && !env.ceiling.albedoTexture && !env.ceiling.colorTexture}
+              opacity={env.ceiling.color || env.ceiling.texture || env.ceiling.albedoTexture || env.ceiling.colorTexture ? 1 : 0}
+              depthWrite={Boolean(env.ceiling.color || env.ceiling.texture || env.ceiling.albedoTexture || env.ceiling.colorTexture)}
+            />
           </Box>
         </RigidBody>
       )}
@@ -676,20 +747,21 @@ function Scene() {
       >
         {/* Camera already configured via Canvas props */}
 
-        {/* Themed Background */}
-        <ThemedBackground />
+        <Suspense fallback={null}>
+          {/* Themed Background */}
+          <ThemedBackground />
 
-        {/* Themed Lighting */}
-        <ThemedLighting />
+          {/* Themed Lighting */}
+          <ThemedLighting />
 
-        {/* Conditional rendering: physics (local) vs interpolated (multiplayer) */}
-        {isMultiplayer ? (
-          <>
+          {/* Conditional rendering: physics (local) vs interpolated (multiplayer) */}
+          {isMultiplayer ? (
+            <>
             <MultiplayerCamera />
             <MultiplayerArena />
             <MultiplayerDiceRenderer renderDeviceTier={renderDeviceTier} />
-          </>
-        ) : (
+            </>
+          ) : (
           <Physics gravity={[0, GRAVITY, 0]} timeStep="vary">
             <LocalCamera />
             <PhysicsController gravityRef={gravityRef} />
@@ -769,8 +841,9 @@ function Scene() {
                 />
               )
             })}
-          </Physics>
-        )}
+            </Physics>
+          )}
+        </Suspense>
 
         {/* Performance monitoring */}
         <PerformanceOverlay />

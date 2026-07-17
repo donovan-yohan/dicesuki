@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-label="Daisu D12 clean ImageGen UV template">
+  <defs>
+    <style>
+      .background { fill: #111827; }
+      .bleed { fill: #0e7490; fill-opacity: 0.32; stroke: #67e8f9; stroke-width: 6; }
+      .safe { fill: #f59e0b; fill-opacity: 0.09; stroke: #fde68a; stroke-width: 4; stroke-dasharray: 18 12; }
+    </style>
+  </defs>
+  <rect class="background" width="100%" height="100%" />
+  <g id="uv-islands">
+    <g id="d12-face-1" data-face-value="1" data-material-index="0">
+      <polygon class="bleed" points="307.375,222.127 464.178,336.052 404.285,520.385 210.465,520.385 150.572,336.052" />
+      <polygon class="safe" points="307.375,278.184 410.865,353.374 371.335,475.034 243.415,475.034 203.885,353.374" />
+    </g>
+    <g id="d12-face-2" data-face-value="2" data-material-index="1">
+      <polygon class="bleed" points="785.125,222.127 941.928,336.052 882.035,520.385 688.215,520.385 628.322,336.052" />
+      <polygon class="safe" points="785.125,278.184 888.615,353.374 849.085,475.034 721.165,475.034 681.635,353.374" />
+    </g>
+    <g id="d12-face-3" data-face-value="3" data-material-index="2">
+      <polygon class="bleed" points="1262.875,222.127 1419.678,336.052 1359.785,520.385 1165.965,520.385 1106.072,336.052" />
+      <polygon class="safe" points="1262.875,278.184 1366.365,353.374 1326.835,475.034 1198.915,475.034 1159.385,353.374" />
+    </g>
+    <g id="d12-face-4" data-face-value="4" data-material-index="3">
+      <polygon class="bleed" points="1740.625,222.127 1897.428,336.052 1837.535,520.385 1643.715,520.385 1583.822,336.052" />
+      <polygon class="safe" points="1740.625,278.184 1844.115,353.374 1804.585,475.034 1676.665,475.034 1637.135,353.374" />
+    </g>
+    <g id="d12-face-5" data-face-value="5" data-material-index="5">
+      <polygon class="bleed" points="307.375,859.128 464.178,973.052 404.285,1157.385 210.465,1157.385 150.572,973.052" />
+      <polygon class="safe" points="307.375,915.184 410.865,990.374 371.335,1112.034 243.415,1112.034 203.885,990.374" />
+    </g>
+    <g id="d12-face-6" data-face-value="6" data-material-index="6">
+      <polygon class="bleed" points="785.125,859.128 941.928,973.052 882.035,1157.385 688.215,1157.385 628.322,973.052" />
+      <polygon class="safe" points="785.125,915.184 888.615,990.374 849.085,1112.034 721.165,1112.034 681.635,990.374" />
+    </g>
+    <g id="d12-face-7" data-face-value="7" data-material-index="10">
+      <polygon class="bleed" points="1262.875,859.128 1419.678,973.052 1359.785,1157.385 1165.965,1157.385 1106.072,973.052" />
+      <polygon class="safe" points="1262.875,915.184 1366.365,990.374 1326.835,1112.034 1198.915,1112.034 1159.385,990.374" />
+    </g>
+    <g id="d12-face-8" data-face-value="8" data-material-index="11">
+      <polygon class="bleed" points="1740.625,859.128 1897.428,973.052 1837.535,1157.385 1643.715,1157.385 1583.822,973.052" />
+      <polygon class="safe" points="1740.625,915.184 1844.115,990.374 1804.585,1112.034 1676.665,1112.034 1637.135,990.374" />
+    </g>
+    <g id="d12-face-9" data-face-value="9" data-material-index="9">
+      <polygon class="bleed" points="307.375,1496.128 464.178,1610.052 404.285,1794.385 210.465,1794.385 150.572,1610.052" />
+      <polygon class="safe" points="307.375,1552.184 410.865,1627.374 371.335,1749.034 243.415,1749.034 203.885,1627.374" />
+    </g>
+    <g id="d12-face-10" data-face-value="10" data-material-index="7">
+      <polygon class="bleed" points="785.125,1496.128 941.928,1610.052 882.035,1794.385 688.215,1794.385 628.322,1610.052" />
+      <polygon class="safe" points="785.125,1552.184 888.615,1627.374 849.085,1749.034 721.165,1749.034 681.635,1627.374" />
+    </g>
+    <g id="d12-face-11" data-face-value="11" data-material-index="4">
+      <polygon class="bleed" points="1262.875,1496.128 1419.678,1610.052 1359.785,1794.385 1165.965,1794.385 1106.072,1610.052" />
+      <polygon class="safe" points="1262.875,1552.184 1366.365,1627.374 1326.835,1749.034 1198.915,1749.034 1159.385,1627.374" />
+    </g>
+    <g id="d12-face-12" data-face-value="12" data-material-index="8">
+      <polygon class="bleed" points="1740.625,1496.128 1897.428,1610.052 1837.535,1794.385 1643.715,1794.385 1583.822,1610.052" />
+      <polygon class="safe" points="1740.625,1552.184 1844.115,1627.374 1804.585,1749.034 1676.665,1749.034 1637.135,1627.374" />
+    </g>
+  </g>
+</svg>

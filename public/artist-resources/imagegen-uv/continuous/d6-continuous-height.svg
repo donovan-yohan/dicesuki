@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048">
+<rect width="100%" height="100%" fill="#000000" />
+<rect x="653" y="271" width="360" height="360" rx="16" fill="#5c5c5c" />
+<rect x="695" y="313" width="276" height="276" rx="8" fill="#1f1f1f" />
+<rect x="664" y="282" width="338" height="338" rx="12" fill="none" stroke="#f4f4f4" stroke-width="30" />
+<text x="833" y="493" text-anchor="middle" fill="#ffffff" font-family="Georgia, serif" font-size="154" font-weight="700">6</text>
+<rect x="271" y="653" width="360" height="360" rx="16" fill="#5c5c5c" />
+<rect x="313" y="695" width="276" height="276" rx="8" fill="#1f1f1f" />
+<rect x="282" y="664" width="338" height="338" rx="12" fill="none" stroke="#f4f4f4" stroke-width="30" />
+<text x="451" y="875" text-anchor="middle" fill="#ffffff" font-family="Georgia, serif" font-size="154" font-weight="700">4</text>
+<rect x="653" y="653" width="360" height="360" rx="16" fill="#5c5c5c" />
+<rect x="695" y="695" width="276" height="276" rx="8" fill="#1f1f1f" />
+<rect x="664" y="664" width="338" height="338" rx="12" fill="none" stroke="#f4f4f4" stroke-width="30" />
+<text x="833" y="875" text-anchor="middle" fill="#ffffff" font-family="Georgia, serif" font-size="154" font-weight="700">2</text>
+<rect x="1035" y="653" width="360" height="360" rx="16" fill="#5c5c5c" />
+<rect x="1077" y="695" width="276" height="276" rx="8" fill="#1f1f1f" />
+<rect x="1046" y="664" width="338" height="338" rx="12" fill="none" stroke="#f4f4f4" stroke-width="30" />
+<text x="1215" y="875" text-anchor="middle" fill="#ffffff" font-family="Georgia, serif" font-size="154" font-weight="700">3</text>
+<rect x="653" y="1035" width="360" height="360" rx="16" fill="#5c5c5c" />
+<rect x="695" y="1077" width="276" height="276" rx="8" fill="#1f1f1f" />
+<rect x="664" y="1046" width="338" height="338" rx="12" fill="none" stroke="#f4f4f4" stroke-width="30" />
+<text x="833" y="1257" text-anchor="middle" fill="#ffffff" font-family="Georgia, serif" font-size="154" font-weight="700">1</text>
+<rect x="653" y="1417" width="360" height="360" rx="16" fill="#5c5c5c" />
+<rect x="695" y="1459" width="276" height="276" rx="8" fill="#1f1f1f" />
+<rect x="664" y="1428" width="338" height="338" rx="12" fill="none" stroke="#f4f4f4" stroke-width="30" />
+<text x="833" y="1639" text-anchor="middle" fill="#ffffff" font-family="Georgia, serif" font-size="154" font-weight="700">5</text>
+</svg>

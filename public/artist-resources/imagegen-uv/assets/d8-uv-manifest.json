@@ -1,0 +1,423 @@
+{
+  "version": "1.0",
+  "shape": "d8",
+  "label": "D8",
+  "canvasSize": 2048,
+  "columns": 4,
+  "rows": 2,
+  "coordinateSystem": {
+    "pixels": "SVG viewBox pixels, origin at top-left",
+    "uvBox": "normalized SVG box coordinates, origin at top-left for atlas authoring"
+  },
+  "runtimeStatus": "ImageGen and artist workflow artifact. Standard runtime dice currently use per-face CanvasTexture materials.",
+  "islands": [
+    {
+      "id": "d8-face-1",
+      "shape": "d8",
+      "faceValue": 1,
+      "materialIndex": 0,
+      "islandShape": "triangle",
+      "center": {
+        "x": 307.375,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 307.375,
+          "y": 381.377
+        },
+        {
+          "x": 450.159,
+          "y": 628.686
+        },
+        {
+          "x": 164.591,
+          "y": 628.686
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 307.375,
+          "y": 437.434
+        },
+        {
+          "x": 401.612,
+          "y": 600.658
+        },
+        {
+          "x": 213.138,
+          "y": 600.658
+        }
+      ],
+      "bounds": {
+        "minX": 164.591,
+        "minY": 381.377,
+        "maxX": 450.159,
+        "maxY": 628.686
+      },
+      "uvBox": {
+        "minU": 0.08,
+        "minV": 0.186,
+        "maxU": 0.22,
+        "maxV": 0.307
+      }
+    },
+    {
+      "id": "d8-face-2",
+      "shape": "d8",
+      "faceValue": 2,
+      "materialIndex": 1,
+      "islandShape": "triangle",
+      "center": {
+        "x": 785.125,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 785.125,
+          "y": 381.377
+        },
+        {
+          "x": 927.909,
+          "y": 628.686
+        },
+        {
+          "x": 642.341,
+          "y": 628.686
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 785.125,
+          "y": 437.434
+        },
+        {
+          "x": 879.362,
+          "y": 600.658
+        },
+        {
+          "x": 690.888,
+          "y": 600.658
+        }
+      ],
+      "bounds": {
+        "minX": 642.341,
+        "minY": 381.377,
+        "maxX": 927.909,
+        "maxY": 628.686
+      },
+      "uvBox": {
+        "minU": 0.314,
+        "minV": 0.186,
+        "maxU": 0.453,
+        "maxV": 0.307
+      }
+    },
+    {
+      "id": "d8-face-3",
+      "shape": "d8",
+      "faceValue": 3,
+      "materialIndex": 2,
+      "islandShape": "triangle",
+      "center": {
+        "x": 1262.875,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 1262.875,
+          "y": 381.377
+        },
+        {
+          "x": 1405.659,
+          "y": 628.686
+        },
+        {
+          "x": 1120.091,
+          "y": 628.686
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1262.875,
+          "y": 437.434
+        },
+        {
+          "x": 1357.112,
+          "y": 600.658
+        },
+        {
+          "x": 1168.638,
+          "y": 600.658
+        }
+      ],
+      "bounds": {
+        "minX": 1120.091,
+        "minY": 381.377,
+        "maxX": 1405.659,
+        "maxY": 628.686
+      },
+      "uvBox": {
+        "minU": 0.547,
+        "minV": 0.186,
+        "maxU": 0.686,
+        "maxV": 0.307
+      }
+    },
+    {
+      "id": "d8-face-4",
+      "shape": "d8",
+      "faceValue": 4,
+      "materialIndex": 3,
+      "islandShape": "triangle",
+      "center": {
+        "x": 1740.625,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 1740.625,
+          "y": 381.377
+        },
+        {
+          "x": 1883.409,
+          "y": 628.686
+        },
+        {
+          "x": 1597.841,
+          "y": 628.686
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1740.625,
+          "y": 437.434
+        },
+        {
+          "x": 1834.862,
+          "y": 600.658
+        },
+        {
+          "x": 1646.388,
+          "y": 600.658
+        }
+      ],
+      "bounds": {
+        "minX": 1597.841,
+        "minY": 381.377,
+        "maxX": 1883.409,
+        "maxY": 628.686
+      },
+      "uvBox": {
+        "minU": 0.78,
+        "minV": 0.186,
+        "maxU": 0.92,
+        "maxV": 0.307
+      }
+    },
+    {
+      "id": "d8-face-5",
+      "shape": "d8",
+      "faceValue": 5,
+      "materialIndex": 6,
+      "islandShape": "triangle",
+      "center": {
+        "x": 307.375,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 307.375,
+          "y": 1336.878
+        },
+        {
+          "x": 450.159,
+          "y": 1584.186
+        },
+        {
+          "x": 164.591,
+          "y": 1584.186
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 307.375,
+          "y": 1392.934
+        },
+        {
+          "x": 401.612,
+          "y": 1556.158
+        },
+        {
+          "x": 213.138,
+          "y": 1556.158
+        }
+      ],
+      "bounds": {
+        "minX": 164.591,
+        "minY": 1336.878,
+        "maxX": 450.159,
+        "maxY": 1584.186
+      },
+      "uvBox": {
+        "minU": 0.08,
+        "minV": 0.653,
+        "maxU": 0.22,
+        "maxV": 0.774
+      }
+    },
+    {
+      "id": "d8-face-6",
+      "shape": "d8",
+      "faceValue": 6,
+      "materialIndex": 7,
+      "islandShape": "triangle",
+      "center": {
+        "x": 785.125,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 785.125,
+          "y": 1336.878
+        },
+        {
+          "x": 927.909,
+          "y": 1584.186
+        },
+        {
+          "x": 642.341,
+          "y": 1584.186
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 785.125,
+          "y": 1392.934
+        },
+        {
+          "x": 879.362,
+          "y": 1556.158
+        },
+        {
+          "x": 690.888,
+          "y": 1556.158
+        }
+      ],
+      "bounds": {
+        "minX": 642.341,
+        "minY": 1336.878,
+        "maxX": 927.909,
+        "maxY": 1584.186
+      },
+      "uvBox": {
+        "minU": 0.314,
+        "minV": 0.653,
+        "maxU": 0.453,
+        "maxV": 0.774
+      }
+    },
+    {
+      "id": "d8-face-7",
+      "shape": "d8",
+      "faceValue": 7,
+      "materialIndex": 4,
+      "islandShape": "triangle",
+      "center": {
+        "x": 1262.875,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 1262.875,
+          "y": 1336.878
+        },
+        {
+          "x": 1405.659,
+          "y": 1584.186
+        },
+        {
+          "x": 1120.091,
+          "y": 1584.186
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1262.875,
+          "y": 1392.934
+        },
+        {
+          "x": 1357.112,
+          "y": 1556.158
+        },
+        {
+          "x": 1168.638,
+          "y": 1556.158
+        }
+      ],
+      "bounds": {
+        "minX": 1120.091,
+        "minY": 1336.878,
+        "maxX": 1405.659,
+        "maxY": 1584.186
+      },
+      "uvBox": {
+        "minU": 0.547,
+        "minV": 0.653,
+        "maxU": 0.686,
+        "maxV": 0.774
+      }
+    },
+    {
+      "id": "d8-face-8",
+      "shape": "d8",
+      "faceValue": 8,
+      "materialIndex": 5,
+      "islandShape": "triangle",
+      "center": {
+        "x": 1740.625,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 1740.625,
+          "y": 1336.878
+        },
+        {
+          "x": 1883.409,
+          "y": 1584.186
+        },
+        {
+          "x": 1597.841,
+          "y": 1584.186
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1740.625,
+          "y": 1392.934
+        },
+        {
+          "x": 1834.862,
+          "y": 1556.158
+        },
+        {
+          "x": 1646.388,
+          "y": 1556.158
+        }
+      ],
+      "bounds": {
+        "minX": 1597.841,
+        "minY": 1336.878,
+        "maxX": 1883.409,
+        "maxY": 1584.186
+      },
+      "uvBox": {
+        "minU": 0.78,
+        "minV": 0.653,
+        "maxU": 0.92,
+        "maxV": 0.774
+      }
+    }
+  ]
+}

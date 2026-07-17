@@ -1,0 +1,703 @@
+{
+  "version": "1.0",
+  "shape": "d6",
+  "label": "D6",
+  "canvasSize": 2048,
+  "columns": 3,
+  "rows": 2,
+  "coordinateSystem": {
+    "pixels": "top-left atlas coordinates",
+    "uv": "glTF normalized top-left coordinates",
+    "numberBaseline": "persisted baseline edge is parallel to the selected canonical island edge"
+  },
+  "geometry": {
+    "primitive": "BoxGeometry",
+    "materialGroups": "one group per canonical face; all triangles in a group share its atlas island and material index"
+  },
+  "faceValues": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "canonicalFaceCount": 6,
+  "canonicalTriangleCount": 12,
+  "trianglesPerFace": 2,
+  "islandShape": "square",
+  "materialMap": {
+    "1": 3,
+    "2": 4,
+    "3": 0,
+    "4": 1,
+    "5": 5,
+    "6": 2
+  },
+  "opposingValueConvention": {
+    "type": "sum",
+    "sum": 7
+  },
+  "islands": [
+    {
+      "id": "d6-face-1",
+      "faceValue": 1,
+      "materialIndex": 3,
+      "islandShape": "square",
+      "triangleIndices": [
+        6,
+        7
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 387,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 160.02,
+          "y": 319.27
+        },
+        {
+          "x": 613.98,
+          "y": 319.27
+        },
+        {
+          "x": 613.98,
+          "y": 773.23
+        },
+        {
+          "x": 160.02,
+          "y": 773.23
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 237.193,
+          "y": 396.443
+        },
+        {
+          "x": 536.807,
+          "y": 396.443
+        },
+        {
+          "x": 536.807,
+          "y": 696.057
+        },
+        {
+          "x": 237.193,
+          "y": 696.057
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": 0,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.078135,
+            "v": 0.155894
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.078135,
+            "v": 0.377554
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.299795,
+            "v": 0.155894
+          }
+        ],
+        [
+          {
+            "vertexIndex": 1,
+            "u": 0.078135,
+            "v": 0.377554
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.299795,
+            "v": 0.377554
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.299795,
+            "v": 0.155894
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.078135,
+          "v": 0.155894
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.078135,
+          "v": 0.377554
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.299795,
+          "v": 0.155894
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d6-face-2",
+      "faceValue": 2,
+      "materialIndex": 4,
+      "islandShape": "square",
+      "triangleIndices": [
+        8,
+        9
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 1024,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 797.02,
+          "y": 319.27
+        },
+        {
+          "x": 1250.98,
+          "y": 319.27
+        },
+        {
+          "x": 1250.98,
+          "y": 773.23
+        },
+        {
+          "x": 797.02,
+          "y": 773.23
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 874.193,
+          "y": 396.443
+        },
+        {
+          "x": 1173.807,
+          "y": 396.443
+        },
+        {
+          "x": 1173.807,
+          "y": 696.057
+        },
+        {
+          "x": 874.193,
+          "y": 696.057
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": 0,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.38917,
+            "v": 0.155894
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.38917,
+            "v": 0.377554
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.61083,
+            "v": 0.155894
+          }
+        ],
+        [
+          {
+            "vertexIndex": 1,
+            "u": 0.38917,
+            "v": 0.377554
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.61083,
+            "v": 0.377554
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.61083,
+            "v": 0.155894
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.38917,
+          "v": 0.155894
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.38917,
+          "v": 0.377554
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.61083,
+          "v": 0.155894
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d6-face-3",
+      "faceValue": 3,
+      "materialIndex": 0,
+      "islandShape": "square",
+      "triangleIndices": [
+        0,
+        1
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 1661,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 1434.02,
+          "y": 319.27
+        },
+        {
+          "x": 1887.98,
+          "y": 319.27
+        },
+        {
+          "x": 1887.98,
+          "y": 773.23
+        },
+        {
+          "x": 1434.02,
+          "y": 773.23
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1511.193,
+          "y": 396.443
+        },
+        {
+          "x": 1810.807,
+          "y": 396.443
+        },
+        {
+          "x": 1810.807,
+          "y": 696.057
+        },
+        {
+          "x": 1511.193,
+          "y": 696.057
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": 0,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.700205,
+            "v": 0.155894
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.700205,
+            "v": 0.377554
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.921865,
+            "v": 0.155894
+          }
+        ],
+        [
+          {
+            "vertexIndex": 1,
+            "u": 0.700205,
+            "v": 0.377554
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.921865,
+            "v": 0.377554
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.921865,
+            "v": 0.155894
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.700205,
+          "v": 0.155894
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.700205,
+          "v": 0.377554
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.921865,
+          "v": 0.155894
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d6-face-4",
+      "faceValue": 4,
+      "materialIndex": 1,
+      "islandShape": "square",
+      "triangleIndices": [
+        2,
+        3
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 387,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 160.02,
+          "y": 1274.77
+        },
+        {
+          "x": 613.98,
+          "y": 1274.77
+        },
+        {
+          "x": 613.98,
+          "y": 1728.73
+        },
+        {
+          "x": 160.02,
+          "y": 1728.73
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 237.193,
+          "y": 1351.943
+        },
+        {
+          "x": 536.807,
+          "y": 1351.943
+        },
+        {
+          "x": 536.807,
+          "y": 1651.557
+        },
+        {
+          "x": 237.193,
+          "y": 1651.557
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": 0,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.078135,
+            "v": 0.622446
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.078135,
+            "v": 0.844106
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.299795,
+            "v": 0.622446
+          }
+        ],
+        [
+          {
+            "vertexIndex": 1,
+            "u": 0.078135,
+            "v": 0.844106
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.299795,
+            "v": 0.844106
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.299795,
+            "v": 0.622446
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.078135,
+          "v": 0.622446
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.078135,
+          "v": 0.844106
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.299795,
+          "v": 0.622446
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d6-face-5",
+      "faceValue": 5,
+      "materialIndex": 5,
+      "islandShape": "square",
+      "triangleIndices": [
+        10,
+        11
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 1024,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 797.02,
+          "y": 1274.77
+        },
+        {
+          "x": 1250.98,
+          "y": 1274.77
+        },
+        {
+          "x": 1250.98,
+          "y": 1728.73
+        },
+        {
+          "x": 797.02,
+          "y": 1728.73
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 874.193,
+          "y": 1351.943
+        },
+        {
+          "x": 1173.807,
+          "y": 1351.943
+        },
+        {
+          "x": 1173.807,
+          "y": 1651.557
+        },
+        {
+          "x": 874.193,
+          "y": 1651.557
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": 0,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.38917,
+            "v": 0.622446
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.38917,
+            "v": 0.844106
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.61083,
+            "v": 0.622446
+          }
+        ],
+        [
+          {
+            "vertexIndex": 1,
+            "u": 0.38917,
+            "v": 0.844106
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.61083,
+            "v": 0.844106
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.61083,
+            "v": 0.622446
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.38917,
+          "v": 0.622446
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.38917,
+          "v": 0.844106
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.61083,
+          "v": 0.622446
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d6-face-6",
+      "faceValue": 6,
+      "materialIndex": 2,
+      "islandShape": "square",
+      "triangleIndices": [
+        4,
+        5
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 1661,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 1434.02,
+          "y": 1274.77
+        },
+        {
+          "x": 1887.98,
+          "y": 1274.77
+        },
+        {
+          "x": 1887.98,
+          "y": 1728.73
+        },
+        {
+          "x": 1434.02,
+          "y": 1728.73
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1511.193,
+          "y": 1351.943
+        },
+        {
+          "x": 1810.807,
+          "y": 1351.943
+        },
+        {
+          "x": 1810.807,
+          "y": 1651.557
+        },
+        {
+          "x": 1511.193,
+          "y": 1651.557
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": 0,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.921865,
+            "v": 0.844106
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.921865,
+            "v": 0.622446
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.700205,
+            "v": 0.844106
+          }
+        ],
+        [
+          {
+            "vertexIndex": 1,
+            "u": 0.921865,
+            "v": 0.622446
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.700205,
+            "v": 0.622446
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.700205,
+            "v": 0.844106
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.921865,
+          "v": 0.844106
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.921865,
+          "v": 0.622446
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.700205,
+          "v": 0.844106
+        }
+      ],
+      "sharedAtlasIsland": true
+    }
+  ]
+}

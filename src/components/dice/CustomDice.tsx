@@ -7,7 +7,7 @@
  */
 
 import { ThreeEvent, useFrame } from '@react-three/fiber'
-import { BallCollider, ContactForcePayload, CuboidCollider, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
+import { BallCollider, ContactForcePayload, ConvexHullCollider, CuboidCollider, RapierRigidBody, RigidBody, RoundCuboidCollider } from '@react-three/rapier'
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import {
@@ -33,6 +33,7 @@ import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
 import { useDiceInteraction } from '../../hooks/useDiceInteraction'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
+import { collectConvexHullVertices } from '../../lib/customDiceCollider'
 import { getDiceFaceValue } from '../../lib/geometries'
 import { useUIStore } from '../../store/useUIStore'
 import { CustomDiceAsset } from '../../types/customDice'
@@ -132,6 +133,12 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
     const colliderArgs = metadata?.colliderArgs || {}
     const scale = metadata?.scale || 1.0
     const diceType = metadata?.diceType || 'd6'
+    const hullVertices = useMemo(
+      () => colliderType === 'hull' && scene
+        ? collectConvexHullVertices(scene, scale)
+        : new Float32Array(),
+      [colliderType, scale, scene],
+    )
 
 
     // Expose imperative handle (same as standard Dice)
@@ -474,8 +481,9 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
       <RigidBody
         ref={rigidBodyRef}
         position={position}
-        colliders={colliderType === 'hull' ? 'hull' : false}
+        colliders={false}
         type="dynamic"
+        ccd
         restitution={physicsProps.restitution}
         friction={physicsProps.friction}
         density={physicsProps.density}
@@ -484,6 +492,9 @@ const CustomDiceComponent = forwardRef<DiceHandle, CustomDiceProps>(
       >
         {/* Render appropriate collider based on metadata type */}
         {/* Collider args are for 1-unit dice; visual scale brings model to ~1 unit */}
+        {colliderType === 'hull' && hullVertices.length >= 12 && (
+          <ConvexHullCollider args={[hullVertices]} />
+        )}
         {colliderType === 'roundCuboid' && colliderArgs.halfExtents && (
           <RoundCuboidCollider
             args={[

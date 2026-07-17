@@ -14,6 +14,7 @@ import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
 import { spawnSpecificDie } from '../../lib/diceSpawner'
 import { expandDiceEntrySources } from '../../lib/rollSources'
+import { createRandomId } from '../../lib/randomId'
 import { SavedRoll } from '../../types/savedRolls'
 import { useTheme } from '../../contexts/ThemeContext'
 
@@ -131,7 +132,7 @@ export function SavedRollsPanel({ isOpen, onClose }: SavedRollsPanelProps) {
       // Create new roll
       addRoll({
         ...rollData,
-        id: crypto.randomUUID(),
+        id: createRandomId(),
         createdAt: Date.now(),
       })
     }

@@ -1,0 +1,187 @@
+{
+  "version": "1.0",
+  "diceType": "d20",
+  "name": "Stone Door D20",
+  "artist": "Daisu Procedural Fixtures",
+  "created": "2026-07-09",
+  "scale": 1,
+  "rarity": "common",
+  "description": "A dungeon-stone D20 fixture with bronze trim, inset slate panels, and raised numerals.",
+  "tags": [
+    "dungeon",
+    "test-fixture",
+    "procedural",
+    "d20",
+    "numbered-faces",
+    "raised-trim"
+  ],
+  "faceNormals": [
+    {
+      "value": 1,
+      "normal": [
+        -0.5774,
+        0.5774,
+        0.5774
+      ]
+    },
+    {
+      "value": 2,
+      "normal": [
+        0,
+        0.9342,
+        0.3568
+      ]
+    },
+    {
+      "value": 3,
+      "normal": [
+        0,
+        0.9342,
+        -0.3568
+      ]
+    },
+    {
+      "value": 4,
+      "normal": [
+        -0.5774,
+        0.5774,
+        -0.5774
+      ]
+    },
+    {
+      "value": 5,
+      "normal": [
+        -0.9342,
+        0.3568,
+        0
+      ]
+    },
+    {
+      "value": 6,
+      "normal": [
+        0.5774,
+        0.5774,
+        0.5774
+      ]
+    },
+    {
+      "value": 7,
+      "normal": [
+        -0.3568,
+        0,
+        0.9342
+      ]
+    },
+    {
+      "value": 8,
+      "normal": [
+        -0.9342,
+        -0.3568,
+        0
+      ]
+    },
+    {
+      "value": 9,
+      "normal": [
+        -0.3568,
+        0,
+        -0.9342
+      ]
+    },
+    {
+      "value": 10,
+      "normal": [
+        0.5774,
+        0.5774,
+        -0.5774
+      ]
+    },
+    {
+      "value": 17,
+      "normal": [
+        0.5774,
+        -0.5774,
+        0.5774
+      ]
+    },
+    {
+      "value": 18,
+      "normal": [
+        0,
+        -0.9342,
+        0.3568
+      ]
+    },
+    {
+      "value": 19,
+      "normal": [
+        0,
+        -0.9342,
+        -0.3568
+      ]
+    },
+    {
+      "value": 20,
+      "normal": [
+        0.5774,
+        -0.5774,
+        -0.5774
+      ]
+    },
+    {
+      "value": 16,
+      "normal": [
+        0.9342,
+        -0.3568,
+        0
+      ]
+    },
+    {
+      "value": 12,
+      "normal": [
+        0.3568,
+        0,
+        0.9342
+      ]
+    },
+    {
+      "value": 11,
+      "normal": [
+        -0.5774,
+        -0.5774,
+        0.5774
+      ]
+    },
+    {
+      "value": 15,
+      "normal": [
+        -0.5774,
+        -0.5774,
+        -0.5774
+      ]
+    },
+    {
+      "value": 14,
+      "normal": [
+        0.3568,
+        0,
+        -0.9342
+      ]
+    },
+    {
+      "value": 13,
+      "normal": [
+        0.9342,
+        0.3568,
+        0
+      ]
+    }
+  ],
+  "physics": {
+    "density": 0.3,
+    "restitution": 0.32,
+    "friction": 0.65
+  },
+  "colliderType": "hull",
+  "colliderArgs": {}
+}

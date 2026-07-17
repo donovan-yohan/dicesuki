@@ -1,0 +1,13 @@
+{
+  "id": "fantasy-set",
+  "name": "Fantasy Test Collection",
+  "artist": "Daisu Procedural Fixtures",
+  "description": "Lightweight fantasy dice for inventory, GLB, and face-number alignment testing.",
+  "releaseDate": "2026-07-09",
+  "tags": [
+    "fantasy",
+    "test-fixture",
+    "procedural"
+  ],
+  "availability": "always"
+}

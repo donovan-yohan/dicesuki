@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { DiceShape } from '../lib/geometries'
+import { createRandomId } from '../lib/randomId'
 import { getThemeById } from '../themes/registry'
 
 export interface DiceInstance {
@@ -74,7 +75,7 @@ export const useDiceManagerStore = create<DiceManagerStore>((set) => ({
   dice: [],
 
   addDice: (type, themeId = 'default', id, inventoryDieId) => {
-    const diceId = id || crypto.randomUUID() // Use provided ID or generate new one
+    const diceId = id || createRandomId() // Use provided ID or generate new one
     set((state) => ({
       dice: [
         ...state.dice,

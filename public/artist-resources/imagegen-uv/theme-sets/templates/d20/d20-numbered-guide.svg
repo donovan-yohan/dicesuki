@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-label="D20 canonical numbered UV guide">
+  <defs>
+    <style>
+      .background { fill: #070b12; }
+      .island { fill: #12384a; stroke: #67e8f9; stroke-width: 7; }
+      .safe { fill: #f59e0b; fill-opacity: 0.08; stroke: #fde68a; stroke-width: 4; stroke-dasharray: 16 11; }
+      .number { fill: #fff7d6; stroke: #111827; stroke-width: 3; paint-order: stroke fill; font-family: Georgia, serif; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+      .mapping { fill: #b8c5d9; font: 700 18px Arial, sans-serif; text-anchor: middle; }
+      .base-edge { stroke: #f97316; stroke-width: 12; opacity: 0.95; }
+      .baseline { stroke: #f97316; stroke-width: 6; opacity: 0.86; }
+    </style>
+  </defs>
+  <rect class="background" width="100%" height="100%" />
+  <g id="canonical-numbered-islands">
+    <g id="d20-face-1" data-face-value="1" data-material-index="0">
+      <polygon class="island" points="140.392,179.767 378.808,277.251 175.176,434.983" />
+      <polygon class="safe" points="180.923,223.154 338.277,287.493 203.88,391.596" />
+      <line class="base-edge" x1="140.392" y1="179.767" x2="378.808" y2="277.251" />
+      <g transform="rotate(22.239 259.6 307.375)">
+        <text class="number" style="font-size:97.7px" x="259.6" y="309.375">1</text>
+        <line class="baseline" x1="208.79600000000002" y1="349.386" x2="310.404" y2="349.386" />
+      </g>
+      <text class="mapping" x="259.6" y="161.767">D20 1 / M0 / +22.239 deg</text>
+    </g>
+    <g id="d20-face-2" data-face-value="2" data-material-index="1">
+      <polygon class="island" points="641.8,196.863 769.408,417.887 514.192,417.887" />
+      <polygon class="safe" points="641.8,234.437 726.021,380.313 557.579,380.313" />
+      <line class="base-edge" x1="769.408" y1="417.887" x2="514.192" y2="417.887" />
+      <g transform="rotate(0 641.8 307.375)">
+        <text class="number" style="font-size:84.6px" x="641.8" y="309.375">2</text>
+        <line class="baseline" x1="597.808" y1="343.753" x2="685.7919999999999" y2="343.753" />
+      </g>
+      <text class="mapping" x="641.8" y="178.863">D20 2 / M1 / +0 deg</text>
+    </g>
+    <g id="d20-face-3" data-face-value="3" data-material-index="2">
+      <polygon class="island" points="896.392,196.863 1151.608,196.863 1024,417.887" />
+      <polygon class="safe" points="939.779,234.437 1108.221,234.437 1024,380.313" />
+      <line class="base-edge" x1="896.392" y1="196.863" x2="1151.608" y2="196.863" />
+      <g transform="rotate(0 1024 307.375)">
+        <text class="number" style="font-size:84.6px" x="1024" y="309.375">3</text>
+        <line class="baseline" x1="980.008" y1="343.753" x2="1067.992" y2="343.753" />
+      </g>
+      <text class="mapping" x="1024" y="178.863">D20 3 / M2 / +0 deg</text>
+    </g>
+    <g id="d20-face-4" data-face-value="4" data-material-index="3">
+      <polygon class="island" points="1286.992,277.251 1525.408,179.767 1490.624,434.983" />
+      <polygon class="safe" points="1327.523,287.493 1484.877,223.154 1461.92,391.596" />
+      <line class="base-edge" x1="1286.992" y1="277.251" x2="1525.408" y2="179.767" />
+      <g transform="rotate(-22.239 1406.2 307.375)">
+        <text class="number" style="font-size:97.7px" x="1406.2" y="309.375">4</text>
+        <line class="baseline" x1="1355.396" y1="349.386" x2="1457.0040000000001" y2="349.386" />
+      </g>
+      <text class="mapping" x="1406.2" y="161.767">D20 4 / M3 / -22.239 deg</text>
+    </g>
+    <g id="d20-face-5" data-face-value="5" data-material-index="4">
+      <polygon class="island" points="1788.4,196.863 1916.008,417.887 1660.792,417.887" />
+      <polygon class="safe" points="1788.4,234.437 1872.621,380.313 1704.179,380.313" />
+      <line class="base-edge" x1="1916.008" y1="417.887" x2="1660.792" y2="417.887" />
+      <g transform="rotate(0 1788.4 307.375)">
+        <text class="number" style="font-size:84.6px" x="1788.4" y="309.375">5</text>
+        <line class="baseline" x1="1744.4080000000001" y1="343.753" x2="1832.392" y2="343.753" />
+      </g>
+      <text class="mapping" x="1788.4" y="178.863">D20 5 / M4 / +0 deg</text>
+    </g>
+    <g id="d20-face-6" data-face-value="6" data-material-index="5">
+      <polygon class="island" points="140.392,755.001 378.808,657.517 344.024,912.733" />
+      <polygon class="safe" points="180.923,765.243 338.277,700.904 315.32,869.346" />
+      <line class="base-edge" x1="140.392" y1="755.001" x2="378.808" y2="657.517" />
+      <g transform="rotate(-22.239 259.6 785.125)">
+        <text class="number" style="font-size:97.7px" x="259.6" y="787.125">6</text>
+        <line class="baseline" x1="208.79600000000002" y1="827.136" x2="310.404" y2="827.136" />
+      </g>
+      <text class="mapping" x="259.6" y="639.517">D20 6 / M5 / -22.239 deg</text>
+    </g>
+    <g id="d20-face-7" data-face-value="7" data-material-index="6">
+      <polygon class="island" points="752.312,657.517 752.312,912.733 531.288,785.125" />
+      <polygon class="safe" points="714.738,700.904 714.738,869.346 568.862,785.125" />
+      <line class="base-edge" x1="752.312" y1="912.733" x2="531.288" y2="785.125" />
+      <g transform="rotate(30 641.8 785.125)">
+        <text class="number" style="font-size:97.7px" x="641.8" y="787.125">7</text>
+        <line class="baseline" x1="590.996" y1="827.136" x2="692.6039999999999" y2="827.136" />
+      </g>
+      <text class="mapping" x="641.8" y="639.517">D20 7 / M6 / +30 deg</text>
+    </g>
+    <g id="d20-face-8" data-face-value="8" data-material-index="7">
+      <polygon class="island" points="896.392,674.613 1151.608,674.613 1024,895.637" />
+      <polygon class="safe" points="939.779,712.187 1108.221,712.187 1024,858.063" />
+      <line class="base-edge" x1="896.392" y1="674.613" x2="1151.608" y2="674.613" />
+      <g transform="rotate(0 1024 785.125)">
+        <text class="number" style="font-size:84.6px" x="1024" y="787.125">8</text>
+        <line class="baseline" x1="980.008" y1="821.503" x2="1067.992" y2="821.503" />
+      </g>
+      <text class="mapping" x="1024" y="656.613">D20 8 / M7 / +0 deg</text>
+    </g>
+    <g id="d20-face-9" data-face-value="9" data-material-index="8">
+      <polygon class="island" points="1295.688,657.517 1516.712,785.125 1295.688,912.733" />
+      <polygon class="safe" points="1333.262,700.904 1479.138,785.125 1333.262,869.346" />
+      <line class="base-edge" x1="1295.688" y1="657.517" x2="1516.712" y2="785.125" />
+      <g transform="rotate(30 1406.2 785.125)">
+        <text class="number" style="font-size:97.7px" x="1406.2" y="787.125">9</text>
+        <line class="baseline" x1="1355.396" y1="827.136" x2="1457.0040000000001" y2="827.136" />
+      </g>
+      <text class="mapping" x="1406.2" y="639.517">D20 9 / M8 / +30 deg</text>
+    </g>
+    <g id="d20-face-10" data-face-value="10" data-material-index="9">
+      <polygon class="island" points="1669.192,657.517 1907.608,755.001 1703.976,912.733" />
+      <polygon class="safe" points="1709.723,700.904 1867.077,765.243 1732.68,869.346" />
+      <line class="base-edge" x1="1669.192" y1="657.517" x2="1907.608" y2="755.001" />
+      <g transform="rotate(22.239 1788.4 785.125)">
+        <text class="number" style="font-size:97.7px" x="1788.4" y="787.125">10</text>
+        <line class="baseline" x1="1706.332" y1="827.136" x2="1870.468" y2="827.136" />
+      </g>
+      <text class="mapping" x="1788.4" y="639.517">D20 10 / M9 / +22.239 deg</text>
+    </g>
+    <g id="d20-face-11" data-face-value="11" data-material-index="16">
+      <polygon class="island" points="175.176,1135.267 378.808,1292.999 140.392,1390.483" />
+      <polygon class="safe" points="203.88,1178.654 338.277,1282.757 180.923,1347.096" />
+      <line class="base-edge" x1="378.808" y1="1292.999" x2="140.392" y2="1390.483" />
+      <g transform="rotate(-22.239 259.6 1262.875)">
+        <text class="number" style="font-size:97.7px" x="259.6" y="1264.875">11</text>
+        <line class="baseline" x1="177.53200000000004" y1="1304.886" x2="341.668" y2="1304.886" />
+      </g>
+      <text class="mapping" x="259.6" y="1117.267">D20 11 / M16 / -22.239 deg</text>
+    </g>
+    <g id="d20-face-12" data-face-value="12" data-material-index="15">
+      <polygon class="island" points="531.288,1135.267 752.312,1262.875 531.288,1390.483" />
+      <polygon class="safe" points="568.862,1178.654 714.738,1262.875 568.862,1347.096" />
+      <line class="base-edge" x1="531.288" y1="1135.267" x2="752.312" y2="1262.875" />
+      <g transform="rotate(30 641.8 1262.875)">
+        <text class="number" style="font-size:97.7px" x="641.8" y="1264.875">12</text>
+        <line class="baseline" x1="559.732" y1="1304.886" x2="723.8679999999999" y2="1304.886" />
+      </g>
+      <text class="mapping" x="641.8" y="1117.267">D20 12 / M15 / +30 deg</text>
+    </g>
+    <g id="d20-face-13" data-face-value="13" data-material-index="19">
+      <polygon class="island" points="1024,1152.363 1151.608,1373.387 896.392,1373.387" />
+      <polygon class="safe" points="1024,1189.937 1108.221,1335.813 939.779,1335.813" />
+      <line class="base-edge" x1="1151.608" y1="1373.387" x2="896.392" y2="1373.387" />
+      <g transform="rotate(0 1024 1262.875)">
+        <text class="number" style="font-size:84.6px" x="1024" y="1264.875">13</text>
+        <line class="baseline" x1="952.936" y1="1299.253" x2="1095.064" y2="1299.253" />
+      </g>
+      <text class="mapping" x="1024" y="1134.363">D20 13 / M19 / +0 deg</text>
+    </g>
+    <g id="d20-face-14" data-face-value="14" data-material-index="18">
+      <polygon class="island" points="1516.712,1135.267 1516.712,1390.483 1295.688,1262.875" />
+      <polygon class="safe" points="1479.138,1178.654 1479.138,1347.096 1333.262,1262.875" />
+      <line class="base-edge" x1="1516.712" y1="1390.483" x2="1295.688" y2="1262.875" />
+      <g transform="rotate(30 1406.2 1262.875)">
+        <text class="number" style="font-size:97.7px" x="1406.2" y="1264.875">14</text>
+        <line class="baseline" x1="1324.132" y1="1304.886" x2="1488.268" y2="1304.886" />
+      </g>
+      <text class="mapping" x="1406.2" y="1117.267">D20 14 / M18 / +30 deg</text>
+    </g>
+    <g id="d20-face-15" data-face-value="15" data-material-index="17">
+      <polygon class="island" points="1872.824,1135.267 1907.608,1390.483 1669.192,1292.999" />
+      <polygon class="safe" points="1844.12,1178.654 1867.077,1347.096 1709.723,1282.757" />
+      <line class="base-edge" x1="1907.608" y1="1390.483" x2="1669.192" y2="1292.999" />
+      <g transform="rotate(22.239 1788.4 1262.875)">
+        <text class="number" style="font-size:97.7px" x="1788.4" y="1264.875">15</text>
+        <line class="baseline" x1="1706.332" y1="1304.886" x2="1870.468" y2="1304.886" />
+      </g>
+      <text class="mapping" x="1788.4" y="1117.267">D20 15 / M17 / +22.239 deg</text>
+    </g>
+    <g id="d20-face-16" data-face-value="16" data-material-index="14">
+      <polygon class="island" points="131.992,1630.113 387.208,1630.113 259.6,1851.137" />
+      <polygon class="safe" points="175.379,1667.687 343.821,1667.687 259.6,1813.563" />
+      <line class="base-edge" x1="131.992" y1="1630.113" x2="387.208" y2="1630.113" />
+      <g transform="rotate(0 259.6 1740.625)">
+        <text class="number" style="font-size:84.6px" x="259.6" y="1742.625">16</text>
+        <line class="baseline" x1="188.53600000000003" y1="1777.003" x2="330.664" y2="1777.003" />
+      </g>
+      <text class="mapping" x="259.6" y="1612.113">D20 16 / M14 / +0 deg</text>
+    </g>
+    <g id="d20-face-17" data-face-value="17" data-material-index="10">
+      <polygon class="island" points="726.224,1613.017 761.008,1868.233 522.592,1770.749" />
+      <polygon class="safe" points="697.52,1656.404 720.477,1824.846 563.123,1760.507" />
+      <line class="base-edge" x1="761.008" y1="1868.233" x2="522.592" y2="1770.749" />
+      <g transform="rotate(22.239 641.8 1740.625)">
+        <text class="number" style="font-size:97.7px" x="641.8" y="1742.625">17</text>
+        <line class="baseline" x1="559.732" y1="1782.636" x2="723.8679999999999" y2="1782.636" />
+      </g>
+      <text class="mapping" x="641.8" y="1595.017">D20 17 / M10 / +22.239 deg</text>
+    </g>
+    <g id="d20-face-18" data-face-value="18" data-material-index="11">
+      <polygon class="island" points="1024,1630.113 1151.608,1851.137 896.392,1851.137" />
+      <polygon class="safe" points="1024,1667.687 1108.221,1813.563 939.779,1813.563" />
+      <line class="base-edge" x1="1151.608" y1="1851.137" x2="896.392" y2="1851.137" />
+      <g transform="rotate(0 1024 1740.625)">
+        <text class="number" style="font-size:84.6px" x="1024" y="1742.625">18</text>
+        <line class="baseline" x1="952.936" y1="1777.003" x2="1095.064" y2="1777.003" />
+      </g>
+      <text class="mapping" x="1024" y="1612.113">D20 18 / M11 / +0 deg</text>
+    </g>
+    <g id="d20-face-19" data-face-value="19" data-material-index="12">
+      <polygon class="island" points="1278.592,1630.113 1533.808,1630.113 1406.2,1851.137" />
+      <polygon class="safe" points="1321.979,1667.687 1490.421,1667.687 1406.2,1813.563" />
+      <line class="base-edge" x1="1278.592" y1="1630.113" x2="1533.808" y2="1630.113" />
+      <g transform="rotate(0 1406.2 1740.625)">
+        <text class="number" style="font-size:84.6px" x="1406.2" y="1742.625">19</text>
+        <line class="baseline" x1="1335.136" y1="1777.003" x2="1477.2640000000001" y2="1777.003" />
+      </g>
+      <text class="mapping" x="1406.2" y="1612.113">D20 19 / M12 / +0 deg</text>
+    </g>
+    <g id="d20-face-20" data-face-value="20" data-material-index="13">
+      <polygon class="island" points="1703.976,1613.017 1907.608,1770.749 1669.192,1868.233" />
+      <polygon class="safe" points="1732.68,1656.404 1867.077,1760.507 1709.723,1824.846" />
+      <line class="base-edge" x1="1907.608" y1="1770.749" x2="1669.192" y2="1868.233" />
+      <g transform="rotate(-22.239 1788.4 1740.625)">
+        <text class="number" style="font-size:97.7px" x="1788.4" y="1742.625">20</text>
+        <line class="baseline" x1="1706.332" y1="1782.636" x2="1870.468" y2="1782.636" />
+      </g>
+      <text class="mapping" x="1788.4" y="1595.017">D20 20 / M13 / -22.239 deg</text>
+    </g>
+  </g>
+</svg>

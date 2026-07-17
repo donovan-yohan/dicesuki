@@ -1,0 +1,1157 @@
+{
+  "version": "1.0",
+  "shape": "d10",
+  "label": "D10",
+  "canvasSize": 2048,
+  "columns": 5,
+  "rows": 2,
+  "coordinateSystem": {
+    "pixels": "top-left atlas coordinates",
+    "uv": "glTF normalized top-left coordinates",
+    "numberBaseline": "persisted baseline edge is parallel to the selected canonical island edge"
+  },
+  "geometry": {
+    "primitive": "pentagonal-trapezohedron",
+    "materialGroups": "one group per canonical face; all triangles in a group share its atlas island and material index"
+  },
+  "faceValues": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "canonicalFaceCount": 10,
+  "canonicalTriangleCount": 20,
+  "trianglesPerFace": 2,
+  "islandShape": "kite",
+  "materialMap": {
+    "0": 0,
+    "1": 6,
+    "2": 1,
+    "3": 5,
+    "4": 2,
+    "5": 9,
+    "6": 3,
+    "7": 8,
+    "8": 4,
+    "9": 7
+  },
+  "opposingValueConvention": {
+    "type": "sum",
+    "sum": 9
+  },
+  "d10Contract": {
+    "faceInterpretation": "10 kite faces, not 20 triangular faces",
+    "trianglesPerKite": 2,
+    "sharedMaterialPerKite": true,
+    "values": "0-9"
+  },
+  "islands": [
+    {
+      "id": "d10-face-0",
+      "faceValue": 0,
+      "materialIndex": 0,
+      "islandShape": "kite",
+      "triangleIndices": [
+        0,
+        1
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 259.6,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 259.6,
+          "y": 418.642
+        },
+        {
+          "x": 360.23,
+          "y": 625.116
+        },
+        {
+          "x": 259.6,
+          "y": 673.858
+        },
+        {
+          "x": 158.97,
+          "y": 625.117
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 259.6,
+          "y": 462.029
+        },
+        {
+          "x": 326.016,
+          "y": 598.302
+        },
+        {
+          "x": 259.6,
+          "y": 630.471
+        },
+        {
+          "x": 193.184,
+          "y": 598.302
+        }
+      ],
+      "baselineEdge": [
+        2,
+        3
+      ],
+      "baselineAngleDegrees": 25.844,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.126758,
+            "v": 0.204415
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.126758,
+            "v": 0.329032
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.175893,
+            "v": 0.305233
+          }
+        ],
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.126758,
+            "v": 0.204415
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.077622,
+            "v": 0.305233
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.126758,
+            "v": 0.329032
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.126758,
+          "v": 0.204415
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.126758,
+          "v": 0.329032
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.175893,
+          "v": 0.305233
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d10-face-1",
+      "faceValue": 1,
+      "materialIndex": 6,
+      "islandShape": "kite",
+      "triangleIndices": [
+        12,
+        13
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 641.8,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 541.17,
+          "y": 467.384
+        },
+        {
+          "x": 641.8,
+          "y": 418.642
+        },
+        {
+          "x": 742.43,
+          "y": 467.383
+        },
+        {
+          "x": 641.8,
+          "y": 673.858
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 575.384,
+          "y": 494.198
+        },
+        {
+          "x": 641.8,
+          "y": 462.029
+        },
+        {
+          "x": 708.216,
+          "y": 494.198
+        },
+        {
+          "x": 641.8,
+          "y": 630.471
+        }
+      ],
+      "baselineEdge": [
+        1,
+        2
+      ],
+      "baselineAngleDegrees": 25.844,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.313379,
+            "v": 0.329032
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.362514,
+            "v": 0.228214
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.313379,
+            "v": 0.204415
+          }
+        ],
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.313379,
+            "v": 0.329032
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.313379,
+            "v": 0.204415
+          },
+          {
+            "vertexIndex": 5,
+            "u": 0.264243,
+            "v": 0.228215
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.313379,
+          "v": 0.329032
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.362514,
+          "v": 0.228214
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.313379,
+          "v": 0.204415
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d10-face-2",
+      "faceValue": 2,
+      "materialIndex": 1,
+      "islandShape": "kite",
+      "triangleIndices": [
+        2,
+        3
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 1024,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 1024,
+          "y": 418.642
+        },
+        {
+          "x": 1124.63,
+          "y": 625.117
+        },
+        {
+          "x": 1023.999,
+          "y": 673.858
+        },
+        {
+          "x": 923.37,
+          "y": 625.117
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1024,
+          "y": 462.029
+        },
+        {
+          "x": 1090.416,
+          "y": 598.302
+        },
+        {
+          "x": 1024,
+          "y": 630.471
+        },
+        {
+          "x": 957.584,
+          "y": 598.302
+        }
+      ],
+      "baselineEdge": [
+        1,
+        2
+      ],
+      "baselineAngleDegrees": -25.844,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.5,
+            "v": 0.204415
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.5,
+            "v": 0.329032
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.549136,
+            "v": 0.305233
+          }
+        ],
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.5,
+            "v": 0.204415
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.450864,
+            "v": 0.305233
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.5,
+            "v": 0.329032
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.5,
+          "v": 0.204415
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.5,
+          "v": 0.329032
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.549136,
+          "v": 0.305233
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d10-face-3",
+      "faceValue": 3,
+      "materialIndex": 5,
+      "islandShape": "kite",
+      "triangleIndices": [
+        10,
+        11
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 1406.2,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 1305.57,
+          "y": 467.383
+        },
+        {
+          "x": 1406.201,
+          "y": 418.642
+        },
+        {
+          "x": 1506.83,
+          "y": 467.383
+        },
+        {
+          "x": 1406.2,
+          "y": 673.858
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1339.784,
+          "y": 494.198
+        },
+        {
+          "x": 1406.2,
+          "y": 462.029
+        },
+        {
+          "x": 1472.616,
+          "y": 494.198
+        },
+        {
+          "x": 1406.2,
+          "y": 630.471
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": -25.844,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.686621,
+            "v": 0.329032
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.735757,
+            "v": 0.228214
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.686621,
+            "v": 0.204415
+          }
+        ],
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.686621,
+            "v": 0.329032
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.686621,
+            "v": 0.204415
+          },
+          {
+            "vertexIndex": 5,
+            "u": 0.637485,
+            "v": 0.228215
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.686621,
+          "v": 0.329032
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.735757,
+          "v": 0.228214
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.686621,
+          "v": 0.204415
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d10-face-4",
+      "faceValue": 4,
+      "materialIndex": 2,
+      "islandShape": "kite",
+      "triangleIndices": [
+        4,
+        5
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 1788.4,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 1788.4,
+          "y": 418.642
+        },
+        {
+          "x": 1889.031,
+          "y": 625.117
+        },
+        {
+          "x": 1788.4,
+          "y": 673.858
+        },
+        {
+          "x": 1687.769,
+          "y": 625.117
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1788.4,
+          "y": 462.029
+        },
+        {
+          "x": 1854.816,
+          "y": 598.302
+        },
+        {
+          "x": 1788.4,
+          "y": 630.471
+        },
+        {
+          "x": 1721.984,
+          "y": 598.302
+        }
+      ],
+      "baselineEdge": [
+        2,
+        3
+      ],
+      "baselineAngleDegrees": 25.843,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.873242,
+            "v": 0.204415
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.873242,
+            "v": 0.329032
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.922378,
+            "v": 0.305233
+          }
+        ],
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.873242,
+            "v": 0.204415
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.824106,
+            "v": 0.305233
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.873242,
+            "v": 0.329032
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.873242,
+          "v": 0.204415
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.873242,
+          "v": 0.329032
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.922378,
+          "v": 0.305233
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d10-face-5",
+      "faceValue": 5,
+      "materialIndex": 9,
+      "islandShape": "kite",
+      "triangleIndices": [
+        18,
+        19
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 259.6,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 158.969,
+          "y": 1422.883
+        },
+        {
+          "x": 259.6,
+          "y": 1374.142
+        },
+        {
+          "x": 360.231,
+          "y": 1422.883
+        },
+        {
+          "x": 259.6,
+          "y": 1629.358
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 193.184,
+          "y": 1449.698
+        },
+        {
+          "x": 259.6,
+          "y": 1417.529
+        },
+        {
+          "x": 326.016,
+          "y": 1449.698
+        },
+        {
+          "x": 259.6,
+          "y": 1585.971
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": -25.843,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.126758,
+            "v": 0.795585
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.175894,
+            "v": 0.694767
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.126758,
+            "v": 0.670968
+          }
+        ],
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.126758,
+            "v": 0.795585
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.126758,
+            "v": 0.670968
+          },
+          {
+            "vertexIndex": 5,
+            "u": 0.077622,
+            "v": 0.694767
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.126758,
+          "v": 0.795585
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.175894,
+          "v": 0.694767
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.126758,
+          "v": 0.670968
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d10-face-6",
+      "faceValue": 6,
+      "materialIndex": 3,
+      "islandShape": "kite",
+      "triangleIndices": [
+        6,
+        7
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 641.8,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 641.8,
+          "y": 1374.142
+        },
+        {
+          "x": 742.43,
+          "y": 1580.617
+        },
+        {
+          "x": 641.801,
+          "y": 1629.358
+        },
+        {
+          "x": 541.17,
+          "y": 1580.617
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 641.8,
+          "y": 1417.529
+        },
+        {
+          "x": 708.216,
+          "y": 1553.802
+        },
+        {
+          "x": 641.8,
+          "y": 1585.971
+        },
+        {
+          "x": 575.384,
+          "y": 1553.802
+        }
+      ],
+      "baselineEdge": [
+        2,
+        3
+      ],
+      "baselineAngleDegrees": 25.844,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.313379,
+            "v": 0.670968
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.313379,
+            "v": 0.795585
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.362515,
+            "v": 0.771786
+          }
+        ],
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.313379,
+            "v": 0.670968
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.264243,
+            "v": 0.771785
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.313379,
+            "v": 0.795585
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.313379,
+          "v": 0.670968
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.313379,
+          "v": 0.795585
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.362515,
+          "v": 0.771786
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d10-face-7",
+      "faceValue": 7,
+      "materialIndex": 8,
+      "islandShape": "kite",
+      "triangleIndices": [
+        16,
+        17
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 1024,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 923.37,
+          "y": 1422.883
+        },
+        {
+          "x": 1023.999,
+          "y": 1374.142
+        },
+        {
+          "x": 1124.63,
+          "y": 1422.883
+        },
+        {
+          "x": 1024,
+          "y": 1629.358
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 957.584,
+          "y": 1449.698
+        },
+        {
+          "x": 1024,
+          "y": 1417.529
+        },
+        {
+          "x": 1090.416,
+          "y": 1449.698
+        },
+        {
+          "x": 1024,
+          "y": 1585.971
+        }
+      ],
+      "baselineEdge": [
+        1,
+        2
+      ],
+      "baselineAngleDegrees": 25.844,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.5,
+            "v": 0.795585
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.549136,
+            "v": 0.694767
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.5,
+            "v": 0.670968
+          }
+        ],
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.5,
+            "v": 0.795585
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.5,
+            "v": 0.670968
+          },
+          {
+            "vertexIndex": 5,
+            "u": 0.450864,
+            "v": 0.694767
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.5,
+          "v": 0.795585
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.549136,
+          "v": 0.694767
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.5,
+          "v": 0.670968
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d10-face-8",
+      "faceValue": 8,
+      "materialIndex": 4,
+      "islandShape": "kite",
+      "triangleIndices": [
+        8,
+        9
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 1406.2,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 1406.2,
+          "y": 1374.142
+        },
+        {
+          "x": 1506.83,
+          "y": 1580.617
+        },
+        {
+          "x": 1406.2,
+          "y": 1629.358
+        },
+        {
+          "x": 1305.57,
+          "y": 1580.616
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1406.2,
+          "y": 1417.529
+        },
+        {
+          "x": 1472.616,
+          "y": 1553.802
+        },
+        {
+          "x": 1406.2,
+          "y": 1585.971
+        },
+        {
+          "x": 1339.784,
+          "y": 1553.802
+        }
+      ],
+      "baselineEdge": [
+        1,
+        2
+      ],
+      "baselineAngleDegrees": -25.844,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.686621,
+            "v": 0.670968
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.686621,
+            "v": 0.795585
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.735757,
+            "v": 0.771786
+          }
+        ],
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.686621,
+            "v": 0.670968
+          },
+          {
+            "vertexIndex": 4,
+            "u": 0.637486,
+            "v": 0.771785
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.686621,
+            "v": 0.795585
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.686621,
+          "v": 0.670968
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.686621,
+          "v": 0.795585
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.735757,
+          "v": 0.771786
+        }
+      ],
+      "sharedAtlasIsland": true
+    },
+    {
+      "id": "d10-face-9",
+      "faceValue": 9,
+      "materialIndex": 7,
+      "islandShape": "kite",
+      "triangleIndices": [
+        14,
+        15
+      ],
+      "triangleCount": 2,
+      "center": {
+        "x": 1788.4,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 1687.77,
+          "y": 1422.883
+        },
+        {
+          "x": 1788.4,
+          "y": 1374.142
+        },
+        {
+          "x": 1889.03,
+          "y": 1422.884
+        },
+        {
+          "x": 1788.4,
+          "y": 1629.358
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1721.984,
+          "y": 1449.698
+        },
+        {
+          "x": 1788.4,
+          "y": 1417.529
+        },
+        {
+          "x": 1854.816,
+          "y": 1449.698
+        },
+        {
+          "x": 1788.4,
+          "y": 1585.971
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": -25.844,
+      "uvByTriangle": [
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.873242,
+            "v": 0.795585
+          },
+          {
+            "vertexIndex": 1,
+            "u": 0.922378,
+            "v": 0.694767
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.873242,
+            "v": 0.670968
+          }
+        ],
+        [
+          {
+            "vertexIndex": 0,
+            "u": 0.873242,
+            "v": 0.795585
+          },
+          {
+            "vertexIndex": 2,
+            "u": 0.873242,
+            "v": 0.670968
+          },
+          {
+            "vertexIndex": 5,
+            "u": 0.824107,
+            "v": 0.694767
+          }
+        ]
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.873242,
+          "v": 0.795585
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.922378,
+          "v": 0.694767
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.873242,
+          "v": 0.670968
+        }
+      ],
+      "sharedAtlasIsland": true
+    }
+  ]
+}

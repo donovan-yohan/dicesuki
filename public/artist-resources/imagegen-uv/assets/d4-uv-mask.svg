@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-label="Daisu D4 UV mask">
+  <rect width="100%" height="100%" fill="#000000" />
+  <g id="paintable-uv-islands" fill="#ffffff">
+    <polygon points="546.25,195.055 850.394,721.847 242.106,721.848" />
+    <polygon points="1501.75,195.055 1805.894,721.847 1197.606,721.848" />
+    <polygon points="546.25,1150.555 850.394,1677.347 242.106,1677.348" />
+    <polygon points="1501.75,1150.555 1805.894,1677.347 1197.606,1677.348" />
+  </g>
+</svg>
