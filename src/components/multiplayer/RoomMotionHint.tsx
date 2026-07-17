@@ -12,13 +12,14 @@ import { useUIStore } from '../../store/useUIStore'
  * Surfaces, in priority order:
  * - the room policy being `off` (host disabled motion for everyone),
  * - device-motion permission being blocked (`denied` — needs OS Settings),
+ * - orientation permission being unavailable while shake remains enabled,
  * - permission not yet granted (`prompt` — tap the motion toggle).
  *
- * When permission is granted and the policy allows motion, no hint is shown —
+ * When both permissions are granted and the policy allows motion, no hint is shown —
  * tilting and shaking just work. Reuses the muted read-only hint styling from PlayerPanel.
  */
 export function RoomMotionHint() {
-  const { isSupported, permissionState } = useDeviceMotionState()
+  const { isSupported, permissionState, orientationPermissionState } = useDeviceMotionState()
   const motionMode = useUIStore((s) => s.motionMode)
   const roomSettings = useMultiplayerStore((s) => s.roomSettings)
   const motionControl = getMotionControl(roomSettings)
@@ -38,6 +39,11 @@ export function RoomMotionHint() {
     tone = 'warning'
   } else if (permissionState === 'prompt') {
     message = 'Tap the motion button to enable tilt and shake controls'
+  } else if (orientationPermissionState === 'denied') {
+    message = 'Tilt blocked — enable orientation access in your device Settings; shake still works'
+    tone = 'warning'
+  } else if (orientationPermissionState === 'unsupported') {
+    message = 'Tilt unavailable on this device — shake still works'
   }
 
   if (!message) return null

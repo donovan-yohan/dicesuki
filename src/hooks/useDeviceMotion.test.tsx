@@ -90,6 +90,7 @@ describe('useDeviceMotion', () => {
 
     await act(async () => result.current.requestPermission())
     expect(result.current.permissionState).toBe('granted')
+    expect(result.current.orientationPermissionState).toBe('denied')
 
     act(() => {
       window.dispatchEvent(new MockDeviceMotionEvent({ x: 0.5, y: 0, z: 0 }))

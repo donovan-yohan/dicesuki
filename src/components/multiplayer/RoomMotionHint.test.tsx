@@ -19,6 +19,7 @@ const makeMotionState = (
 ): DeviceMotionStateContext => ({
   isSupported: true,
   permissionState: 'granted',
+  orientationPermissionState: 'granted',
   isShaking: false,
   requestPermission: vi.fn(async () => {}),
   ...over,
@@ -75,6 +76,17 @@ describe('RoomMotionHint', () => {
     arrange({ motionMode: true, policy: 'room', motion: { permissionState: 'granted' } })
     render(<RoomMotionHint />)
     expect(screen.queryByTestId('room-motion-hint')).not.toBeInTheDocument()
+  })
+
+  it('warns when tilt is blocked but shake remains granted', () => {
+    arrange({
+      motionMode: true,
+      policy: 'own_dice',
+      motion: { permissionState: 'granted', orientationPermissionState: 'denied' },
+    })
+    render(<RoomMotionHint />)
+    expect(screen.getByTestId('room-motion-hint')).toHaveTextContent(/tilt blocked/i)
+    expect(screen.getByTestId('room-motion-hint')).toHaveTextContent(/shake still works/i)
   })
 
   it('renders nothing on devices without a motion sensor', () => {

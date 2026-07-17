@@ -555,19 +555,31 @@ impl Room {
     /// Settled dice are re-woken later by [`Room::wake_knocked_dice`] only after
     /// physics proves that the field actually moved or tipped them. This matters
     /// for persistent tilt: a supported die must be allowed to remain settled.
+    fn motion_field_is_fresh_and_nonzero(player: &Player, now: Instant) -> bool {
+        let Some(at) = player.motion_field_at else {
+            return false;
+        };
+        player.motion_field != [0.0, 0.0, 0.0]
+            && now.saturating_duration_since(at)
+                < Duration::from_millis(MOTION_FIELD_STALE_MS)
+    }
+
+    /// Whether a fresh field currently targets at least one die under room policy.
+    fn has_active_motion_field(&self, now: Instant) -> bool {
+        self.players.iter().any(|(player_id, player)| {
+            Self::motion_field_is_fresh_and_nonzero(player, now)
+                && self.dice.values().any(|die| self.can_apply_motion(player_id, die))
+        })
+    }
+
     fn apply_motion_forces(&mut self) {
         let now = Instant::now();
-        let stale = Duration::from_millis(MOTION_FIELD_STALE_MS);
 
         // Snapshot the active (player_id, field) pairs so the dice mutation below
         // does not hold a borrow of `self.players`.
         let active: Vec<(String, [f32; 3])> = self.players.iter()
             .filter_map(|(id, p)| {
-                let at = p.motion_field_at?;
-                if now.duration_since(at) >= stale {
-                    return None;
-                }
-                if p.motion_field == [0.0, 0.0, 0.0] {
+                if !Self::motion_field_is_fresh_and_nonzero(p, now) {
                     return None;
                 }
                 Some((id.clone(), p.motion_field))
@@ -1132,11 +1144,11 @@ impl Room {
         // 8. Check for newly settled dice
         let newly_settled = self.check_settled_dice();
 
-        // Stop simulating if nothing is active
-        let any_active = self.dice.values().any(|d| d.is_rolling || d.drag_state.is_some());
-        if !any_active {
-            self.is_simulating = false;
-        }
+        // A fresh non-zero field must keep the 60 Hz loop alive even while every
+        // targeted die remains below the knock thresholds. Otherwise persistent
+        // tilt degrades to one impulse per incoming sensor message.
+        let any_active_die = self.dice.values().any(|d| d.is_rolling || d.drag_state.is_some());
+        self.is_simulating = any_active_die || self.has_active_motion_field(Instant::now());
 
         (snapshot, newly_settled, knocked)
     }
@@ -2827,6 +2839,44 @@ mod tests {
             room.physics.get_linear_speed(d1) < 1e-6,
             "a stale field must not push dice"
         );
+    }
+
+    /// A gentle field that does not knock a settled die still needs the 60 Hz loop;
+    /// clearing or staleness releases that liveness latch immediately.
+    #[test]
+    fn test_physics_tick_keeps_fresh_subthreshold_motion_field_alive_until_stopped() {
+        let mut room = make_two_player_room_with_physics_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        for die in room.dice.values_mut() {
+            die.is_rolling = false;
+            die.face_value = Some(1);
+            die.settled_rotation = None;
+        }
+
+        room.set_motion_field("p1", [0.01, 0.0, 0.0]).unwrap();
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.is_empty(), "the gentle field stays below knock thresholds");
+        assert!(room.is_simulating, "a fresh gentle field keeps the loop alive");
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.is_empty(), "the gentle field remains below knock thresholds");
+        assert!(room.is_simulating, "the field remains active across ticks");
+
+        room.set_motion_field("p1", [0.0, 0.0, 0.0]).unwrap();
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.is_empty(), "clearing does not knock a die awake");
+        assert!(!room.is_simulating, "clearing the field releases the loop");
+
+        room.set_motion_field("p1", [0.01, 0.0, 0.0]).unwrap();
+        for die in room.dice.values() {
+            let handle = die.body_handle.unwrap();
+            room.physics.set_linear_velocity(handle, [0.0, 0.0, 0.0]);
+            room.physics.set_angular_velocity(handle, [0.0, 0.0, 0.0]);
+        }
+        room.players.get_mut("p1").unwrap().motion_field_at =
+            Some(Instant::now() - Duration::from_millis(MOTION_FIELD_STALE_MS + 1));
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.is_empty(), "a stale field cannot knock a die awake");
+        assert!(!room.is_simulating, "a stale field releases the loop");
     }
 
     /// The field magnitude is clamped so a bad client cannot fling dice.

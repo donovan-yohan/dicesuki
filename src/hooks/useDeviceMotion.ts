@@ -32,6 +32,7 @@ type DeviceOrientationEventWithPermission = typeof DeviceOrientationEvent & {
 export interface DeviceMotionState {
   isSupported: boolean
   permissionState: PermissionState
+  orientationPermissionState: PermissionState
   isShaking: boolean
   /**
    * Real-time device-motion FIELD for physics (updated per sensor event, no React
@@ -71,6 +72,9 @@ export function useDeviceMotion(): DeviceMotionState {
       ? 'prompt'
       : 'unsupported'
   )
+  const [orientationPermissionState, setOrientationPermissionState] = useState<PermissionState>(
+    typeof DeviceOrientationEvent !== 'undefined' ? 'prompt' : 'unsupported'
+  )
   const [isShaking, setIsShaking] = useState(false)
 
   // Real-time refs read by physics/UI without triggering React re-renders.
@@ -95,31 +99,34 @@ export function useDeviceMotion(): DeviceMotionState {
     }
 
     try {
-      const requests: Array<Promise<PermissionState>> = []
+      let motionRequest: Promise<PermissionState> | undefined
+      let orientationRequest: Promise<PermissionState> | undefined
 
       if (typeof DeviceMotionEvent !== 'undefined') {
         const motionEvent = DeviceMotionEvent as DeviceMotionEventWithPermission
-        requests.push(
-          typeof motionEvent.requestPermission === 'function'
-            ? motionEvent.requestPermission().catch(() => 'denied')
-            : Promise.resolve('granted')
-        )
+        motionRequest = typeof motionEvent.requestPermission === 'function'
+          ? motionEvent.requestPermission().catch(() => 'denied')
+          : Promise.resolve('granted')
       }
 
       if (typeof DeviceOrientationEvent !== 'undefined') {
         const orientationEvent = DeviceOrientationEvent as DeviceOrientationEventWithPermission
-        requests.push(
-          typeof orientationEvent.requestPermission === 'function'
-            ? orientationEvent.requestPermission().catch(() => 'denied')
-            : Promise.resolve('granted')
-        )
+        orientationRequest = typeof orientationEvent.requestPermission === 'function'
+          ? orientationEvent.requestPermission().catch(() => 'denied')
+          : Promise.resolve('granted')
       }
 
-      const responses = await Promise.all(requests)
+      const [motionResponse, orientationResponse] = await Promise.all([
+        motionRequest ?? Promise.resolve<PermissionState>('unsupported'),
+        orientationRequest ?? Promise.resolve<PermissionState>('unsupported'),
+      ])
+      setOrientationPermissionState(orientationResponse)
+      const responses = [motionResponse, orientationResponse]
       setPermissionState(responses.includes('granted') ? 'granted' : 'denied')
     } catch (error) {
-      console.error('Error requesting device motion permission:', error)
+      console.error('Error requesting device motion and orientation permissions:', error)
       setPermissionState('denied')
+      setOrientationPermissionState('denied')
     }
   }, [isSupported])
 
@@ -215,6 +222,7 @@ export function useDeviceMotion(): DeviceMotionState {
   return {
     isSupported,
     permissionState,
+    orientationPermissionState,
     isShaking,
     motionFieldRef,
     isShakingRef,

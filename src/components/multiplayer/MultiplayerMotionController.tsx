@@ -10,8 +10,9 @@ const ZERO_FIELD: [number, number, number] = [0, 0, 0]
 /**
  * Streams this client's continuous device-motion field into the room
  * (Shared-ADR-010): fused-orientation tilt plus the "shake your dice box"
- * pseudo-force, applied server-side to ONLY the local player's own dice. Shared
- * world gravity is never touched.
+ * pseudo-force, applied server-side to the local player's own dice by default. A
+ * policy-controlled delegated roller may affect room-wide dice; shared world
+ * gravity is never touched.
  *
  * Runs inside the Canvas so it can read the motion-field ref every frame without
  * re-rendering (Frontend-ADR-001: physics via refs; ADR-004: store reads via

@@ -52,6 +52,13 @@ describe('computeTiltGravityCorrection', () => {
       .toEqual([0, 0, 0])
   })
 
+  it('is zero when an orientation angle is missing at runtime', () => {
+    expect(computeTiltGravityCorrection({ beta: undefined, gamma: 10 }, GRAVITY, 2))
+      .toEqual([0, 0, 0])
+    expect(computeTiltGravityCorrection({ beta: 10, gamma: undefined }, GRAVITY, 2))
+      .toEqual([0, 0, 0])
+  })
+
   it('redirects gravity toward all four horizontal tilt directions', () => {
     const forward = computeTiltGravityCorrection({ beta: 90, gamma: 0 }, GRAVITY, 2)
     const backward = computeTiltGravityCorrection({ beta: -90, gamma: 0 }, GRAVITY, 2)

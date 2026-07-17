@@ -21,8 +21,8 @@ export interface SensorAcceleration {
 
 /** Fused device orientation angles from `DeviceOrientationEvent`. */
 export interface SensorOrientation {
-  beta: number | null
-  gamma: number | null
+  beta?: number | null
+  gamma?: number | null
 }
 
 /** Magnitude of a motion field vector. */
@@ -82,7 +82,7 @@ export function computeTiltGravityCorrection(
   gravity: number,
   deadzoneDegrees: number,
 ): MotionField {
-  if (!orientation || orientation.beta === null || orientation.gamma === null) {
+  if (!orientation || orientation.beta == null || orientation.gamma == null) {
     return [0, 0, 0]
   }
 
