@@ -18,41 +18,51 @@ async function readSvg(relativePath: string) {
 }
 
 describe('Dicesuki brand vectors', () => {
-  it('keeps padding beyond the illustrated icon contour', async () => {
-    const { svg } = await readSvg('brand/dicesuki-icon.svg')
+  it('keeps padding beyond the illustrated icon contour without pale fringe paths', async () => {
+    const { document, svg } = await readSvg('brand/dicesuki-icon.svg')
     const [x, , width] = (svg.getAttribute('viewBox') ?? '').split(/\s+/).map(Number)
+    const paths = [...document.querySelectorAll('path')]
 
     expect(x + width).toBeGreaterThanOrEqual(620)
+    expect(
+      paths.some(
+        (path) =>
+          path.getAttribute('fill') === '#F8E2E0' &&
+          ['translate(536,277)', 'translate(366,246)'].includes(
+            path.getAttribute('transform') ?? '',
+          ),
+      ),
+    ).toBe(false)
   })
 
-  it('uses real transparent masks for the d and e counters', async () => {
+  it('cuts the d and e counters directly into the visible letter paths', async () => {
     const { document, svg } = await readSvg('brand/dicesuki-wordmark.svg')
-    const mask = document.querySelector('#dicesuki-wordmark-counters')
     const visibleGroup = [...svg.children].find((child) => child.localName === 'g')
+    const cutoutPaths = [...(visibleGroup?.querySelectorAll('path[fill-rule="evenodd"]') ?? [])]
 
-    expect(mask).not.toBeNull()
-    expect(visibleGroup?.getAttribute('mask')).toBe('url(#dicesuki-wordmark-counters)')
-
-    const cutouts = [...(mask?.querySelectorAll('path') ?? [])]
-    expect(cutouts.map((path) => path.getAttribute('transform'))).toEqual([
-      'translate(237,286.5625)',
-      'translate(891.0625,267.5625)',
+    expect(document.querySelector('mask')).toBeNull()
+    expect(visibleGroup?.hasAttribute('mask')).toBe(false)
+    expect(cutoutPaths).toHaveLength(4)
+    expect(cutoutPaths.map((path) => path.getAttribute('transform')).sort()).toEqual([
+      'translate(290,47)',
+      'translate(290,47)',
+      'translate(913,195)',
+      'translate(913,195)',
     ])
-    expect(cutouts.every((path) => path.getAttribute('fill') === '#000')).toBe(true)
-
-    const visibleTransforms = [...(visibleGroup?.querySelectorAll('path') ?? [])].map((path) =>
-      path.getAttribute('transform'),
-    )
-    expect(visibleTransforms).not.toContain('translate(237,286.5625)')
-    expect(visibleTransforms).not.toContain('translate(891.0625,267.5625)')
+    expect(
+      cutoutPaths.every((path) => ((path.getAttribute('d') ?? '').match(/M/g) ?? []).length >= 2),
+    ).toBe(true)
   })
 
   it('keeps the corrected vectors in the lockup and square favicon', async () => {
     const { document: lockup } = await readSvg('brand/dicesuki-lockup.svg')
     const { svg: favicon, document: faviconDocument } = await readSvg('icons/favicon.svg')
 
-    expect(lockup.querySelector('#dicesuki-wordmark-counters')).not.toBeNull()
+    expect(lockup.querySelector('mask')).toBeNull()
+    expect(lockup.querySelectorAll('path[fill-rule="evenodd"]')).toHaveLength(4)
     expect(favicon.getAttribute('viewBox')).toBe('22 27 600 600')
     expect(faviconDocument.querySelector('rect')?.getAttribute('fill')).toBe('#f3ebe2')
+    expect(faviconDocument.querySelector('path[transform="translate(536,277)"]')).toBeNull()
+    expect(faviconDocument.querySelector('path[transform="translate(366,246)"]')).toBeNull()
   })
 })
