@@ -12,6 +12,7 @@
 | [custom-dice.md](custom-dice.md) | GLB persistence, IndexedDB, blob URL lifecycle |
 | [collectible-catalog.md](collectible-catalog.md) | Canonical catalog, entitlement trust boundary, starter backfill, RLS verification |
 | [imagegen-uv-dice.md](imagegen-uv-dice.md) | Deterministic ImageGen/Blender UV authoring kit and canonical validation |
+| [economy-contracts.md](economy-contracts.md) | Immutable economy hypotheses, exact disclosures, and append-only workflow |
 | [saved-rolls.md](saved-rolls.md) | Bonus system, formula display, state lifecycle |
 | [server.md](server.md) | Rust/Axum gotchas, axum version, server architecture |
 | [deployment.md](deployment.md) | Playtest stack, Docker image, ports, env vars, WSL2/tunnels |
