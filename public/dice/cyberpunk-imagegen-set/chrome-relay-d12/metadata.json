@@ -1,0 +1,130 @@
+{
+  "version": "1.0",
+  "diceType": "d12",
+  "name": "Chrome Relay D12",
+  "artist": "Codex ImageGen via Daisu UV Workflow",
+  "created": "2026-07-10",
+  "scale": 1.25,
+  "rarity": "rare",
+  "description": "Chrome Relay D12 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+  "canonicalReferenceVersion": 2,
+  "tags": [
+    "cyberpunk",
+    "street-tech",
+    "anime",
+    "neon",
+    "hazard",
+    "codex-imagegen",
+    "d12",
+    "complete-polyhedral-set",
+    "numbered-faces",
+    "edge-parallel-numerals",
+    "uv-atlas",
+    "derived-normal-map"
+  ],
+  "faceNormals": [
+    {
+      "value": 1,
+      "normal": [
+        0,
+        0.850651,
+        0.525731
+      ]
+    },
+    {
+      "value": 2,
+      "normal": [
+        0.850651,
+        0.525731,
+        0
+      ]
+    },
+    {
+      "value": 3,
+      "normal": [
+        0.525731,
+        0,
+        -0.850651
+      ]
+    },
+    {
+      "value": 4,
+      "normal": [
+        -0.525731,
+        0,
+        -0.850651
+      ]
+    },
+    {
+      "value": 5,
+      "normal": [
+        0,
+        0.850651,
+        -0.525731
+      ]
+    },
+    {
+      "value": 6,
+      "normal": [
+        -0.850651,
+        0.525731,
+        0
+      ]
+    },
+    {
+      "value": 7,
+      "normal": [
+        0.850651,
+        -0.525731,
+        0
+      ]
+    },
+    {
+      "value": 8,
+      "normal": [
+        0,
+        -0.850651,
+        0.525731
+      ]
+    },
+    {
+      "value": 9,
+      "normal": [
+        0.525731,
+        0,
+        0.850651
+      ]
+    },
+    {
+      "value": 10,
+      "normal": [
+        -0.525731,
+        0,
+        0.850651
+      ]
+    },
+    {
+      "value": 11,
+      "normal": [
+        -0.850651,
+        -0.525731,
+        0
+      ]
+    },
+    {
+      "value": 12,
+      "normal": [
+        0,
+        -0.850651,
+        -0.525731
+      ]
+    }
+  ],
+  "physics": {
+    "density": 0.52,
+    "restitution": 0.36,
+    "friction": 0.52
+  },
+  "colliderType": "hull",
+  "colliderArgs": {}
+}

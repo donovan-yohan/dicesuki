@@ -1,0 +1,35 @@
+{
+  "contractVersion": 1,
+  "sourceCommit": "7393d112c5e062570ec7caf37970206c4d05c08c",
+  "supplements": "cozy-forest-v1.lock.json",
+  "files": [
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/set.json",
+      "sha256": "a7b998bd60ce615de0df1cb30845ce0d65924a0e63a85f7355a443ea893c1dd8"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/acorn-compass-d10/metadata.json",
+      "sha256": "68d8d79953314778ae7b59c7543b26332dec1da2d4bce8d4901999333012d579"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/elder-canopy-d20/metadata.json",
+      "sha256": "b6bf50e11524fcf770b14b7a800cc918292c8a598a8a3e5846bfe43318980321"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/fernlight-d8/metadata.json",
+      "sha256": "4bead29d793c25fb5eed4e05053000e444acbde66fde548bd1b507558fd663bd"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/grovekeeper-d12/metadata.json",
+      "sha256": "c133f1c0ed3ff80b91e98af45a818697c0b95d33cc98e52bca81218b93bfaafb"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/hearthwood-d6/metadata.json",
+      "sha256": "fae3d43f3f30d352d2c68d7cf8205b0cd420c4dbae596442cd8f80bd11d026f7"
+    },
+    {
+      "path": "public/dice/cozy-forest-imagegen-set/mossheart-d4/metadata.json",
+      "sha256": "82479a04bbc31b837b9a8d8beed2166e8abe8e2460a73bd1087c50775743ba20"
+    }
+  ]
+}

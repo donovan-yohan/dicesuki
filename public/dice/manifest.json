@@ -38,6 +38,42 @@
       ]
     },
     {
+      "id": "cyberpunk-imagegen-set",
+      "path": "cyberpunk-imagegen-set",
+      "dice": [
+        {
+          "id": "chrome-relay-d12",
+          "path": "cyberpunk-imagegen-set/chrome-relay-d12",
+          "hasThumbnail": true
+        },
+        {
+          "id": "cipher-core-d10",
+          "path": "cyberpunk-imagegen-set/cipher-core-d10",
+          "hasThumbnail": true
+        },
+        {
+          "id": "neon-grid-d6",
+          "path": "cyberpunk-imagegen-set/neon-grid-d6",
+          "hasThumbnail": true
+        },
+        {
+          "id": "overdrive-d20",
+          "path": "cyberpunk-imagegen-set/overdrive-d20",
+          "hasThumbnail": true
+        },
+        {
+          "id": "pulse-shard-d4",
+          "path": "cyberpunk-imagegen-set/pulse-shard-d4",
+          "hasThumbnail": true
+        },
+        {
+          "id": "volt-prism-d8",
+          "path": "cyberpunk-imagegen-set/volt-prism-d8",
+          "hasThumbnail": true
+        }
+      ]
+    },
+    {
       "id": "devil-set",
       "path": "devil-set",
       "dice": [

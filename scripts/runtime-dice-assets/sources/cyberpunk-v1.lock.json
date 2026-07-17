@@ -1,0 +1,89 @@
+{
+  "contractVersion": 1,
+  "sourceCommit": "7393d112c5e062570ec7caf37970206c4d05c08c",
+  "release": {
+    "tag": "imagegen-cyberpunk-authoring-v1",
+    "assetName": "cyberpunk-imagegen-authoring-v1.tar.gz",
+    "url": "https://github.com/donovan-yohan/dicesuki/releases/download/imagegen-cyberpunk-authoring-v1/cyberpunk-imagegen-authoring-v1.tar.gz",
+    "bytes": 42754022,
+    "sha256": "62cd38c688dac894adf1f66a9b585ca4b4a245bfaacaba039ccf5bc9b418a0ef"
+  },
+  "files": [
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/set.json",
+      "sha256": "36d3500c27f694a2e4f47b740f1f8ed732e4848596262ff9e59244d6f670904a"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/chrome-relay-d12/metadata.json",
+      "sha256": "7cc94ec3871e3b2845b99de7cacf1c8971fff3dc927b42acdcaf8bebf9be7ce8"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/chrome-relay-d12/model.glb",
+      "sha256": "2365271c85ca4af16050ad21050e691c456c2595bfd7ec611b431bc413cd00d7"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cyberpunk-box-chrome-relay-d12-face-12.png",
+      "sha256": "9dd43fdf1b80374980de76656c1f77d3484a6284cc940ca8c512c411b97c2ae2"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/cipher-core-d10/metadata.json",
+      "sha256": "4ed1067fc1a2e2788b1beacf19c727713096db05b26857dc5fc49e55479cef60"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/cipher-core-d10/model.glb",
+      "sha256": "dd235ecd4573b30eed218af8c03fdf11f42c6b99e7bc1742b9451e63c64f28d0"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cyberpunk-box-cipher-core-d10-face-9.png",
+      "sha256": "982549d3c07cf2b53a8bfd55f04e30b560098f59dcb19efae3f1c036ee8aa463"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/neon-grid-d6/metadata.json",
+      "sha256": "fec87c92972107c8f110c88cbb3e6cf3a8f78a09754af2e6d07e129e81c4c636"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/neon-grid-d6/model.glb",
+      "sha256": "6c263098577bd18bb902c9f2053981d982ac10c4a15aa2b33485b86642e307f3"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cyberpunk-box-neon-grid-d6-face-6.png",
+      "sha256": "f1c02cdcd37edb7daf9ac01060cd0c78bb23c19d1330ae1560450c5ad675e04c"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/overdrive-d20/metadata.json",
+      "sha256": "696beee176295bcfeef3432cc38e616e096b53b9506490f1bdc733dddc437969"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/overdrive-d20/model.glb",
+      "sha256": "536d8852a16c854f033ee469d2a2621ee6654b9e2a159ee08e8dab3f3eeae84a"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cyberpunk-box-overdrive-d20-face-20.png",
+      "sha256": "59e206807184ea2b767d99240a85a4deeb782877ad53014ebffa9225ccb2bfc2"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/pulse-shard-d4/metadata.json",
+      "sha256": "3daafe48596761105d8e4720d2cbdbdc89292453f4fcdca479bc7aad24e48dc3"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/pulse-shard-d4/model.glb",
+      "sha256": "cba44c885dfe0c996258a04cb3f4d6ccaec59abc60ee2d8350701daf88ea3db0"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cyberpunk-box-pulse-shard-d4-face-4.png",
+      "sha256": "5b152159680972b86b31cf3448f4e6f58cf37af5dfd3dfbe64397f050b65f5a0"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/volt-prism-d8/metadata.json",
+      "sha256": "db22e7a8e6cf4a8722bac6a6ee51f6c42cb0487ce8c4aee5109c0389c05099f6"
+    },
+    {
+      "path": "public/dice/cyberpunk-imagegen-set/volt-prism-d8/model.glb",
+      "sha256": "e6095fb7f5796dddeee946176d43072864f1e1bd3921a099113ba2e94df427a1"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/cyberpunk-box-volt-prism-d8-face-8.png",
+      "sha256": "43e5b5c42a07dc8ad1082906c0b623afebe4dd5a0205652844064383618a4a8f"
+    }
+  ]
+}

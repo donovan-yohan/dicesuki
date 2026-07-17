@@ -7,8 +7,10 @@ import test from 'node:test'
 import {
   RUNTIME_ASSET_BUDGETS,
   inspectGlb,
+  runtimeAssetManifestPaths,
   validateRuntimeAssetManifest,
 } from './runtime-asset-contract.mjs'
+import { RUNTIME_ASSET_PROFILES } from './runtime-asset-profiles.mjs'
 import {
   buildDiceManifest,
   checkDiceManifest,
@@ -17,21 +19,27 @@ import {
 } from '../generate-dice-manifest.js'
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..')
-const SET_ROOT = path.join(REPO_ROOT, 'public', 'dice', 'cozy-forest-imagegen-set')
-const MANIFEST_PATH = path.join(SET_ROOT, 'runtime-assets.json')
+const MANIFEST_PATHS = runtimeAssetManifestPaths(REPO_ROOT)
+const COZY_SET_ROOT = path.join(REPO_ROOT, 'public', 'dice', 'cozy-forest-imagegen-set')
 
-test('Cozy Forest runtime set is complete, hashed, WebP-backed, and within budgets', async () => {
-  const result = await validateRuntimeAssetManifest(MANIFEST_PATH, REPO_ROOT)
-  assert.equal(result.valid, true, result.errors.join('\n'))
+test('every runtime set is complete, hashed, WebP-backed, and within budgets', async () => {
   assert.deepEqual(
-    result.manifest.assets.map(asset => asset.diceType).sort(),
-    ['d10', 'd12', 'd20', 'd4', 'd6', 'd8'],
+    MANIFEST_PATHS.map(manifestPath => path.basename(path.dirname(manifestPath))),
+    Object.values(RUNTIME_ASSET_PROFILES).map(profile => profile.setId).sort(),
   )
-  assert.ok(result.completeSetBytes <= RUNTIME_ASSET_BUDGETS.completeSetMaxBytes)
-  for (const asset of result.manifest.assets) {
-    assert.equal(asset.model.textureFormat, 'image/webp')
-    assert.ok(asset.model.bytes <= RUNTIME_ASSET_BUDGETS.modelHardMaxBytes)
-    assert.ok(asset.thumbnail.bytes <= RUNTIME_ASSET_BUDGETS.thumbnailMaxBytes)
+  for (const manifestPath of MANIFEST_PATHS) {
+    const result = await validateRuntimeAssetManifest(manifestPath, REPO_ROOT)
+    assert.equal(result.valid, true, result.errors.join('\n'))
+    assert.deepEqual(
+      result.manifest.assets.map(asset => asset.diceType).sort(),
+      ['d10', 'd12', 'd20', 'd4', 'd6', 'd8'],
+    )
+    assert.ok(result.completeSetBytes <= RUNTIME_ASSET_BUDGETS.completeSetMaxBytes)
+    for (const asset of result.manifest.assets) {
+      assert.equal(asset.model.textureFormat, 'image/webp')
+      assert.ok(asset.model.bytes <= RUNTIME_ASSET_BUDGETS.modelHardMaxBytes)
+      assert.ok(asset.thumbnail.bytes <= RUNTIME_ASSET_BUDGETS.thumbnailMaxBytes)
+    }
   }
 })
 
@@ -40,7 +48,7 @@ test('runtime validation fails closed when a published model changes in place', 
   try {
     const copiedSet = path.join(temporaryRoot, 'public', 'dice', 'cozy-forest-imagegen-set')
     fs.mkdirSync(path.dirname(copiedSet), { recursive: true })
-    fs.cpSync(SET_ROOT, copiedSet, { recursive: true })
+    fs.cpSync(COZY_SET_ROOT, copiedSet, { recursive: true })
     const manifestPath = path.join(copiedSet, 'runtime-assets.json')
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
     const modelPath = path.join(temporaryRoot, 'public', manifest.assets[0].model.path.slice(1))
@@ -55,7 +63,7 @@ test('runtime validation fails closed when a published model changes in place', 
 })
 
 test('GLB validation rejects external buffers and nonzero texture buffers', async () => {
-  const sourceModel = path.join(SET_ROOT, 'hearthwood-d6', 'model.glb')
+  const sourceModel = path.join(COZY_SET_ROOT, 'hearthwood-d6', 'model.glb')
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dicesuki-external-glb-'))
   try {
     const externalBuffer = path.join(temporaryRoot, 'external-buffer.glb')
@@ -83,15 +91,76 @@ test('runtime metadata uses density and canonical v2 scale references', () => {
     ['d12', 1.25],
     ['d20', 1.3888888888888888],
   ])
-  for (const diceId of fs.readdirSync(SET_ROOT)) {
-    const metadataPath = path.join(SET_ROOT, diceId, 'metadata.json')
-    if (!fs.existsSync(metadataPath)) continue
-    const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'))
-    assert.equal(metadata.canonicalReferenceVersion, 2)
-    assert.equal(metadata.scale, expectedScales.get(metadata.diceType))
-    assert.equal(typeof metadata.physics.density, 'number')
-    assert.equal(Object.hasOwn(metadata.physics, 'mass'), false)
-    assert.equal(Object.hasOwn(metadata, 'uvManifestUrl'), false)
+  for (const manifestPath of MANIFEST_PATHS) {
+    const setRoot = path.dirname(manifestPath)
+    for (const diceId of fs.readdirSync(setRoot)) {
+      const metadataPath = path.join(setRoot, diceId, 'metadata.json')
+      if (!fs.existsSync(metadataPath)) continue
+      const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'))
+      assert.equal(metadata.canonicalReferenceVersion, 2)
+      assert.equal(metadata.scale, expectedScales.get(metadata.diceType))
+      assert.equal(typeof metadata.physics.density, 'number')
+      assert.equal(Object.hasOwn(metadata.physics, 'mass'), false)
+      assert.equal(Object.hasOwn(metadata, 'uvManifestUrl'), false)
+    }
+  }
+})
+
+test('runtime profiles and manifests anchor complete source locks', () => {
+  for (const [profileId, profile] of Object.entries(RUNTIME_ASSET_PROFILES)) {
+    const sourceLockFiles = [profile.sourceLockFile, ...profile.sourceLockSupplementFiles]
+    const sourceLocks = sourceLockFiles.map(sourceLockFile => JSON.parse(
+      fs.readFileSync(
+        path.join(REPO_ROOT, 'scripts', 'runtime-dice-assets', 'sources', sourceLockFile),
+        'utf8',
+      ),
+    ))
+    const [sourceLock] = sourceLocks
+    const manifest = JSON.parse(fs.readFileSync(
+      path.join(REPO_ROOT, 'public', 'dice', profile.setId, 'runtime-assets.json'),
+      'utf8',
+    ))
+    assert.equal(sourceLock.contractVersion, 1, profileId)
+    assert.equal(manifest.source.tag, sourceLock.release.tag, profileId)
+    assert.equal(manifest.source.archiveSha256, sourceLock.release.sha256, profileId)
+    assert.equal(manifest.source.sourceCommit, sourceLock.sourceCommit, profileId)
+    assert.match(sourceLock.release.sha256, /^[0-9a-f]{64}$/)
+    assert.equal(sourceLock.release.url.endsWith(`/${sourceLock.release.assetName}`), true)
+
+    const allLockedFiles = sourceLocks.flatMap((lock, index) => {
+      assert.equal(lock.contractVersion, 1, profileId)
+      assert.equal(lock.sourceCommit, sourceLock.sourceCommit, profileId)
+      if (index > 0) assert.equal(lock.supplements, profile.sourceLockFile, profileId)
+      return lock.files
+    })
+    const lockedPaths = new Set(allLockedFiles.map(file => file.path))
+    assert.equal(lockedPaths.size, allLockedFiles.length, profileId)
+    assert.equal(
+      lockedPaths.has(`public/dice/${profile.setId}/set.json`),
+      true,
+      profileId,
+    )
+    for (const die of profile.dice) {
+      assert.equal(
+        lockedPaths.has(`public/dice/${profile.setId}/${die.diceId}/metadata.json`),
+        true,
+        profileId,
+      )
+      assert.equal(
+        lockedPaths.has(`public/dice/${profile.setId}/${die.diceId}/model.glb`),
+        true,
+        profileId,
+      )
+      assert.equal(
+        lockedPaths.has(
+          `public/artist-resources/imagegen-uv/screenshots/theme-workshop/` +
+          `${profile.proofPrefix}-${die.diceId}-face-${die.proofFace}.png`,
+        ),
+        true,
+        profileId,
+      )
+    }
+    for (const file of allLockedFiles) assert.match(file.sha256, /^[0-9a-f]{64}$/)
   }
 })
 

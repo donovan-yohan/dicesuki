@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url'
 import { selectCanonicalReferencePath } from './canonical-validation.mjs'
 
 const FIXTURE_DIRECTORY = 'scripts/imagegen-uv/fixtures'
+const RUNTIME_SOURCE_LOCK_DIRECTORY = 'scripts/runtime-dice-assets/sources'
+const RUNTIME_DICE_DIRECTORY = 'public/dice'
 
 export function immutableReferencePathsAtRef(ref, repoRoot = process.cwd()) {
   git(['rev-parse', '--verify', `${ref}^{commit}`], repoRoot)
@@ -18,7 +20,13 @@ export function immutableReferencePathsAtRef(ref, repoRoot = process.cwd()) {
     ref,
     '--',
     FIXTURE_DIRECTORY,
-  ], repoRoot)).filter((file) => /canonical-contract-v\d+\.json$/.test(file)).sort()
+    RUNTIME_SOURCE_LOCK_DIRECTORY,
+    RUNTIME_DICE_DIRECTORY,
+  ], repoRoot)).filter((file) => (
+    /canonical-contract-v\d+\.json$/.test(file) ||
+    (file.startsWith(`${RUNTIME_SOURCE_LOCK_DIRECTORY}/`) && file.endsWith('.lock.json')) ||
+    /^public\/dice\/[^/]+\/runtime-assets\.json$/.test(file)
+  )).sort()
 }
 
 export function changedCanonicalReferencePaths(ref, repoRoot = process.cwd()) {
@@ -79,10 +87,10 @@ function main() {
   const changed = changedCanonicalReferencePaths(ref)
   if (changed.length > 0) {
     throw new Error(
-      `Published ImageGen canonical references are immutable; append a version instead:\n${changed.join('\n')}`,
+      `Published ImageGen references, runtime source locks, and runtime manifests are immutable; append a version, supplement, or set instead:\n${changed.join('\n')}`,
     )
   }
-  console.log(`Verified immutable ImageGen canonical history against ${ref}`)
+  console.log(`Verified immutable ImageGen history against ${ref}`)
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)

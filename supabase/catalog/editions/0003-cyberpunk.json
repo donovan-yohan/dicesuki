@@ -1,0 +1,949 @@
+{
+  "edition": 3,
+  "slug": "cyberpunk",
+  "label": "EDITION_3_CYBERPUNK",
+  "migration": "0007_catalog_cyberpunk.sql",
+  "items": [
+    {
+      "id": "cyberpunk-imagegen-set/chrome-relay-d12@1",
+      "catalogKey": "cyberpunk-imagegen-set/chrome-relay-d12",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-imagegen-set",
+      "diceType": "d12",
+      "rarity": "rare"
+    },
+    {
+      "id": "cyberpunk-imagegen-set/cipher-core-d10@1",
+      "catalogKey": "cyberpunk-imagegen-set/cipher-core-d10",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-imagegen-set",
+      "diceType": "d10",
+      "rarity": "rare"
+    },
+    {
+      "id": "cyberpunk-imagegen-set/neon-grid-d6@1",
+      "catalogKey": "cyberpunk-imagegen-set/neon-grid-d6",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-imagegen-set",
+      "diceType": "d6",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "cyberpunk-imagegen-set/overdrive-d20@1",
+      "catalogKey": "cyberpunk-imagegen-set/overdrive-d20",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-imagegen-set",
+      "diceType": "d20",
+      "rarity": "epic"
+    },
+    {
+      "id": "cyberpunk-imagegen-set/pulse-shard-d4@1",
+      "catalogKey": "cyberpunk-imagegen-set/pulse-shard-d4",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-imagegen-set",
+      "diceType": "d4",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "cyberpunk-imagegen-set/volt-prism-d8@1",
+      "catalogKey": "cyberpunk-imagegen-set/volt-prism-d8",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-imagegen-set",
+      "diceType": "d8",
+      "rarity": "uncommon"
+    }
+  ],
+  "assetVersions": [
+    {
+      "id": "cyberpunk-imagegen-set/chrome-relay-d12@1/asset@1",
+      "catalogItemId": "cyberpunk-imagegen-set/chrome-relay-d12@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-imagegen-set/chrome-relay-d12/model.glb",
+      "modelSha256": "c42f090f85995a3a33ae03880a6761f6b6d2cce13689068dcf27ebd1133e4445",
+      "metadata": {
+        "source": "production",
+        "name": "Chrome Relay D12",
+        "description": "Chrome Relay D12 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d12",
+          "name": "Chrome Relay D12",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.25,
+          "rarity": "rare",
+          "description": "Chrome Relay D12 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cyberpunk",
+            "street-tech",
+            "anime",
+            "neon",
+            "hazard",
+            "codex-imagegen",
+            "d12",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                0.850651,
+                0.525731
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.850651,
+                0.525731,
+                0
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.525731,
+                0,
+                -0.850651
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.525731,
+                0,
+                -0.850651
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0.850651,
+                -0.525731
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.850651,
+                0.525731,
+                0
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.850651,
+                -0.525731,
+                0
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                0,
+                -0.850651,
+                0.525731
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.525731,
+                0,
+                0.850651
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                -0.525731,
+                0,
+                0.850651
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.850651,
+                -0.525731,
+                0
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0,
+                -0.850651,
+                -0.525731
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.52,
+            "restitution": 0.36,
+            "friction": 0.52
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-imagegen-set/chrome-relay-d12/thumbnail.png",
+          "thumbnailSha256": "57bb3c7f594129a7e26153bfe9821486c14cbffc203000dd361fe4e62c1306ed",
+          "thumbnailBytes": 65554,
+          "modelBytes": 702028,
+          "embeddedTextureBytes": 697034,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "b4e79c5585a73bde1c9658db0eb598122c5b279861607a2bfa3f559e85f2605b"
+    },
+    {
+      "id": "cyberpunk-imagegen-set/cipher-core-d10@1/asset@1",
+      "catalogItemId": "cyberpunk-imagegen-set/cipher-core-d10@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-imagegen-set/cipher-core-d10/model.glb",
+      "modelSha256": "9af75e17f2effa6c53170c33020a3686ddb74b3480683cc2baecd6e8c4fd33f9",
+      "metadata": {
+        "source": "production",
+        "name": "Cipher Core D10",
+        "description": "Cipher Core D10 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d10",
+          "name": "Cipher Core D10",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "rare",
+          "description": "Cipher Core D10 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cyberpunk",
+            "street-tech",
+            "anime",
+            "neon",
+            "hazard",
+            "codex-imagegen",
+            "d10",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map",
+            "planar-kite-faces",
+            "two-triangles-per-kite"
+          ],
+          "faceNormals": [
+            {
+              "value": 0,
+              "normal": [
+                -0.599991,
+                0.67081,
+                -0.435919
+              ]
+            },
+            {
+              "value": 1,
+              "normal": [
+                0.599991,
+                -0.67081,
+                -0.435919
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.229176,
+                0.67081,
+                -0.705331
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                -0.229176,
+                -0.67081,
+                -0.705331
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.741629,
+                0.67081,
+                0
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.741629,
+                -0.67081,
+                0
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.229176,
+                0.67081,
+                0.705331
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.229176,
+                -0.67081,
+                0.705331
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.599991,
+                0.67081,
+                0.435919
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.599991,
+                -0.67081,
+                0.435919
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.52,
+            "restitution": 0.36,
+            "friction": 0.52
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-imagegen-set/cipher-core-d10/thumbnail.png",
+          "thumbnailSha256": "63602d8c2789f54643dd0bec1fac09d0d3095030051e9f83a9fe7d03cfa7dd0b",
+          "thumbnailBytes": 53290,
+          "modelBytes": 248504,
+          "embeddedTextureBytes": 245050,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "4101e5c6257d24dbb9c184ed5abea1be4d1639d7b923ea9393170b61297de6db"
+    },
+    {
+      "id": "cyberpunk-imagegen-set/neon-grid-d6@1/asset@1",
+      "catalogItemId": "cyberpunk-imagegen-set/neon-grid-d6@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-imagegen-set/neon-grid-d6/model.glb",
+      "modelSha256": "32eb3f7ee4b69ea3fed78eabd3f027335461886733a289f5914398b148fccce7",
+      "metadata": {
+        "source": "production",
+        "name": "Neon Grid D6",
+        "description": "Neon Grid D6 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d6",
+          "name": "Neon Grid D6",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.1,
+          "rarity": "uncommon",
+          "description": "Neon Grid D6 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cyberpunk",
+            "street-tech",
+            "anime",
+            "neon",
+            "hazard",
+            "codex-imagegen",
+            "d6",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                -1,
+                0
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0,
+                -1
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.52,
+            "restitution": 0.36,
+            "friction": 0.52
+          },
+          "colliderType": "roundCuboid",
+          "colliderArgs": {
+            "halfExtents": [
+              0.5,
+              0.5,
+              0.5
+            ],
+            "borderRadius": 0.06
+          }
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-imagegen-set/neon-grid-d6/thumbnail.png",
+          "thumbnailSha256": "f436a9ef27c42947a6b2d4bb613a351037c114c6e8b7cd9015ea5762382a02db",
+          "thumbnailBytes": 63028,
+          "modelBytes": 874268,
+          "embeddedTextureBytes": 871670,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "8a271fb37c274cf20eb879f88d2fe7b0daecee83250dc20f5c1041d423b963e5"
+    },
+    {
+      "id": "cyberpunk-imagegen-set/overdrive-d20@1/asset@1",
+      "catalogItemId": "cyberpunk-imagegen-set/overdrive-d20@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-imagegen-set/overdrive-d20/model.glb",
+      "modelSha256": "13adb27ad11102294b3ec0ce5ad27ef5caad8889d708f6a70eea576090c48f58",
+      "metadata": {
+        "source": "production",
+        "name": "Overdrive D20",
+        "description": "Overdrive D20 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d20",
+          "name": "Overdrive D20",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "epic",
+          "description": "Overdrive D20 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cyberpunk",
+            "street-tech",
+            "anime",
+            "neon",
+            "hazard",
+            "codex-imagegen",
+            "d20",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0.934172,
+                0.356822
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0,
+                0.934172,
+                -0.356822
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.934172,
+                0.356822,
+                0
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.356822,
+                0,
+                0.934172
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.934172,
+                -0.356822,
+                0
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                -0.356822,
+                0,
+                -0.934172
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0.356822,
+                0,
+                0.934172
+              ]
+            },
+            {
+              "value": 13,
+              "normal": [
+                0.934172,
+                0.356822,
+                0
+              ]
+            },
+            {
+              "value": 14,
+              "normal": [
+                0.356822,
+                0,
+                -0.934172
+              ]
+            },
+            {
+              "value": 15,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 16,
+              "normal": [
+                0.934172,
+                -0.356822,
+                0
+              ]
+            },
+            {
+              "value": 17,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 18,
+              "normal": [
+                0,
+                -0.934172,
+                0.356822
+              ]
+            },
+            {
+              "value": 19,
+              "normal": [
+                0,
+                -0.934172,
+                -0.356822
+              ]
+            },
+            {
+              "value": 20,
+              "normal": [
+                0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.52,
+            "restitution": 0.36,
+            "friction": 0.52
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-imagegen-set/overdrive-d20/thumbnail.png",
+          "thumbnailSha256": "537bdbaee6912693a98239d78dcb5003190a8a5ae181f72bf3cfce280246c875",
+          "thumbnailBytes": 61812,
+          "modelBytes": 565400,
+          "embeddedTextureBytes": 561946,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "186ad0d57cbf738f5da1213fb971f93f160fc8faf55fe1d07c1f797fae2cc262"
+    },
+    {
+      "id": "cyberpunk-imagegen-set/pulse-shard-d4@1/asset@1",
+      "catalogItemId": "cyberpunk-imagegen-set/pulse-shard-d4@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-imagegen-set/pulse-shard-d4/model.glb",
+      "modelSha256": "fe5b7112e8fb68245661949e8069ac0889487b79294e2389e3787101fc62487e",
+      "metadata": {
+        "source": "production",
+        "name": "Pulse Shard D4",
+        "description": "Pulse Shard D4 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d4",
+          "name": "Pulse Shard D4",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "uncommon",
+          "description": "Pulse Shard D4 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cyberpunk",
+            "street-tech",
+            "anime",
+            "neon",
+            "hazard",
+            "codex-imagegen",
+            "d4",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.52,
+            "restitution": 0.36,
+            "friction": 0.52
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-imagegen-set/pulse-shard-d4/thumbnail.png",
+          "thumbnailSha256": "fa692d3f052dd658dd97129274c0048514d711efcbe5d714ce2fd3c496d61ba1",
+          "thumbnailBytes": 34250,
+          "modelBytes": 611764,
+          "embeddedTextureBytes": 609838,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "740b01f4dd9e3f37aab6888b1f34fa64e20a10e527ba960f51ed7b1491e8474a"
+    },
+    {
+      "id": "cyberpunk-imagegen-set/volt-prism-d8@1/asset@1",
+      "catalogItemId": "cyberpunk-imagegen-set/volt-prism-d8@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-imagegen-set/volt-prism-d8/model.glb",
+      "modelSha256": "5f559027b074069c62fbb20550a87701812a324abb5c7f5b21d9c73320109a35",
+      "metadata": {
+        "source": "production",
+        "name": "Volt Prism D8",
+        "description": "Volt Prism D8 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d8",
+          "name": "Volt Prism D8",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "uncommon",
+          "description": "Volt Prism D8 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "cyberpunk",
+            "street-tech",
+            "anime",
+            "neon",
+            "hazard",
+            "codex-imagegen",
+            "d8",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.52,
+            "restitution": 0.36,
+            "friction": 0.52
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-imagegen-set/volt-prism-d8/thumbnail.png",
+          "thumbnailSha256": "f9206c70298194357006a728f5ee8420e2437c005956ec3b2d87a2317fe0df8f",
+          "thumbnailBytes": 43252,
+          "modelBytes": 319564,
+          "embeddedTextureBytes": 317272,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "507aee3ae19021ce2f9cbd6c208d0625c95180d70e502f1be17be7c58949839a"
+    }
+  ]
+}
