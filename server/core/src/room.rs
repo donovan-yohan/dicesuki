@@ -17,7 +17,8 @@ use crate::physics::{
     DRAG_WALL_MARGIN, SETTLED_ORIENTATION_KNOCK_ANGLE,
     THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
     ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
-    MOTION_FIELD_MAX_ACCEL, MOTION_FIELD_STALE_MS, TICK_DT,
+    MOTION_FIELD_MAX_ACCEL, MOTION_FIELD_MAX_ANGULAR_ACCEL,
+    MOTION_FIELD_MAX_ANGULAR_SPEED, MOTION_FIELD_STALE_MS, TICK_DT,
 };
 use crate::dice::{clamp_position_within, clamp_spawn_position, create_dice_body_with_material, generate_roll_impulse, generate_roll_spin, generate_spawn_position};
 use crate::face_detection::detect_face_value;
@@ -520,6 +521,17 @@ impl Room {
         player_id: &str,
         field: [f32; 3],
     ) -> Result<(), RoomError> {
+        self.set_motion_field_with_angular(player_id, field, [0.0, 0.0, 0.0])
+    }
+
+    /// Latch linear and shake-derived angular motion together. Kept separate from
+    /// `set_motion_field` so existing core callers retain source compatibility.
+    pub fn set_motion_field_with_angular(
+        &mut self,
+        player_id: &str,
+        field: [f32; 3],
+        angular_accel: [f32; 3],
+    ) -> Result<(), RoomError> {
         if !self.players.contains_key(player_id) {
             return Err(RoomError::PlayerNotFound);
         }
@@ -530,11 +542,14 @@ impl Room {
         // Clamp so a miscalibrated/malicious client cannot fling dice; the per-tick
         // MAX_DICE_VELOCITY clamp is the final bound on the resulting speed.
         let clamped = clamp_impulse(field, MOTION_FIELD_MAX_ACCEL);
-        let is_active = clamped != [0.0, 0.0, 0.0];
+        let angular_clamped = clamp_impulse(angular_accel, MOTION_FIELD_MAX_ANGULAR_ACCEL);
+        let is_active = clamped != [0.0, 0.0, 0.0]
+            || angular_clamped != [0.0, 0.0, 0.0];
 
         let player = self.players.get_mut(player_id)
             .expect("player exists: contains_key checked above");
         player.motion_field = clamped;
+        player.motion_angular_accel = angular_clamped;
         player.motion_field_at = Some(Instant::now());
 
         // A live field must keep (or start) the physics loop so the movement — and
@@ -559,7 +574,8 @@ impl Room {
         let Some(at) = player.motion_field_at else {
             return false;
         };
-        player.motion_field != [0.0, 0.0, 0.0]
+        (player.motion_field != [0.0, 0.0, 0.0]
+            || player.motion_angular_accel != [0.0, 0.0, 0.0])
             && now.saturating_duration_since(at)
                 < Duration::from_millis(MOTION_FIELD_STALE_MS)
     }
@@ -577,17 +593,22 @@ impl Room {
 
         // Snapshot the active (player_id, field) pairs so the dice mutation below
         // does not hold a borrow of `self.players`.
-        let active: Vec<(String, [f32; 3])> = self.players.iter()
+        let active: Vec<(String, [f32; 3], [f32; 3])> = self.players.iter()
             .filter_map(|(id, p)| {
                 if !Self::motion_field_is_fresh_and_nonzero(p, now) {
                     return None;
                 }
-                Some((id.clone(), p.motion_field))
+                Some((id.clone(), p.motion_field, p.motion_angular_accel))
             })
             .collect();
 
-        for (player_id, field) in active {
+        for (player_id, field, angular_accel) in active {
             let delta_v = [field[0] * TICK_DT, field[1] * TICK_DT, field[2] * TICK_DT];
+            let delta_omega = [
+                angular_accel[0] * TICK_DT,
+                angular_accel[1] * TICK_DT,
+                angular_accel[2] * TICK_DT,
+            ];
             let target_ids: Vec<String> = self
                 .dice
                 .iter()
@@ -598,7 +619,16 @@ impl Room {
             for die_id in &target_ids {
                 if let Some(die) = self.dice.get(die_id) {
                     if let Some(handle) = die.body_handle {
-                        self.physics.apply_velocity_impulse(handle, delta_v);
+                        if delta_v != [0.0, 0.0, 0.0] {
+                            self.physics.apply_velocity_impulse(handle, delta_v);
+                        }
+                        if delta_omega != [0.0, 0.0, 0.0] {
+                            self.physics.apply_spin_impulse(handle, delta_omega);
+                            self.physics.clamp_angular_velocity(
+                                handle,
+                                MOTION_FIELD_MAX_ANGULAR_SPEED,
+                            );
+                        }
                     }
                 }
             }
@@ -2891,6 +2921,106 @@ mod tests {
             (mag - MOTION_FIELD_MAX_ACCEL).abs() < 1e-2,
             "field magnitude clamped to MOTION_FIELD_MAX_ACCEL, got {mag}"
         );
+    }
+
+    #[test]
+    fn test_motion_angular_accel_spins_only_owners_dice() {
+        let mut room = make_two_player_room_with_physics_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        let d1 = room.dice["d1"].body_handle.unwrap();
+        let d2 = room.dice["d2"].body_handle.unwrap();
+        room.physics.set_angular_velocity(d1, [0.0, 0.0, 0.0]);
+        room.physics.set_angular_velocity(d2, [0.0, 0.0, 0.0]);
+
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [120.0, 0.0, 0.0],
+        ).unwrap();
+        room.apply_motion_forces();
+
+        assert!(room.physics.get_angular_speed(d1) > 0.1);
+        assert!(room.physics.get_angular_speed(d2) < 1e-6);
+        assert!(room.is_simulating, "spin-only input wakes the room loop");
+    }
+
+    #[test]
+    fn test_motion_angular_accel_is_clamped_and_caps_spin_speed() {
+        let mut room = make_two_player_room_with_physics_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        let d1 = room.dice["d1"].body_handle.unwrap();
+        room.physics.set_angular_velocity(d1, [47.0, 0.0, 0.0]);
+
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [1.0e9, 0.0, 0.0],
+        ).unwrap();
+        let angular = room.players["p1"].motion_angular_accel;
+        assert!((angular[0] - MOTION_FIELD_MAX_ANGULAR_ACCEL).abs() < 1e-2);
+
+        room.apply_motion_forces();
+        assert!(
+            room.physics.get_angular_speed(d1) <= MOTION_FIELD_MAX_ANGULAR_SPEED + 1e-4,
+            "malicious input cannot exceed the device-motion spin ceiling"
+        );
+    }
+
+    #[test]
+    fn test_spin_only_field_liveness_and_knock_evidence() {
+        let mut room = make_two_player_room_with_physics_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        for die in room.dice.values_mut() {
+            die.is_rolling = false;
+            die.face_value = Some(1);
+            die.settled_rotation = Some(die.rotation);
+        }
+
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [0.01, 0.0, 0.0],
+        ).unwrap();
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.is_empty(), "field presence alone is not knock evidence");
+        assert!(!room.dice["d1"].is_rolling);
+        assert!(room.is_simulating, "fresh spin-only input keeps the loop alive");
+
+        let d1 = room.dice["d1"].body_handle.unwrap();
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [0.0, 0.0, 0.0],
+        ).unwrap();
+        let before_zero = room.physics.get_angular_velocity(d1).unwrap();
+        room.apply_motion_forces();
+        assert_eq!(
+            room.physics.get_angular_velocity(d1).unwrap(),
+            before_zero,
+            "an explicit all-zero update must stop adding spin immediately"
+        );
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.is_empty());
+        assert!(!room.is_simulating, "explicit zero releases spin-only liveness");
+
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [0.01, 0.0, 0.0],
+        ).unwrap();
+        room.players.get_mut("p1").unwrap().motion_field_at =
+            Some(Instant::now() - Duration::from_millis(MOTION_FIELD_STALE_MS + 1));
+        let before_stale = room.physics.get_angular_velocity(d1).unwrap();
+        room.apply_motion_forces();
+        assert_eq!(
+            room.physics.get_angular_velocity(d1).unwrap(),
+            before_stale,
+            "a backdated angular field must not add spin"
+        );
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.is_empty());
+        assert!(!room.is_simulating, "stale angular input releases spin-only liveness");
+
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [MOTION_FIELD_MAX_ANGULAR_ACCEL, 0.0, 0.0],
+        ).unwrap();
+        for _ in 0..7 {
+            room.apply_motion_forces();
+        }
+        assert!(!room.dice["d1"].is_rolling);
+        let knocked = room.wake_knocked_dice();
+        assert!(knocked.iter().any(|(id, _)| id == "d1"));
+        assert!(room.dice["d1"].is_rolling);
     }
 
     // ── Delegated roller: host-granted control of every die (#73) ────────────

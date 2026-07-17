@@ -17,14 +17,19 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Start a test server on a random port and return its address.
 async fn start_server() -> SocketAddr {
+    start_server_with_manager().await.0
+}
+
+/// Start a test server while retaining the manager for handler-to-core assertions.
+async fn start_server_with_manager() -> (SocketAddr, SharedRoomManager) {
     let room_manager: SharedRoomManager = Arc::new(RwLock::new(RoomManager::new()));
-    let app = build_app(room_manager);
+    let app = build_app(room_manager.clone());
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     });
-    addr
+    (addr, room_manager)
 }
 
 /// Create a room via the REST API and return its ID.
@@ -196,6 +201,44 @@ async fn join_receives_room_state() {
     let players = body["players"].as_array().unwrap();
     assert_eq!(players.len(), 1);
     assert_eq!(players[0]["displayName"], "TestPlayer");
+}
+
+#[tokio::test]
+async fn native_motion_field_angular_accel_reaches_authoritative_room() {
+    let (addr, room_manager) = start_server_with_manager().await;
+    let (room_id, room) = room_manager.write().await.create_room();
+    let url = format!("ws://{addr}/ws/{room_id}");
+    let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
+
+    ws.send(Message::Text(json!({
+        "type": "join",
+        "roomId": room_id,
+        "displayName": "Spinner",
+        "color": "#FF0000"
+    }).to_string())).await.unwrap();
+    let state = recv_json(&mut ws).await;
+    let player_id = state["localPlayerId"].as_str().unwrap().to_string();
+
+    ws.send(Message::Text(json!({
+        "type": "motion_field",
+        "field": [0, 0, 0],
+        "angularAccel": [360, 0, 0]
+    }).to_string())).await.unwrap();
+
+    timeout(TEST_TIMEOUT, async {
+        loop {
+            let angular = room.read().await.players[&player_id].motion_angular_accel;
+            if angular != [0.0, 0.0, 0.0] {
+                assert_eq!(
+                    angular,
+                    [dicesuki_server::physics::MOTION_FIELD_MAX_ANGULAR_ACCEL, 0.0, 0.0],
+                    "native WS dispatch must reach core's authoritative angular clamp"
+                );
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    }).await.expect("motion field did not reach the room");
 }
 
 #[tokio::test]

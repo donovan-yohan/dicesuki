@@ -216,12 +216,16 @@ impl RoomHost {
                 }
             }
 
-            ClientMessage::MotionField { field } if self.joined => {
+            ClientMessage::MotionField { field, angular_accel } if self.joined => {
                 // Motion is high-frequency; a field dropped because motion is
                 // disabled is silently ignored, matching the native server. A
                 // non-zero field sets `is_simulating`, which the worker's persistent
                 // tick timer (roomWorker.ts) picks up — no explicit start needed.
-                let _ = self.room.set_motion_field(SOLO_PLAYER_ID, field);
+                let _ = self.room.set_motion_field_with_angular(
+                    SOLO_PLAYER_ID,
+                    field,
+                    angular_accel,
+                );
             }
 
             ClientMessage::Leave if self.joined => {
@@ -396,6 +400,24 @@ mod tests {
         assert!(!host.is_simulating());
         host.tick(16.667);
         assert!(host.drain_json().is_empty());
+    }
+
+    #[test]
+    fn motion_field_angular_accel_reaches_authoritative_room() {
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
+        let _ = join(&mut host);
+
+        host.handle_message(
+            r#"{"type":"motion_field","field":[0,0,0],"angularAccel":[360,0,0]}"#,
+        );
+
+        let player = &host.room.players[SOLO_PLAYER_ID];
+        assert_eq!(player.motion_field, [0.0, 0.0, 0.0]);
+        assert_eq!(
+            player.motion_angular_accel,
+            [dicesuki_core::physics::MOTION_FIELD_MAX_ANGULAR_ACCEL, 0.0, 0.0],
+            "WASM dispatch must reach core's authoritative angular clamp"
+        );
     }
 
     #[test]

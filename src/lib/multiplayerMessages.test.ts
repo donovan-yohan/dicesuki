@@ -192,7 +192,7 @@ describe('multiplayerMessages', () => {
   })
 
   describe('motion control protocol', () => {
-    it('type-checks a motion_field message', () => {
+  it('type-checks a motion_field message', () => {
       const msg: ClientMessage = { type: 'motion_field', field: [1, -2, 0.5] }
       expect(msg.type).toBe('motion_field')
     })
@@ -215,6 +215,15 @@ describe('multiplayerMessages', () => {
       expect(original).toEqual({ version: 1, playerCap: 4 })
       expect(next).not.toBe(original)
     })
+  })
+
+  it('allows the optional angular acceleration extension', () => {
+    const msg: ClientMessage = {
+      type: 'motion_field',
+      field: [0, 0, 0],
+      angularAccel: [12, 0, -8],
+    }
+    expect(msg.angularAccel).toEqual([12, 0, -8])
   })
 
   describe('delegated roller protocol', () => {

@@ -91,6 +91,9 @@ pub enum ClientMessage {
     /// motion is engaged; a single zero field stops it.
     MotionField {
         field: [f32; 3],
+        /// Optional so legacy clients that send only `field` remain valid.
+        #[serde(default, rename = "angularAccel")]
+        angular_accel: [f32; 3],
     },
     /// Host-only: resize the shared arena to the given aspect ratio (width/height).
     /// The server derives area-preserving bounds via `ArenaBounds::from_aspect` and
@@ -538,8 +541,22 @@ mod tests {
         let json = r#"{"type":"motion_field","field":[1.5,-2.0,0.5]}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ClientMessage::MotionField { field } => {
+            ClientMessage::MotionField { field, angular_accel } => {
                 assert_eq!(field, [1.5, -2.0, 0.5]);
+                assert_eq!(angular_accel, [0.0, 0.0, 0.0]);
+            }
+            _ => panic!("Expected MotionField message"),
+        }
+    }
+
+    #[test]
+    fn test_deserialize_motion_field_with_angular_accel() {
+        let json = r#"{"type":"motion_field","field":[0,0,0],"angularAccel":[3,-4,5]}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::MotionField { field, angular_accel } => {
+                assert_eq!(field, [0.0, 0.0, 0.0]);
+                assert_eq!(angular_accel, [3.0, -4.0, 5.0]);
             }
             _ => panic!("Expected MotionField message"),
         }

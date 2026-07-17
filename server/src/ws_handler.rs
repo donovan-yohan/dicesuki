@@ -363,9 +363,9 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
-            ClientMessage::MotionField { field } if is_joined => {
+            ClientMessage::MotionField { field, angular_accel } if is_joined => {
                 let mut room_guard = room.write().await;
-                match room_guard.set_motion_field(&player_id, field) {
+                match room_guard.set_motion_field_with_angular(&player_id, field, angular_accel) {
                     Ok(()) => {
                         // A live field wakes the room; make sure the physics loop is
                         // running so the movement (and eventual re-settle) broadcasts.

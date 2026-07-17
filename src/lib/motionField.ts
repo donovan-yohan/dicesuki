@@ -11,6 +11,7 @@
 
 /** World-space acceleration `[x, y, z]` (engine U/s²) sent as `motion_field`. */
 export type MotionField = [number, number, number]
+export type AngularMotionField = [number, number, number]
 
 /** Nullable sensor triple, matching `DeviceMotionEvent.acceleration`. */
 export interface SensorAcceleration {
@@ -23,6 +24,13 @@ export interface SensorAcceleration {
 export interface SensorOrientation {
   beta?: number | null
   gamma?: number | null
+}
+
+/** Nullable device rotation-rate channels (degrees/s). */
+export interface SensorRotationRate {
+  alpha: number | null
+  beta: number | null
+  gamma: number | null
 }
 
 /** Magnitude of a motion field vector. */
@@ -59,6 +67,60 @@ export function computeMotionField(
   if (magnitude <= deadzone) return [0, 0, 0]
 
   return [-ax * scale, -az * scale, ay * scale]
+}
+
+/**
+ * Derive a world-space tumble acceleration exclusively from the current dynamic
+ * (gravity-removed/high-pass) linear-acceleration sample. Rotation rate may choose
+ * an axis when available, but never creates or sizes a tumble by itself; fused
+ * orientation is deliberately absent from this API.
+ *
+ * Without a usable rotation rate, the axis is perpendicular to horizontal hand
+ * movement. A deterministic X axis handles a purely vertical shake, where that
+ * cross product is undefined.
+ */
+export function computeShakeAngularAcceleration(
+  linear: SensorAcceleration | null | undefined,
+  rotationRate: SensorRotationRate | null | undefined,
+  scale: number,
+  deadzone: number,
+): AngularMotionField {
+  if (!linear) return [0, 0, 0]
+  const ax = linear.x ?? 0
+  const ay = linear.y ?? 0
+  const az = linear.z ?? 0
+  const magnitude = Math.hypot(ax, ay, az)
+  if (!Number.isFinite(magnitude) || magnitude <= deadzone) return [0, 0, 0]
+
+  const angularMagnitude = (magnitude - deadzone) * scale
+  if (rotationRate) {
+    // Device beta/gamma/alpha are rotations about device X/Y/Z. Map them to the
+    // engine axes consistently with the sensor field before normalizing.
+    const mapped = [
+      -(rotationRate.beta ?? 0),
+      -(rotationRate.alpha ?? 0),
+      rotationRate.gamma ?? 0,
+    ] as const
+    const rateMagnitude = Math.hypot(...mapped)
+    if (Number.isFinite(rateMagnitude) && rateMagnitude > 1e-3) {
+      return mapped.map(
+        (component) => component === 0
+          ? 0
+          : component / rateMagnitude * angularMagnitude,
+      ) as AngularMotionField
+    }
+  }
+
+  // Dynamic device acceleration maps to world horizontal `[-ax, ay]`; this is
+  // its perpendicular `[worldZ, -worldX]` tumble axis.
+  const horizontalAxis: AngularMotionField = [ay, 0, ax]
+  const axisMagnitude = Math.hypot(...horizontalAxis)
+  if (axisMagnitude > 1e-6) {
+    return horizontalAxis.map(
+      (component) => component / axisMagnitude * angularMagnitude,
+    ) as AngularMotionField
+  }
+  return [angularMagnitude, 0, 0]
 }
 
 /** Add independently-derived tilt and linear-acceleration field terms. */

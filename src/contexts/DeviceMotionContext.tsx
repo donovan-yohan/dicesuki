@@ -1,5 +1,5 @@
 import { createContext, useContext, type MutableRefObject } from 'react'
-import type { MotionField } from '../lib/motionField'
+import type { AngularMotionField, MotionField } from '../lib/motionField'
 
 /**
  * Ref context - Contains only the stable refs
@@ -8,6 +8,7 @@ import type { MotionField } from '../lib/motionField'
 export interface DeviceMotionRefContext {
   /** Continuous "dice box" field in engine units (U/s²); `[0,0,0]` when still. */
   motionFieldRef: MutableRefObject<MotionField>
+  angularMotionFieldRef: MutableRefObject<AngularMotionField>
   isShakingRef: MutableRefObject<boolean>
 }
 

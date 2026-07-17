@@ -238,11 +238,12 @@ pub const DRAG_SPIN_FACTOR: f32 = 0.0;
 /// axis (perpendicular to travel) rather than accumulating torque impulses, so the
 /// spin is proportional to cursor speed, inertia-independent (every die type spins
 /// the same), and decays to zero as the cursor slows — no windup to bound.
-/// - `0.5` (current): half the physical roll-without-slip rate (ω = v/r, r = 0.5 U
-///   ⇒ 2·v) — a calm roll; slow cursor motion barely turns the die, fast motion
-///   tumbles it. A feel knob.
+/// - `0.65` (current): about one-third of the physical roll-without-slip rate
+///   (ω = v/r, r = 0.5 U ⇒ 2·v). This 30% lift from 0.5 makes short drags
+///   visibly tumble sooner while retaining the same inertia-independent target-ω
+///   response and zero barrel-spin path.
 /// - Range `0.2` (barely rolls) – `2.0` (physical roll).
-pub const DRAG_ROLL_FACTOR: f32 = 0.5;
+pub const DRAG_ROLL_FACTOR: f32 = 0.65;
 /// Per-tick approach rate (0–1) with which a dragged die's angular velocity chases
 /// its target rolling ω (see [`DRAG_ROLL_FACTOR`]): each 60 Hz tick ω moves this
 /// fraction toward the target — an exponential approach, time constant ≈ (1/rate) ticks.
@@ -330,6 +331,16 @@ pub const MAX_DICE_VELOCITY: f32 = 218.75;
 ///   real motion is never clipped while abuse is still bounded.
 /// - Range `1000`–`4000` U/s².
 pub const MOTION_FIELD_MAX_ACCEL: f32 = 2500.0;
+
+/// Maximum magnitude (rad/s²) of the optional shake-derived angular term carried
+/// with a per-player motion field. `240` permits at most 48 rad/s of accumulated
+/// spin across the 200 ms latch: twice [`ROLL_TORQUE_MAGNITUDE`], enough to tumble
+/// without letting an untrusted client create unbounded drill spin.
+pub const MOTION_FIELD_MAX_ANGULAR_ACCEL: f32 = 240.0;
+
+/// Hard angular-speed ceiling (rad/s) for device-motion tumble. Equal to twice
+/// [`ROLL_TORQUE_MAGNITUDE`]; applied after every shake spin impulse.
+pub const MOTION_FIELD_MAX_ANGULAR_SPEED: f32 = 48.0;
 
 /// How long (ms) a player's latched motion field keeps being applied after its last
 /// `motion_field` update before it is treated as zero (Shared-ADR-010). The client
@@ -889,6 +900,17 @@ impl PhysicsWorld {
                 ],
                 true,
             );
+        }
+    }
+
+    /// Clamp a body's angular speed while preserving its spin axis.
+    pub fn clamp_angular_velocity(&mut self, handle: RigidBodyHandle, max_speed: f32) {
+        if let Some(rb) = self.rigid_body_set.get_mut(handle) {
+            let vel = *rb.angvel();
+            let speed = vel.magnitude();
+            if speed > max_speed {
+                rb.set_angvel(vel * (max_speed / speed), true);
+            }
         }
     }
 

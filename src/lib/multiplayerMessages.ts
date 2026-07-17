@@ -294,6 +294,8 @@ export function setRoomName(settings: RoomSettings, name: string): RoomSettings 
 export interface MotionFieldMessage {
   type: 'motion_field'
   field: [number, number, number]
+  /** Optional for backward compatibility with clients predating shake tumble. */
+  angularAccel?: [number, number, number]
 }
 
 /**
@@ -386,6 +388,8 @@ export interface EngineConfig {
   dragSpinFactor: number
   dragRollFactor: number
   motionFieldMaxAccel: number
+  motionFieldMaxAngularAccel: number
+  motionFieldMaxAngularSpeed: number
   motionFieldStaleMs: number
   arenaHalfX: number
   arenaHalfZ: number

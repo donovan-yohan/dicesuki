@@ -199,7 +199,10 @@ interface MultiplayerState {
    * motion stops promptly. The server latches the field and remains authoritative
    * over which dice it affects.
    */
-  sendMotionField: (field: [number, number, number]) => void
+  sendMotionField: (
+    field: [number, number, number],
+    angularAccel?: [number, number, number],
+  ) => void
 
   // Drag actions
   startDrag: (dieId: string, grabOffset: [number, number, number], worldPosition: [number, number, number]) => void
@@ -802,7 +805,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     get().sendMessage({ type: 'set_arena', aspect })
   },
 
-  sendMotionField: (field: [number, number, number]) => {
+  sendMotionField: (field: [number, number, number], angularAccel?: [number, number, number]) => {
     // Optimistic policy gate: when motion is disabled room-wide there is nothing
     // to send. The server re-checks the policy and ownership authoritatively.
     if (getMotionControl(get().roomSettings) === 'off') return
@@ -811,12 +814,17 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     // zero field (motion stopping) skips the throttle so the dice stop promptly —
     // but only the FIRST zero after motion: a held-still phone (motion on, no shake)
     // emits a zero field every frame, and those must not flood the socket.
+    const angular = angularAccel ?? [0, 0, 0]
     const isZero = field[0] === 0 && field[1] === 0 && field[2] === 0
+      && angular[0] === 0 && angular[1] === 0 && angular[2] === 0
+    const message = angularAccel === undefined
+      ? { type: 'motion_field' as const, field }
+      : { type: 'motion_field' as const, field, angularAccel }
     if (isZero) {
       if (lastMotionFieldWasZero) return
       lastMotionFieldWasZero = true
       lastMotionFieldSentAt = performance.now()
-      get().sendMessage({ type: 'motion_field', field })
+      get().sendMessage(message)
       return
     }
 
@@ -825,7 +833,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     lastMotionFieldSentAt = now
     lastMotionFieldWasZero = false
 
-    get().sendMessage({ type: 'motion_field', field })
+    get().sendMessage(message)
   },
 
   startDrag: (dieId, grabOffset, worldPosition) => {
@@ -851,6 +859,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   reset: () => {
     clearReconnectTimer()
+    lastMotionFieldSentAt = Number.NEGATIVE_INFINITY
+    lastMotionFieldWasZero = false
     set({
       ...createInitialState(),
       serverUrl: get().serverUrl,

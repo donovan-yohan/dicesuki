@@ -214,7 +214,7 @@ describe('useMultiplayerStore', () => {
 
         // Advance well past any throttle state carried over from a prior test so
         // this case stands on its own regardless of order.
-        vi.advanceTimersByTime(1000)
+        vi.advanceTimersByTime(100_000)
 
         const store = useMultiplayerStore.getState()
         store.sendMotionField([5, 0, 0]) // sends (call 1)
@@ -235,6 +235,36 @@ describe('useMultiplayerStore', () => {
         vi.advanceTimersByTime(1000)
         store.sendMotionField([4, 0, 0])
         expect(send).toHaveBeenCalledTimes(3)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('streams spin-only input and sends both zero terms on disable', () => {
+      vi.useFakeTimers({ toFake: ['performance'] })
+      try {
+        const send = vi.fn()
+        useMultiplayerStore.setState({
+          connectionStatus: 'connected',
+          socket: { send } as unknown as WebSocket,
+          roomSettings: { version: 1, motionControl: 'own_dice' },
+        })
+        vi.advanceTimersByTime(1000)
+
+        const store = useMultiplayerStore.getState()
+        store.sendMotionField([0, 0, 0], [0, 30, 0])
+        expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+          type: 'motion_field',
+          field: [0, 0, 0],
+          angularAccel: [0, 30, 0],
+        })
+
+        store.sendMotionField([0, 0, 0], [0, 0, 0])
+        expect(JSON.parse(send.mock.calls[1][0])).toEqual({
+          type: 'motion_field',
+          field: [0, 0, 0],
+          angularAccel: [0, 0, 0],
+        })
       } finally {
         vi.useRealTimers()
       }

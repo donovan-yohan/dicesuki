@@ -16,8 +16,9 @@ export function DeviceMotionProvider({ children }: { children: ReactNode }) {
 
   const refValue = useMemo<DeviceMotionRefContextValue>(() => ({
     motionFieldRef: deviceMotion.motionFieldRef,
+    angularMotionFieldRef: deviceMotion.angularMotionFieldRef,
     isShakingRef: deviceMotion.isShakingRef,
-  }), [deviceMotion.motionFieldRef, deviceMotion.isShakingRef])
+  }), [deviceMotion.motionFieldRef, deviceMotion.angularMotionFieldRef, deviceMotion.isShakingRef])
 
   const stateValue = useMemo<DeviceMotionStateContextValue>(() => ({
     isSupported: deviceMotion.isSupported,

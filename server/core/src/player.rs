@@ -33,6 +33,9 @@ pub struct Player {
     /// dice box" acceleration applied each tick to their own dice (Shared-ADR-010).
     /// `[0, 0, 0]` when motion is idle. Clamped to `MOTION_FIELD_MAX_ACCEL` when set.
     pub motion_field: [f32; 3],
+    /// Optional shake-derived angular acceleration (rad/s²), latched and scoped
+    /// with `motion_field`. It never contains fused-orientation tilt.
+    pub motion_angular_accel: [f32; 3],
     /// When `motion_field` was last updated, used to expire a stale field
     /// (`MOTION_FIELD_STALE_MS`) so dice stop if updates cease without a closing
     /// zero. `None` until the first `motion_field` message.
@@ -59,6 +62,7 @@ impl Player {
             connected: true,
             disconnected_at: None,
             motion_field: [0.0, 0.0, 0.0],
+            motion_angular_accel: [0.0, 0.0, 0.0],
             motion_field_at: None,
         }
     }
