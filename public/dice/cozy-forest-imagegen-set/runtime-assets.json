@@ -1,0 +1,155 @@
+{
+  "contractVersion": 1,
+  "setId": "cozy-forest-imagegen-set",
+  "canonicalReferenceVersion": 2,
+  "budgets": {
+    "thumbnailMaxBytes": 153600,
+    "modelTargetBytes": 1572864,
+    "modelHardMaxBytes": 3145728,
+    "embeddedTextureMaxBytesPerDie": 1048576,
+    "completeSetMaxBytes": 10485760
+  },
+  "optimization": {
+    "tool": "@gltf-transform/cli",
+    "toolVersion": "4.4.1",
+    "maxTextureDimension": 1024,
+    "baseColor": {
+      "format": "webp",
+      "quality": 80,
+      "effort": 80
+    },
+    "normal": {
+      "format": "webp",
+      "lossless": true,
+      "effort": 80
+    },
+    "geometryCompression": "none"
+  },
+  "source": {
+    "tag": "imagegen-cozy-forest-authoring-v1",
+    "archiveSha256": "dd3e305fe94f868b0c4f08287441fe83f0ea116d5375426d65cfef2d57dbeae8",
+    "sourceCommit": "7393d112c5e062570ec7caf37970206c4d05c08c"
+  },
+  "assets": [
+    {
+      "catalogKey": "cozy-forest-imagegen-set/acorn-compass-d10",
+      "diceId": "acorn-compass-d10",
+      "diceType": "d10",
+      "model": {
+        "path": "/dice/cozy-forest-imagegen-set/acorn-compass-d10/model.glb",
+        "bytes": 247168,
+        "sha256": "668cfdd644dbb99d9dfbbafa7f09d1384ef377029deb8fa7784ba14941a020f8",
+        "embeddedTextureBytes": 243712,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cozy-forest-imagegen-set/acorn-compass-d10/thumbnail.png",
+        "bytes": 55756,
+        "sha256": "10ddb35dbb4cfa8840a0e934a7f24e4070b3e47874b980231264b4988441be85",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "cozy-forest-imagegen-set/elder-canopy-d20",
+      "diceId": "elder-canopy-d20",
+      "diceType": "d20",
+      "model": {
+        "path": "/dice/cozy-forest-imagegen-set/elder-canopy-d20/model.glb",
+        "bytes": 533008,
+        "sha256": "5c4837e22e9345db3cecff2208fd6e19f8ee8b0bc223a1ee7cb2c6b4ddda55b0",
+        "embeddedTextureBytes": 529552,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cozy-forest-imagegen-set/elder-canopy-d20/thumbnail.png",
+        "bytes": 61833,
+        "sha256": "c34b8240098b46f3ec82ea1f4a910bfdad7394cd3c6b2ea6d551b6baf1b84a8a",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "cozy-forest-imagegen-set/fernlight-d8",
+      "diceId": "fernlight-d8",
+      "diceType": "d8",
+      "model": {
+        "path": "/dice/cozy-forest-imagegen-set/fernlight-d8/model.glb",
+        "bytes": 317260,
+        "sha256": "cc62d163554bee26dc87014a14318abde32db980f088490b486117f110562867",
+        "embeddedTextureBytes": 314956,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cozy-forest-imagegen-set/fernlight-d8/thumbnail.png",
+        "bytes": 38636,
+        "sha256": "e0076a06e92ee9f77609653d0af92b61f952f1cc2ca80826ea78be4d9269855c",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "cozy-forest-imagegen-set/grovekeeper-d12",
+      "diceId": "grovekeeper-d12",
+      "diceType": "d12",
+      "model": {
+        "path": "/dice/cozy-forest-imagegen-set/grovekeeper-d12/model.glb",
+        "bytes": 693844,
+        "sha256": "725b47d403a8362ef80a19009b562bf89ddfe1436b4013a68a6c2eb5a5994b85",
+        "embeddedTextureBytes": 688848,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cozy-forest-imagegen-set/grovekeeper-d12/thumbnail.png",
+        "bytes": 61434,
+        "sha256": "42fba4e0d0cc89626bbd64bc60cbdaa48290303aa766a05a4d31a9a08c44a846",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "cozy-forest-imagegen-set/hearthwood-d6",
+      "diceId": "hearthwood-d6",
+      "diceType": "d6",
+      "model": {
+        "path": "/dice/cozy-forest-imagegen-set/hearthwood-d6/model.glb",
+        "bytes": 874020,
+        "sha256": "56a4abc148a8c7f9330ff0af595409f42ed443ddeba761057aded19c43bb312b",
+        "embeddedTextureBytes": 871424,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cozy-forest-imagegen-set/hearthwood-d6/thumbnail.png",
+        "bytes": 56199,
+        "sha256": "a371ece8919f58ae4e6e4672eb6b802db0d17de18b7d724c45b82d5862c1f71b",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "cozy-forest-imagegen-set/mossheart-d4",
+      "diceId": "mossheart-d4",
+      "diceType": "d4",
+      "model": {
+        "path": "/dice/cozy-forest-imagegen-set/mossheart-d4/model.glb",
+        "bytes": 623716,
+        "sha256": "2d9a5300c430ad405aff5006a9678ab2e9a6954b4d9c510c6ae0a029ec1a4e4d",
+        "embeddedTextureBytes": 621794,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cozy-forest-imagegen-set/mossheart-d4/thumbnail.png",
+        "bytes": 32966,
+        "sha256": "180536c7312f25e2347649f83e145b651eabd22f57d48a487d232cf1a7ca39a6",
+        "width": 320,
+        "height": 320
+      }
+    }
+  ]
+}

@@ -1,41 +1,24 @@
 #!/usr/bin/env node
 
-/**
- * Generate Dice Manifest
- *
- * Scans the public/dice folder structure and generates a manifest.json
- * that lists all available sets and dice for the production dice loader.
- *
- * Usage: node scripts/generate-dice-manifest.js
- * Or: npm run generate-dice-manifest
- */
-
-import fs from 'fs'
-import path from 'path'
-import process from 'process'
-import { fileURLToPath } from 'url'
+import fs from 'node:fs'
+import path from 'node:path'
+import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const DEFAULT_DICE_DIR = path.join(__dirname, '..', 'public', 'dice')
+const DEFAULT_MANIFEST_PATH = path.join(DEFAULT_DICE_DIR, 'manifest.json')
 
-const DICE_DIR = path.join(__dirname, '..', 'public', 'dice')
-const MANIFEST_PATH = path.join(DICE_DIR, 'manifest.json')
-
-/**
- * Check if a path is a directory
- */
-function isDirectory(dirPath) {
+function isDirectory(filePath) {
   try {
-    return fs.statSync(dirPath).isDirectory()
+    return fs.statSync(filePath).isDirectory()
   } catch {
     return false
   }
 }
 
-/**
- * Check if a file exists
- */
-function fileExists(filePath) {
+function isFile(filePath) {
   try {
     return fs.statSync(filePath).isFile()
   } catch {
@@ -43,129 +26,78 @@ function fileExists(filePath) {
   }
 }
 
-/**
- * Scan for dice sets
- */
-function scanSets() {
-  const sets = []
-
-  // Get all directories in the dice folder
-  const entries = fs.readdirSync(DICE_DIR)
-
-  for (const entry of entries) {
-    const setPath = path.join(DICE_DIR, entry)
-
-    // Skip non-directories and special files
-    if (!isDirectory(setPath)) continue
-    if (entry.startsWith('.')) continue
-
-    // Check if set.json exists
-    const setJsonPath = path.join(setPath, 'set.json')
-    if (!fileExists(setJsonPath)) {
-      console.warn(`⚠️  Skipping ${entry}: no set.json found`)
-      continue
-    }
-
-    // Scan for dice in this set
-    const dice = scanDice(entry, setPath)
-
-    if (dice.length === 0) {
-      console.warn(`⚠️  Skipping ${entry}: no valid dice found`)
-      continue
-    }
-
-    sets.push({
-      id: entry,
-      path: entry,
-      dice,
-    })
-
-    console.log(`✓ Found set: ${entry} (${dice.length} dice)`)
-  }
-
-  return sets
+function compareStrings(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
-/**
- * Scan for dice in a set
- */
-function scanDice(setId, setPath) {
-  const dice = []
+/** Build the deployable index from stable filesystem facts only. */
+export function buildDiceManifest(diceDir = DEFAULT_DICE_DIR) {
+  if (!isDirectory(diceDir)) throw new Error(`Dice directory not found: ${diceDir}`)
 
-  const entries = fs.readdirSync(setPath)
+  const sets = fs.readdirSync(diceDir)
+    .filter(setId => !setId.startsWith('.') && isDirectory(path.join(diceDir, setId)))
+    .sort(compareStrings)
+    .flatMap(setId => {
+      const setPath = path.join(diceDir, setId)
+      if (!isFile(path.join(setPath, 'set.json'))) return []
 
-  for (const entry of entries) {
-    const dicePath = path.join(setPath, entry)
+      const dice = fs.readdirSync(setPath)
+        .filter(diceId => !diceId.startsWith('.') && isDirectory(path.join(setPath, diceId)))
+        .sort(compareStrings)
+        .flatMap(diceId => {
+          const dicePath = path.join(setPath, diceId)
+          if (
+            !isFile(path.join(dicePath, 'model.glb')) ||
+            !isFile(path.join(dicePath, 'metadata.json'))
+          ) return []
+          return [{
+            id: diceId,
+            path: `${setId}/${diceId}`,
+            hasThumbnail: isFile(path.join(dicePath, 'thumbnail.png')),
+          }]
+        })
 
-    // Skip non-directories and special files
-    if (!isDirectory(dicePath)) continue
-    if (entry.startsWith('.')) continue
-
-    // Check if model.glb exists
-    const modelPath = path.join(dicePath, 'model.glb')
-    if (!fileExists(modelPath)) {
-      console.warn(`  ⚠️  Skipping ${setId}/${entry}: no model.glb found`)
-      continue
-    }
-
-    // Check if metadata.json exists
-    const metadataPath = path.join(dicePath, 'metadata.json')
-    if (!fileExists(metadataPath)) {
-      console.warn(`  ⚠️  Skipping ${setId}/${entry}: no metadata.json found`)
-      continue
-    }
-
-    // Check for thumbnail
-    const thumbnailPath = path.join(dicePath, 'thumbnail.png')
-    const hasThumbnail = fileExists(thumbnailPath)
-
-    dice.push({
-      id: entry,
-      path: `${setId}/${entry}`,
-      hasThumbnail,
+      return dice.length > 0 ? [{ id: setId, path: setId, dice }] : []
     })
 
-    console.log(`  ✓ Found dice: ${entry}${hasThumbnail ? ' (with thumbnail)' : ''}`)
-  }
-
-  return dice
+  return { version: '2.0', sets }
 }
 
-/**
- * Main function
- */
+export function renderDiceManifest(manifest) {
+  return `${JSON.stringify(manifest, null, 2)}\n`
+}
+
+export function writeDiceManifest({
+  diceDir = DEFAULT_DICE_DIR,
+  manifestPath = DEFAULT_MANIFEST_PATH,
+} = {}) {
+  const rendered = renderDiceManifest(buildDiceManifest(diceDir))
+  fs.writeFileSync(manifestPath, rendered)
+  return rendered
+}
+
+export function checkDiceManifest({
+  diceDir = DEFAULT_DICE_DIR,
+  manifestPath = DEFAULT_MANIFEST_PATH,
+} = {}) {
+  const expected = renderDiceManifest(buildDiceManifest(diceDir))
+  const actual = isFile(manifestPath) ? fs.readFileSync(manifestPath, 'utf8') : null
+  if (actual !== expected) {
+    throw new Error('public/dice/manifest.json is stale; run npm run generate-dice-manifest')
+  }
+  return expected
+}
+
 function main() {
-  console.log('🎲 Generating dice manifest...\n')
-
-  // Check if dice directory exists
-  if (!isDirectory(DICE_DIR)) {
-    console.error(`❌ Dice directory not found: ${DICE_DIR}`)
-    process.exit(1)
+  const args = process.argv.slice(2)
+  if (args.length > 1 || (args.length === 1 && !['--check', '--write'].includes(args[0]))) {
+    throw new Error('Usage: [--write | --check]')
   }
-
-  // Scan for sets
-  const sets = scanSets()
-
-  if (sets.length === 0) {
-    console.log('\n⚠️  No valid sets found. Creating empty manifest.')
-  }
-
-  // Generate manifest
-  const manifest = {
-    version: '1.0',
-    generatedAt: new Date().toISOString(),
-    sets,
-  }
-
-  // Count total dice
-  const totalDice = sets.reduce((sum, set) => sum + set.dice.length, 0)
-
-  // Write manifest
-  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2))
-
-  console.log(`\n✅ Manifest generated: ${MANIFEST_PATH}`)
-  console.log(`   Sets: ${sets.length}`)
-  console.log(`   Dice: ${totalDice}`)
+  const checkOnly = args[0] === '--check'
+  const rendered = checkOnly ? checkDiceManifest() : writeDiceManifest()
+  const manifest = JSON.parse(rendered)
+  const diceCount = manifest.sets.reduce((sum, set) => sum + set.dice.length, 0)
+  console.log(`${checkOnly ? 'Verified' : 'Generated'} dice manifest: ${manifest.sets.length} sets, ${diceCount} dice`)
 }
 
-main()
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) main()

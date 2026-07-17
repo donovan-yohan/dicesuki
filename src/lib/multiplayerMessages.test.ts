@@ -63,6 +63,7 @@ describe('multiplayerMessages', () => {
               accentColor: '#ffffff',
               material: 'plastic',
               customAssetId: 'asset_lucky_d20',
+              customAssetVersionId: 'lucky/d20@1/asset@2',
               customAssetName: 'Lucky Mesh',
               unsupportedReason: 'Custom GLB assets are local-only in multiplayer; using generic server physics.',
             },

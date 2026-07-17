@@ -133,9 +133,9 @@ The older `public/artist-resources/templates/generate_dice_templates.py` is a
 visual starter, not the canonical UV/face contract. In particular, its D10 is
 an approximation and must not be used for production mapping proof.
 
-## Remaining issue #146 work
+## Issue #146 promotion status
 
-This authoring slice does not ship the 18 reconciled dice. Follow-up slices
-still need remote/runtime asset packaging, optimization and hard budgets,
-catalog thumbnails, on-demand loading, production preview proof, and mobile
-contrast/normal-map review for Cozy Forest, Cyberpunk, and Dark Dungeon.
+The Cozy Forest pilot is promoted by the separate, reproducible runtime pipeline
+documented in [runtime-dice-assets.md](runtime-dice-assets.md). Cyberpunk and
+Dark Dungeon still require the same optimization, delivery, visual proof, and
+mobile contrast/normal-map review before promotion.

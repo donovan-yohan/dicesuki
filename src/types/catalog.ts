@@ -41,6 +41,16 @@ export interface GltfCatalogAssetMetadata {
   readonly appearance: DieAppearance
   readonly vfx: DieVFX
   readonly diceMetadata: DiceMetadata
+  readonly delivery?: {
+    readonly thumbnailPath: string
+    readonly thumbnailSha256: string
+    readonly thumbnailBytes: number
+    readonly modelBytes: number
+    readonly embeddedTextureBytes: number
+    readonly textureFormat: 'image/webp'
+    readonly maxTextureDimension: number
+    readonly canonicalReferenceVersion: number
+  }
 }
 
 export type CatalogAssetMetadata =

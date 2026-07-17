@@ -1,4 +1,4 @@
-import { useRef, useMemo, useCallback, type MutableRefObject } from 'react'
+import { Suspense, useRef, useMemo, useCallback, type MutableRefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -9,6 +9,10 @@ import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { type RenderDeviceTier, resolveDiceRenderLod } from '../../lib/renderLod'
 import type { DicePresentationMetadata } from '../../lib/multiplayerMessages'
+import { getBundledCustomDiceAsset } from '../../lib/collectibleCatalog'
+import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
+import type { CustomDiceAsset } from '../../types/customDice'
+import { DiceAssetErrorBoundary } from './DiceAssetErrorBoundary'
 
 /**
  * Owner-attribution ring dimensions. A flat torus encircling the die in its
@@ -47,7 +51,7 @@ export function MultiplayerDie({
   onDragStart,
 }: MultiplayerDieProps) {
   const groupRef = useRef<THREE.Group>(null)
-  const meshRef = useRef<THREE.Mesh>(null)
+  const visualRef = useRef<THREE.Group>(null)
 
   const geometry = useMemo(
     () => prepareGeometryForTexturing(createDiceGeometry(diceType), diceType),
@@ -79,6 +83,23 @@ export function MultiplayerDie({
     materialMaskRenderer: resolution.materialMaskRenderer,
     lodPolicy,
   })
+  const bundledAsset = useMemo(
+    () => {
+      if (!presentation?.customAssetId || presentation.unsupportedReason) return null
+      const asset = getBundledCustomDiceAsset(
+        presentation.customAssetId,
+        presentation.customAssetVersionId,
+        diceType,
+      )
+      return asset
+    },
+    [
+      diceType,
+      presentation?.customAssetId,
+      presentation?.customAssetVersionId,
+      presentation?.unsupportedReason,
+    ],
+  )
 
   // Reusable objects — avoid allocation in render loop
   const prevQuat = useMemo(() => new THREE.Quaternion(), [])
@@ -100,7 +121,7 @@ export function MultiplayerDie({
   }, [])
 
   useFrame(() => {
-    if (!groupRef.current || !meshRef.current) return
+    if (!groupRef.current || !visualRef.current) return
 
     // Read all state directly from store every frame to avoid stale props.
     // Props only update on re-render (~20Hz snapshots); useFrame runs at ~60fps.
@@ -120,7 +141,7 @@ export function MultiplayerDie({
     prevQuat.set(currentDie.prevRotation[0], currentDie.prevRotation[1], currentDie.prevRotation[2], currentDie.prevRotation[3])
     targetQuat.set(currentDie.targetRotation[0], currentDie.targetRotation[1], currentDie.targetRotation[2], currentDie.targetRotation[3])
     interpQuat.slerpQuaternions(prevQuat, targetQuat, t)
-    meshRef.current.quaternion.copy(interpQuat)
+    visualRef.current.quaternion.copy(interpQuat)
   })
 
   if (lodPolicy.materialMode === 'hidden') {
@@ -129,17 +150,49 @@ export function MultiplayerDie({
 
   return (
     <group ref={groupRef}>
-      <mesh
-        ref={meshRef}
-        geometry={geometry}
-        material={materials}
-        castShadow={lodPolicy.castShadow}
-        receiveShadow={lodPolicy.receiveShadow}
+      <group
+        ref={visualRef}
         userData={{ renderLod: lodPolicy, dicePresentation: presentation }}
         onPointerDown={isOwnedByLocalPlayer ? handlePointerDown : undefined}
         onPointerEnter={isOwnedByLocalPlayer ? handlePointerEnter : undefined}
         onPointerLeave={handlePointerLeave}
-      />
+      >
+        {bundledAsset ? (
+          <DiceAssetErrorBoundary
+            resetKey={bundledAsset.modelUrl}
+            fallback={(
+              <ProceduralDieVisual
+                geometry={geometry}
+                materials={materials}
+                castShadow={lodPolicy.castShadow}
+                receiveShadow={lodPolicy.receiveShadow}
+              />
+            )}
+          >
+            <Suspense fallback={(
+              <ProceduralDieVisual
+                geometry={geometry}
+                materials={materials}
+                castShadow={lodPolicy.castShadow}
+                receiveShadow={lodPolicy.receiveShadow}
+              />
+            )}>
+              <BundledDieVisual
+                asset={bundledAsset}
+                castShadow={lodPolicy.castShadow}
+                receiveShadow={lodPolicy.receiveShadow}
+              />
+            </Suspense>
+          </DiceAssetErrorBoundary>
+        ) : (
+          <ProceduralDieVisual
+            geometry={geometry}
+            materials={materials}
+            castShadow={lodPolicy.castShadow}
+            receiveShadow={lodPolicy.receiveShadow}
+          />
+        )}
+      </group>
       {/* Owner attribution ring — flat torus in the owner's player color.
           Only drawn under other players' dice; the local player knows their own. */}
       {!isOwnedByLocalPlayer && (
@@ -156,4 +209,45 @@ export function MultiplayerDie({
       )}
     </group>
   )
+}
+
+interface ProceduralDieVisualProps {
+  geometry: THREE.BufferGeometry
+  materials: THREE.Material | THREE.Material[]
+  castShadow: boolean
+  receiveShadow: boolean
+}
+
+function ProceduralDieVisual({
+  geometry,
+  materials,
+  castShadow,
+  receiveShadow,
+}: ProceduralDieVisualProps) {
+  return (
+    <mesh
+      geometry={geometry}
+      material={materials}
+      castShadow={castShadow}
+      receiveShadow={receiveShadow}
+    />
+  )
+}
+
+function BundledDieVisual({
+  asset,
+  castShadow,
+  receiveShadow,
+}: {
+  asset: CustomDiceAsset
+  castShadow: boolean
+  receiveShadow: boolean
+}) {
+  const { scene, metadata } = useCustomDiceLoader(asset, {
+    useDraco: false,
+    castShadow,
+    receiveShadow,
+  })
+  if (!scene) return null
+  return <primitive object={scene} scale={metadata?.scale ?? 1} />
 }

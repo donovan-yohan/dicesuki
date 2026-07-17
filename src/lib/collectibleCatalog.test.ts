@@ -6,6 +6,7 @@ import {
   ensureStarterEntitlements,
   fetchCatalogSnapshot,
   fetchMyEntitlements,
+  getBundledCustomDiceAsset,
   getCatalogAssetVersion,
   getCatalogItemByKey,
   isCatalogItemRefValid,
@@ -43,7 +44,7 @@ function inventoryDie(overrides: Partial<InventoryDie> = {}): InventoryDie {
 describe('collectible catalog', () => {
   it('uses stable version-in-id contracts and excludes local artist dice', () => {
     expect(COLLECTIBLE_CATALOG.contractVersion).toBe(1)
-    expect(COLLECTIBLE_CATALOG.items).toHaveLength(51)
+    expect(COLLECTIBLE_CATALOG.items).toHaveLength(57)
     expect(COLLECTIBLE_CATALOG.items.every(item => item.id === `${item.catalogKey}@1`)).toBe(true)
     expect(COLLECTIBLE_CATALOG.assetVersions.every(asset => (
       asset.id === `${asset.catalogItemId}/asset@${asset.assetVersion}`
@@ -133,6 +134,38 @@ describe('collectible catalog', () => {
       storage: 'bundled',
     })
     expect(die).not.toHaveProperty('entitlementId')
+  })
+
+  it('resolves Cozy Forest delivery metadata without fetching the GLB', () => {
+    const asset = getBundledCustomDiceAsset('cozy-forest-imagegen-set/hearthwood-d6')
+
+    expect(asset).toMatchObject({
+      id: 'cozy-forest-imagegen-set/hearthwood-d6',
+      modelUrl: '/dice/cozy-forest-imagegen-set/hearthwood-d6/model.glb',
+      thumbnailUrl: '/dice/cozy-forest-imagegen-set/hearthwood-d6/thumbnail.png',
+      metadata: {
+        diceType: 'd6',
+        scale: 1.1,
+        canonicalReferenceVersion: 2,
+        physics: { density: 0.38 },
+      },
+    })
+    expect(getBundledCustomDiceAsset('not-a-real/catalog-key')).toBeNull()
+    expect(getBundledCustomDiceAsset(
+      'cozy-forest-imagegen-set/hearthwood-d6',
+      'cozy-forest-imagegen-set/hearthwood-d6@1/asset@1',
+      'd6',
+    )).toMatchObject({ metadata: { diceType: 'd6' } })
+    expect(getBundledCustomDiceAsset(
+      'cozy-forest-imagegen-set/hearthwood-d6',
+      'missing-asset-version',
+      'd6',
+    )).toBeNull()
+    expect(getBundledCustomDiceAsset(
+      'cozy-forest-imagegen-set/hearthwood-d6',
+      'cozy-forest-imagegen-set/hearthwood-d6@1/asset@1',
+      'd20',
+    )).toBeNull()
   })
 
   it('reads RLS-scoped entitlements without accepting a user id or exposing a write API', async () => {

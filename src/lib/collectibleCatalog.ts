@@ -10,6 +10,8 @@ import type {
   GltfCatalogAssetVersion,
 } from '../types/catalog'
 import type { AcquisitionSource, InventoryDie, NewInventoryDie } from '../types/inventory'
+import type { CustomDiceAsset } from '../types/customDice'
+import type { DiceShape } from '../types/diceShape'
 
 export const COLLECTIBLE_CATALOG = generatedCatalog as unknown as CollectibleCatalog
 
@@ -55,6 +57,31 @@ export function getCatalogItemByKey(
 
 export function getCatalogAssetVersion(assetVersionId: string): CatalogAssetVersion | undefined {
   return assetsById.get(assetVersionId)
+}
+
+/** Resolve an immutable bundled GLB by its catalog key for lazy table rendering. */
+export function getBundledCustomDiceAsset(
+  catalogKey: string,
+  assetVersionId?: string,
+  expectedDiceType?: DiceShape,
+): CustomDiceAsset | null {
+  const selectedAsset = assetVersionId
+    ? getCatalogAssetVersion(assetVersionId)
+    : undefined
+  if (assetVersionId && !selectedAsset) return null
+  const item = selectedAsset
+    ? getCatalogItem(selectedAsset.catalogItemId)
+    : getCatalogItemByKey(catalogKey)
+  if (!item || item.catalogKey !== catalogKey) return null
+  const asset = selectedAsset ?? getCatalogAssetVersion(item.assetVersionId)
+  if (!asset || asset.assetKind !== 'gltf') return null
+  if (expectedDiceType && asset.metadata.diceMetadata.diceType !== expectedDiceType) return null
+  return {
+    id: item.catalogKey,
+    modelUrl: asset.modelPath,
+    thumbnailUrl: asset.metadata.delivery?.thumbnailPath,
+    metadata: asset.metadata.diceMetadata,
+  }
 }
 
 export function getCatalogItemRef(item: CatalogItem): CatalogItemRef {
@@ -145,6 +172,7 @@ export function createInventoryDieFromCatalogItem(
   if (asset.assetKind === 'gltf') {
     die.customAsset = {
       modelUrl: asset.modelPath,
+      thumbnailUrl: asset.metadata.delivery?.thumbnailPath,
       assetId: item.catalogKey,
       storage: 'bundled',
       metadata: asset.metadata.diceMetadata,

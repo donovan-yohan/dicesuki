@@ -259,11 +259,11 @@ function validatePhysics(physics: unknown): string[] {
 
   const phys = physics as Record<string, unknown>
 
-  // Mass
-  if (typeof phys.mass !== 'number') {
-    errors.push('physics.mass: must be a number')
-  } else if (phys.mass < 0.1 || phys.mass > 100) {
-    errors.push('physics.mass: must be between 0.1 and 100')
+  // Density is the authored input; Rapier derives mass from density and volume.
+  if (typeof phys.density !== 'number') {
+    errors.push('physics.density: must be a number')
+  } else if (phys.density < 0.01 || phys.density > 100) {
+    errors.push('physics.density: must be between 0.01 and 100')
   }
 
   // Restitution

@@ -15,7 +15,11 @@ export function createDicePresentationMetadata(die: InventoryDie): DicePresentat
   if (die.customAsset) {
     metadata.customAssetId = die.customAsset.assetId ?? die.id
     metadata.customAssetName = die.customAsset.metadata.name
-    metadata.unsupportedReason = 'Custom GLB assets are local-only in multiplayer; using preserved presentation metadata with generic server physics.'
+    if (die.customAsset.storage === 'bundled') {
+      metadata.customAssetVersionId = die.catalogRef?.assetVersionId
+    } else {
+      metadata.unsupportedReason = 'Custom GLB assets are local-only in multiplayer; using preserved presentation metadata with generic server physics.'
+    }
   }
 
   return metadata

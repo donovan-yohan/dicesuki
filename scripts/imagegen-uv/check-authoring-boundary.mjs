@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { RUNTIME_ASSET_BUDGETS } from '../runtime-dice-assets/runtime-asset-contract.mjs'
 
 const MAX_TOOLING_FILE_BYTES = 128 * 1024
 const DEFAULT_MAX_FILE_BYTES = 1024 * 1024
@@ -29,13 +30,14 @@ const REVIEWED_BINARY_FILE_LIMITS = new Map([
 export function checkAuthoringBoundary(repoRoot = process.cwd()) {
   const files = listVersionedAndCandidateFiles(repoRoot)
   const errors = []
+  const reviewedBinaryLimits = reviewedBinaryFileLimits(repoRoot)
 
   for (const file of files) {
     const normalized = file.split(path.sep).join('/')
     const absolutePath = path.join(repoRoot, file)
     const size = statSync(absolutePath).size
     const extension = path.extname(normalized).toLowerCase()
-    const reviewedBinaryLimit = REVIEWED_BINARY_FILE_LIMITS.get(normalized)
+    const reviewedBinaryLimit = reviewedBinaryLimits.get(normalized)
     const maximumBytes = reviewedBinaryLimit ?? DEFAULT_MAX_FILE_BYTES
 
     if (reviewedBinaryLimit === undefined) {
@@ -58,6 +60,32 @@ export function checkAuthoringBoundary(repoRoot = process.cwd()) {
   }
 
   return { valid: errors.length === 0, errors, inspectedFiles: files.length }
+}
+
+function reviewedBinaryFileLimits(repoRoot) {
+  const limits = new Map(REVIEWED_BINARY_FILE_LIMITS)
+  const manifestPath = path.join(
+    repoRoot,
+    'public/dice/cozy-forest-imagegen-set/runtime-assets.json',
+  )
+  try {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    if (manifest.setId !== 'cozy-forest-imagegen-set' || !Array.isArray(manifest.assets)) {
+      return limits
+    }
+    for (const asset of manifest.assets ?? []) {
+      const expectedRoot = `/dice/${manifest.setId}/${asset.diceId}`
+      if (asset.model?.path === `${expectedRoot}/model.glb`) {
+        limits.set(`public${asset.model.path}`, RUNTIME_ASSET_BUDGETS.modelHardMaxBytes)
+      }
+      if (asset.thumbnail?.path === `${expectedRoot}/thumbnail.png`) {
+        limits.set(`public${asset.thumbnail.path}`, RUNTIME_ASSET_BUDGETS.thumbnailMaxBytes)
+      }
+    }
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+  return limits
 }
 
 function containsNullByte(file) {

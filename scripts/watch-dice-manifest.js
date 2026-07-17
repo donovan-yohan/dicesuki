@@ -31,7 +31,7 @@ const DEBOUNCE_MS = 500
 function generateManifest() {
   console.log('\n🔄 Detected changes in public/dice, regenerating manifest...\n')
 
-  const child = spawn('node', [GENERATE_SCRIPT], {
+  const child = spawn('node', [GENERATE_SCRIPT, '--write'], {
     stdio: 'inherit',
     cwd: path.join(__dirname, '..'),
   })

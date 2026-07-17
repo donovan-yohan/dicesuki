@@ -117,6 +117,10 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragSta
   const visibleDice = useMemo(() => {
     return filteredDice.slice(0, visibleCount)
   }, [filteredDice, visibleCount])
+  const proceduralPreviewDice = useMemo(
+    () => visibleDice.filter(die => !die.customAsset?.thumbnailUrl),
+    [visibleDice],
+  )
   const selectedInventoryDie = useMemo(() => {
     if (!selectedDie) return null
     return dice.find(die => die.id === selectedDie.id) ?? null
@@ -372,11 +376,13 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragSta
             </div>
 
             <div ref={previewHostRef} className="relative">
-              <SharedInventoryDicePreviewCanvas
-                dice={visibleDice}
-                hostRef={previewHostRef}
-                slotRefs={previewSlotRefs}
-              />
+              {proceduralPreviewDice.length > 0 && (
+                <SharedInventoryDicePreviewCanvas
+                  dice={proceduralPreviewDice}
+                  hostRef={previewHostRef}
+                  slotRefs={previewSlotRefs}
+                />
+              )}
               <div className="relative grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
                 {visibleDice.map(die => (
                   <InventoryDieCard
@@ -534,14 +540,25 @@ function InventoryDieCard({
             border: `1px solid ${rarityColor}`,
           }}
         >
-          <div
-            ref={(element) => registerPreviewSlot(die.id, element)}
-            data-testid="dice-preview"
-            data-preview-id={die.id}
-            role="img"
-            aria-label={`${die.name} 3D preview`}
-            className="absolute inset-0"
-          />
+          {die.customAsset?.thumbnailUrl ? (
+            <img
+              src={die.customAsset.thumbnailUrl}
+              alt={`${die.name} preview`}
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover"
+              data-testid="dice-thumbnail"
+            />
+          ) : (
+            <div
+              ref={(element) => registerPreviewSlot(die.id, element)}
+              data-testid="dice-preview"
+              data-preview-id={die.id}
+              role="img"
+              aria-label={`${die.name} 3D preview`}
+              className="absolute inset-0"
+            />
+          )}
           <div className="absolute left-2 top-2 z-20 flex gap-1">
             {die.isFavorite && <Badge label="Fav" theme={theme} />}
             {die.isLocked && <Badge label="Lock" theme={theme} />}

@@ -35,6 +35,7 @@ coverage/
 
 # Local ImageGen/Blender authoring outputs (never deployed)
 .artifacts/imagegen-uv/
+.artifacts/cozy-forest-runtime/
 
 # Design/planning documents (architecture captured via ADRs instead)
 docs/plans/
