@@ -22,11 +22,13 @@ export function DeviceMotionProvider({ children }: { children: ReactNode }) {
   const stateValue = useMemo<DeviceMotionStateContextValue>(() => ({
     isSupported: deviceMotion.isSupported,
     permissionState: deviceMotion.permissionState,
+    orientationPermissionState: deviceMotion.orientationPermissionState,
     isShaking: deviceMotion.isShaking,
     requestPermission: deviceMotion.requestPermission,
   }), [
     deviceMotion.isSupported,
     deviceMotion.permissionState,
+    deviceMotion.orientationPermissionState,
     deviceMotion.isShaking,
     deviceMotion.requestPermission,
   ])

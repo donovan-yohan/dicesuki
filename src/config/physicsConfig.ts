@@ -61,21 +61,30 @@ export const VELOCITY_HISTORY_SIZE = 5
  * field (U/s²) — the continuous "shake your dice box" pseudo-force the room applies
  * to the local player's own dice (Shared-ADR-010). This is the tunable feel knob:
  * the full physical scale is 62.5 U/m, and the engine runs at ≈0.39× real gravity
- * (−240 vs −613 U/s²), so ~25 keeps the shake proportional to the engine's floaty
- * feel rather than overpowering it. The room re-clamps to its authoritative
+ * (−240 vs −613 U/s²). A scale of 40 favors deliberate short movements while
+ * remaining well below full physical scale. The room re-clamps to its authoritative
  * `motionFieldMaxAccel`, so this only shapes feel, never safety.
- * - `25` (current): a lively but controllable box. Higher = more violent slides;
+ * - `40` (current): responsive to short phone movements without overpowering tilt.
+ *   Higher = more violent slides;
  *   lower = subtler. Recommended `10` (gentle) – `62.5` (full physical scale).
  */
-export const MOTION_ACCEL_SCALE = 25
+export const MOTION_ACCEL_SCALE = 40
 
 /**
  * Minimum linear-acceleration magnitude (m/s²) that registers as motion, filtering
- * hand tremors and sensor noise so a still — or statically tilted — phone produces
- * a zero field and the dice settle (Shared-ADR-010: shake the box, don't tilt it).
- * - `1.0` (current): filters small vibrations. `3.0` only large moves; `0.5` very sensitive.
+ * hand tremors and sensor noise while allowing deliberate, gentle movements through.
+ * - `0.35` (current): responsive without admitting typical stationary jitter.
+ *   `1.0` filters small movements; `0.2` is very sensitive.
  */
-export const MOTION_DEADZONE = 1.0
+export const MOTION_DEADZONE = 0.35
+
+/**
+ * Small fused-orientation tilt ignored around the flat position. The tilt term is
+ * otherwise scaled from the room's authoritative gravity, so this is only a sensor
+ * noise/intent threshold and not a duplicated engine feel constant.
+ * - `2` degrees (current): removes tabletop jitter while reacting to visible tilt.
+ */
+export const MOTION_TILT_DEADZONE_DEG = 2
 
 /**
  * Low-pass retention (0..1) for the gravity estimate used to recover movement

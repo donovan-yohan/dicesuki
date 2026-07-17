@@ -1,6 +1,7 @@
 # ADR 010 - Per-Player Continuous Motion Field (Own-Dice Dice-Box)
 
 * Date: 2026/07/15
+* Amended: 2026/07/16 — fused-orientation tilt is composed into the same per-player field.
 * Status: Accepted
 * Deciders: Donovan, Development Team
 * Supersedes: the discrete `motion_impulse` shake channel introduced for rooms (the "mobile shake-to-roll" feature) — replaced by a continuous field.
@@ -32,10 +33,10 @@ Two facts shape this decision:
    motion effects — in solo and multiplayer alike — MUST affect only the local player's
    own dice.** Each player shakes *their own* dice box.
 
-The load-bearing distinction: the effect is a **per-die pseudo-force scoped to the
-sender's own dice**, never a change to the shared world. Emphasis is on the *motion*
-of the box (linear acceleration), not static tilt — the user framed it as "more the
-action of shaking the box than changing world gravity."
+The load-bearing distinction is unchanged by the tilt amendment: the effect is a
+**per-die acceleration scoped to the sender's own dice**, never a change to shared
+world gravity. The field combines movement of the box (linear acceleration) with a
+gravity-direction correction from fused device orientation.
 
 ## Decision
 
@@ -46,12 +47,13 @@ action of shaking the box than changing world gravity."
   units (U/s²), expressed in world space. It supersedes the discrete `motion_impulse`
   message, which MUST be removed (one motion model, per the "continuous only"
   decision).
-* The field represents the **non-inertial pseudo-force** of the player's dice box:
-  the negation of the phone's *linear* acceleration (gravity removed), scaled by
-  client sensor constants. It MUST NOT include a static-tilt gravity term — a phone
-  held still (even at an angle) produces ~zero field, so dice settle normally; only
-  *moving* the phone pushes the dice. This is the "shake the box," not "tilt changes
-  gravity," model.
+* The field combines two client-derived terms: (1) the **non-inertial pseudo-force**
+  opposite the phone's linear acceleration, scaled by client sensor constants; and
+  (2) a **tilt gravity correction** derived from `DeviceOrientationEvent`'s fused
+  accelerometer/gyroscope orientation. The correction is `desiredTiltedGravity −
+  sharedGravity`, using the room-delivered engine gravity. A flat, still phone sends
+  zero; at 90° the correction cancels downward gravity and replaces it horizontally
+  for only the affected dice.
 * The server MUST apply the field **every physics tick** (60Hz), before `step()`, as
   a mass-scaled velocity delta (`field × dt`) to exactly the dice the sender may
   affect under `Room::can_apply_motion` — i.e. the sender's own dice (and, for the
@@ -75,9 +77,9 @@ action of shaking the box than changing world gravity."
   (ADR 007), and be drift-guarded (`config.rs` assertion + the client guard test).
   The client's sensor→field mapping (which m/s² of hand motion becomes how much U/s²)
   is a **client** concern and stays in `src/config/physicsConfig.ts` (ADR 003/007).
-* A die that receives a non-negligible field while settled MUST be re-woken into the
-  settle pipeline (as a knock does) so its authoritative face re-detects and
-  rebroadcasts once it comes to rest.
+* Field presence alone MUST NOT invalidate a settled face: persistent tilt can be
+  balanced by contacts. A settled die re-enters the settle pipeline only when the
+  existing speed/orientation knock evidence proves that it actually moved or tipped.
 
 ### C. Testing (closes the coverage gap)
 
@@ -88,9 +90,9 @@ action of shaking the box than changing world gravity."
 
 ## Alternatives Considered
 
-* **Restore world-gravity swing (the original mechanism).** Faithful feel, smallest
-  core change (core already holds a gravity vector), but it is a *shared* property —
-  irreconcilable with "own dice only" in multiplayer. Rejected on the core requirement.
+* **Restore shared world-gravity swing (the original mechanism).** Rejected because
+  one shared vector cannot represent several players' simultaneous tilt. The adopted
+  per-die correction recreates the effective direction without mutating shared gravity.
 * **Move the arena colliders (kinematic dice box).** Physically the truest "floor
   slides out" mechanic, but the arena is shared, colliders are `fixed()` (no surface
   velocity to drive friction), and the whole downstream model assumes an origin-centered
@@ -104,7 +106,7 @@ action of shaking the box than changing world gravity."
 
 ### Positive
 
-* Restores the continuous "shake your dice box" feel, scoped per-player, in both solo
+* Restores continuous tilt-and-shake dice-box control, scoped per-player, in both solo
   and multiplayer — no shared-world conflict.
 * One unified, tested motion model; removes the untested discrete path and its
   rate-limit/rename baggage.
@@ -113,10 +115,11 @@ action of shaking the box than changing world gravity."
 
 ### Negative / Considerations
 
-* Continuous per-tick application means a held, actively-shaken phone keeps dice awake;
-  that is intended, and the staleness latch guarantees dice settle once motion stops.
+* Continuous per-tick application means an actively-shaken phone keeps dice awake;
+  persistent tilt does not eagerly invalidate settled faces, and the staleness latch
+  guarantees the field clears if updates stop.
 * Streaming a throttled field per player adds a modest continuous message rate while
   motion is engaged (bounded by the client throttle and `motionControl`), versus the
   old one-shot impulse.
-* Very gentle sub-knock slides rely on the explicit re-wake to re-detect faces; the
-  field's own re-wake handles this.
+* Very gentle sub-knock motion relies on the existing speed/orientation wake thresholds;
+  this avoids face churn when contacts balance a persistent tilt field.

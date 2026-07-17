@@ -18,6 +18,7 @@ export interface DeviceMotionRefContext {
 export interface DeviceMotionStateContext {
   isSupported: boolean
   permissionState: 'prompt' | 'granted' | 'denied' | 'unsupported'
+  orientationPermissionState: 'prompt' | 'granted' | 'denied' | 'unsupported'
   isShaking: boolean
   requestPermission: () => Promise<void>
 }
