@@ -9,7 +9,7 @@
     "dev:vite": "vite",
     "build:wasm-room": "bash scripts/build-wasm-room.sh",
     "generate:brand-icons": "node scripts/generate-brand-icons.mjs",
-    "build": "node scripts/generate-collectible-catalog.js && node scripts/generate-dice-manifest.js && tsc && vite build",
+    "build": "node scripts/generate-collectible-catalog.js --check && node scripts/generate-dice-manifest.js && tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "test": "vitest",
@@ -18,6 +18,8 @@
     "test:coverage": "vitest --coverage",
     "generate:collectible-catalog": "node scripts/generate-collectible-catalog.js",
     "check:collectible-catalog": "node scripts/generate-collectible-catalog.js --check",
+    "check:immutable-catalog-history": "node scripts/check-immutable-catalog-history.js",
+    "prepare:collectible-edition": "node scripts/generate-collectible-catalog.js --prepare-edition",
     "generate-dice-manifest": "node scripts/generate-dice-manifest.js"
   },
   "dependencies": {
@@ -49,6 +51,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/coverage-v8": "4.0.8",
     "@vitest/ui": "^4.0.8",
     "autoprefixer": "^10.4.17",
     "concurrently": "^9.2.1",

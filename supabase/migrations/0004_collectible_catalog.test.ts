@@ -97,7 +97,10 @@ describe('0004 collectible catalog schema', () => {
         new RegExp(`alter table public\\.${table} force row level security`, 'i'),
       )
       expect(sql).toMatch(
-        new RegExp(`revoke all on table public\\.${table} from anon, authenticated`, 'i'),
+        new RegExp(
+          `revoke all on table public\\.${table} from anon, authenticated, service_role`,
+          'i',
+        ),
       )
     }
 
@@ -111,7 +114,7 @@ describe('0004 collectible catalog schema', () => {
       { table: 'user_entitlements', command: 'select' },
     ])
     expect(sql).toMatch(
-      /on public\.user_entitlements for select using \(auth\.uid\(\) = user_id\)/,
+      /on public\.user_entitlements for select using \(auth\.uid\(\) = user_id and revoked_at is null\)/,
     )
     expect(sql).toMatch(
       /grant select on table public\.catalog_items to anon, authenticated/,
@@ -122,8 +125,23 @@ describe('0004 collectible catalog schema', () => {
     expect(sql).toMatch(
       /grant select on table public\.user_entitlements to authenticated/,
     )
+    expect(sql).toMatch(
+      /grant select on table public\.catalog_items to service_role/,
+    )
+    expect(sql).toMatch(
+      /grant select on table public\.catalog_asset_versions to service_role/,
+    )
+    expect(sql).toMatch(
+      /grant select, insert, update on table public\.user_entitlements to service_role/,
+    )
     expect(stripLineComments(sql)).not.toMatch(
-      /grant\s+(insert|update|delete|all).*public\.(catalog_items|catalog_asset_versions|user_entitlements)/i,
+      /grant\s+[^;]*(insert|update|delete|all)[^;]*on table public\.(catalog_items|catalog_asset_versions) to (anon|authenticated|service_role)/i,
+    )
+    expect(stripLineComments(sql)).not.toMatch(
+      /grant\s+[^;]*(insert|update|delete|all)[^;]*on table public\.user_entitlements to (anon|authenticated)/i,
+    )
+    expect(stripLineComments(sql)).not.toMatch(
+      /grant\s+[^;]*(delete|all)[^;]*on table public\.user_entitlements to service_role/i,
     )
   })
 

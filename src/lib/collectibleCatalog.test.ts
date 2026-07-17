@@ -204,7 +204,7 @@ describe('collectible catalog', () => {
     await expect(fetchMyEntitlements(client)).resolves.toBeNull()
   })
 
-  it('maps the public catalog read and chooses the latest append-only asset revision', async () => {
+  it('selects latest contract and asset versions numerically regardless of row order', async () => {
     const metadata = {
       source: 'configured',
       name: 'Starter D20',
@@ -214,37 +214,54 @@ describe('collectible catalog', () => {
     const from = vi.fn((table: string) => ({
       select: vi.fn().mockResolvedValue(table === 'catalog_items'
         ? {
-            data: [{
-              id: 'adventurer-starter/d20/common@1',
+            data: [10, 2].map(contractVersion => ({
+              id: `adventurer-starter/d20/common@${contractVersion}`,
               catalog_key: 'adventurer-starter/d20/common',
-              contract_version: 1,
+              contract_version: contractVersion,
               item_kind: 'die',
               set_id: 'adventurer-starter',
               dice_type: 'd20',
               rarity: 'common',
-            }],
+            })),
             error: null,
           }
         : {
-            data: [1, 2].map(assetVersion => ({
-              id: `adventurer-starter/d20/common@1/asset@${assetVersion}`,
-              catalog_item_id: 'adventurer-starter/d20/common@1',
-              asset_version: assetVersion,
-              asset_kind: 'builtin',
-              model_path: 'builtin:d20',
-              model_sha256: null,
-              metadata,
-              metadata_sha256: `hash-${assetVersion}`,
-            })),
+            data: [
+              ...[10, 2].map(assetVersion => ({
+                id: `adventurer-starter/d20/common@10/asset@${assetVersion}`,
+                catalog_item_id: 'adventurer-starter/d20/common@10',
+                asset_version: assetVersion,
+                asset_kind: 'builtin',
+                model_path: 'builtin:d20',
+                model_sha256: null,
+                metadata,
+                metadata_sha256: `hash-${assetVersion}`,
+              })),
+              {
+                id: 'adventurer-starter/d20/common@2/asset@1',
+                catalog_item_id: 'adventurer-starter/d20/common@2',
+                asset_version: 1,
+                asset_kind: 'builtin',
+                model_path: 'builtin:d20',
+                model_sha256: null,
+                metadata,
+                metadata_sha256: 'hash-1',
+              },
+            ],
             error: null,
           }),
     }))
 
     const snapshot = await fetchCatalogSnapshot({ from } as never)
 
-    expect(snapshot?.items[0].assetVersionId)
-      .toBe('adventurer-starter/d20/common@1/asset@2')
-    expect(snapshot?.assetVersions).toHaveLength(2)
+    expect(snapshot?.contractVersion).toBe(1)
+    expect(getCatalogItemByKey('adventurer-starter/d20/common', snapshot!)).toMatchObject({
+      id: 'adventurer-starter/d20/common@10',
+      contractVersion: 10,
+      assetVersionId: 'adventurer-starter/d20/common@10/asset@10',
+    })
+    expect(snapshot?.items).toHaveLength(2)
+    expect(snapshot?.assetVersions).toHaveLength(3)
     expect(from).toHaveBeenCalledTimes(2)
   })
 
@@ -252,6 +269,16 @@ describe('collectible catalog', () => {
     const client = {
       from: vi.fn(() => ({
         select: vi.fn().mockResolvedValue({ data: null, error: new Error('offline') }),
+      })),
+    } as never
+
+    await expect(fetchCatalogSnapshot(client)).resolves.toBeNull()
+  })
+
+  it('returns null when the server catalog read throws', async () => {
+    const client = {
+      from: vi.fn(() => ({
+        select: vi.fn().mockRejectedValue(new Error('offline')),
       })),
     } as never
 

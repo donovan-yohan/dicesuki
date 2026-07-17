@@ -13,15 +13,43 @@ import type { AcquisitionSource, InventoryDie, NewInventoryDie } from '../types/
 export const COLLECTIBLE_CATALOG = generatedCatalog as unknown as CollectibleCatalog
 
 const itemsById = new Map(COLLECTIBLE_CATALOG.items.map(item => [item.id, item]))
-const itemsByKey = new Map(COLLECTIBLE_CATALOG.items.map(item => [item.catalogKey, item]))
+const itemsByKey = indexLatestItemsByKey(COLLECTIBLE_CATALOG.items)
 const assetsById = new Map(COLLECTIBLE_CATALOG.assetVersions.map(asset => [asset.id, asset]))
+
+function indexLatestItemsByKey(items: readonly CatalogItem[]): Map<string, CatalogItem> {
+  const latestByKey = new Map<string, CatalogItem>()
+  for (const item of items) {
+    const previous = latestByKey.get(item.catalogKey)
+    if (!previous || item.contractVersion > previous.contractVersion) {
+      latestByKey.set(item.catalogKey, item)
+    }
+  }
+  return latestByKey
+}
+
+function indexLatestAssetsByItemId(
+  assets: readonly CatalogAssetVersion[],
+): Map<string, CatalogAssetVersion> {
+  const latestByItemId = new Map<string, CatalogAssetVersion>()
+  for (const asset of assets) {
+    const previous = latestByItemId.get(asset.catalogItemId)
+    if (!previous || asset.assetVersion > previous.assetVersion) {
+      latestByItemId.set(asset.catalogItemId, asset)
+    }
+  }
+  return latestByItemId
+}
 
 export function getCatalogItem(itemId: string): CatalogItem | undefined {
   return itemsById.get(itemId)
 }
 
-export function getCatalogItemByKey(catalogKey: string): CatalogItem | undefined {
-  return itemsByKey.get(catalogKey)
+export function getCatalogItemByKey(
+  catalogKey: string,
+  catalog: Pick<CollectibleCatalog, 'items'> = COLLECTIBLE_CATALOG,
+): CatalogItem | undefined {
+  if (catalog === COLLECTIBLE_CATALOG) return itemsByKey.get(catalogKey)
+  return indexLatestItemsByKey(catalog.items).get(catalogKey)
 }
 
 export function getCatalogAssetVersion(assetVersionId: string): CatalogAssetVersion | undefined {
@@ -128,7 +156,7 @@ export function createInventoryDieFromCatalogItem(
 interface CatalogItemRow {
   id: string
   catalog_key: string
-  contract_version: 1
+  contract_version: number
   item_kind: 'die'
   set_id: string
   dice_type: CatalogItem['diceType']
@@ -148,53 +176,51 @@ interface CatalogAssetRow {
 
 /** Read the public server catalog. Returns null on an unavailable/offline backend. */
 export async function fetchCatalogSnapshot(client: SupabaseClient): Promise<CollectibleCatalog | null> {
-  const [itemResult, assetResult] = await Promise.all([
-    client.from('catalog_items').select(
-      'id, catalog_key, contract_version, item_kind, set_id, dice_type, rarity',
-    ),
-    client.from('catalog_asset_versions').select(
-      'id, catalog_item_id, asset_version, asset_kind, model_path, model_sha256, metadata, metadata_sha256',
-    ),
-  ])
-  if (itemResult.error || assetResult.error) return null
+  try {
+    const [itemResult, assetResult] = await Promise.all([
+      client.from('catalog_items').select(
+        'id, catalog_key, contract_version, item_kind, set_id, dice_type, rarity',
+      ),
+      client.from('catalog_asset_versions').select(
+        'id, catalog_item_id, asset_version, asset_kind, model_path, model_sha256, metadata, metadata_sha256',
+      ),
+    ])
+    if (itemResult.error || assetResult.error) return null
 
-  const assetVersions = ((assetResult.data ?? []) as unknown as CatalogAssetRow[])
-    .map(row => ({
-      id: row.id,
-      catalogItemId: row.catalog_item_id,
-      assetVersion: row.asset_version,
-      assetKind: row.asset_kind,
-      modelPath: row.model_path,
-      modelSha256: row.model_sha256,
-      metadata: row.metadata,
-      metadataSha256: row.metadata_sha256,
-    }) satisfies CatalogAssetVersion)
-  const latestAssetByItemId = new Map<string, CatalogAssetVersion>()
-  for (const asset of assetVersions) {
-    const previous = latestAssetByItemId.get(asset.catalogItemId)
-    if (!previous || asset.assetVersion > previous.assetVersion) {
-      latestAssetByItemId.set(asset.catalogItemId, asset)
-    }
-  }
-
-  const items = ((itemResult.data ?? []) as unknown as CatalogItemRow[])
-    .map(row => {
-      const asset = latestAssetByItemId.get(row.id)
-      if (!asset) return null
-      return {
+    const assetVersions = ((assetResult.data ?? []) as unknown as CatalogAssetRow[])
+      .map(row => ({
         id: row.id,
-        catalogKey: row.catalog_key,
-        contractVersion: row.contract_version,
-        itemKind: row.item_kind,
-        setId: row.set_id,
-        diceType: row.dice_type,
-        rarity: row.rarity,
-        assetVersionId: asset.id,
-      } satisfies CatalogItem
-    })
-    .filter((item): item is CatalogItem => item !== null)
+        catalogItemId: row.catalog_item_id,
+        assetVersion: row.asset_version,
+        assetKind: row.asset_kind,
+        modelPath: row.model_path,
+        modelSha256: row.model_sha256,
+        metadata: row.metadata,
+        metadataSha256: row.metadata_sha256,
+      }) satisfies CatalogAssetVersion)
+    const latestAssetByItemId = indexLatestAssetsByItemId(assetVersions)
 
-  return { contractVersion: 1, items, assetVersions }
+    const items = ((itemResult.data ?? []) as unknown as CatalogItemRow[])
+      .map(row => {
+        const asset = latestAssetByItemId.get(row.id)
+        if (!asset) return null
+        return {
+          id: row.id,
+          catalogKey: row.catalog_key,
+          contractVersion: row.contract_version,
+          itemKind: row.item_kind,
+          setId: row.set_id,
+          diceType: row.dice_type,
+          rarity: row.rarity,
+          assetVersionId: asset.id,
+        } satisfies CatalogItem
+      })
+      .filter((item): item is CatalogItem => item !== null)
+
+    return { contractVersion: 1, items, assetVersions }
+  } catch {
+    return null
+  }
 }
 
 interface EntitlementRow {

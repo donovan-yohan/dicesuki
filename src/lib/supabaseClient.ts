@@ -13,7 +13,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
  * in client env configuration. The service-role key / JWT secret MUST NOT.
  */
 
-function readEnv(key: 'VITE_SUPABASE_URL' | 'VITE_SUPABASE_ANON_KEY'): string | undefined {
+type SupabasePublicEnvKey =
+  | 'VITE_SUPABASE_URL'
+  | 'VITE_SUPABASE_PUBLISHABLE_KEY'
+  | 'VITE_SUPABASE_ANON_KEY'
+
+function readEnv(key: SupabasePublicEnvKey): string | undefined {
   try {
     const value = import.meta.env?.[key]
     return typeof value === 'string' && value.trim() ? value.trim() : undefined
@@ -27,9 +32,9 @@ export function getSupabaseUrl(): string | undefined {
   return readEnv('VITE_SUPABASE_URL')
 }
 
-/** The configured Supabase anon (public) key, or `undefined` when unset. */
-export function getSupabaseAnonKey(): string | undefined {
-  return readEnv('VITE_SUPABASE_ANON_KEY')
+/** The configured public API key, preferring the current publishable-key format. */
+export function getSupabasePublishableKey(): string | undefined {
+  return readEnv('VITE_SUPABASE_PUBLISHABLE_KEY') ?? readEnv('VITE_SUPABASE_ANON_KEY')
 }
 
 /**
@@ -37,7 +42,7 @@ export function getSupabaseAnonKey(): string | undefined {
  * profile features gate on this; when false the app stays in guest mode.
  */
 export function isSupabaseConfigured(): boolean {
-  return Boolean(getSupabaseUrl() && getSupabaseAnonKey())
+  return Boolean(getSupabaseUrl() && getSupabasePublishableKey())
 }
 
 let cachedClient: SupabaseClient | null = null
@@ -50,10 +55,10 @@ export function getSupabaseClient(): SupabaseClient | null {
   if (cachedClient) return cachedClient
 
   const url = getSupabaseUrl()
-  const anonKey = getSupabaseAnonKey()
-  if (!url || !anonKey) return null
+  const publishableKey = getSupabasePublishableKey()
+  if (!url || !publishableKey) return null
 
-  cachedClient = createClient(url, anonKey, {
+  cachedClient = createClient(url, publishableKey, {
     auth: {
       // supabase-js owns token storage/refresh; we never duplicate it.
       persistSession: true,

@@ -17,7 +17,8 @@ is not configured.
 
 ## Graceful degradation (guest mode)
 
-With no `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`:
+With no `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` (or legacy
+`VITE_SUPABASE_ANON_KEY` fallback):
 - `isSupabaseConfigured()` is `false`, `getSupabaseClient()` returns `null`.
 - The auth store starts and stays in `guest` status; all actions are no-ops.
 - `AccountSection` renders nothing, so Settings looks exactly as before.
@@ -111,9 +112,11 @@ exact client-mutable/server-authoritative split.
 ## Owner setup
 
 See the checklist on issue #81 / the PR body. Summary: create a Discord app
-(redirect `https://htsgornelumjyjwknwby.supabase.co/auth/v1/callback`), enable
+(redirect `https://nksxdfcjabgbxeefwkdc.supabase.co/auth/v1/callback`), enable
 the Discord provider in Supabase Auth, apply `0001_profiles.sql`, and set the
-two `VITE_SUPABASE_*` values in `.env.local` and Vercel.
+  `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env.local` and
+  Vercel. The publishable key is public client configuration; never substitute a
+  secret or service-role key.
 
 **Issue #82 adds one setup step:** after `0001_profiles.sql`, apply
 `supabase/migrations/0002_user_data.sql` (`supabase db push`, or paste into the

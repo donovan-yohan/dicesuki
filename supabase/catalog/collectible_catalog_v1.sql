@@ -55,7 +55,12 @@ values
   ('void-crystal/d6/legendary@1', 'void-crystal/d6/legendary', 1, 'die', 'void-crystal', 'd6', 'legendary'),
   ('void-crystal/d8/legendary@1', 'void-crystal/d8/legendary', 1, 'die', 'void-crystal', 'd8', 'legendary')
 
-on conflict do nothing;
+on conflict (id) do update
+set id = excluded.id
+where (catalog_items.catalog_key, catalog_items.contract_version, catalog_items.item_kind,
+       catalog_items.set_id, catalog_items.dice_type, catalog_items.rarity)
+  is distinct from (excluded.catalog_key, excluded.contract_version, excluded.item_kind,
+                    excluded.set_id, excluded.dice_type, excluded.rarity);
 
 insert into public.catalog_asset_versions
   (id, catalog_item_id, asset_version, asset_kind, model_path, model_sha256, metadata, metadata_sha256)
@@ -112,5 +117,13 @@ values
   ('void-crystal/d6/legendary@1/asset@1', 'void-crystal/d6/legendary@1', 1, 'builtin', 'builtin:d6', null, '{"appearance":{"accentColor":"#e9d5ff","baseColor":"#8b5cf6","emissive":"#8b5cf6","emissiveIntensity":0.5,"material":"crystal","metalness":0.1,"roughness":0.05},"description":"Crystalline dice that reflect the infinite depths of the cosmos. Reality bends around them as they tumble.","name":"Void Crystal Collection D6","source":"configured","vfx":{"criticalAnimation":"void-collapse","impactEffect":"reality-crack","rollSound":"crystal_ethereal","trailEffect":"void-particles"}}'::jsonb, '77b2aee148c95e822f95d6e3b1745c26e413cb2063bb8542c49fb1dfd8dc16fe'),
   ('void-crystal/d8/legendary@1/asset@1', 'void-crystal/d8/legendary@1', 1, 'builtin', 'builtin:d8', null, '{"appearance":{"accentColor":"#e9d5ff","baseColor":"#8b5cf6","emissive":"#8b5cf6","emissiveIntensity":0.5,"material":"crystal","metalness":0.1,"roughness":0.05},"description":"Crystalline dice that reflect the infinite depths of the cosmos. Reality bends around them as they tumble.","name":"Void Crystal Collection D8","source":"configured","vfx":{"criticalAnimation":"void-collapse","impactEffect":"reality-crack","rollSound":"crystal_ethereal","trailEffect":"void-particles"}}'::jsonb, '383732dbdb4ddc7ea75aad1221a8450ba115fd820b8b88d212f2871ce03c4832')
 
-on conflict do nothing;
+on conflict (id) do update
+set id = excluded.id
+where (catalog_asset_versions.catalog_item_id, catalog_asset_versions.asset_version,
+       catalog_asset_versions.asset_kind, catalog_asset_versions.model_path,
+       catalog_asset_versions.model_sha256, catalog_asset_versions.metadata,
+       catalog_asset_versions.metadata_sha256)
+  is distinct from (excluded.catalog_item_id, excluded.asset_version, excluded.asset_kind,
+                    excluded.model_path, excluded.model_sha256, excluded.metadata,
+                    excluded.metadata_sha256);
 -- END GENERATED COLLECTIBLE CATALOG V1

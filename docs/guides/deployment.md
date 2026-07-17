@@ -216,7 +216,7 @@ Both features come from ADR 006 and are configured purely via env — no code ch
 ```bash
 # Enable both features (service-role key is a SECRET — inject at runtime only):
 PORT=8090 \
-SUPABASE_URL=https://htsgornelumjyjwknwby.supabase.co \
+SUPABASE_URL=https://nksxdfcjabgbxeefwkdc.supabase.co \
 SUPABASE_SERVICE_ROLE_KEY=<owner-provided-secret> \
 PUBLIC_URL=https://rooms.example.com \
 ./target/release/dicesuki-server

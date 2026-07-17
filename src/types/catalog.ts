@@ -6,6 +6,7 @@ import type {
   DieVFX,
 } from './inventory'
 
+/** Schema version for the bundled catalog snapshot envelope. */
 export const COLLECTIBLE_CATALOG_CONTRACT_VERSION = 1 as const
 export const COLLECTIBLE_CATALOG_ASSET_VERSION = 1 as const
 
@@ -16,7 +17,8 @@ export type CatalogAssetKind = 'builtin' | 'gltf'
 export interface CatalogItem {
   readonly id: string
   readonly catalogKey: string
-  readonly contractVersion: typeof COLLECTIBLE_CATALOG_CONTRACT_VERSION
+  /** Append-only version of this catalog key's identity contract. */
+  readonly contractVersion: number
   readonly itemKind: CatalogItemKind
   readonly setId: string
   readonly diceType: DiceShape
