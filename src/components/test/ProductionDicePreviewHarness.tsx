@@ -1,9 +1,13 @@
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Canvas } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
-import { getDiceFaceValue, type DiceFace } from '../../lib/geometries'
+import type { DiceFace } from '../../lib/geometries'
+import {
+  validateProductionDiceModelFace,
+  type ProductionDiceModelFaceValidation,
+} from '../../lib/productionDiceModelValidation'
 import type { DiceMetadata } from '../../types/customDice'
 
 function toDiceFaces(metadata: DiceMetadata): DiceFace[] {
@@ -39,25 +43,58 @@ function ProductionDiceModel({
   modelUrl,
   metadata,
   face,
+  faceNormals,
+  onValidation,
 }: {
   modelUrl: string
   metadata: DiceMetadata
   face: DiceFace
+  faceNormals: DiceFace[]
+  onValidation: (validation: ModelValidationReport) => void
 }) {
   const gltf = useGLTF(modelUrl)
   const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene])
-  const rotation = useMemo(() => rotationFromFaceToCamera(face), [face])
+  const validation = useMemo<ModelValidationReport>(() => {
+    try {
+      return { result: validateProductionDiceModelFace(scene, face, faceNormals) }
+    } catch (validationError) {
+      return {
+        error: validationError instanceof Error
+          ? validationError.message
+          : 'Failed to validate GLB model geometry',
+      }
+    }
+  }, [face, faceNormals, scene])
+  const rotation = useMemo(
+    () => validation.result
+      ? rotationFromFaceToCamera({ ...face, normal: validation.result.modelNormal })
+      : new THREE.Euler(),
+    [face, validation],
+  )
+
+  useEffect(() => {
+    onValidation(validation)
+  }, [onValidation, validation])
+
+  if (!validation.result) return null
 
   return <primitive object={scene} rotation={rotation} scale={metadata.scale} />
+}
+
+interface ModelValidationReport {
+  result?: ProductionDiceModelFaceValidation
+  error?: string
 }
 
 export default function ProductionDicePreviewHarness() {
   const [searchParams] = useSearchParams()
   const setId = searchParams.get('set') || 'fantasy-set'
   const diceId = searchParams.get('dice') || 'emerald-d20'
-  const requestedFaceValue = Number(searchParams.get('faceValue') || '0')
+  const faceValueParam = searchParams.get('faceValue')
+  const requestedFaceValue = faceValueParam === null ? Number.NaN : Number(faceValueParam)
   const [metadata, setMetadata] = useState<DiceMetadata | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [modelValidation, setModelValidation] = useState<ModelValidationReport | null>(null)
 
   const metadataUrl = `/dice/${setId}/${diceId}/metadata.json`
   const modelUrl = `/dice/${setId}/${diceId}/model.glb`
@@ -66,6 +103,7 @@ export default function ProductionDicePreviewHarness() {
     let mounted = true
     setMetadata(null)
     setError(null)
+    setModelValidation(null)
 
     fetch(metadataUrl)
       .then((response) => {
@@ -88,29 +126,34 @@ export default function ProductionDicePreviewHarness() {
     }
   }, [metadataUrl])
 
+  useEffect(() => {
+    setModelValidation(null)
+  }, [requestedFaceValue])
+
   const faceNormals = useMemo(() => metadata ? toDiceFaces(metadata) : [], [metadata])
-  const face = useMemo(() => {
-    if (faceNormals.length === 0) return null
-    return faceNormals.find((candidate) => candidate.value === requestedFaceValue) ?? faceNormals[faceNormals.length - 1]
-  }, [faceNormals, requestedFaceValue])
+  const face = useMemo(
+    () => faceNormals.find((candidate) => candidate.value === requestedFaceValue) ?? null,
+    [faceNormals, requestedFaceValue],
+  )
+  const handleModelValidation = useCallback((validation: ModelValidationReport) => {
+    setModelValidation(validation)
+  }, [])
+  const requestedFaceError = !Number.isInteger(requestedFaceValue)
+    ? 'faceValue must be an explicit integer'
+    : metadata && !face
+      ? `Requested face ${requestedFaceValue} is missing from ${setId}/${diceId} metadata`
+      : null
+  const proofError = error ?? requestedFaceError ?? modelValidation?.error ?? null
 
-  const reportedValue = useMemo(() => {
-    if (!metadata || !face) return null
-    const readingTarget = metadata.diceType === 'd4'
-      ? new THREE.Vector3(0, -1, 0)
-      : new THREE.Vector3(0, 1, 0)
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(
-      face.normal.clone().normalize(),
-      readingTarget,
+  if (proofError) {
+    return (
+      <div data-testid="production-dice-preview" style={{ padding: 24, background: '#111827', color: '#f9fafb' }}>
+        Error: <span data-testid="production-dice-preview-error">{proofError}</span>
+      </div>
     )
-    return getDiceFaceValue(quaternion, metadata.diceType, faceNormals)
-  }, [face, faceNormals, metadata])
-
-  if (error) {
-    return <div data-testid="production-dice-preview">Error: {error}</div>
   }
 
-  if (!metadata || !face || reportedValue === null) {
+  if (!metadata || !face) {
     return (
       <div
         data-testid="production-dice-preview"
@@ -126,8 +169,11 @@ export default function ProductionDicePreviewHarness() {
       <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, color: '#f8fafc', fontFamily: 'monospace', fontSize: 14, lineHeight: 1.5 }}>
         <div data-testid="production-dice-id">{setId}/{diceId}</div>
         <div data-testid="production-dice-type">{metadata.diceType}</div>
-        <div data-testid="expected-value">{face.value}</div>
-        <div data-testid="reported-value">{reportedValue}</div>
+        <div data-testid="requested-value">{requestedFaceValue}</div>
+        <div data-testid="model-face-value">{modelValidation?.result?.matchedValue ?? 'validating'}</div>
+        <div data-testid="model-face-alignment">{modelValidation?.result?.alignment.toFixed(4) ?? 'validating'}</div>
+        <div data-testid="model-face-uv-triangles">{modelValidation?.result?.uvTriangleCount ?? 'validating'}</div>
+        <div data-testid="validation-status">{modelValidation?.result ? 'validated' : 'validating'}</div>
       </div>
       <Canvas camera={{ position: [0, 0, 3], fov: 36, near: 0.1, far: 100 }}>
         <color attach="background" args={['#0f172a']} />
@@ -135,7 +181,13 @@ export default function ProductionDicePreviewHarness() {
         <directionalLight position={[1.8, 2.2, 3]} intensity={1.6} />
         <directionalLight position={[-2, -1, 2]} intensity={0.45} />
         <Suspense fallback={null}>
-          <ProductionDiceModel modelUrl={modelUrl} metadata={metadata} face={face} />
+          <ProductionDiceModel
+            modelUrl={modelUrl}
+            metadata={metadata}
+            face={face}
+            faceNormals={faceNormals}
+            onValidation={handleModelValidation}
+          />
         </Suspense>
       </Canvas>
     </div>

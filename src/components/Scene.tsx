@@ -23,6 +23,7 @@ import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
 // Utilities
 import { formatBonus } from '../lib/diceHelpers'
 import { detectRenderDeviceTier } from '../lib/deviceDetection'
+import { applyThemedSceneEnvironment } from '../lib/themedSceneEnvironment'
 import {
   type DiceRenderContext,
   type RenderDeviceTier,
@@ -168,15 +169,7 @@ function ThemedBackground() {
   })
 
   useEffect(() => {
-    const sceneBackground = colorMap ?? new THREE.Color(background.color)
-    if (colorMap) colorMap.mapping = THREE.EquirectangularReflectionMapping
-    scene.background = sceneBackground
-    if (colorMap) scene.environment = colorMap
-
-    return () => {
-      if (scene.background === sceneBackground) scene.background = null
-      if (scene.environment === colorMap) scene.environment = null
-    }
+    return applyThemedSceneEnvironment(scene, background.color, colorMap)
   }, [background.color, colorMap, scene])
 
   return null

@@ -55,13 +55,23 @@ const PREVIEW_CASES = [
 
 test.describe('production dice preview fixtures', () => {
   for (const previewCase of PREVIEW_CASES) {
-    test(`${previewCase.set}/${previewCase.dice} face ${previewCase.faceValue} matches face reader`, async ({ page }) => {
+    test(`${previewCase.set}/${previewCase.dice} face ${previewCase.faceValue} matches GLB geometry and UVs`, async ({ page }) => {
       await page.goto(`/test/production-dice-preview?set=${previewCase.set}&dice=${previewCase.dice}&faceValue=${previewCase.faceValue}`)
       await page.waitForSelector('[data-testid="production-dice-preview"]')
       await page.waitForSelector('canvas')
 
-      await expect(page.locator('[data-testid="expected-value"]')).toHaveText(String(previewCase.faceValue))
-      await expect(page.locator('[data-testid="reported-value"]')).toHaveText(String(previewCase.faceValue))
+      await expect(page.locator('[data-testid="validation-status"]')).toHaveText('validated')
+      await expect(page.locator('[data-testid="requested-value"]')).toHaveText(String(previewCase.faceValue))
+      await expect(page.locator('[data-testid="model-face-value"]')).toHaveText(String(previewCase.faceValue))
+      await expect(page.locator('[data-testid="model-face-uv-triangles"]')).not.toHaveText('0')
     })
   }
+
+  test('fails closed when the requested face is absent', async ({ page }) => {
+    await page.goto('/test/production-dice-preview?set=cozy-forest-imagegen-set&dice=acorn-compass-d10&faceValue=99')
+
+    await expect(page.locator('[data-testid="production-dice-preview-error"]'))
+      .toContainText('Requested face 99 is missing')
+    await expect(page.locator('canvas')).toHaveCount(0)
+  })
 })

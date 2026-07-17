@@ -3,7 +3,7 @@ import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from 'playwright'
 
-const baseUrl = process.env.DICESUKI_BASE_URL ?? 'http://100.77.36.51:38173'
+const baseUrl = process.env.DICESUKI_BASE_URL ?? 'http://127.0.0.1:4173'
 const captureScope = process.env.CAPTURE_SCOPE ?? 'all'
 const captureTheme = process.env.CAPTURE_THEME
 const captureDiceId = process.env.CAPTURE_DICE_ID
@@ -88,9 +88,10 @@ try {
       const url = `${baseUrl}/test/production-dice-preview?set=${theme.setId}&dice=${diceId}&faceValue=${faceValue}`
       await page.goto(url, { waitUntil: 'networkidle' })
       await page.waitForFunction(() => {
-        const expected = document.querySelector('[data-testid="expected-value"]')?.textContent
-        const reported = document.querySelector('[data-testid="reported-value"]')?.textContent
-        return Boolean(expected && reported && expected === reported)
+        const requested = document.querySelector('[data-testid="requested-value"]')?.textContent
+        const modelFace = document.querySelector('[data-testid="model-face-value"]')?.textContent
+        const status = document.querySelector('[data-testid="validation-status"]')?.textContent
+        return Boolean(requested && modelFace && requested === modelFace && status === 'validated')
       })
       if (pageErrors.length > 0) throw new Error(`${url}: ${pageErrors.join('; ')}`)
 

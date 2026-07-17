@@ -23,15 +23,16 @@ try {
     await page.locator('canvas').waitFor()
     await page.waitForTimeout(1200)
 
-    const expected = await page.locator('[data-testid="expected-value"]').textContent()
-    const reported = await page.locator('[data-testid="reported-value"]').textContent()
-    if (expected !== String(faceValue) || reported !== String(faceValue)) {
-      throw new Error(`Face ${faceValue} mismatch: expected=${expected}, reported=${reported}`)
+    const requested = await page.locator('[data-testid="requested-value"]').textContent()
+    const modelFace = await page.locator('[data-testid="model-face-value"]').textContent()
+    const status = await page.locator('[data-testid="validation-status"]').textContent()
+    if (requested !== String(faceValue) || modelFace !== String(faceValue) || status !== 'validated') {
+      throw new Error(`Face ${faceValue} mismatch: requested=${requested}, modelFace=${modelFace}, status=${status}`)
     }
 
     const outputPath = path.join(outputDir, `aurelian-imagegen-d20-face${faceValue}.png`)
     await page.screenshot({ path: outputPath })
-    console.log(`Captured face ${faceValue}: expected=${expected} reported=${reported} -> ${path.relative(process.cwd(), outputPath)}`)
+    console.log(`Captured face ${faceValue}: requested=${requested} modelFace=${modelFace} -> ${path.relative(process.cwd(), outputPath)}`)
   }
 } finally {
   await browser.close()
