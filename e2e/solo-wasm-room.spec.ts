@@ -37,6 +37,33 @@ for (const colorScheme of ['light', 'dark'] as const) {
   })
 }
 
+test('renders the d and e wordmark counters as transparent pixels', async ({ page }) => {
+  await page.goto('/')
+
+  const counterPixels = await page.evaluate(async () => {
+    const image = new Image()
+    image.src = '/brand/dicesuki-wordmark.svg'
+    await image.decode()
+
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Canvas 2D context is unavailable')
+    context.drawImage(image, 0, 0)
+
+    return [
+      [...context.getImageData(169, 295, 1, 1).data],
+      [...context.getImageData(829, 262, 1, 1).data],
+    ]
+  })
+
+  expect(counterPixels).toEqual([
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+  ])
+})
+
 test('loads a connected solo room on / with no native server and no network room socket', async ({
   page,
 }) => {
