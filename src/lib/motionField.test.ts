@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 
 import {
+  combineMotionFields,
   computeMotionField,
+  computeTiltGravityCorrection,
   dynamicAccelFromTotal,
   initialGravityEstimate,
   motionFieldMagnitude,
@@ -37,6 +39,53 @@ describe('computeMotionField', () => {
     const a = computeMotionField({ x: 3, y: 0, z: 0 }, 10, 1)
     const b = computeMotionField({ x: 3, y: 0, z: 0 }, 20, 1)
     expect(b[0]).toBeCloseTo(a[0] * 2, 5)
+  })
+})
+
+describe('computeTiltGravityCorrection', () => {
+  const GRAVITY = -240
+
+  it('is zero when the phone is flat or inside the tilt deadzone', () => {
+    expect(computeTiltGravityCorrection({ beta: 0, gamma: 0 }, GRAVITY, 2))
+      .toEqual([0, 0, 0])
+    expect(computeTiltGravityCorrection({ beta: 1, gamma: 0 }, GRAVITY, 2))
+      .toEqual([0, 0, 0])
+  })
+
+  it('redirects gravity toward all four horizontal tilt directions', () => {
+    const forward = computeTiltGravityCorrection({ beta: 90, gamma: 0 }, GRAVITY, 2)
+    const backward = computeTiltGravityCorrection({ beta: -90, gamma: 0 }, GRAVITY, 2)
+    const right = computeTiltGravityCorrection({ beta: 0, gamma: 90 }, GRAVITY, 2)
+    const left = computeTiltGravityCorrection({ beta: 0, gamma: -90 }, GRAVITY, 2)
+
+    expect(forward[0]).toBeCloseTo(0, 10)
+    expect(forward[1]).toBeCloseTo(240, 10)
+    expect(forward[2]).toBeCloseTo(240, 10)
+    expect(backward[0]).toBeCloseTo(0, 10)
+    expect(backward[1]).toBeCloseTo(240, 10)
+    expect(backward[2]).toBeCloseTo(-240, 10)
+    expect(right[0]).toBeCloseTo(240, 10)
+    expect(right[1]).toBeCloseTo(240, 10)
+    expect(right[2]).toBeCloseTo(0, 10)
+    expect(left[0]).toBeCloseTo(-240, 10)
+    expect(left[1]).toBeCloseTo(240, 10)
+    expect(left[2]).toBeCloseTo(0, 10)
+  })
+
+  it('uses a correction that preserves the authoritative gravity magnitude', () => {
+    const correction = computeTiltGravityCorrection({ beta: 30, gamma: 20 }, GRAVITY, 2)
+    const effective = [correction[0], GRAVITY + correction[1], correction[2]]
+    expect(Math.hypot(...effective)).toBeCloseTo(Math.abs(GRAVITY), 8)
+  })
+
+  it('composes persistent tilt with the more-sensitive acceleration field', () => {
+    const tilt = computeTiltGravityCorrection({ beta: 30, gamma: 0 }, GRAVITY, 2)
+    const movement = computeMotionField({ x: 0.5, y: 0, z: 0 }, 40, 0.35)
+    expect(combineMotionFields(tilt, movement)).toEqual([
+      -20,
+      tilt[1],
+      tilt[2],
+    ])
   })
 })
 

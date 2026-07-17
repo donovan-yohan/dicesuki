@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { DeviceMotionButton } from './DeviceMotionButton'
 import { DeviceMotionProvider } from '../contexts/DeviceMotionProvider'
@@ -7,9 +7,15 @@ type DeviceMotionEventWithPermission = typeof DeviceMotionEvent & {
   requestPermission?: () => Promise<'granted' | 'denied'>
 }
 
+type DeviceOrientationEventWithPermission = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<'granted' | 'denied'>
+}
+
 const motionGlobal = globalThis as unknown as {
   DeviceMotionEvent: DeviceMotionEventWithPermission | undefined
+  DeviceOrientationEvent: DeviceOrientationEventWithPermission | undefined
 }
+const originalDeviceOrientationEvent = motionGlobal.DeviceOrientationEvent
 
 const mutableDeviceMotionEvent = () => DeviceMotionEvent as DeviceMotionEventWithPermission
 
@@ -25,6 +31,13 @@ const renderWithProvider = (component: React.ReactElement) => {
 describe('DeviceMotionButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Existing button tests isolate the DeviceMotion permission path. Orientation
+    // permission has its own hook-level coverage and must not auto-grant in jsdom.
+    motionGlobal.DeviceOrientationEvent = undefined
+  })
+
+  afterAll(() => {
+    motionGlobal.DeviceOrientationEvent = originalDeviceOrientationEvent
   })
 
   describe('unsupported devices', () => {
@@ -32,12 +45,12 @@ describe('DeviceMotionButton', () => {
       // Mock unsupported device
       const originalDeviceMotionEvent = motionGlobal.DeviceMotionEvent
       motionGlobal.DeviceMotionEvent = undefined
-
-      renderWithProvider(<DeviceMotionButton />)
-
-      expect(screen.queryByRole('button')).not.toBeInTheDocument()
-
-      motionGlobal.DeviceMotionEvent = originalDeviceMotionEvent
+      try {
+        renderWithProvider(<DeviceMotionButton />)
+        expect(screen.queryByRole('button')).not.toBeInTheDocument()
+      } finally {
+        motionGlobal.DeviceMotionEvent = originalDeviceMotionEvent
+      }
     })
   })
 

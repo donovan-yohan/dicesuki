@@ -4,7 +4,7 @@ import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useUIStore } from '../../store/useUIStore'
 
 /**
- * In-room hint explaining why a shake is (or isn't) doing anything, so motion is
+ * In-room hint explaining why tilt/shake is (or isn't) doing anything, so motion is
  * never silently dead. Rendered only in the multiplayer/room branch of the Scene
  * and only once the local player has opted into motion (the Bottom Nav motion
  * toggle, which also runs the iOS permission flow).
@@ -15,7 +15,7 @@ import { useUIStore } from '../../store/useUIStore'
  * - permission not yet granted (`prompt` — tap the motion toggle).
  *
  * When permission is granted and the policy allows motion, no hint is shown —
- * shaking just works. Reuses the muted read-only hint styling from PlayerPanel.
+ * tilting and shaking just work. Reuses the muted read-only hint styling from PlayerPanel.
  */
 export function RoomMotionHint() {
   const { isSupported, permissionState } = useDeviceMotionState()
@@ -32,12 +32,12 @@ export function RoomMotionHint() {
   let tone: 'muted' | 'warning' = 'muted'
 
   if (motionControl === 'off') {
-    message = 'Shake-to-roll is off for this room'
+    message = 'Tilt and shake controls are off for this room'
   } else if (permissionState === 'denied') {
     message = 'Motion blocked — enable it in your device Settings'
     tone = 'warning'
   } else if (permissionState === 'prompt') {
-    message = 'Tap the motion button to enable shake-to-roll'
+    message = 'Tap the motion button to enable tilt and shake controls'
   }
 
   if (!message) return null

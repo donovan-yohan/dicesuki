@@ -286,8 +286,8 @@ export function setRoomName(settings: RoomSettings, name: string): RoomSettings 
 
 /**
  * Continuous device-motion field (Shared-ADR-010). `field` is a world-space
- * acceleration (engine U/s²) — the "shake your dice box" pseudo-force — the server
- * applies each tick to the dice the sender may affect under the room's
+ * acceleration (engine U/s²) — fused tilt correction plus shake pseudo-force —
+ * the server applies each tick to the dice the sender may affect under the room's
  * `motionControl` policy. Latched with a staleness timeout and magnitude-clamped
  * server-side. Streamed while motion is engaged; a single zero field stops it.
  */

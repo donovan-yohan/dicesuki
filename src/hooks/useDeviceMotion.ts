@@ -3,11 +3,15 @@ import {
   MOTION_ACCEL_SCALE,
   MOTION_DEADZONE,
   MOTION_GRAVITY_LOWPASS,
+  MOTION_TILT_DEADZONE_DEG,
   SHAKE_THRESHOLD,
   SHAKE_DURATION,
 } from '../config/physicsConfig'
+import { getEngineConfig } from '../config/engineConfig'
 import {
+  combineMotionFields,
   computeMotionField,
+  computeTiltGravityCorrection,
   dynamicAccelFromTotal,
   initialGravityEstimate,
   type GravityEstimate,
@@ -21,14 +25,19 @@ type DeviceMotionEventWithPermission = typeof DeviceMotionEvent & {
   requestPermission?: () => Promise<PermissionState>
 }
 
+type DeviceOrientationEventWithPermission = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<PermissionState>
+}
+
 export interface DeviceMotionState {
   isSupported: boolean
   permissionState: PermissionState
   isShaking: boolean
   /**
    * Real-time device-motion FIELD for physics (updated per sensor event, no React
-   * re-renders): the "shake your dice box" pseudo-force in engine units (U/s²),
-   * world space. `[0, 0, 0]` when the phone is still. Streamed to the room by
+   * re-renders): the per-player gravity correction plus shake pseudo-force in engine units (U/s²),
+   * world space. It combines fused-orientation tilt with linear acceleration and
+   * is `[0, 0, 0]` when the phone is flat and still. Streamed to the room by
    * `MultiplayerMotionController` and applied to the local player's own dice
    * (Shared-ADR-010).
    */
@@ -43,26 +52,31 @@ export interface DeviceMotionState {
  *
  * Handles:
  * - iOS permission flow (requestPermission API) / Android auto-permission
- * - A continuous per-die motion field from the phone's LINEAR acceleration
+ * - A continuous per-die motion field from fused orientation and linear acceleration
  * - Shake detection for UI feedback only
  *
  * Physics model (Shared-ADR-010):
  * The phone is a non-inertial reference frame. When the phone accelerates, the dice
  * in the box experience a pseudo-force opposite to that acceleration ("dice sliding
- * in a shaking cup"). We map only that LINEAR acceleration to the field — never the
- * static tilt/gravity direction — so a still or statically-tilted phone yields a
- * zero field and the dice settle. The field is applied per-player to that player's
- * own dice by the room; world gravity is never changed.
+ * in a shaking cup"). Fused orientation redirects gravity for the sender's dice while
+ * linear acceleration adds the opposite pseudo-force. The field is applied per-player
+ * to that player's own dice by the room; shared world gravity is never changed.
  */
 export function useDeviceMotion(): DeviceMotionState {
-  const [isSupported] = useState(typeof DeviceMotionEvent !== 'undefined')
+  const [isSupported] = useState(
+    typeof DeviceMotionEvent !== 'undefined' || typeof DeviceOrientationEvent !== 'undefined'
+  )
   const [permissionState, setPermissionState] = useState<PermissionState>(
-    typeof DeviceMotionEvent !== 'undefined' ? 'prompt' : 'unsupported'
+    typeof DeviceMotionEvent !== 'undefined' || typeof DeviceOrientationEvent !== 'undefined'
+      ? 'prompt'
+      : 'unsupported'
   )
   const [isShaking, setIsShaking] = useState(false)
 
   // Real-time refs read by physics/UI without triggering React re-renders.
   const motionFieldRef = useRef<MotionField>([0, 0, 0])
+  const accelerationFieldRef = useRef<MotionField>([0, 0, 0])
+  const tiltFieldRef = useRef<MotionField>([0, 0, 0])
   const isShakingRef = useRef<boolean>(false)
   // Gravity low-pass state for the accelerationIncludingGravity fallback (used only
   // when the device leaves the gravity-removed linear channel null).
@@ -71,8 +85,8 @@ export function useDeviceMotion(): DeviceMotionState {
   const shakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /**
-   * Request device motion permission.
-   * iOS 13+ requires this from a user gesture; Android grants automatically.
+   * Request motion and fused-orientation permission from the same user gesture.
+   * Either channel may remain unavailable; the granted channel still works.
    */
   const requestPermission = useCallback(async () => {
     if (!isSupported) {
@@ -81,14 +95,28 @@ export function useDeviceMotion(): DeviceMotionState {
     }
 
     try {
-      const motionEvent = DeviceMotionEvent as DeviceMotionEventWithPermission
-      if (typeof motionEvent.requestPermission === 'function') {
-        const response = await motionEvent.requestPermission()
-        setPermissionState(response)
-      } else {
-        // Android or older iOS — permission granted automatically.
-        setPermissionState('granted')
+      const requests: Array<Promise<PermissionState>> = []
+
+      if (typeof DeviceMotionEvent !== 'undefined') {
+        const motionEvent = DeviceMotionEvent as DeviceMotionEventWithPermission
+        requests.push(
+          typeof motionEvent.requestPermission === 'function'
+            ? motionEvent.requestPermission().catch(() => 'denied')
+            : Promise.resolve('granted')
+        )
       }
+
+      if (typeof DeviceOrientationEvent !== 'undefined') {
+        const orientationEvent = DeviceOrientationEvent as DeviceOrientationEventWithPermission
+        requests.push(
+          typeof orientationEvent.requestPermission === 'function'
+            ? orientationEvent.requestPermission().catch(() => 'denied')
+            : Promise.resolve('granted')
+        )
+      }
+
+      const responses = await Promise.all(requests)
+      setPermissionState(responses.includes('granted') ? 'granted' : 'denied')
     } catch (error) {
       console.error('Error requesting device motion permission:', error)
       setPermissionState('denied')
@@ -96,18 +124,33 @@ export function useDeviceMotion(): DeviceMotionState {
   }, [isSupported])
 
   /**
-   * Listen for device-motion events: derive the continuous field and detect shakes.
+   * Listen for motion and orientation events and compose their continuous field.
    */
   useEffect(() => {
     if (permissionState !== 'granted') return
 
+    const publishCombinedField = () => {
+      motionFieldRef.current = combineMotionFields(
+        accelerationFieldRef.current,
+        tiltFieldRef.current
+      )
+    }
+
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      const gravity = getEngineConfig()?.gravity
+      tiltFieldRef.current = gravity === undefined
+        ? [0, 0, 0]
+        : computeTiltGravityCorrection(event, gravity, MOTION_TILT_DEADZONE_DEG)
+      publishCombinedField()
+    }
+
     const handleMotion = (event: DeviceMotionEvent) => {
-      // Linear acceleration (gravity removed) drives the "shake the box" field.
+      // Linear acceleration (gravity removed) drives the movement term.
       // Prefer the sensor's gravity-removed channel; when a device leaves it null
       // (common on Android), recover the movement acceleration by high-passing
       // accelerationIncludingGravity (a running gravity estimate absorbs the static
       // tilt). The pure mapping/derivation lives in motionField.ts so it stays
-      // testable and free of the static tilt term.
+      // testable and independent from the fused-orientation tilt term.
       let linear: SensorAcceleration | null | undefined = event.acceleration
       const hasLinear =
         !!linear && (linear.x !== null || linear.y !== null || linear.z !== null)
@@ -120,11 +163,12 @@ export function useDeviceMotion(): DeviceMotionState {
         gravityEstimateRef.current = derived.gravity
         linear = derived.linear
       }
-      motionFieldRef.current = computeMotionField(
+      accelerationFieldRef.current = computeMotionField(
         linear,
         MOTION_ACCEL_SCALE,
         MOTION_DEADZONE
       )
+      publishCombinedField()
 
       // Shake detection (UI feedback only) uses total acceleration magnitude.
       const accelTotal = event.accelerationIncludingGravity
@@ -151,15 +195,19 @@ export function useDeviceMotion(): DeviceMotionState {
     }
 
     window.addEventListener('devicemotion', handleMotion)
+    window.addEventListener('deviceorientation', handleOrientation)
 
     return () => {
       window.removeEventListener('devicemotion', handleMotion)
+      window.removeEventListener('deviceorientation', handleOrientation)
       if (shakeTimeoutRef.current) {
         clearTimeout(shakeTimeoutRef.current)
       }
       // Drop any residual field (and gravity estimate) so a re-grant doesn't
       // resume a stale push or a stale gravity baseline.
       motionFieldRef.current = [0, 0, 0]
+      accelerationFieldRef.current = [0, 0, 0]
+      tiltFieldRef.current = [0, 0, 0]
       gravityEstimateRef.current = initialGravityEstimate()
     }
   }, [permissionState])

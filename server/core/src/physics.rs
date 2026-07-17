@@ -318,9 +318,9 @@ pub const MAX_THROW_SPEED: f32 = 156.25;
 pub const MAX_DICE_VELOCITY: f32 = 218.75;
 
 /// Maximum magnitude (U/s²) of a per-player device-motion field — the continuous
-/// "shake your dice box" acceleration applied each tick to the sender's own dice
-/// (Shared-ADR-010). It is the non-inertial pseudo-force of the player's dice box
-/// (the negated hand acceleration), applied mass-scaled via
+/// tilt-and-shake acceleration applied each tick to the sender's own dice
+/// (Shared-ADR-010). It combines a per-die gravity-direction correction with the
+/// dice box's non-inertial pseudo-force (negated hand acceleration), applied via
 /// [`PhysicsWorld::apply_velocity_impulse`] as `field × `[`TICK_DT`] each tick so
 /// every die type gains the same velocity. Every incoming field is clamped to this
 /// length so a miscalibrated/malicious client cannot fling dice; the per-tick

@@ -502,7 +502,7 @@ impl Room {
     }
 
     /// Latch `player_id`'s device-motion field (Shared-ADR-010): the continuous
-    /// "shake your dice box" acceleration (U/s², world space) applied every tick to
+    /// tilt-and-shake acceleration (U/s², world space) applied every tick to
     /// the dice the sender may affect under the room's `motionControl` policy. The
     /// field is clamped to `MOTION_FIELD_MAX_ACCEL` and stored on the player;
     /// [`Room::apply_motion_forces`] integrates it each tick until a new field
@@ -551,8 +551,10 @@ impl Room {
     ///
     /// For each player whose field is non-zero and fresher than
     /// `MOTION_FIELD_STALE_MS`, applies `field × `[`TICK_DT`] as a mass-scaled
-    /// velocity delta to the dice they may affect under `can_apply_motion`, and
-    /// re-wakes any settled die it pushes so its authoritative face re-detects.
+    /// velocity delta to the dice they may affect under `can_apply_motion`.
+    /// Settled dice are re-woken later by [`Room::wake_knocked_dice`] only after
+    /// physics proves that the field actually moved or tipped them. This matters
+    /// for persistent tilt: a supported die must be allowed to remain settled.
     fn apply_motion_forces(&mut self) {
         let now = Instant::now();
         let stale = Duration::from_millis(MOTION_FIELD_STALE_MS);
@@ -574,23 +576,17 @@ impl Room {
 
         for (player_id, field) in active {
             let delta_v = [field[0] * TICK_DT, field[1] * TICK_DT, field[2] * TICK_DT];
-            let target_ids: Vec<String> = self.dice.iter()
+            let target_ids: Vec<String> = self
+                .dice
+                .iter()
                 .filter(|(_, die)| self.can_apply_motion(&player_id, die))
                 .map(|(id, _)| id.clone())
                 .collect();
 
             for die_id in &target_ids {
-                if let Some(die) = self.dice.get_mut(die_id) {
+                if let Some(die) = self.dice.get(die_id) {
                     if let Some(handle) = die.body_handle {
                         self.physics.apply_velocity_impulse(handle, delta_v);
-                    }
-                    // A settled die the field pushes must re-enter the settle
-                    // pipeline so its authoritative face re-detects and rebroadcasts.
-                    if !die.is_rolling {
-                        die.is_rolling = true;
-                        die.face_value = None;
-                        die.rest_start_tick = None;
-                        die.settled_rotation = None;
                     }
                 }
             }
@@ -2735,6 +2731,23 @@ mod tests {
             room.physics.get_linear_speed(d2) < 1e-6,
             "another player's die must be untouched under own_dice"
         );
+
+        // Reverse the sender to prove the ownership boundary is per player, not a
+        // one-off special case for p1.
+        room.physics.set_linear_velocity(d1, [0.0, 0.0, 0.0]);
+        room.physics.set_linear_velocity(d2, [0.0, 0.0, 0.0]);
+        room.set_motion_field("p1", [0.0, 0.0, 0.0]).unwrap();
+        room.set_motion_field("p2", [0.0, 0.0, 500.0]).unwrap();
+        room.apply_motion_forces();
+
+        assert!(
+            room.physics.get_linear_speed(d1) < 1e-6,
+            "p1's die must be untouched by p2's field"
+        );
+        assert!(
+            room.physics.get_linear_speed(d2) > 0.0,
+            "p2's own die must be pushed by p2's field"
+        );
         assert!(room.is_simulating, "a live field wakes the room");
     }
 
@@ -2755,11 +2768,12 @@ mod tests {
         assert!(room.physics.get_linear_speed(d2) > 0.0);
     }
 
-    /// A settled die pushed by the field re-enters the settle pipeline so its
-    /// authoritative face re-detects and rebroadcasts.
+    /// A settled die is not eagerly invalidated merely because a persistent field
+    /// exists. It re-enters the settle pipeline only after physics proves the field
+    /// actually moved it beyond the normal knock threshold.
     #[test]
-    fn test_motion_field_rewakes_settled_die() {
-        let mut room = make_two_player_room_with_dice();
+    fn test_motion_field_rewakes_settled_die_after_actual_motion() {
+        let mut room = make_two_player_room_with_physics_dice();
         set_motion_control(&mut room, MotionControl::OwnDice);
         {
             let die = room.dice.get_mut("d1").unwrap();
@@ -2769,11 +2783,29 @@ mod tests {
             die.settled_rotation = Some(die.rotation);
         }
 
-        room.set_motion_field("p1", [500.0, 0.0, 0.0]).unwrap();
+        room.set_motion_field("p1", [2000.0, 0.0, 0.0]).unwrap();
         room.apply_motion_forces();
 
-        assert!(room.dice["d1"].is_rolling, "field must re-wake a settled die");
-        assert!(room.dice["d1"].face_value.is_none(), "a re-woken die clears its face");
+        assert!(
+            !room.dice["d1"].is_rolling,
+            "field presence alone must not churn a settled face"
+        );
+        assert_eq!(room.dice["d1"].face_value, Some(3));
+
+        let knocked = room.wake_knocked_dice();
+
+        assert!(
+            knocked.iter().any(|(id, _)| id == "d1"),
+            "real movement must knock the die awake"
+        );
+        assert!(
+            room.dice["d1"].is_rolling,
+            "field must re-wake a settled die"
+        );
+        assert!(
+            room.dice["d1"].face_value.is_none(),
+            "a re-woken die clears its face"
+        );
     }
 
     /// A stale field (no update within `MOTION_FIELD_STALE_MS`) stops being applied,

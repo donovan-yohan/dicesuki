@@ -3,10 +3,10 @@
  *
  * The room applies a continuous per-die acceleration — the non-inertial
  * pseudo-force of the player's "dice box" — to the sender's own dice each tick.
- * This maps the phone's LINEAR acceleration (gravity removed) to that field in
- * engine units. It deliberately ignores the static tilt/gravity direction, so a
- * still or statically-tilted phone yields a zero field: it is "shake the box," not
- * "tilt changes gravity."
+ * This combines the phone's LINEAR acceleration with a gravity-direction
+ * correction derived from fused device orientation. Both terms travel through the
+ * same per-player field, so tilt and shake remain scoped to the sender's dice and
+ * never mutate the room's shared world gravity.
  */
 
 /** World-space acceleration `[x, y, z]` (engine U/s²) sent as `motion_field`. */
@@ -17,6 +17,12 @@ export interface SensorAcceleration {
   x: number | null
   y: number | null
   z: number | null
+}
+
+/** Fused device orientation angles from `DeviceOrientationEvent`. */
+export interface SensorOrientation {
+  beta: number | null
+  gamma: number | null
 }
 
 /** Magnitude of a motion field vector. */
@@ -55,6 +61,52 @@ export function computeMotionField(
   return [-ax * scale, -az * scale, ay * scale]
 }
 
+/** Add independently-derived tilt and linear-acceleration field terms. */
+export function combineMotionFields(a: MotionField, b: MotionField): MotionField {
+  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+/**
+ * Convert fused device orientation into the per-die correction that redirects
+ * the room's normal downward gravity toward the phone's physical down direction.
+ *
+ * `beta` and `gamma` follow the Device Orientation specification's intrinsic
+ * Z-X'-Y'' rotations. Alpha is irrelevant to gravity. The resulting device-frame
+ * gravity direction is mapped through the same device-to-world axes as linear
+ * acceleration. Subtracting the shared `[0, gravity, 0]` vector makes a flat phone
+ * produce exactly zero while a 90-degree tilt cancels downward gravity and replaces
+ * it horizontally for only the targeted dice.
+ */
+export function computeTiltGravityCorrection(
+  orientation: SensorOrientation | null | undefined,
+  gravity: number,
+  deadzoneDegrees: number,
+): MotionField {
+  if (!orientation || orientation.beta === null || orientation.gamma === null) {
+    return [0, 0, 0]
+  }
+
+  const beta = orientation.beta * Math.PI / 180
+  const gamma = orientation.gamma * Math.PI / 180
+
+  // Unit gravity direction in the device's natural (normally portrait) frame.
+  const deviceX = -Math.cos(beta) * Math.sin(gamma)
+  const deviceY = Math.sin(beta)
+  const deviceZ = Math.cos(beta) * Math.cos(gamma)
+  const tiltAngle = Math.acos(Math.max(-1, Math.min(1, deviceZ)))
+  const deadzone = Math.max(0, deadzoneDegrees) * Math.PI / 180
+  if (tiltAngle <= deadzone) return [0, 0, 0]
+
+  const magnitude = Math.abs(gravity)
+  const desired: MotionField = [
+    -deviceX * magnitude,
+    -deviceZ * magnitude,
+    deviceY * magnitude,
+  ]
+
+  return [desired[0], desired[1] - gravity, desired[2]]
+}
+
 /**
  * Running low-pass estimate of the gravity vector (device frame), used to derive
  * the dynamic movement acceleration when a device does not expose a gravity-removed
@@ -79,10 +131,11 @@ export function initialGravityEstimate(): GravityEstimate {
  * devices whose gravity-removed `DeviceMotionEvent.acceleration` is null.
  *
  * A static tilt is constant, so it is absorbed into the gravity estimate and
- * excluded from the movement — preserving "shake the box, don't tilt it." `alpha`
- * is the estimate's retention (0..1): higher tracks gravity more slowly, so more of
- * a sustained push survives as movement. The first sample seeds the estimate
- * directly so there is no startup transient.
+ * excluded from the movement term. Tilt itself comes from fused device orientation;
+ * this fallback only recovers translational acceleration. `alpha` is the estimate's
+ * retention (0..1): higher tracks gravity more slowly, so more of a sustained push
+ * survives as movement. The first sample seeds the estimate directly so there is no
+ * startup transient.
  */
 export function dynamicAccelFromTotal(
   total: SensorAcceleration,

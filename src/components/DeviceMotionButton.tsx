@@ -4,7 +4,7 @@ import { useDeviceMotionState } from '../contexts/DeviceMotionContext'
  * Device Motion Permission Button
  *
  * Displays a button to request device motion permission (required for iOS)
- * Shows current permission state and shake indicator
+ * Shows current permission state and shake indicator; granted motion also enables tilt
  *
  * Subscribes to StateContext - re-renders when state changes (expected for UI)
  *
