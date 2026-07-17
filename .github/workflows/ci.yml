@@ -29,7 +29,11 @@ jobs:
       - run: npm run check:immutable-catalog-history -- "$CATALOG_HISTORY_BASE_REF"
         env:
           CATALOG_HISTORY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+      - run: npm run check:immutable-imagegen-history -- "$IMAGEGEN_HISTORY_BASE_REF"
+        env:
+          IMAGEGEN_HISTORY_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
       - run: npm run check:collectible-catalog
+      - run: npm run test:imagegen-uv
       - run: npm run lint
       - run: npm test -- --run
       - run: npm run build
