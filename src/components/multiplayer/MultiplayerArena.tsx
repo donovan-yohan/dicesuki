@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Box } from '@react-three/drei'
 import { useEnvironmentTheme } from '../../hooks/useEnvironmentTheme'
 import { useEngineConfig } from '../../config/engineConfig'
+import { ThemedSurfaceMaterial } from '../environment/ThemedSurfaceMaterial'
 
 // Visual-only wall geometry (no colliders — the room's Rapier owns collisions),
 // so these render heights are a client styling choice, not shared physics.
@@ -29,16 +30,20 @@ export function MultiplayerArena() {
   const walls = useMemo(() => (arenaHalfX === undefined || arenaHalfZ === undefined ? [] : [
     // East wall (+X)
     { position: [arenaHalfX + WALL_THICKNESS / 2, WALL_HEIGHT / 2, 0] as [number, number, number],
-      size: [WALL_THICKNESS, WALL_HEIGHT, arenaHalfZ * 2 + WALL_THICKNESS * 2] as [number, number, number] },
+      size: [WALL_THICKNESS, WALL_HEIGHT, arenaHalfZ * 2 + WALL_THICKNESS * 2] as [number, number, number],
+      surfaceSize: [arenaHalfZ * 2 + WALL_THICKNESS * 2, WALL_HEIGHT] as [number, number] },
     // West wall (-X)
     { position: [-(arenaHalfX + WALL_THICKNESS / 2), WALL_HEIGHT / 2, 0] as [number, number, number],
-      size: [WALL_THICKNESS, WALL_HEIGHT, arenaHalfZ * 2 + WALL_THICKNESS * 2] as [number, number, number] },
+      size: [WALL_THICKNESS, WALL_HEIGHT, arenaHalfZ * 2 + WALL_THICKNESS * 2] as [number, number, number],
+      surfaceSize: [arenaHalfZ * 2 + WALL_THICKNESS * 2, WALL_HEIGHT] as [number, number] },
     // North wall (+Z)
     { position: [0, WALL_HEIGHT / 2, arenaHalfZ + WALL_THICKNESS / 2] as [number, number, number],
-      size: [arenaHalfX * 2 + WALL_THICKNESS * 2, WALL_HEIGHT, WALL_THICKNESS] as [number, number, number] },
+      size: [arenaHalfX * 2 + WALL_THICKNESS * 2, WALL_HEIGHT, WALL_THICKNESS] as [number, number, number],
+      surfaceSize: [arenaHalfX * 2 + WALL_THICKNESS * 2, WALL_HEIGHT] as [number, number] },
     // South wall (-Z)
     { position: [0, WALL_HEIGHT / 2, -(arenaHalfZ + WALL_THICKNESS / 2)] as [number, number, number],
-      size: [arenaHalfX * 2 + WALL_THICKNESS * 2, WALL_HEIGHT, WALL_THICKNESS] as [number, number, number] },
+      size: [arenaHalfX * 2 + WALL_THICKNESS * 2, WALL_HEIGHT, WALL_THICKNESS] as [number, number, number],
+      surfaceSize: [arenaHalfX * 2 + WALL_THICKNESS * 2, WALL_HEIGHT] as [number, number] },
   ]), [arenaHalfX, arenaHalfZ])
 
   // Nothing to draw until the room delivers its engine config (arena bounds).
@@ -48,36 +53,65 @@ export function MultiplayerArena() {
     return null
   }
 
+  const floorWidth = arenaHalfX * 2 + 2
+  const floorDepth = arenaHalfZ * 2 + 2
+
   return (
     <>
       {/* Ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GROUND_Y, 0]} receiveShadow>
-        <planeGeometry args={[arenaHalfX * 2 + 2, arenaHalfZ * 2 + 2]} />
-        <meshStandardMaterial
+        <planeGeometry args={[floorWidth, floorDepth]} />
+        <ThemedSurfaceMaterial
           color={env.floor.color}
           roughness={env.floor.material.roughness}
           metalness={env.floor.material.metalness}
+          texture={env.floor.texture}
+          albedoTexture={env.floor.albedoTexture}
+          colorTexture={env.floor.colorTexture}
+          normalTexture={env.floor.normalTexture}
+          normalScale={env.floor.normalScale}
+          tileSize={env.floor.tileSize}
+          repeat={env.floor.repeat}
+          surfaceSize={[floorWidth, floorDepth]}
         />
       </mesh>
 
       {/* Walls */}
       {env.walls.visible && walls.map((wall, i) => (
         <Box key={i} args={wall.size} position={wall.position}>
-          <meshStandardMaterial
+          <ThemedSurfaceMaterial
             color={env.walls.color}
             roughness={env.walls.material.roughness}
             metalness={env.walls.material.metalness}
+            texture={env.walls.texture}
+            albedoTexture={env.walls.albedoTexture}
+            colorTexture={env.walls.colorTexture}
+            normalTexture={env.walls.normalTexture}
+            normalScale={env.walls.normalScale}
+            tileSize={env.walls.tileSize}
+            repeat={env.walls.repeat}
+            surfaceSize={wall.surfaceSize}
           />
         </Box>
       ))}
 
       {/* Ceiling: server physics always collides here; keep it invisible unless themed. */}
-      <Box args={[arenaHalfX * 2 + 2, 0.5, arenaHalfZ * 2 + 2]} position={[0, CEILING_Y, 0]}>
-        <meshStandardMaterial
+      <Box args={[floorWidth, 0.5, floorDepth]} position={[0, CEILING_Y, 0]}>
+        <ThemedSurfaceMaterial
           color={env.ceiling.color || env.walls.color}
+          roughness={env.ceiling.material?.roughness ?? env.walls.material.roughness}
+          metalness={env.ceiling.material?.metalness ?? env.walls.material.metalness}
+          texture={env.ceiling.texture}
+          albedoTexture={env.ceiling.albedoTexture}
+          colorTexture={env.ceiling.colorTexture}
+          normalTexture={env.ceiling.normalTexture}
+          normalScale={env.ceiling.normalScale}
+          tileSize={env.ceiling.tileSize}
+          repeat={env.ceiling.repeat}
+          surfaceSize={[floorWidth, floorDepth]}
           transparent
-          opacity={env.ceiling.visible && env.ceiling.color ? 0.35 : 0}
-          depthWrite={false}
+          opacity={env.ceiling.visible && (env.ceiling.color || env.ceiling.texture || env.ceiling.albedoTexture || env.ceiling.colorTexture) ? 1 : 0}
+          depthWrite={Boolean(env.ceiling.visible && (env.ceiling.color || env.ceiling.texture || env.ceiling.albedoTexture || env.ceiling.colorTexture))}
         />
       </Box>
     </>

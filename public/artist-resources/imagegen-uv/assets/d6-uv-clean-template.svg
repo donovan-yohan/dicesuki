@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-label="Daisu D6 clean ImageGen UV template">
+  <defs>
+    <style>
+      .background { fill: #111827; }
+      .bleed { fill: #0e7490; fill-opacity: 0.32; stroke: #67e8f9; stroke-width: 6; }
+      .safe { fill: #f59e0b; fill-opacity: 0.09; stroke: #fde68a; stroke-width: 4; stroke-dasharray: 18 12; }
+    </style>
+  </defs>
+  <rect class="background" width="100%" height="100%" />
+  <g id="uv-islands">
+    <g id="d6-face-1" data-face-value="1" data-material-index="3">
+      <polygon class="bleed" points="160.02,319.27 613.98,319.27 613.98,773.23 160.02,773.23" />
+      <polygon class="safe" points="237.193,396.443 536.807,396.443 536.807,696.057 237.193,696.057" />
+    </g>
+    <g id="d6-face-2" data-face-value="2" data-material-index="4">
+      <polygon class="bleed" points="797.02,319.27 1250.98,319.27 1250.98,773.23 797.02,773.23" />
+      <polygon class="safe" points="874.193,396.443 1173.807,396.443 1173.807,696.057 874.193,696.057" />
+    </g>
+    <g id="d6-face-3" data-face-value="3" data-material-index="0">
+      <polygon class="bleed" points="1434.02,319.27 1887.98,319.27 1887.98,773.23 1434.02,773.23" />
+      <polygon class="safe" points="1511.193,396.443 1810.807,396.443 1810.807,696.057 1511.193,696.057" />
+    </g>
+    <g id="d6-face-4" data-face-value="4" data-material-index="1">
+      <polygon class="bleed" points="160.02,1274.77 613.98,1274.77 613.98,1728.73 160.02,1728.73" />
+      <polygon class="safe" points="237.193,1351.943 536.807,1351.943 536.807,1651.557 237.193,1651.557" />
+    </g>
+    <g id="d6-face-5" data-face-value="5" data-material-index="5">
+      <polygon class="bleed" points="797.02,1274.77 1250.98,1274.77 1250.98,1728.73 797.02,1728.73" />
+      <polygon class="safe" points="874.193,1351.943 1173.807,1351.943 1173.807,1651.557 874.193,1651.557" />
+    </g>
+    <g id="d6-face-6" data-face-value="6" data-material-index="2">
+      <polygon class="bleed" points="1434.02,1274.77 1887.98,1274.77 1887.98,1728.73 1434.02,1728.73" />
+      <polygon class="safe" points="1511.193,1351.943 1810.807,1351.943 1810.807,1651.557 1511.193,1651.557" />
+    </g>
+  </g>
+</svg>

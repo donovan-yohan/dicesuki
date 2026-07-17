@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-label="D4 Codex ImageGen numbered edit target">
+  <defs>
+    <style>
+      .background { fill: #07090d; }
+      .trim { fill: #d6cfbf; stroke: #f4efe4; stroke-width: 4; }
+      .panel { fill: #394452; stroke: #202833; stroke-width: 4; }
+      .number { fill: #f7f1df; stroke: #171b22; stroke-width: 4; paint-order: stroke fill; font-family: Georgia, serif; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+  </defs>
+  <rect class="background" width="100%" height="100%" />
+  <g id="numbered-imagegen-edit-target">
+    <g id="d4-face-1" data-face-value="1" data-material-index="0">
+      <polygon class="trim" points="195.055,242.106 897.445,242.106 546.25,850.394" />
+      <polygon class="panel" points="265.294,302.935 827.206,302.935 546.25,789.565" />
+      <text class="number" style="font-size:210px" x="546.25" y="548.25" transform="rotate(0 546.25 546.25)">1</text>
+    </g>
+    <g id="d4-face-2" data-face-value="2" data-material-index="1">
+      <polygon class="trim" points="1150.555,242.106 1852.945,242.106 1501.75,850.394" />
+      <polygon class="panel" points="1220.794,302.935 1782.706,302.935 1501.75,789.565" />
+      <text class="number" style="font-size:210px" x="1501.75" y="548.25" transform="rotate(0 1501.75 546.25)">2</text>
+    </g>
+    <g id="d4-face-3" data-face-value="3" data-material-index="2">
+      <polygon class="trim" points="546.25,1197.606 897.445,1805.894 195.055,1805.894" />
+      <polygon class="panel" points="546.25,1258.435 827.206,1745.065 265.294,1745.065" />
+      <text class="number" style="font-size:210px" x="546.25" y="1503.75" transform="rotate(0 546.25 1501.75)">3</text>
+    </g>
+    <g id="d4-face-4" data-face-value="4" data-material-index="3">
+      <polygon class="trim" points="1501.75,1197.606 1852.945,1805.894 1150.555,1805.894" />
+      <polygon class="panel" points="1501.75,1258.435 1782.706,1745.065 1220.794,1745.065" />
+      <text class="number" style="font-size:210px" x="1501.75" y="1503.75" transform="rotate(0 1501.75 1501.75)">4</text>
+    </g>
+  </g>
+</svg>

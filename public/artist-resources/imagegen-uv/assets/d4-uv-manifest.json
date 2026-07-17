@@ -1,0 +1,219 @@
+{
+  "version": "1.0",
+  "shape": "d4",
+  "label": "D4",
+  "canvasSize": 2048,
+  "columns": 2,
+  "rows": 2,
+  "coordinateSystem": {
+    "pixels": "SVG viewBox pixels, origin at top-left",
+    "uvBox": "normalized SVG box coordinates, origin at top-left for atlas authoring"
+  },
+  "runtimeStatus": "ImageGen and artist workflow artifact. Standard runtime dice currently use per-face CanvasTexture materials.",
+  "islands": [
+    {
+      "id": "d4-face-1",
+      "shape": "d4",
+      "faceValue": 1,
+      "materialIndex": 0,
+      "islandShape": "triangle",
+      "center": {
+        "x": 546.25,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 546.25,
+          "y": 195.055
+        },
+        {
+          "x": 850.394,
+          "y": 721.847
+        },
+        {
+          "x": 242.106,
+          "y": 721.848
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 546.25,
+          "y": 314.461
+        },
+        {
+          "x": 746.985,
+          "y": 662.144
+        },
+        {
+          "x": 345.515,
+          "y": 662.144
+        }
+      ],
+      "bounds": {
+        "minX": 242.106,
+        "minY": 195.055,
+        "maxX": 850.394,
+        "maxY": 721.848
+      },
+      "uvBox": {
+        "minU": 0.118,
+        "minV": 0.095,
+        "maxU": 0.415,
+        "maxV": 0.352
+      }
+    },
+    {
+      "id": "d4-face-2",
+      "shape": "d4",
+      "faceValue": 2,
+      "materialIndex": 1,
+      "islandShape": "triangle",
+      "center": {
+        "x": 1501.75,
+        "y": 546.25
+      },
+      "points": [
+        {
+          "x": 1501.75,
+          "y": 195.055
+        },
+        {
+          "x": 1805.894,
+          "y": 721.847
+        },
+        {
+          "x": 1197.606,
+          "y": 721.848
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1501.75,
+          "y": 314.461
+        },
+        {
+          "x": 1702.485,
+          "y": 662.144
+        },
+        {
+          "x": 1301.015,
+          "y": 662.144
+        }
+      ],
+      "bounds": {
+        "minX": 1197.606,
+        "minY": 195.055,
+        "maxX": 1805.894,
+        "maxY": 721.848
+      },
+      "uvBox": {
+        "minU": 0.585,
+        "minV": 0.095,
+        "maxU": 0.882,
+        "maxV": 0.352
+      }
+    },
+    {
+      "id": "d4-face-3",
+      "shape": "d4",
+      "faceValue": 3,
+      "materialIndex": 2,
+      "islandShape": "triangle",
+      "center": {
+        "x": 546.25,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 546.25,
+          "y": 1150.555
+        },
+        {
+          "x": 850.394,
+          "y": 1677.347
+        },
+        {
+          "x": 242.106,
+          "y": 1677.348
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 546.25,
+          "y": 1269.961
+        },
+        {
+          "x": 746.985,
+          "y": 1617.644
+        },
+        {
+          "x": 345.515,
+          "y": 1617.644
+        }
+      ],
+      "bounds": {
+        "minX": 242.106,
+        "minY": 1150.555,
+        "maxX": 850.394,
+        "maxY": 1677.348
+      },
+      "uvBox": {
+        "minU": 0.118,
+        "minV": 0.562,
+        "maxU": 0.415,
+        "maxV": 0.819
+      }
+    },
+    {
+      "id": "d4-face-4",
+      "shape": "d4",
+      "faceValue": 4,
+      "materialIndex": 3,
+      "islandShape": "triangle",
+      "center": {
+        "x": 1501.75,
+        "y": 1501.75
+      },
+      "points": [
+        {
+          "x": 1501.75,
+          "y": 1150.555
+        },
+        {
+          "x": 1805.894,
+          "y": 1677.347
+        },
+        {
+          "x": 1197.606,
+          "y": 1677.348
+        }
+      ],
+      "safePoints": [
+        {
+          "x": 1501.75,
+          "y": 1269.961
+        },
+        {
+          "x": 1702.485,
+          "y": 1617.644
+        },
+        {
+          "x": 1301.015,
+          "y": 1617.644
+        }
+      ],
+      "bounds": {
+        "minX": 1197.606,
+        "minY": 1150.555,
+        "maxX": 1805.894,
+        "maxY": 1677.348
+      },
+      "uvBox": {
+        "minU": 0.585,
+        "minV": 0.562,
+        "maxU": 0.882,
+        "maxV": 0.819
+      }
+    }
+  ]
+}

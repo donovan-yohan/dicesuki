@@ -45,6 +45,28 @@ Each dice is:
 
 ---
 
+### ImageGen UV Templates
+**[imagegen-uv/](imagegen-uv/)** - Generated UV guide and mask assets for AI-assisted material exploration
+
+**How to use:**
+1. Run `npm run generate:imagegen-uv` from the repo root
+2. Open `imagegen-uv/INDEX.md`
+3. Attach a shape template and use its prompt pack with ImageGen
+4. Start with material-only prompts, then place numbers deterministically in Three.js or Blender
+
+**What it creates:**
+- D4/D6/D8/D10/D12/D20 UV guide SVGs
+- Paintable island masks
+- Face/material manifests
+- Prompt packs for material-only and experimental numbered atlas generation
+- Geometry-derived numbered ImageGen edit targets with edge-parallel baselines
+- Cozy Forest, Dark Dungeon, and Cyberpunk Box atlases, normal maps, prompts, and engine captures
+
+The complete workshop instructions and templates are in
+`imagegen-uv/theme-sets/templates/README.md`.
+
+---
+
 ## 📦 Examples
 
 *(Coming soon)*

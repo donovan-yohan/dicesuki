@@ -8,6 +8,7 @@ import { useInventoryStore } from './store/useInventoryStore'
 import { useAuthStore } from './store/useAuthStore'
 import { initDataSync } from './lib/dataSync'
 import DiceFaceTestHarness from './components/test/DiceFaceTestHarness'
+import ProductionDicePreviewHarness from './components/test/ProductionDicePreviewHarness'
 import { MultiplayerRoom } from './components/multiplayer/MultiplayerRoom'
 import { RoomBrowser } from './components/multiplayer/RoomBrowser'
 import { StartupSplash } from './components/brand/StartupSplash'
@@ -85,6 +86,7 @@ function App() {
       <Routes>
         {/* Dev-only test harness — bypasses device check and providers */}
         <Route path="/test/dice-faces" element={<DiceFaceTestHarness />} />
+        <Route path="/test/production-dice-preview" element={<ProductionDicePreviewHarness />} />
         {/* Public room browser route (#79) */}
         <Route path="/rooms" element={
           <ThemeProvider>

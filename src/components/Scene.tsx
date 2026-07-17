@@ -15,6 +15,7 @@ import { useTheme } from '../contexts/ThemeContext'
 
 // Hooks
 import { useEnvironmentTheme } from '../hooks/useEnvironmentTheme'
+import { useEnvironmentTextureMaps } from './environment/useEnvironmentTextureMaps'
 import { PerformanceOverlay } from './effects/PerformanceOverlay'
 import { useMultiplayerDrag } from '../hooks/useMultiplayerDrag'
 import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
@@ -158,14 +159,25 @@ function getCameraFrustumDimensions(
 function ThemedBackground() {
   const { scene } = useThree()
   const currentTheme = useEnvironmentTheme()
-  const bgColor = currentTheme.environment.background.color
+  const background = currentTheme.environment.background
+  const { colorMap } = useEnvironmentTextureMaps({
+    texture: background.equirectangularTexture
+      ?? background.albedoTexture
+      ?? background.colorTexture
+      ?? background.texture,
+  })
 
   useEffect(() => {
-    console.log(`[ThemedBackground] Setting scene background to: ${bgColor} for theme: ${currentTheme.id}`)
-    const color = new THREE.Color(bgColor)
-    scene.background = color
-    console.log(`[ThemedBackground] Scene background object:`, scene.background, 'R:', scene.background.r, 'G:', scene.background.g, 'B:', scene.background.b)
-  }, [scene, bgColor, currentTheme.id])
+    const sceneBackground = colorMap ?? new THREE.Color(background.color)
+    if (colorMap) colorMap.mapping = THREE.EquirectangularReflectionMapping
+    scene.background = sceneBackground
+    if (colorMap) scene.environment = colorMap
+
+    return () => {
+      if (scene.background === sceneBackground) scene.background = null
+      if (scene.environment === colorMap) scene.environment = null
+    }
+  }, [background.color, colorMap, scene])
 
   return null
 }

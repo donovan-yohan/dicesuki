@@ -1,7 +1,115 @@
 {
   "version": "1.0",
-  "generatedAt": "2026-07-13T06:02:44.765Z",
+  "generatedAt": "2026-07-17T04:47:50.664Z",
   "sets": [
+    {
+      "id": "cozy-forest-imagegen-set",
+      "path": "cozy-forest-imagegen-set",
+      "dice": [
+        {
+          "id": "acorn-compass-d10",
+          "path": "cozy-forest-imagegen-set/acorn-compass-d10",
+          "hasThumbnail": false
+        },
+        {
+          "id": "elder-canopy-d20",
+          "path": "cozy-forest-imagegen-set/elder-canopy-d20",
+          "hasThumbnail": false
+        },
+        {
+          "id": "fernlight-d8",
+          "path": "cozy-forest-imagegen-set/fernlight-d8",
+          "hasThumbnail": false
+        },
+        {
+          "id": "grovekeeper-d12",
+          "path": "cozy-forest-imagegen-set/grovekeeper-d12",
+          "hasThumbnail": false
+        },
+        {
+          "id": "hearthwood-d6",
+          "path": "cozy-forest-imagegen-set/hearthwood-d6",
+          "hasThumbnail": false
+        },
+        {
+          "id": "mossheart-d4",
+          "path": "cozy-forest-imagegen-set/mossheart-d4",
+          "hasThumbnail": false
+        }
+      ]
+    },
+    {
+      "id": "cyberpunk-imagegen-set",
+      "path": "cyberpunk-imagegen-set",
+      "dice": [
+        {
+          "id": "chrome-relay-d12",
+          "path": "cyberpunk-imagegen-set/chrome-relay-d12",
+          "hasThumbnail": false
+        },
+        {
+          "id": "cipher-core-d10",
+          "path": "cyberpunk-imagegen-set/cipher-core-d10",
+          "hasThumbnail": false
+        },
+        {
+          "id": "neon-grid-d6",
+          "path": "cyberpunk-imagegen-set/neon-grid-d6",
+          "hasThumbnail": false
+        },
+        {
+          "id": "overdrive-d20",
+          "path": "cyberpunk-imagegen-set/overdrive-d20",
+          "hasThumbnail": false
+        },
+        {
+          "id": "pulse-shard-d4",
+          "path": "cyberpunk-imagegen-set/pulse-shard-d4",
+          "hasThumbnail": false
+        },
+        {
+          "id": "volt-prism-d8",
+          "path": "cyberpunk-imagegen-set/volt-prism-d8",
+          "hasThumbnail": false
+        }
+      ]
+    },
+    {
+      "id": "dark-dungeon-imagegen-set",
+      "path": "dark-dungeon-imagegen-set",
+      "dice": [
+        {
+          "id": "cinder-spike-d4",
+          "path": "dark-dungeon-imagegen-set/cinder-spike-d4",
+          "hasThumbnail": false
+        },
+        {
+          "id": "crypt-seal-d12",
+          "path": "dark-dungeon-imagegen-set/crypt-seal-d12",
+          "hasThumbnail": false
+        },
+        {
+          "id": "dread-gate-d20",
+          "path": "dark-dungeon-imagegen-set/dread-gate-d20",
+          "hasThumbnail": false
+        },
+        {
+          "id": "gaoler-key-d10",
+          "path": "dark-dungeon-imagegen-set/gaoler-key-d10",
+          "hasThumbnail": false
+        },
+        {
+          "id": "iron-vault-d6",
+          "path": "dark-dungeon-imagegen-set/iron-vault-d6",
+          "hasThumbnail": false
+        },
+        {
+          "id": "obsidian-fang-d8",
+          "path": "dark-dungeon-imagegen-set/obsidian-fang-d8",
+          "hasThumbnail": false
+        }
+      ]
+    },
     {
       "id": "devil-set",
       "path": "devil-set",
@@ -9,6 +117,43 @@
         {
           "id": "devil-d6",
           "path": "devil-set/devil-d6",
+          "hasThumbnail": false
+        }
+      ]
+    },
+    {
+      "id": "dungeon-set",
+      "path": "dungeon-set",
+      "dice": [
+        {
+          "id": "iron-d6",
+          "path": "dungeon-set/iron-d6",
+          "hasThumbnail": false
+        },
+        {
+          "id": "stone-d20",
+          "path": "dungeon-set/stone-d20",
+          "hasThumbnail": false
+        }
+      ]
+    },
+    {
+      "id": "fantasy-set",
+      "path": "fantasy-set",
+      "dice": [
+        {
+          "id": "aurelian-imagegen-d20",
+          "path": "fantasy-set/aurelian-imagegen-d20",
+          "hasThumbnail": false
+        },
+        {
+          "id": "emerald-d20",
+          "path": "fantasy-set/emerald-d20",
+          "hasThumbnail": false
+        },
+        {
+          "id": "rune-d6",
+          "path": "fantasy-set/rune-d6",
           "hasThumbnail": false
         }
       ]

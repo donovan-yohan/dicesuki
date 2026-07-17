@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-labelledby="title desc">
+  <title id="title">Daisu D8 ImageGen UV template</title>
+  <desc id="desc">Guide SVG for generating D8 dice material art. Keep island boundaries fixed. Hide guide labels before final texture use.</desc>
+  <defs>
+    <style>
+      .background { fill: #111827; }
+      .grid { fill: none; stroke: #374151; stroke-width: 2; opacity: 0.35; }
+      .bleed { fill: #0e7490; fill-opacity: 0.38; stroke: #67e8f9; stroke-width: 6; }
+      .safe { fill: #f59e0b; fill-opacity: 0.14; stroke: #fde68a; stroke-width: 4; stroke-dasharray: 18 12; }
+      .face-label { fill: #f9fafb; font: 700 44px Arial, sans-serif; text-anchor: middle; dominant-baseline: middle; }
+      .face-sublabel { fill: #d1d5db; font: 500 28px Arial, sans-serif; text-anchor: middle; dominant-baseline: middle; }
+      .header { fill: #f9fafb; font: 700 42px Arial, sans-serif; }
+      .header-note { fill: #d1d5db; font: 500 24px Arial, sans-serif; }
+    </style>
+  </defs>
+  <rect class="background" width="100%" height="100%" />
+  <text class="header" x="96" y="113">Daisu D8 ImageGen UV Template</text>
+  <text class="header-note" x="96" y="151">Paint inside cyan bleed. Keep numerals inside gold safe zones. Preserve face and material mapping.</text>
+  <g id="uv-islands">
+    <g id="d8-face-1" data-face-value="1" data-material-index="0">
+      <polygon class="bleed" points="307.375,381.377 450.159,628.686 164.591,628.686" />
+      <polygon class="safe" points="307.375,437.434 401.612,600.658 213.138,600.658" />
+      <text class="face-label" x="307.375" y="536.25">face 1</text>
+      <text class="face-sublabel" x="307.375" y="576.25">material 0</text>
+    </g>
+    <g id="d8-face-2" data-face-value="2" data-material-index="1">
+      <polygon class="bleed" points="785.125,381.377 927.909,628.686 642.341,628.686" />
+      <polygon class="safe" points="785.125,437.434 879.362,600.658 690.888,600.658" />
+      <text class="face-label" x="785.125" y="536.25">face 2</text>
+      <text class="face-sublabel" x="785.125" y="576.25">material 1</text>
+    </g>
+    <g id="d8-face-3" data-face-value="3" data-material-index="2">
+      <polygon class="bleed" points="1262.875,381.377 1405.659,628.686 1120.091,628.686" />
+      <polygon class="safe" points="1262.875,437.434 1357.112,600.658 1168.638,600.658" />
+      <text class="face-label" x="1262.875" y="536.25">face 3</text>
+      <text class="face-sublabel" x="1262.875" y="576.25">material 2</text>
+    </g>
+    <g id="d8-face-4" data-face-value="4" data-material-index="3">
+      <polygon class="bleed" points="1740.625,381.377 1883.409,628.686 1597.841,628.686" />
+      <polygon class="safe" points="1740.625,437.434 1834.862,600.658 1646.388,600.658" />
+      <text class="face-label" x="1740.625" y="536.25">face 4</text>
+      <text class="face-sublabel" x="1740.625" y="576.25">material 3</text>
+    </g>
+    <g id="d8-face-5" data-face-value="5" data-material-index="6">
+      <polygon class="bleed" points="307.375,1336.878 450.159,1584.186 164.591,1584.186" />
+      <polygon class="safe" points="307.375,1392.934 401.612,1556.158 213.138,1556.158" />
+      <text class="face-label" x="307.375" y="1491.75">face 5</text>
+      <text class="face-sublabel" x="307.375" y="1531.75">material 6</text>
+    </g>
+    <g id="d8-face-6" data-face-value="6" data-material-index="7">
+      <polygon class="bleed" points="785.125,1336.878 927.909,1584.186 642.341,1584.186" />
+      <polygon class="safe" points="785.125,1392.934 879.362,1556.158 690.888,1556.158" />
+      <text class="face-label" x="785.125" y="1491.75">face 6</text>
+      <text class="face-sublabel" x="785.125" y="1531.75">material 7</text>
+    </g>
+    <g id="d8-face-7" data-face-value="7" data-material-index="4">
+      <polygon class="bleed" points="1262.875,1336.878 1405.659,1584.186 1120.091,1584.186" />
+      <polygon class="safe" points="1262.875,1392.934 1357.112,1556.158 1168.638,1556.158" />
+      <text class="face-label" x="1262.875" y="1491.75">face 7</text>
+      <text class="face-sublabel" x="1262.875" y="1531.75">material 4</text>
+    </g>
+    <g id="d8-face-8" data-face-value="8" data-material-index="5">
+      <polygon class="bleed" points="1740.625,1336.878 1883.409,1584.186 1597.841,1584.186" />
+      <polygon class="safe" points="1740.625,1392.934 1834.862,1556.158 1646.388,1556.158" />
+      <text class="face-label" x="1740.625" y="1491.75">face 8</text>
+      <text class="face-sublabel" x="1740.625" y="1531.75">material 5</text>
+    </g>
+  </g>
+</svg>

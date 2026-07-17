@@ -1,0 +1,13 @@
+{
+  "id": "dungeon-set",
+  "name": "Dungeon Test Collection",
+  "artist": "Daisu Procedural Fixtures",
+  "description": "Stone and iron dice for checking production inventory loading with generic dungeon art direction.",
+  "releaseDate": "2026-07-09",
+  "tags": [
+    "dungeon",
+    "test-fixture",
+    "procedural"
+  ],
+  "availability": "always"
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-label="D4 UV island mask">
+  <rect width="100%" height="100%" fill="#000000" />
+  <g fill="#ffffff">
+    <polygon points="195.055,242.106 897.445,242.106 546.25,850.394" />
+    <polygon points="1150.555,242.106 1852.945,242.106 1501.75,850.394" />
+    <polygon points="546.25,1197.606 897.445,1805.894 195.055,1805.894" />
+    <polygon points="1501.75,1197.606 1852.945,1805.894 1150.555,1805.894" />
+  </g>
+</svg>

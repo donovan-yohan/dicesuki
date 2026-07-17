@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-label="D20 numbered Codex ImageGen edit target">
+  <defs>
+    <style>
+      .background { fill: #07090d; }
+      .trim { fill: #d6cfbf; stroke: #f4efe4; stroke-width: 3; }
+      .panel { fill: #394452; stroke: #202833; stroke-width: 3; }
+      .number { fill: #f7f1df; stroke: #171b22; stroke-width: 3; paint-order: stroke fill; font: 700 96px Georgia, serif; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+  </defs>
+  <rect class="background" width="100%" height="100%" />
+  <g id="imagegen-edit-target">
+    <g id="d20-face-1" data-face-value="1" data-material-index="0">
+      <polygon class="trim" points="179.032,432.696 393.827,266.316 142.341,163.488" />
+      <polygon class="panel" points="189.718,406.56 365.85,270.129 159.631,185.81" />
+      <text class="number" x="238.4" y="291.5" transform="rotate(22.239 238.4 287.5)">1</text>
+    </g>
+    <g id="d20-face-2" data-face-value="2" data-material-index="1">
+      <polygon class="trim" points="631.2,130.636 495.352,365.932 767.048,365.932" />
+      <polygon class="panel" points="631.2,158.872 519.804,351.814 742.596,351.814" />
+      <text class="number" x="631.2" y="291.5" transform="rotate(0 631.2 287.5)">2</text>
+    </g>
+    <g id="d20-face-3" data-face-value="3" data-material-index="2">
+      <polygon class="trim" points="888.152,209.068 1024,444.364 1159.848,209.068" />
+      <polygon class="panel" points="912.604,223.186 1024,416.128 1135.396,223.186" />
+      <text class="number" x="1024" y="291.5" transform="rotate(0 1024 287.5)">3</text>
+    </g>
+    <g id="d20-face-4" data-face-value="4" data-material-index="3">
+      <polygon class="trim" points="1261.373,266.316 1476.168,432.696 1512.859,163.488" />
+      <polygon class="panel" points="1289.35,270.129 1465.482,406.56 1495.569,185.81" />
+      <text class="number" x="1416.8" y="291.5" transform="rotate(-22.239 1416.8 287.5)">4</text>
+    </g>
+    <g id="d20-face-5" data-face-value="5" data-material-index="4">
+      <polygon class="trim" points="1673.752,365.932 1945.448,365.932 1809.6,130.636" />
+      <polygon class="panel" points="1698.204,351.814 1920.996,351.814 1809.6,158.872" />
+      <text class="number" x="1809.6" y="291.5" transform="rotate(0 1809.6 287.5)">5</text>
+    </g>
+    <g id="d20-face-6" data-face-value="6" data-material-index="5">
+      <polygon class="trim" points="82.973,757.316 297.768,923.696 334.459,654.488" />
+      <polygon class="panel" points="110.95,761.129 287.082,897.56 317.169,676.81" />
+      <text class="number" x="238.4" y="782.5" transform="rotate(-22.239 238.4 778.5)">6</text>
+    </g>
+    <g id="d20-face-7" data-face-value="7" data-material-index="6">
+      <polygon class="trim" points="474.336,778.5 709.632,914.348 709.632,642.652" />
+      <polygon class="panel" points="502.572,778.5 695.514,889.896 695.514,667.104" />
+      <text class="number" x="631.2" y="782.5" transform="rotate(30 631.2 778.5)">7</text>
+    </g>
+    <g id="d20-face-8" data-face-value="8" data-material-index="7">
+      <polygon class="trim" points="888.152,700.068 1024,935.364 1159.848,700.068" />
+      <polygon class="panel" points="912.604,714.186 1024,907.128 1135.396,714.186" />
+      <text class="number" x="1024" y="782.5" transform="rotate(0 1024 778.5)">8</text>
+    </g>
+    <g id="d20-face-9" data-face-value="9" data-material-index="8">
+      <polygon class="trim" points="1338.368,642.652 1338.368,914.348 1573.664,778.5" />
+      <polygon class="panel" points="1352.486,667.104 1352.486,889.896 1545.428,778.5" />
+      <text class="number" x="1416.8" y="782.5" transform="rotate(-30 1416.8 778.5)">9</text>
+    </g>
+    <g id="d20-face-10" data-face-value="10" data-material-index="9">
+      <polygon class="trim" points="1713.541,654.488 1750.232,923.696 1965.027,757.316" />
+      <polygon class="panel" points="1730.831,676.81 1760.918,897.56 1937.05,761.129" />
+      <text class="number" x="1809.6" y="782.5" transform="rotate(22.239 1809.6 778.5)">10</text>
+    </g>
+    <g id="d20-face-11" data-face-value="11" data-material-index="16">
+      <polygon class="trim" points="393.827,1290.684 179.032,1124.304 142.341,1393.512" />
+      <polygon class="panel" points="365.85,1286.871 189.718,1150.44 159.631,1371.19" />
+      <text class="number" x="238.4" y="1273.5" transform="rotate(-22.239 238.4 1269.5)">11</text>
+    </g>
+    <g id="d20-face-12" data-face-value="12" data-material-index="15">
+      <polygon class="trim" points="788.064,1269.5 552.768,1133.652 552.768,1405.348" />
+      <polygon class="panel" points="759.828,1269.5 566.886,1158.104 566.886,1380.896" />
+      <text class="number" x="631.2" y="1273.5" transform="rotate(-30 631.2 1269.5)">12</text>
+    </g>
+    <g id="d20-face-13" data-face-value="13" data-material-index="19">
+      <polygon class="trim" points="1159.848,1347.932 1024,1112.636 888.152,1347.932" />
+      <polygon class="panel" points="1135.396,1333.814 1024,1140.872 912.604,1333.814" />
+      <text class="number" x="1024" y="1273.5" transform="rotate(0 1024 1269.5)">13</text>
+    </g>
+    <g id="d20-face-14" data-face-value="14" data-material-index="18">
+      <polygon class="trim" points="1495.232,1405.348 1495.232,1133.652 1259.936,1269.5" />
+      <polygon class="panel" points="1481.114,1380.896 1481.114,1158.104 1288.172,1269.5" />
+      <text class="number" x="1416.8" y="1273.5" transform="rotate(30 1416.8 1269.5)">14</text>
+    </g>
+    <g id="d20-face-15" data-face-value="15" data-material-index="17">
+      <polygon class="trim" points="1905.659,1393.512 1868.968,1124.304 1654.173,1290.684" />
+      <polygon class="panel" points="1888.369,1371.19 1858.282,1150.44 1682.15,1286.871" />
+      <text class="number" x="1809.6" y="1273.5" transform="rotate(22.239 1809.6 1269.5)">15</text>
+    </g>
+    <g id="d20-face-16" data-face-value="16" data-material-index="14">
+      <polygon class="trim" points="374.248,1682.068 102.552,1682.068 238.4,1917.364" />
+      <polygon class="panel" points="349.796,1696.186 127.004,1696.186 238.4,1889.128" />
+      <text class="number" x="238.4" y="1764.5" transform="rotate(0 238.4 1760.5)">16</text>
+    </g>
+    <g id="d20-face-17" data-face-value="17" data-material-index="10">
+      <polygon class="trim" points="690.568,1615.304 475.773,1781.684 727.259,1884.512" />
+      <polygon class="panel" points="679.882,1641.44 503.75,1777.871 709.969,1862.19" />
+      <text class="number" x="631.2" y="1764.5" transform="rotate(22.239 631.2 1760.5)">17</text>
+    </g>
+    <g id="d20-face-18" data-face-value="18" data-material-index="11">
+      <polygon class="trim" points="1024,1603.636 888.152,1838.932 1159.848,1838.932" />
+      <polygon class="panel" points="1024,1631.872 912.604,1824.814 1135.396,1824.814" />
+      <text class="number" x="1024" y="1764.5" transform="rotate(0 1024 1760.5)">18</text>
+    </g>
+    <g id="d20-face-19" data-face-value="19" data-material-index="12">
+      <polygon class="trim" points="1280.952,1682.068 1416.8,1917.364 1552.648,1682.068" />
+      <polygon class="panel" points="1305.404,1696.186 1416.8,1889.128 1528.196,1696.186" />
+      <text class="number" x="1416.8" y="1764.5" transform="rotate(0 1416.8 1760.5)">19</text>
+    </g>
+    <g id="d20-face-20" data-face-value="20" data-material-index="13">
+      <polygon class="trim" points="1965.027,1781.684 1750.232,1615.304 1713.541,1884.512" />
+      <polygon class="panel" points="1937.05,1777.871 1760.918,1641.44 1730.831,1862.19" />
+      <text class="number" x="1809.6" y="1764.5" transform="rotate(-22.239 1809.6 1760.5)">20</text>
+    </g>
+  </g>
+</svg>

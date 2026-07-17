@@ -1,0 +1,1956 @@
+{
+  "version": "2.1",
+  "shape": "d20",
+  "canvasSize": 2048,
+  "columns": 5,
+  "rows": 4,
+  "coordinateSystem": {
+    "pixels": "top-left SVG/image coordinates",
+    "uv": "glTF top-left texture coordinates; uvByVertex maps the real Icosahedron triangle vertex order",
+    "screenBasis": "tangent maps screen-right; bitangent maps screen-up when previewed face-on",
+    "numberBaseline": "parallel to the triangle edge whose undirected angle is closest to horizontal; lower edge wins exact ties"
+  },
+  "purpose": "Canonical numbered edit target for Codex ImageGen image-to-image dice art.",
+  "islands": [
+    {
+      "id": "d20-face-1",
+      "faceValue": 1,
+      "materialIndex": 0,
+      "center": {
+        "x": 238.4,
+        "y": 287.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 179.032,
+          "y": 432.696
+        },
+        {
+          "vertexIndex": 1,
+          "x": 393.827,
+          "y": 266.316
+        },
+        {
+          "vertexIndex": 2,
+          "x": 142.341,
+          "y": 163.488
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 201.592,
+          "y": 377.521
+        },
+        {
+          "vertexIndex": 1,
+          "x": 334.765,
+          "y": 274.366
+        },
+        {
+          "vertexIndex": 2,
+          "x": 178.843,
+          "y": 210.613
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 189.718,
+          "y": 406.56
+        },
+        {
+          "vertexIndex": 1,
+          "x": 365.85,
+          "y": 270.129
+        },
+        {
+          "vertexIndex": 2,
+          "x": 159.631,
+          "y": 185.81
+        }
+      ],
+      "baselineEdge": [
+        1,
+        2
+      ],
+      "baselineAngleDegrees": 22.239,
+      "normal": [
+        -0.57735,
+        0.57735,
+        0.57735
+      ],
+      "tangent": [
+        0.707107,
+        0,
+        0.707107
+      ],
+      "bitangent": [
+        0.408248,
+        0.816497,
+        -0.408248
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.087418,
+          "v": 0.211277
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.192298,
+          "v": 0.130037
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.069502,
+          "v": 0.079828
+        }
+      ]
+    },
+    {
+      "id": "d20-face-2",
+      "faceValue": 2,
+      "materialIndex": 1,
+      "center": {
+        "x": 631.2,
+        "y": 287.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 631.2,
+          "y": 130.636
+        },
+        {
+          "vertexIndex": 1,
+          "x": 495.352,
+          "y": 365.932
+        },
+        {
+          "vertexIndex": 2,
+          "x": 767.048,
+          "y": 365.932
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 631.2,
+          "y": 190.244
+        },
+        {
+          "vertexIndex": 1,
+          "x": 546.974,
+          "y": 336.128
+        },
+        {
+          "vertexIndex": 2,
+          "x": 715.426,
+          "y": 336.128
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 631.2,
+          "y": 158.872
+        },
+        {
+          "vertexIndex": 1,
+          "x": 519.804,
+          "y": 351.814
+        },
+        {
+          "vertexIndex": 2,
+          "x": 742.596,
+          "y": 351.814
+        }
+      ],
+      "baselineEdge": [
+        1,
+        2
+      ],
+      "baselineAngleDegrees": 0,
+      "normal": [
+        0,
+        0.934183,
+        0.356794
+      ],
+      "tangent": [
+        -1,
+        0,
+        0
+      ],
+      "bitangent": [
+        0,
+        -0.356794,
+        0.934183
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.308203,
+          "v": 0.063787
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.241871,
+          "v": 0.178678
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.374535,
+          "v": 0.178678
+        }
+      ]
+    },
+    {
+      "id": "d20-face-3",
+      "faceValue": 3,
+      "materialIndex": 2,
+      "center": {
+        "x": 1024,
+        "y": 287.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 888.152,
+          "y": 209.068
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1024,
+          "y": 444.364
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1159.848,
+          "y": 209.068
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 939.774,
+          "y": 238.872
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1024,
+          "y": 384.756
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1108.226,
+          "y": 238.872
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 912.604,
+          "y": 223.186
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1024,
+          "y": 416.128
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1135.396,
+          "y": 223.186
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": 0,
+      "normal": [
+        0,
+        0.934183,
+        -0.356794
+      ],
+      "tangent": [
+        -1,
+        0,
+        0
+      ],
+      "bitangent": [
+        0,
+        0.356794,
+        0.934183
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.433668,
+          "v": 0.102084
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.5,
+          "v": 0.216975
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.566332,
+          "v": 0.102084
+        }
+      ]
+    },
+    {
+      "id": "d20-face-4",
+      "faceValue": 4,
+      "materialIndex": 3,
+      "center": {
+        "x": 1416.8,
+        "y": 287.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 1261.373,
+          "y": 266.316
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1476.168,
+          "y": 432.696
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1512.859,
+          "y": 163.488
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1320.435,
+          "y": 274.366
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1453.608,
+          "y": 377.521
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1476.357,
+          "y": 210.613
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1289.35,
+          "y": 270.129
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1465.482,
+          "y": 406.56
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1495.569,
+          "y": 185.81
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": -22.239,
+      "normal": [
+        -0.57735,
+        0.57735,
+        -0.57735
+      ],
+      "tangent": [
+        -0.707107,
+        0,
+        0.707107
+      ],
+      "bitangent": [
+        0.408248,
+        0.816497,
+        0.408248
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.615905,
+          "v": 0.130037
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.720785,
+          "v": 0.211277
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.738701,
+          "v": 0.079828
+        }
+      ]
+    },
+    {
+      "id": "d20-face-5",
+      "faceValue": 5,
+      "materialIndex": 4,
+      "center": {
+        "x": 1809.6,
+        "y": 287.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 1673.752,
+          "y": 365.932
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1945.448,
+          "y": 365.932
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1809.6,
+          "y": 130.636
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1725.374,
+          "y": 336.128
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1893.826,
+          "y": 336.128
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1809.6,
+          "y": 190.244
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1698.204,
+          "y": 351.814
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1920.996,
+          "y": 351.814
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1809.6,
+          "y": 158.872
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": 0,
+      "normal": [
+        -0.934183,
+        0.356794,
+        0
+      ],
+      "tangent": [
+        0,
+        0,
+        1
+      ],
+      "bitangent": [
+        0.356794,
+        0.934183,
+        0
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.817262,
+          "v": 0.178678
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.949926,
+          "v": 0.178678
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.883594,
+          "v": 0.063787
+        }
+      ]
+    },
+    {
+      "id": "d20-face-6",
+      "faceValue": 6,
+      "materialIndex": 5,
+      "center": {
+        "x": 238.4,
+        "y": 778.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 82.973,
+          "y": 757.316
+        },
+        {
+          "vertexIndex": 1,
+          "x": 297.768,
+          "y": 923.696
+        },
+        {
+          "vertexIndex": 2,
+          "x": 334.459,
+          "y": 654.488
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 142.035,
+          "y": 765.366
+        },
+        {
+          "vertexIndex": 1,
+          "x": 275.208,
+          "y": 868.521
+        },
+        {
+          "vertexIndex": 2,
+          "x": 297.957,
+          "y": 701.613
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 110.95,
+          "y": 761.129
+        },
+        {
+          "vertexIndex": 1,
+          "x": 287.082,
+          "y": 897.56
+        },
+        {
+          "vertexIndex": 2,
+          "x": 317.169,
+          "y": 676.81
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": -22.239,
+      "normal": [
+        0.57735,
+        0.57735,
+        0.57735
+      ],
+      "tangent": [
+        0.707107,
+        0,
+        -0.707107
+      ],
+      "bitangent": [
+        -0.408248,
+        0.816497,
+        -0.408248
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.040514,
+          "v": 0.369783
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.145394,
+          "v": 0.451023
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.16331,
+          "v": 0.319574
+        }
+      ]
+    },
+    {
+      "id": "d20-face-7",
+      "faceValue": 7,
+      "materialIndex": 6,
+      "center": {
+        "x": 631.2,
+        "y": 778.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 474.336,
+          "y": 778.5
+        },
+        {
+          "vertexIndex": 1,
+          "x": 709.632,
+          "y": 914.348
+        },
+        {
+          "vertexIndex": 2,
+          "x": 709.632,
+          "y": 642.652
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 533.944,
+          "y": 778.5
+        },
+        {
+          "vertexIndex": 1,
+          "x": 679.828,
+          "y": 862.726
+        },
+        {
+          "vertexIndex": 2,
+          "x": 679.828,
+          "y": 694.274
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 502.572,
+          "y": 778.5
+        },
+        {
+          "vertexIndex": 1,
+          "x": 695.514,
+          "y": 889.896
+        },
+        {
+          "vertexIndex": 2,
+          "x": 695.514,
+          "y": 667.104
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": 30,
+      "normal": [
+        -0.356794,
+        0,
+        0.934183
+      ],
+      "tangent": [
+        0.934183,
+        0,
+        0.356794
+      ],
+      "bitangent": [
+        0,
+        1,
+        0
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.231609,
+          "v": 0.380127
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.3465,
+          "v": 0.446459
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.3465,
+          "v": 0.313795
+        }
+      ]
+    },
+    {
+      "id": "d20-face-8",
+      "faceValue": 8,
+      "materialIndex": 7,
+      "center": {
+        "x": 1024,
+        "y": 778.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 888.152,
+          "y": 700.068
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1024,
+          "y": 935.364
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1159.848,
+          "y": 700.068
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 939.774,
+          "y": 729.872
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1024,
+          "y": 875.756
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1108.226,
+          "y": 729.872
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 912.604,
+          "y": 714.186
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1024,
+          "y": 907.128
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1135.396,
+          "y": 714.186
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": 0,
+      "normal": [
+        -0.934183,
+        -0.356794,
+        0
+      ],
+      "tangent": [
+        0,
+        0,
+        1
+      ],
+      "bitangent": [
+        -0.356794,
+        0.934183,
+        0
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.433668,
+          "v": 0.34183
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.5,
+          "v": 0.456721
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.566332,
+          "v": 0.34183
+        }
+      ]
+    },
+    {
+      "id": "d20-face-9",
+      "faceValue": 9,
+      "materialIndex": 8,
+      "center": {
+        "x": 1416.8,
+        "y": 778.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 1338.368,
+          "y": 642.652
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1338.368,
+          "y": 914.348
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1573.664,
+          "y": 778.5
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1368.172,
+          "y": 694.274
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1368.172,
+          "y": 862.726
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1514.056,
+          "y": 778.5
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1352.486,
+          "y": 667.104
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1352.486,
+          "y": 889.896
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1545.428,
+          "y": 778.5
+        }
+      ],
+      "baselineEdge": [
+        1,
+        2
+      ],
+      "baselineAngleDegrees": -30,
+      "normal": [
+        -0.356794,
+        0,
+        -0.934183
+      ],
+      "tangent": [
+        -0.934183,
+        0,
+        0.356794
+      ],
+      "bitangent": [
+        0,
+        1,
+        0
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.6535,
+          "v": 0.313795
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.6535,
+          "v": 0.446459
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.768391,
+          "v": 0.380127
+        }
+      ]
+    },
+    {
+      "id": "d20-face-10",
+      "faceValue": 10,
+      "materialIndex": 9,
+      "center": {
+        "x": 1809.6,
+        "y": 778.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 1713.541,
+          "y": 654.488
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1750.232,
+          "y": 923.696
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1965.027,
+          "y": 757.316
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1750.043,
+          "y": 701.613
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1772.792,
+          "y": 868.521
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1905.965,
+          "y": 765.366
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1730.831,
+          "y": 676.81
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1760.918,
+          "y": 897.56
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1937.05,
+          "y": 761.129
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": 22.239,
+      "normal": [
+        0.57735,
+        0.57735,
+        -0.57735
+      ],
+      "tangent": [
+        -0.707107,
+        0,
+        -0.707107
+      ],
+      "bitangent": [
+        -0.408248,
+        0.816497,
+        0.408248
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.83669,
+          "v": 0.319574
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.854606,
+          "v": 0.451023
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.959486,
+          "v": 0.369783
+        }
+      ]
+    },
+    {
+      "id": "d20-face-11",
+      "faceValue": 11,
+      "materialIndex": 16,
+      "center": {
+        "x": 238.4,
+        "y": 1269.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 393.827,
+          "y": 1290.684
+        },
+        {
+          "vertexIndex": 1,
+          "x": 179.032,
+          "y": 1124.304
+        },
+        {
+          "vertexIndex": 2,
+          "x": 142.341,
+          "y": 1393.512
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 334.765,
+          "y": 1282.634
+        },
+        {
+          "vertexIndex": 1,
+          "x": 201.592,
+          "y": 1179.479
+        },
+        {
+          "vertexIndex": 2,
+          "x": 178.843,
+          "y": 1346.387
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 365.85,
+          "y": 1286.871
+        },
+        {
+          "vertexIndex": 1,
+          "x": 189.718,
+          "y": 1150.44
+        },
+        {
+          "vertexIndex": 2,
+          "x": 159.631,
+          "y": 1371.19
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": -22.239,
+      "normal": [
+        -0.57735,
+        -0.57735,
+        0.57735
+      ],
+      "tangent": [
+        0.707107,
+        0,
+        0.707107
+      ],
+      "bitangent": [
+        -0.408248,
+        0.816497,
+        0.408248
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.192298,
+          "v": 0.630217
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.087418,
+          "v": 0.548977
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.069502,
+          "v": 0.680426
+        }
+      ]
+    },
+    {
+      "id": "d20-face-12",
+      "faceValue": 12,
+      "materialIndex": 15,
+      "center": {
+        "x": 631.2,
+        "y": 1269.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 788.064,
+          "y": 1269.5
+        },
+        {
+          "vertexIndex": 1,
+          "x": 552.768,
+          "y": 1133.652
+        },
+        {
+          "vertexIndex": 2,
+          "x": 552.768,
+          "y": 1405.348
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 728.456,
+          "y": 1269.5
+        },
+        {
+          "vertexIndex": 1,
+          "x": 582.572,
+          "y": 1185.274
+        },
+        {
+          "vertexIndex": 2,
+          "x": 582.572,
+          "y": 1353.726
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 759.828,
+          "y": 1269.5
+        },
+        {
+          "vertexIndex": 1,
+          "x": 566.886,
+          "y": 1158.104
+        },
+        {
+          "vertexIndex": 2,
+          "x": 566.886,
+          "y": 1380.896
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": -30,
+      "normal": [
+        0.356794,
+        0,
+        0.934183
+      ],
+      "tangent": [
+        0.934183,
+        0,
+        -0.356794
+      ],
+      "bitangent": [
+        0,
+        1,
+        0
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.384797,
+          "v": 0.619873
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.269906,
+          "v": 0.553541
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.269906,
+          "v": 0.686205
+        }
+      ]
+    },
+    {
+      "id": "d20-face-13",
+      "faceValue": 13,
+      "materialIndex": 19,
+      "center": {
+        "x": 1024,
+        "y": 1269.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 1159.848,
+          "y": 1347.932
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1024,
+          "y": 1112.636
+        },
+        {
+          "vertexIndex": 2,
+          "x": 888.152,
+          "y": 1347.932
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1108.226,
+          "y": 1318.128
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1024,
+          "y": 1172.244
+        },
+        {
+          "vertexIndex": 2,
+          "x": 939.774,
+          "y": 1318.128
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1135.396,
+          "y": 1333.814
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1024,
+          "y": 1140.872
+        },
+        {
+          "vertexIndex": 2,
+          "x": 912.604,
+          "y": 1333.814
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": 0,
+      "normal": [
+        0.934183,
+        0.356794,
+        0
+      ],
+      "tangent": [
+        0,
+        0,
+        -1
+      ],
+      "bitangent": [
+        -0.356794,
+        0.934183,
+        0
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.566332,
+          "v": 0.65817
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.5,
+          "v": 0.543279
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.433668,
+          "v": 0.65817
+        }
+      ]
+    },
+    {
+      "id": "d20-face-14",
+      "faceValue": 14,
+      "materialIndex": 18,
+      "center": {
+        "x": 1416.8,
+        "y": 1269.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 1495.232,
+          "y": 1405.348
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1495.232,
+          "y": 1133.652
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1259.936,
+          "y": 1269.5
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1465.428,
+          "y": 1353.726
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1465.428,
+          "y": 1185.274
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1319.544,
+          "y": 1269.5
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1481.114,
+          "y": 1380.896
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1481.114,
+          "y": 1158.104
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1288.172,
+          "y": 1269.5
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": 30,
+      "normal": [
+        0.356794,
+        0,
+        -0.934183
+      ],
+      "tangent": [
+        -0.934183,
+        0,
+        -0.356794
+      ],
+      "bitangent": [
+        0,
+        1,
+        0
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.730094,
+          "v": 0.686205
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.730094,
+          "v": 0.553541
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.615203,
+          "v": 0.619873
+        }
+      ]
+    },
+    {
+      "id": "d20-face-15",
+      "faceValue": 15,
+      "materialIndex": 17,
+      "center": {
+        "x": 1809.6,
+        "y": 1269.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 1905.659,
+          "y": 1393.512
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1868.968,
+          "y": 1124.304
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1654.173,
+          "y": 1290.684
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1869.157,
+          "y": 1346.387
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1846.408,
+          "y": 1179.479
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1713.235,
+          "y": 1282.634
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1888.369,
+          "y": 1371.19
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1858.282,
+          "y": 1150.44
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1682.15,
+          "y": 1286.871
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": 22.239,
+      "normal": [
+        -0.57735,
+        -0.57735,
+        -0.57735
+      ],
+      "tangent": [
+        -0.707107,
+        0,
+        0.707107
+      ],
+      "bitangent": [
+        -0.408248,
+        0.816497,
+        -0.408248
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.930498,
+          "v": 0.680426
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.912582,
+          "v": 0.548977
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.807702,
+          "v": 0.630217
+        }
+      ]
+    },
+    {
+      "id": "d20-face-16",
+      "faceValue": 16,
+      "materialIndex": 14,
+      "center": {
+        "x": 238.4,
+        "y": 1760.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 374.248,
+          "y": 1682.068
+        },
+        {
+          "vertexIndex": 1,
+          "x": 102.552,
+          "y": 1682.068
+        },
+        {
+          "vertexIndex": 2,
+          "x": 238.4,
+          "y": 1917.364
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 322.626,
+          "y": 1711.872
+        },
+        {
+          "vertexIndex": 1,
+          "x": 154.174,
+          "y": 1711.872
+        },
+        {
+          "vertexIndex": 2,
+          "x": 238.4,
+          "y": 1857.756
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 349.796,
+          "y": 1696.186
+        },
+        {
+          "vertexIndex": 1,
+          "x": 127.004,
+          "y": 1696.186
+        },
+        {
+          "vertexIndex": 2,
+          "x": 238.4,
+          "y": 1889.128
+        }
+      ],
+      "baselineEdge": [
+        0,
+        1
+      ],
+      "baselineAngleDegrees": 0,
+      "normal": [
+        0.934183,
+        -0.356794,
+        0
+      ],
+      "tangent": [
+        0,
+        0,
+        -1
+      ],
+      "bitangent": [
+        0.356794,
+        0.934183,
+        0
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.182738,
+          "v": 0.821322
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.050074,
+          "v": 0.821322
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.116406,
+          "v": 0.936213
+        }
+      ]
+    },
+    {
+      "id": "d20-face-17",
+      "faceValue": 17,
+      "materialIndex": 10,
+      "center": {
+        "x": 631.2,
+        "y": 1760.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 690.568,
+          "y": 1615.304
+        },
+        {
+          "vertexIndex": 1,
+          "x": 475.773,
+          "y": 1781.684
+        },
+        {
+          "vertexIndex": 2,
+          "x": 727.259,
+          "y": 1884.512
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 668.008,
+          "y": 1670.479
+        },
+        {
+          "vertexIndex": 1,
+          "x": 534.835,
+          "y": 1773.634
+        },
+        {
+          "vertexIndex": 2,
+          "x": 690.757,
+          "y": 1837.387
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 679.882,
+          "y": 1641.44
+        },
+        {
+          "vertexIndex": 1,
+          "x": 503.75,
+          "y": 1777.871
+        },
+        {
+          "vertexIndex": 2,
+          "x": 709.969,
+          "y": 1862.19
+        }
+      ],
+      "baselineEdge": [
+        1,
+        2
+      ],
+      "baselineAngleDegrees": 22.239,
+      "normal": [
+        0.57735,
+        -0.57735,
+        0.57735
+      ],
+      "tangent": [
+        0.707107,
+        0,
+        -0.707107
+      ],
+      "bitangent": [
+        0.408248,
+        0.816497,
+        0.408248
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.337191,
+          "v": 0.788723
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.232311,
+          "v": 0.869963
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.355107,
+          "v": 0.920172
+        }
+      ]
+    },
+    {
+      "id": "d20-face-18",
+      "faceValue": 18,
+      "materialIndex": 11,
+      "center": {
+        "x": 1024,
+        "y": 1760.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 1024,
+          "y": 1603.636
+        },
+        {
+          "vertexIndex": 1,
+          "x": 888.152,
+          "y": 1838.932
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1159.848,
+          "y": 1838.932
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1024,
+          "y": 1663.244
+        },
+        {
+          "vertexIndex": 1,
+          "x": 939.774,
+          "y": 1809.128
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1108.226,
+          "y": 1809.128
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1024,
+          "y": 1631.872
+        },
+        {
+          "vertexIndex": 1,
+          "x": 912.604,
+          "y": 1824.814
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1135.396,
+          "y": 1824.814
+        }
+      ],
+      "baselineEdge": [
+        1,
+        2
+      ],
+      "baselineAngleDegrees": 0,
+      "normal": [
+        0,
+        -0.934183,
+        0.356794
+      ],
+      "tangent": [
+        1,
+        0,
+        0
+      ],
+      "bitangent": [
+        0,
+        0.356794,
+        0.934183
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.5,
+          "v": 0.783025
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.433668,
+          "v": 0.897916
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.566332,
+          "v": 0.897916
+        }
+      ]
+    },
+    {
+      "id": "d20-face-19",
+      "faceValue": 19,
+      "materialIndex": 12,
+      "center": {
+        "x": 1416.8,
+        "y": 1760.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 1280.952,
+          "y": 1682.068
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1416.8,
+          "y": 1917.364
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1552.648,
+          "y": 1682.068
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1332.574,
+          "y": 1711.872
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1416.8,
+          "y": 1857.756
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1501.026,
+          "y": 1711.872
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1305.404,
+          "y": 1696.186
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1416.8,
+          "y": 1889.128
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1528.196,
+          "y": 1696.186
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": 0,
+      "normal": [
+        0,
+        -0.934183,
+        -0.356794
+      ],
+      "tangent": [
+        1,
+        0,
+        0
+      ],
+      "bitangent": [
+        0,
+        -0.356794,
+        0.934183
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.625465,
+          "v": 0.821322
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.691797,
+          "v": 0.936213
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.758129,
+          "v": 0.821322
+        }
+      ]
+    },
+    {
+      "id": "d20-face-20",
+      "faceValue": 20,
+      "materialIndex": 13,
+      "center": {
+        "x": 1809.6,
+        "y": 1760.5
+      },
+      "points": [
+        {
+          "vertexIndex": 0,
+          "x": 1965.027,
+          "y": 1781.684
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1750.232,
+          "y": 1615.304
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1713.541,
+          "y": 1884.512
+        }
+      ],
+      "safePoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1905.965,
+          "y": 1773.634
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1772.792,
+          "y": 1670.479
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1750.043,
+          "y": 1837.387
+        }
+      ],
+      "panelPoints": [
+        {
+          "vertexIndex": 0,
+          "x": 1937.05,
+          "y": 1777.871
+        },
+        {
+          "vertexIndex": 1,
+          "x": 1760.918,
+          "y": 1641.44
+        },
+        {
+          "vertexIndex": 2,
+          "x": 1730.831,
+          "y": 1862.19
+        }
+      ],
+      "baselineEdge": [
+        2,
+        0
+      ],
+      "baselineAngleDegrees": -22.239,
+      "normal": [
+        0.57735,
+        -0.57735,
+        -0.57735
+      ],
+      "tangent": [
+        -0.707107,
+        0,
+        -0.707107
+      ],
+      "bitangent": [
+        0.408248,
+        0.816497,
+        -0.408248
+      ],
+      "uvByVertex": [
+        {
+          "vertexIndex": 0,
+          "u": 0.959486,
+          "v": 0.869963
+        },
+        {
+          "vertexIndex": 1,
+          "u": 0.854606,
+          "v": 0.788723
+        },
+        {
+          "vertexIndex": 2,
+          "u": 0.83669,
+          "v": 0.920172
+        }
+      ]
+    }
+  ]
+}

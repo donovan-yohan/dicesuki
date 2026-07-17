@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-label="Canonical D20 numbered mesh UV guide">
+  <defs>
+    <style>
+      .background { fill: #080c16; }
+      .cell { fill: none; stroke: #243247; stroke-width: 2; }
+      .island { fill: #12384a; stroke: #67e8f9; stroke-width: 6; }
+      .safe { fill: #f59e0b; fill-opacity: 0.08; stroke: #fde68a; stroke-width: 4; stroke-dasharray: 14 10; }
+      .number { fill: #fff7d6; font: 700 94px Georgia, serif; text-anchor: middle; dominant-baseline: middle; }
+      .mapping { fill: #b8c5d9; font: 700 22px Arial, sans-serif; text-anchor: middle; }
+      .vertex { fill: #67e8f9; font: 700 20px ui-monospace, monospace; text-anchor: middle; dominant-baseline: middle; }
+      .base-edge { stroke: #f97316; stroke-width: 11; opacity: 0.9; }
+      .baseline { stroke: #f97316; stroke-width: 5; opacity: 0.82; }
+    </style>
+  </defs>
+  <rect class="background" width="100%" height="100%" />
+  <g id="mesh-uv-islands">
+    <g id="d20-face-1" data-face-value="1" data-material-index="0">
+      <polygon class="island" points="179.032,432.696 393.827,266.316 142.341,163.488" />
+      <polygon class="safe" points="201.592,377.521 334.765,274.366 178.843,210.613" />
+      <line class="base-edge" x1="393.827" y1="266.316" x2="142.341" y2="163.488" />
+      <g class="number-orientation" transform="rotate(22.239 238.4 287.5)">
+        <line class="baseline" x1="180.4" y1="341.5" x2="296.4" y2="341.5" />
+        <text class="number" x="238.4" y="291.5">1</text>
+      </g>
+      <text class="mapping" x="238.4" y="113.5">FACE 1 / TRI 0 / +22.239 deg</text>
+      <text class="vertex" x="188.531" y="409.465">v0</text>
+        <text class="vertex" x="368.959" y="269.705">v1</text>
+        <text class="vertex" x="157.71" y="183.33">v2</text>
+    </g>
+    <g id="d20-face-2" data-face-value="2" data-material-index="1">
+      <polygon class="island" points="631.2,130.636 495.352,365.932 767.048,365.932" />
+      <polygon class="safe" points="631.2,190.244 546.974,336.128 715.426,336.128" />
+      <line class="base-edge" x1="495.352" y1="365.932" x2="767.048" y2="365.932" />
+      <g class="number-orientation" transform="rotate(0 631.2 287.5)">
+        <line class="baseline" x1="573.2" y1="341.5" x2="689.2" y2="341.5" />
+        <text class="number" x="631.2" y="291.5">2</text>
+      </g>
+      <text class="mapping" x="631.2" y="113.5">FACE 2 / TRI 1 / +0 deg</text>
+      <text class="vertex" x="631.2" y="155.734">v0</text>
+        <text class="vertex" x="517.088" y="353.383">v1</text>
+        <text class="vertex" x="745.312" y="353.383">v2</text>
+    </g>
+    <g id="d20-face-3" data-face-value="3" data-material-index="2">
+      <polygon class="island" points="888.152,209.068 1024,444.364 1159.848,209.068" />
+      <polygon class="safe" points="939.774,238.872 1024,384.756 1108.226,238.872" />
+      <line class="base-edge" x1="1159.848" y1="209.068" x2="888.152" y2="209.068" />
+      <g class="number-orientation" transform="rotate(0 1024 287.5)">
+        <line class="baseline" x1="966" y1="341.5" x2="1082" y2="341.5" />
+        <text class="number" x="1024" y="291.5">3</text>
+      </g>
+      <text class="mapping" x="1024" y="113.5">FACE 3 / TRI 2 / +0 deg</text>
+      <text class="vertex" x="909.888" y="221.617">v0</text>
+        <text class="vertex" x="1024" y="419.266">v1</text>
+        <text class="vertex" x="1138.112" y="221.617">v2</text>
+    </g>
+    <g id="d20-face-4" data-face-value="4" data-material-index="3">
+      <polygon class="island" points="1261.373,266.316 1476.168,432.696 1512.859,163.488" />
+      <polygon class="safe" points="1320.435,274.366 1453.608,377.521 1476.357,210.613" />
+      <line class="base-edge" x1="1512.859" y1="163.488" x2="1261.373" y2="266.316" />
+      <g class="number-orientation" transform="rotate(-22.239 1416.8 287.5)">
+        <line class="baseline" x1="1358.8" y1="341.5" x2="1474.8" y2="341.5" />
+        <text class="number" x="1416.8" y="291.5">4</text>
+      </g>
+      <text class="mapping" x="1416.8" y="113.5">FACE 4 / TRI 3 / -22.239 deg</text>
+      <text class="vertex" x="1286.241" y="269.705">v0</text>
+        <text class="vertex" x="1466.669" y="409.465">v1</text>
+        <text class="vertex" x="1497.49" y="183.33">v2</text>
+    </g>
+    <g id="d20-face-5" data-face-value="5" data-material-index="4">
+      <polygon class="island" points="1673.752,365.932 1945.448,365.932 1809.6,130.636" />
+      <polygon class="safe" points="1725.374,336.128 1893.826,336.128 1809.6,190.244" />
+      <line class="base-edge" x1="1673.752" y1="365.932" x2="1945.448" y2="365.932" />
+      <g class="number-orientation" transform="rotate(0 1809.6 287.5)">
+        <line class="baseline" x1="1751.6" y1="341.5" x2="1867.6" y2="341.5" />
+        <text class="number" x="1809.6" y="291.5">5</text>
+      </g>
+      <text class="mapping" x="1809.6" y="113.5">FACE 5 / TRI 4 / +0 deg</text>
+      <text class="vertex" x="1695.488" y="353.383">v0</text>
+        <text class="vertex" x="1923.712" y="353.383">v1</text>
+        <text class="vertex" x="1809.6" y="155.734">v2</text>
+    </g>
+    <g id="d20-face-6" data-face-value="6" data-material-index="5">
+      <polygon class="island" points="82.973,757.316 297.768,923.696 334.459,654.488" />
+      <polygon class="safe" points="142.035,765.366 275.208,868.521 297.957,701.613" />
+      <line class="base-edge" x1="334.459" y1="654.488" x2="82.973" y2="757.316" />
+      <g class="number-orientation" transform="rotate(-22.239 238.4 778.5)">
+        <line class="baseline" x1="180.4" y1="832.5" x2="296.4" y2="832.5" />
+        <text class="number" x="238.4" y="782.5">6</text>
+      </g>
+      <text class="mapping" x="238.4" y="604.5">FACE 6 / TRI 5 / -22.239 deg</text>
+      <text class="vertex" x="107.841" y="760.705">v0</text>
+        <text class="vertex" x="288.269" y="900.465">v1</text>
+        <text class="vertex" x="319.09" y="674.33">v2</text>
+    </g>
+    <g id="d20-face-7" data-face-value="7" data-material-index="6">
+      <polygon class="island" points="474.336,778.5 709.632,914.348 709.632,642.652" />
+      <polygon class="safe" points="533.944,778.5 679.828,862.726 679.828,694.274" />
+      <line class="base-edge" x1="474.336" y1="778.5" x2="709.632" y2="914.348" />
+      <g class="number-orientation" transform="rotate(30 631.2 778.5)">
+        <line class="baseline" x1="573.2" y1="832.5" x2="689.2" y2="832.5" />
+        <text class="number" x="631.2" y="782.5">7</text>
+      </g>
+      <text class="mapping" x="631.2" y="604.5">FACE 7 / TRI 6 / +30 deg</text>
+      <text class="vertex" x="499.434" y="778.5">v0</text>
+        <text class="vertex" x="697.083" y="892.612">v1</text>
+        <text class="vertex" x="697.083" y="664.388">v2</text>
+    </g>
+    <g id="d20-face-8" data-face-value="8" data-material-index="7">
+      <polygon class="island" points="888.152,700.068 1024,935.364 1159.848,700.068" />
+      <polygon class="safe" points="939.774,729.872 1024,875.756 1108.226,729.872" />
+      <line class="base-edge" x1="1159.848" y1="700.068" x2="888.152" y2="700.068" />
+      <g class="number-orientation" transform="rotate(0 1024 778.5)">
+        <line class="baseline" x1="966" y1="832.5" x2="1082" y2="832.5" />
+        <text class="number" x="1024" y="782.5">8</text>
+      </g>
+      <text class="mapping" x="1024" y="604.5">FACE 8 / TRI 7 / +0 deg</text>
+      <text class="vertex" x="909.888" y="712.617">v0</text>
+        <text class="vertex" x="1024" y="910.266">v1</text>
+        <text class="vertex" x="1138.112" y="712.617">v2</text>
+    </g>
+    <g id="d20-face-9" data-face-value="9" data-material-index="8">
+      <polygon class="island" points="1338.368,642.652 1338.368,914.348 1573.664,778.5" />
+      <polygon class="safe" points="1368.172,694.274 1368.172,862.726 1514.056,778.5" />
+      <line class="base-edge" x1="1338.368" y1="914.348" x2="1573.664" y2="778.5" />
+      <g class="number-orientation" transform="rotate(-30 1416.8 778.5)">
+        <line class="baseline" x1="1358.8" y1="832.5" x2="1474.8" y2="832.5" />
+        <text class="number" x="1416.8" y="782.5">9</text>
+      </g>
+      <text class="mapping" x="1416.8" y="604.5">FACE 9 / TRI 8 / -30 deg</text>
+      <text class="vertex" x="1350.917" y="664.388">v0</text>
+        <text class="vertex" x="1350.917" y="892.612">v1</text>
+        <text class="vertex" x="1548.566" y="778.5">v2</text>
+    </g>
+    <g id="d20-face-10" data-face-value="10" data-material-index="9">
+      <polygon class="island" points="1713.541,654.488 1750.232,923.696 1965.027,757.316" />
+      <polygon class="safe" points="1750.043,701.613 1772.792,868.521 1905.965,765.366" />
+      <line class="base-edge" x1="1965.027" y1="757.316" x2="1713.541" y2="654.488" />
+      <g class="number-orientation" transform="rotate(22.239 1809.6 778.5)">
+        <line class="baseline" x1="1751.6" y1="832.5" x2="1867.6" y2="832.5" />
+        <text class="number" x="1809.6" y="782.5">10</text>
+      </g>
+      <text class="mapping" x="1809.6" y="604.5">FACE 10 / TRI 9 / +22.239 deg</text>
+      <text class="vertex" x="1728.91" y="674.33">v0</text>
+        <text class="vertex" x="1759.731" y="900.465">v1</text>
+        <text class="vertex" x="1940.159" y="760.705">v2</text>
+    </g>
+    <g id="d20-face-11" data-face-value="11" data-material-index="16">
+      <polygon class="island" points="393.827,1290.684 179.032,1124.304 142.341,1393.512" />
+      <polygon class="safe" points="334.765,1282.634 201.592,1179.479 178.843,1346.387" />
+      <line class="base-edge" x1="142.341" y1="1393.512" x2="393.827" y2="1290.684" />
+      <g class="number-orientation" transform="rotate(-22.239 238.4 1269.5)">
+        <line class="baseline" x1="180.4" y1="1323.5" x2="296.4" y2="1323.5" />
+        <text class="number" x="238.4" y="1273.5">11</text>
+      </g>
+      <text class="mapping" x="238.4" y="1095.5">FACE 11 / TRI 16 / -22.239 deg</text>
+      <text class="vertex" x="368.959" y="1287.295">v0</text>
+        <text class="vertex" x="188.531" y="1147.535">v1</text>
+        <text class="vertex" x="157.71" y="1373.67">v2</text>
+    </g>
+    <g id="d20-face-12" data-face-value="12" data-material-index="15">
+      <polygon class="island" points="788.064,1269.5 552.768,1133.652 552.768,1405.348" />
+      <polygon class="safe" points="728.456,1269.5 582.572,1185.274 582.572,1353.726" />
+      <line class="base-edge" x1="552.768" y1="1405.348" x2="788.064" y2="1269.5" />
+      <g class="number-orientation" transform="rotate(-30 631.2 1269.5)">
+        <line class="baseline" x1="573.2" y1="1323.5" x2="689.2" y2="1323.5" />
+        <text class="number" x="631.2" y="1273.5">12</text>
+      </g>
+      <text class="mapping" x="631.2" y="1095.5">FACE 12 / TRI 15 / -30 deg</text>
+      <text class="vertex" x="762.966" y="1269.5">v0</text>
+        <text class="vertex" x="565.317" y="1155.388">v1</text>
+        <text class="vertex" x="565.317" y="1383.612">v2</text>
+    </g>
+    <g id="d20-face-13" data-face-value="13" data-material-index="19">
+      <polygon class="island" points="1159.848,1347.932 1024,1112.636 888.152,1347.932" />
+      <polygon class="safe" points="1108.226,1318.128 1024,1172.244 939.774,1318.128" />
+      <line class="base-edge" x1="888.152" y1="1347.932" x2="1159.848" y2="1347.932" />
+      <g class="number-orientation" transform="rotate(0 1024 1269.5)">
+        <line class="baseline" x1="966" y1="1323.5" x2="1082" y2="1323.5" />
+        <text class="number" x="1024" y="1273.5">13</text>
+      </g>
+      <text class="mapping" x="1024" y="1095.5">FACE 13 / TRI 19 / +0 deg</text>
+      <text class="vertex" x="1138.112" y="1335.383">v0</text>
+        <text class="vertex" x="1024" y="1137.734">v1</text>
+        <text class="vertex" x="909.888" y="1335.383">v2</text>
+    </g>
+    <g id="d20-face-14" data-face-value="14" data-material-index="18">
+      <polygon class="island" points="1495.232,1405.348 1495.232,1133.652 1259.936,1269.5" />
+      <polygon class="safe" points="1465.428,1353.726 1465.428,1185.274 1319.544,1269.5" />
+      <line class="base-edge" x1="1259.936" y1="1269.5" x2="1495.232" y2="1405.348" />
+      <g class="number-orientation" transform="rotate(30 1416.8 1269.5)">
+        <line class="baseline" x1="1358.8" y1="1323.5" x2="1474.8" y2="1323.5" />
+        <text class="number" x="1416.8" y="1273.5">14</text>
+      </g>
+      <text class="mapping" x="1416.8" y="1095.5">FACE 14 / TRI 18 / +30 deg</text>
+      <text class="vertex" x="1482.683" y="1383.612">v0</text>
+        <text class="vertex" x="1482.683" y="1155.388">v1</text>
+        <text class="vertex" x="1285.034" y="1269.5">v2</text>
+    </g>
+    <g id="d20-face-15" data-face-value="15" data-material-index="17">
+      <polygon class="island" points="1905.659,1393.512 1868.968,1124.304 1654.173,1290.684" />
+      <polygon class="safe" points="1869.157,1346.387 1846.408,1179.479 1713.235,1282.634" />
+      <line class="base-edge" x1="1654.173" y1="1290.684" x2="1905.659" y2="1393.512" />
+      <g class="number-orientation" transform="rotate(22.239 1809.6 1269.5)">
+        <line class="baseline" x1="1751.6" y1="1323.5" x2="1867.6" y2="1323.5" />
+        <text class="number" x="1809.6" y="1273.5">15</text>
+      </g>
+      <text class="mapping" x="1809.6" y="1095.5">FACE 15 / TRI 17 / +22.239 deg</text>
+      <text class="vertex" x="1890.29" y="1373.67">v0</text>
+        <text class="vertex" x="1859.469" y="1147.535">v1</text>
+        <text class="vertex" x="1679.041" y="1287.295">v2</text>
+    </g>
+    <g id="d20-face-16" data-face-value="16" data-material-index="14">
+      <polygon class="island" points="374.248,1682.068 102.552,1682.068 238.4,1917.364" />
+      <polygon class="safe" points="322.626,1711.872 154.174,1711.872 238.4,1857.756" />
+      <line class="base-edge" x1="374.248" y1="1682.068" x2="102.552" y2="1682.068" />
+      <g class="number-orientation" transform="rotate(0 238.4 1760.5)">
+        <line class="baseline" x1="180.4" y1="1814.5" x2="296.4" y2="1814.5" />
+        <text class="number" x="238.4" y="1764.5">16</text>
+      </g>
+      <text class="mapping" x="238.4" y="1586.5">FACE 16 / TRI 14 / +0 deg</text>
+      <text class="vertex" x="352.512" y="1694.617">v0</text>
+        <text class="vertex" x="124.288" y="1694.617">v1</text>
+        <text class="vertex" x="238.4" y="1892.266">v2</text>
+    </g>
+    <g id="d20-face-17" data-face-value="17" data-material-index="10">
+      <polygon class="island" points="690.568,1615.304 475.773,1781.684 727.259,1884.512" />
+      <polygon class="safe" points="668.008,1670.479 534.835,1773.634 690.757,1837.387" />
+      <line class="base-edge" x1="475.773" y1="1781.684" x2="727.259" y2="1884.512" />
+      <g class="number-orientation" transform="rotate(22.239 631.2 1760.5)">
+        <line class="baseline" x1="573.2" y1="1814.5" x2="689.2" y2="1814.5" />
+        <text class="number" x="631.2" y="1764.5">17</text>
+      </g>
+      <text class="mapping" x="631.2" y="1586.5">FACE 17 / TRI 10 / +22.239 deg</text>
+      <text class="vertex" x="681.069" y="1638.535">v0</text>
+        <text class="vertex" x="500.641" y="1778.295">v1</text>
+        <text class="vertex" x="711.89" y="1864.67">v2</text>
+    </g>
+    <g id="d20-face-18" data-face-value="18" data-material-index="11">
+      <polygon class="island" points="1024,1603.636 888.152,1838.932 1159.848,1838.932" />
+      <polygon class="safe" points="1024,1663.244 939.774,1809.128 1108.226,1809.128" />
+      <line class="base-edge" x1="888.152" y1="1838.932" x2="1159.848" y2="1838.932" />
+      <g class="number-orientation" transform="rotate(0 1024 1760.5)">
+        <line class="baseline" x1="966" y1="1814.5" x2="1082" y2="1814.5" />
+        <text class="number" x="1024" y="1764.5">18</text>
+      </g>
+      <text class="mapping" x="1024" y="1586.5">FACE 18 / TRI 11 / +0 deg</text>
+      <text class="vertex" x="1024" y="1628.734">v0</text>
+        <text class="vertex" x="909.888" y="1826.383">v1</text>
+        <text class="vertex" x="1138.112" y="1826.383">v2</text>
+    </g>
+    <g id="d20-face-19" data-face-value="19" data-material-index="12">
+      <polygon class="island" points="1280.952,1682.068 1416.8,1917.364 1552.648,1682.068" />
+      <polygon class="safe" points="1332.574,1711.872 1416.8,1857.756 1501.026,1711.872" />
+      <line class="base-edge" x1="1552.648" y1="1682.068" x2="1280.952" y2="1682.068" />
+      <g class="number-orientation" transform="rotate(0 1416.8 1760.5)">
+        <line class="baseline" x1="1358.8" y1="1814.5" x2="1474.8" y2="1814.5" />
+        <text class="number" x="1416.8" y="1764.5">19</text>
+      </g>
+      <text class="mapping" x="1416.8" y="1586.5">FACE 19 / TRI 12 / +0 deg</text>
+      <text class="vertex" x="1302.688" y="1694.617">v0</text>
+        <text class="vertex" x="1416.8" y="1892.266">v1</text>
+        <text class="vertex" x="1530.912" y="1694.617">v2</text>
+    </g>
+    <g id="d20-face-20" data-face-value="20" data-material-index="13">
+      <polygon class="island" points="1965.027,1781.684 1750.232,1615.304 1713.541,1884.512" />
+      <polygon class="safe" points="1905.965,1773.634 1772.792,1670.479 1750.043,1837.387" />
+      <line class="base-edge" x1="1713.541" y1="1884.512" x2="1965.027" y2="1781.684" />
+      <g class="number-orientation" transform="rotate(-22.239 1809.6 1760.5)">
+        <line class="baseline" x1="1751.6" y1="1814.5" x2="1867.6" y2="1814.5" />
+        <text class="number" x="1809.6" y="1764.5">20</text>
+      </g>
+      <text class="mapping" x="1809.6" y="1586.5">FACE 20 / TRI 13 / -22.239 deg</text>
+      <text class="vertex" x="1940.159" y="1778.295">v0</text>
+        <text class="vertex" x="1759.731" y="1638.535">v1</text>
+        <text class="vertex" x="1728.91" y="1864.67">v2</text>
+    </g>
+  </g>
+</svg>

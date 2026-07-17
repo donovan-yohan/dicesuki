@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048" role="img" aria-label="D4 canonical numbered UV guide">
+  <defs>
+    <style>
+      .background { fill: #070b12; }
+      .island { fill: #12384a; stroke: #67e8f9; stroke-width: 7; }
+      .safe { fill: #f59e0b; fill-opacity: 0.08; stroke: #fde68a; stroke-width: 4; stroke-dasharray: 16 11; }
+      .number { fill: #fff7d6; stroke: #111827; stroke-width: 3; paint-order: stroke fill; font-family: Georgia, serif; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+      .mapping { fill: #b8c5d9; font: 700 28px Arial, sans-serif; text-anchor: middle; }
+      .base-edge { stroke: #f97316; stroke-width: 12; opacity: 0.95; }
+      .baseline { stroke: #f97316; stroke-width: 6; opacity: 0.86; }
+    </style>
+  </defs>
+  <rect class="background" width="100%" height="100%" />
+  <g id="canonical-numbered-islands">
+    <g id="d4-face-1" data-face-value="1" data-material-index="0">
+      <polygon class="island" points="195.055,242.106 897.445,242.106 546.25,850.394" />
+      <polygon class="safe" points="314.461,345.515 778.039,345.515 546.25,746.985" />
+      <line class="base-edge" x1="195.055" y1="242.106" x2="897.445" y2="242.106" />
+      <g transform="rotate(0 546.25 546.25)">
+        <text class="number" style="font-size:210px" x="546.25" y="548.25">1</text>
+        <line class="baseline" x1="437.05" y1="636.55" x2="655.45" y2="636.55" />
+      </g>
+      <text class="mapping" x="546.25" y="224.106">D4 1 / M0 / +0 deg</text>
+    </g>
+    <g id="d4-face-2" data-face-value="2" data-material-index="1">
+      <polygon class="island" points="1150.555,242.106 1852.945,242.106 1501.75,850.394" />
+      <polygon class="safe" points="1269.961,345.515 1733.539,345.515 1501.75,746.985" />
+      <line class="base-edge" x1="1150.555" y1="242.106" x2="1852.945" y2="242.106" />
+      <g transform="rotate(0 1501.75 546.25)">
+        <text class="number" style="font-size:210px" x="1501.75" y="548.25">2</text>
+        <line class="baseline" x1="1392.55" y1="636.55" x2="1610.95" y2="636.55" />
+      </g>
+      <text class="mapping" x="1501.75" y="224.106">D4 2 / M1 / +0 deg</text>
+    </g>
+    <g id="d4-face-3" data-face-value="3" data-material-index="2">
+      <polygon class="island" points="546.25,1197.606 897.445,1805.894 195.055,1805.894" />
+      <polygon class="safe" points="546.25,1301.015 778.039,1702.485 314.461,1702.485" />
+      <line class="base-edge" x1="897.445" y1="1805.894" x2="195.055" y2="1805.894" />
+      <g transform="rotate(0 546.25 1501.75)">
+        <text class="number" style="font-size:210px" x="546.25" y="1503.75">3</text>
+        <line class="baseline" x1="437.05" y1="1592.05" x2="655.45" y2="1592.05" />
+      </g>
+      <text class="mapping" x="546.25" y="1179.606">D4 3 / M2 / +0 deg</text>
+    </g>
+    <g id="d4-face-4" data-face-value="4" data-material-index="3">
+      <polygon class="island" points="1501.75,1197.606 1852.945,1805.894 1150.555,1805.894" />
+      <polygon class="safe" points="1501.75,1301.015 1733.539,1702.485 1269.961,1702.485" />
+      <line class="base-edge" x1="1852.945" y1="1805.894" x2="1150.555" y2="1805.894" />
+      <g transform="rotate(0 1501.75 1501.75)">
+        <text class="number" style="font-size:210px" x="1501.75" y="1503.75">4</text>
+        <line class="baseline" x1="1392.55" y1="1592.05" x2="1610.95" y2="1592.05" />
+      </g>
+      <text class="mapping" x="1501.75" y="1179.606">D4 4 / M3 / +0 deg</text>
+    </g>
+  </g>
+</svg>

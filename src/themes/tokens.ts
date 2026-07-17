@@ -165,7 +165,16 @@ export interface EnvironmentCustomization {
   // Floor configuration
   floor: {
     color: string
-    texture?: string // URL to texture image (wood, felt, stone, etc.)
+    /** Legacy color-map URL. Prefer albedoTexture or colorTexture for new themes. */
+    texture?: string
+    albedoTexture?: string
+    colorTexture?: string
+    normalTexture?: string
+    normalScale?: number | [number, number]
+    /** World units per texture tile. A scalar keeps square textures square. */
+    tileSize?: number | [number, number]
+    /** Legacy fixed UV repeat fallback. */
+    repeat?: [number, number]
     material: {
       roughness: number
       metalness: number
@@ -176,7 +185,16 @@ export interface EnvironmentCustomization {
   // Wall configuration
   walls: {
     color: string
-    texture?: string // URL to texture image
+    /** Legacy color-map URL. Prefer albedoTexture or colorTexture for new themes. */
+    texture?: string
+    albedoTexture?: string
+    colorTexture?: string
+    normalTexture?: string
+    normalScale?: number | [number, number]
+    /** World units per texture tile. A scalar keeps square textures square. */
+    tileSize?: number | [number, number]
+    /** Legacy fixed UV repeat fallback. */
+    repeat?: [number, number]
     material: {
       roughness: number
       metalness: number
@@ -189,6 +207,20 @@ export interface EnvironmentCustomization {
   ceiling: {
     visible: boolean // Usually invisible unless specific theme needs it
     color?: string
+    /** Legacy color-map URL. Prefer albedoTexture or colorTexture for new themes. */
+    texture?: string
+    albedoTexture?: string
+    colorTexture?: string
+    normalTexture?: string
+    normalScale?: number | [number, number]
+    /** World units per texture tile. A scalar keeps square textures square. */
+    tileSize?: number | [number, number]
+    /** Legacy fixed UV repeat fallback. */
+    repeat?: [number, number]
+    material?: {
+      roughness: number
+      metalness: number
+    }
   }
 
   // Lighting setup
@@ -207,7 +239,11 @@ export interface EnvironmentCustomization {
   // Background/skybox
   background: {
     color: string
-    texture?: string // Skybox or background image
+    /** Legacy background texture URL. Equirectangular textures are supported. */
+    texture?: string
+    albedoTexture?: string
+    colorTexture?: string
+    equirectangularTexture?: string
     gradient?: {
       from: string
       to: string
@@ -610,8 +646,8 @@ export const fantasyTheme: Theme = {
 
 export const critterForestTheme: Theme = {
   id: 'critter-forest',
-  name: 'Critter Forest',
-  description: 'Adorable woodland creatures in a whimsical mushroom grove',
+  name: 'Cozy Forest',
+  description: 'A warm moss-and-walnut dice grove with brass roots and golden-hour canopy light',
   price: 399, // $3.99
   category: 'fantasy',
 
@@ -732,6 +768,10 @@ export const critterForestTheme: Theme = {
   environment: {
     floor: {
       color: '#7cb342', // Grass green
+      albedoTexture: '/textures/themes/cozy-forest/floor-albedo.png',
+      normalTexture: '/textures/themes/cozy-forest/floor-normal.png',
+      normalScale: [0.34, 0.34],
+      tileSize: 4.3,
       material: {
         roughness: 0.95,
         metalness: 0.0,
@@ -740,6 +780,10 @@ export const critterForestTheme: Theme = {
     },
     walls: {
       color: '#d4a574', // Tan (tree bark color)
+      albedoTexture: '/textures/themes/cozy-forest/wall-albedo.png',
+      normalTexture: '/textures/themes/cozy-forest/wall-normal.png',
+      normalScale: [0.38, 0.38],
+      tileSize: 4.8,
       material: {
         roughness: 0.9,
         metalness: 0.0,
@@ -763,6 +807,7 @@ export const critterForestTheme: Theme = {
     },
     background: {
       color: '#87ceeb',
+      equirectangularTexture: '/textures/themes/cozy-forest/skybox-equirectangular.png',
       gradient: {
         from: '#87ceeb', // Sky blue
         to: '#7cb342', // Grass green
@@ -778,8 +823,8 @@ export const critterForestTheme: Theme = {
 
 export const dungeonCastleTheme: Theme = {
   id: 'dungeon-castle',
-  name: 'Dungeon Castle',
-  description: 'Dark stone halls echoing with ancient magic and danger',
+  name: 'Dark Dungeon',
+  description: 'A black-stone dice vault bound in iron, oxblood inlay, and distant torchlight',
   price: 399, // $3.99
   category: 'fantasy',
 
@@ -900,7 +945,11 @@ export const dungeonCastleTheme: Theme = {
 
   environment: {
     floor: {
-      color: '#2a2a2a', // Dark gray stone floor (old castle)
+      color: '#ffffff', // Preserve the authored stone albedo instead of multiplying it nearly black
+      albedoTexture: '/textures/themes/dark-dungeon/floor-albedo.png',
+      normalTexture: '/textures/themes/dark-dungeon/floor-normal.png',
+      normalScale: [0.46, 0.46],
+      tileSize: 4.15,
       material: {
         roughness: 0.9,
         metalness: 0.0,
@@ -908,7 +957,11 @@ export const dungeonCastleTheme: Theme = {
       receiveShadow: true,
     },
     walls: {
-      color: '#333333', // Dark gray stone walls (old castle)
+      color: '#ffffff',
+      albedoTexture: '/textures/themes/dark-dungeon/wall-albedo.png',
+      normalTexture: '/textures/themes/dark-dungeon/wall-normal.png',
+      normalScale: [0.5, 0.5],
+      tileSize: 4.45,
       material: {
         roughness: 0.95,
         metalness: 0.0,
@@ -922,17 +975,18 @@ export const dungeonCastleTheme: Theme = {
     },
     lighting: {
       ambient: {
-        color: '#999999', // Dim neutral gray light
-        intensity: 1, // Moderate ambient for visibility
+        color: '#ead8c2', // Warm fill keeps black stone and engraved dice legible
+        intensity: 0.9,
       },
       directional: {
-        color: '#ff8533', // Bright fire orange (torch accent)
-        intensity: 0.33, // Lower torch intensity - just for highlights
+        color: '#ffad66', // Torch accent
+        intensity: 0.65,
         position: [2, 5, 3],
       },
     },
     background: {
       color: '#1a1a1a', // Very dark background
+      equirectangularTexture: '/textures/themes/dark-dungeon/skybox-equirectangular.png',
     },
   },
 }
@@ -943,8 +997,8 @@ export const dungeonCastleTheme: Theme = {
 
 export const neonCyberCityTheme: Theme = {
   id: 'neon-cyber-city',
-  name: 'Neon Cyber City',
-  description: 'Retro-futuristic pixel art cityscape with vibrant neon lights',
+  name: 'Cyberpunk Box',
+  description: 'A kinetic cel-shaded street-tech arena overlooking a saturated neon megacity',
   price: 499, // $4.99
   category: 'sci-fi',
 
@@ -1064,18 +1118,26 @@ export const neonCyberCityTheme: Theme = {
 
   environment: {
     floor: {
-      color: '#1a0033', // Dark purple
+      color: '#ffffff', // Let the generated black-chrome albedo retain cyan and magenta channels
+      albedoTexture: '/textures/themes/cyberpunk-box/floor-albedo.png',
+      normalTexture: '/textures/themes/cyberpunk-box/floor-normal.png',
+      normalScale: [0.24, 0.24],
+      tileSize: 4.7,
       material: {
-        roughness: 0.2, // Shiny floor (like wet pavement)
-        metalness: 0.3,
+        roughness: 0.48,
+        metalness: 0.22,
       },
       receiveShadow: true,
     },
     walls: {
-      color: '#2d1b69', // Purple walls
+      color: '#ffffff',
+      albedoTexture: '/textures/themes/cyberpunk-box/wall-albedo.png',
+      normalTexture: '/textures/themes/cyberpunk-box/wall-normal.png',
+      normalScale: [0.28, 0.28],
+      tileSize: 4.6,
       material: {
-        roughness: 0.3,
-        metalness: 0.2,
+        roughness: 0.52,
+        metalness: 0.28,
       },
       visible: true,
       height: 6,
@@ -1085,17 +1147,18 @@ export const neonCyberCityTheme: Theme = {
     },
     lighting: {
       ambient: {
-        color: '#00ffff', // Cyan ambient
-        intensity: 0.4,
+        color: '#d8f8ff', // Cool near-white fill preserves the full generated albedo
+        intensity: 0.85,
       },
       directional: {
-        color: '#ff00ff', // Magenta key light
-        intensity: 0.8,
+        color: '#ff5cf4', // Magenta key light
+        intensity: 1,
         position: [6, 8, 4],
       },
     },
     background: {
       color: '#0d0221',
+      equirectangularTexture: '/textures/themes/cyberpunk-box/skybox-equirectangular.png',
       gradient: {
         from: '#0d0221', // Dark purple
         to: '#240046', // Purple

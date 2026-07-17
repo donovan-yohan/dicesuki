@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="2048" viewBox="0 0 2048 2048">
+<rect width="100%" height="100%" fill="#111827" />
+<text x="96" y="112" fill="#f9fafb" font-family="Arial, sans-serif" font-size="44" font-weight="700">D6 Continuous UV Sheet Proof</text>
+<text x="96" y="158" fill="#d1d5db" font-family="Arial, sans-serif" font-size="26">Cube cross with shared edge intent: gold trim, blue inset panels, deterministic face values.</text>
+<g id="d6-face-6" data-face-value="6">
+<rect x="653" y="271" width="360" height="360" rx="16" fill="#0f172a" stroke="#d6b45d" stroke-width="28" />
+<rect x="695" y="313" width="276" height="276" rx="8" fill="#1d4ed8" stroke="#f6d978" stroke-width="8" />
+<rect x="745" y="363" width="176" height="176" rx="4" fill="none" stroke="#fef08a" stroke-width="4" stroke-dasharray="16 10" />
+</g>
+<g id="d6-face-4" data-face-value="4">
+<rect x="271" y="653" width="360" height="360" rx="16" fill="#0f172a" stroke="#d6b45d" stroke-width="28" />
+<rect x="313" y="695" width="276" height="276" rx="8" fill="#1d4ed8" stroke="#f6d978" stroke-width="8" />
+<rect x="363" y="745" width="176" height="176" rx="4" fill="none" stroke="#fef08a" stroke-width="4" stroke-dasharray="16 10" />
+</g>
+<g id="d6-face-2" data-face-value="2">
+<rect x="653" y="653" width="360" height="360" rx="16" fill="#0f172a" stroke="#d6b45d" stroke-width="28" />
+<rect x="695" y="695" width="276" height="276" rx="8" fill="#1d4ed8" stroke="#f6d978" stroke-width="8" />
+<rect x="745" y="745" width="176" height="176" rx="4" fill="none" stroke="#fef08a" stroke-width="4" stroke-dasharray="16 10" />
+</g>
+<g id="d6-face-3" data-face-value="3">
+<rect x="1035" y="653" width="360" height="360" rx="16" fill="#0f172a" stroke="#d6b45d" stroke-width="28" />
+<rect x="1077" y="695" width="276" height="276" rx="8" fill="#1d4ed8" stroke="#f6d978" stroke-width="8" />
+<rect x="1127" y="745" width="176" height="176" rx="4" fill="none" stroke="#fef08a" stroke-width="4" stroke-dasharray="16 10" />
+</g>
+<g id="d6-face-1" data-face-value="1">
+<rect x="653" y="1035" width="360" height="360" rx="16" fill="#0f172a" stroke="#d6b45d" stroke-width="28" />
+<rect x="695" y="1077" width="276" height="276" rx="8" fill="#1d4ed8" stroke="#f6d978" stroke-width="8" />
+<rect x="745" y="1127" width="176" height="176" rx="4" fill="none" stroke="#fef08a" stroke-width="4" stroke-dasharray="16 10" />
+</g>
+<g id="d6-face-5" data-face-value="5">
+<rect x="653" y="1417" width="360" height="360" rx="16" fill="#0f172a" stroke="#d6b45d" stroke-width="28" />
+<rect x="695" y="1459" width="276" height="276" rx="8" fill="#1d4ed8" stroke="#f6d978" stroke-width="8" />
+<rect x="745" y="1509" width="176" height="176" rx="4" fill="none" stroke="#fef08a" stroke-width="4" stroke-dasharray="16 10" />
+</g>
+</svg>
