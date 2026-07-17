@@ -61,7 +61,12 @@ export function RoomNotices() {
             />
             <span>
               <strong>{notice.displayName}</strong>{' '}
-              {notice.kind === 'join' ? 'joined' : 'left'}
+              {{
+                join: 'joined',
+                leave: 'left',
+                disconnect: 'disconnected',
+                reconnect: 'reconnected',
+              }[notice.kind]}
             </span>
           </motion.button>
         ))}

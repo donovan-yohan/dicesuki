@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useMultiplayerStore } from './useMultiplayerStore'
 import { useDiceStore } from './useDiceStore'
 import type { ServerMessage } from '../lib/multiplayerMessages'
+import { loadRoomSession, saveRoomSession } from '../lib/roomSession'
 
 describe('useMultiplayerStore', () => {
   beforeEach(() => {
     useMultiplayerStore.getState().reset()
+    localStorage.clear()
   })
 
   describe('initial state', () => {
@@ -214,7 +216,7 @@ describe('useMultiplayerStore', () => {
 
         // Advance well past any throttle state carried over from a prior test so
         // this case stands on its own regardless of order.
-        vi.advanceTimersByTime(1000)
+        vi.advanceTimersByTime(100_000)
 
         const store = useMultiplayerStore.getState()
         store.sendMotionField([5, 0, 0]) // sends (call 1)
@@ -235,6 +237,36 @@ describe('useMultiplayerStore', () => {
         vi.advanceTimersByTime(1000)
         store.sendMotionField([4, 0, 0])
         expect(send).toHaveBeenCalledTimes(3)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('streams spin-only input and sends both zero terms on disable', () => {
+      vi.useFakeTimers({ toFake: ['performance'] })
+      try {
+        const send = vi.fn()
+        useMultiplayerStore.setState({
+          connectionStatus: 'connected',
+          socket: { send } as unknown as WebSocket,
+          roomSettings: { version: 1, motionControl: 'own_dice' },
+        })
+        vi.advanceTimersByTime(1000)
+
+        const store = useMultiplayerStore.getState()
+        store.sendMotionField([0, 0, 0], [0, 30, 0])
+        expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+          type: 'motion_field',
+          field: [0, 0, 0],
+          angularAccel: [0, 30, 0],
+        })
+
+        store.sendMotionField([0, 0, 0], [0, 0, 0])
+        expect(JSON.parse(send.mock.calls[1][0])).toEqual({
+          type: 'motion_field',
+          field: [0, 0, 0],
+          angularAccel: [0, 0, 0],
+        })
       } finally {
         vi.useRealTimers()
       }
@@ -447,6 +479,26 @@ describe('useMultiplayerStore', () => {
       expect(useMultiplayerStore.getState().socket).toBeNull()
     })
 
+    it('transient detach closes without Leave and preserves durable resume', () => {
+      const send = vi.fn()
+      const close = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send, close } as unknown as WebSocket,
+        roomId: 'abc123',
+        lastJoin: {
+          roomId: 'abc123', displayName: 'Alice', color: '#8B5CF6',
+          serverUrl: 'ws://x', token: '12345678-1234-4234-9234-123456789abc', transport: 'websocket',
+        },
+      })
+
+      useMultiplayerStore.getState().detach()
+
+      expect(send).not.toHaveBeenCalled()
+      expect(close).toHaveBeenCalledOnce()
+      expect(localStorage.getItem('dicesuki:room-sessions')).toContain('abc123')
+    })
+
     it('reset clears reconnect and notice state', () => {
       useMultiplayerStore.setState({
         roomClosedNotice: 'gone',
@@ -589,6 +641,51 @@ describe('useMultiplayerStore', () => {
 
       expect(useMultiplayerStore.getState().players.size).toBe(1)
       expect(useMultiplayerStore.getState().players.has('p1')).toBe(false)
+    })
+
+    it('updates held-seat presence without removing the roster entry', () => {
+      useMultiplayerStore.setState({
+        players: new Map([['p2', { id: 'p2', displayName: 'Frodo', color: '#3B82F6', connected: true }]]),
+      })
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'player_presence_changed',
+        playerId: 'p2',
+        connected: false,
+      })
+      expect(useMultiplayerStore.getState().players.get('p2')?.connected).toBe(false)
+    })
+
+    it('host removal clears resume state and suppresses reconnect for the target', () => {
+      localStorage.setItem('dicesuki:room-sessions', JSON.stringify({
+        version: 1,
+        sessions: [{
+          version: 1,
+          roomId: 'abc123',
+          displayName: 'Frodo',
+          color: '#3B82F6',
+          reconnectToken: 'long-secret-token-value',
+          updatedAt: Date.now(),
+        }],
+      }))
+      const close = vi.fn()
+      useMultiplayerStore.setState({
+        roomId: 'abc123',
+        socket: { close } as never,
+        lastJoin: {
+          roomId: 'abc123', displayName: 'Frodo', color: '#3B82F6',
+          serverUrl: 'ws://x', token: 'long-secret-token-value', transport: 'websocket',
+        },
+      })
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'removed_from_room',
+        reason: 'The host removed you from the room.',
+      })
+      const state = useMultiplayerStore.getState()
+      expect(state.intentionalDisconnect).toBe(true)
+      expect(state.lastJoin).toBeNull()
+      expect(state.removedFromRoomNotice).toContain('host removed')
+      expect(localStorage.getItem('dicesuki:room-sessions')).toBeNull()
+      expect(close).toHaveBeenCalledOnce()
     })
 
     it('should handle dice_spawned message', () => {
@@ -980,6 +1077,74 @@ describe('useMultiplayerStore', () => {
       const state = useMultiplayerStore.getState()
       expect(state.connectionStatus).toBe('connected')
       expect(close).not.toHaveBeenCalled()
+    })
+
+    it('clears only a rejected unauthorized resume so retry mints a new credential', () => {
+      const oldToken = '12345678-1234-4234-9234-123456789abc'
+      saveRoomSession({
+        roomId: 'abc123',
+        displayName: 'Alice',
+        color: '#8B5CF6',
+        reconnectToken: oldToken,
+      })
+      const close = vi.fn()
+      useMultiplayerStore.setState({
+        socket: { close } as unknown as WebSocket,
+        connectionStatus: 'connected',
+        roomId: 'abc123',
+        reconnectToken: oldToken,
+        localPlayerId: null,
+        lastJoin: {
+          roomId: 'abc123', displayName: 'Alice', color: '#8B5CF6',
+          serverUrl: 'ws://example', token: oldToken, transport: 'websocket',
+        },
+      })
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'error',
+        code: 'RECONNECT_UNAUTHORIZED',
+        message: 'Reconnect credential does not belong to this user',
+      })
+
+      expect(loadRoomSession('abc123')).toBeNull()
+      expect(useMultiplayerStore.getState().reconnectToken).toBeNull()
+
+      class StubSocket {
+        readyState = 0
+        onopen = null
+        onmessage = null
+        onerror = null
+        onclose = null
+        send() {}
+        close() {}
+      }
+      vi.stubGlobal('WebSocket', StubSocket)
+      useMultiplayerStore.getState().connect('abc123', 'Alice', '#8B5CF6', 'ws://example')
+      const newToken = useMultiplayerStore.getState().reconnectToken
+      expect(newToken).not.toBeNull()
+      expect(newToken).not.toBe(oldToken)
+      vi.unstubAllGlobals()
+    })
+
+    it('keeps durable resume state for generic ROOM_FULL rejection', () => {
+      const token = '12345678-1234-4234-9234-123456789abc'
+      saveRoomSession({
+        roomId: 'abc123', displayName: 'Alice', color: '#8B5CF6', reconnectToken: token,
+      })
+      useMultiplayerStore.setState({
+        socket: { close: vi.fn() } as unknown as WebSocket,
+        connectionStatus: 'connected',
+        roomId: 'abc123',
+        reconnectToken: token,
+        localPlayerId: null,
+      })
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'error', code: 'ROOM_FULL', message: 'Room is full',
+      })
+
+      expect(loadRoomSession('abc123')?.reconnectToken).toBe(token)
+      expect(useMultiplayerStore.getState().reconnectToken).toBe(token)
     })
   })
 

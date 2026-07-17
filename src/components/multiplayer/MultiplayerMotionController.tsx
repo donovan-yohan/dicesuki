@@ -25,7 +25,7 @@ const ZERO_FIELD: [number, number, number] = [0, 0, 0]
  * Renders nothing. Mounted in the unified room Scene used by solo and multiplayer.
  */
 export function MultiplayerMotionController() {
-  const { motionFieldRef } = useDeviceMotionRef()
+  const { motionFieldRef, angularMotionFieldRef } = useDeviceMotionRef()
   const wasEnabledRef = useRef(false)
 
   useFrame(() => {
@@ -34,7 +34,7 @@ export function MultiplayerMotionController() {
     if (!motionEnabled) {
       // Falling edge: stop the dice with a single zero field.
       if (wasEnabledRef.current) {
-        useMultiplayerStore.getState().sendMotionField(ZERO_FIELD)
+        useMultiplayerStore.getState().sendMotionField(ZERO_FIELD, ZERO_FIELD)
         wasEnabledRef.current = false
       }
       return
@@ -47,7 +47,11 @@ export function MultiplayerMotionController() {
     const field = motionFieldRef.current
     const viewRotation = useUIStore.getState().viewRotation
     const aligned = viewRotation === 0 ? field : rotateXZ(field, viewRotation)
-    useMultiplayerStore.getState().sendMotionField(aligned)
+    const angularField = angularMotionFieldRef.current
+    const alignedAngular = viewRotation === 0
+      ? angularField
+      : rotateXZ(angularField, viewRotation)
+    useMultiplayerStore.getState().sendMotionField(aligned, alignedAngular)
   })
 
   // Stop the dice if the controller unmounts mid-motion (leaving the room, Scene
@@ -55,7 +59,7 @@ export function MultiplayerMotionController() {
   useEffect(() => {
     return () => {
       if (wasEnabledRef.current) {
-        useMultiplayerStore.getState().sendMotionField(ZERO_FIELD)
+        useMultiplayerStore.getState().sendMotionField(ZERO_FIELD, ZERO_FIELD)
       }
     }
   }, [])

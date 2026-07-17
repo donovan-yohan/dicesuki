@@ -27,6 +27,13 @@ import { createWorkerRoomTransport } from '../lib/workerRoomTransport'
 import { arenaDimensionsForViewport } from '../config/renderScale'
 import { triggerCollisionFeedback } from '../lib/collisionFeedback'
 import { useDiceStore } from './useDiceStore'
+import {
+  clearRoomSession,
+  loadRoomSession,
+  mintReconnectToken,
+  saveRoomSession,
+} from '../lib/roomSession'
+import { getSupabaseClient } from '../lib/supabaseClient'
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
@@ -127,6 +134,8 @@ interface MultiplayerState {
   lastJoin: { roomId: string; displayName: string; color: string; serverUrl: string; token: string; transport: RoomTransportKind } | null
   /** User-facing notice shown when a room went away (idle cleanup / unreachable). */
   roomClosedNotice: string | null
+  /** Terminal reason supplied when the host removes this client. */
+  removedFromRoomNotice: string | null
   // Host role & settings
   hostId: string | null
   isHost: boolean
@@ -152,6 +161,10 @@ interface MultiplayerState {
   // Actions
   connect: (roomId: string, displayName: string, color: string, serverUrl?: string, transport?: RoomTransportKind) => void
   disconnect: () => void
+  /** Close locally without sending Leave or clearing durable resume data. */
+  detach: () => void
+  /** Retry immediately after a foreground/online lifecycle signal. */
+  reconnectNow: () => void
   sendMessage: (msg: ClientMessage) => void
   handleServerMessage: (msg: ServerMessage) => void
 
@@ -192,6 +205,8 @@ interface MultiplayerState {
    * works in solo too.
    */
   setArena: (aspect: number) => void
+  /** Host-only removal; the server authoritatively validates the target. */
+  removePlayer: (playerId: string) => void
   /**
    * Stream the local player's device-motion field (Shared-ADR-010). Policy-aware:
    * silently drops when motion is disabled (`off`) and throttles to
@@ -199,7 +214,10 @@ interface MultiplayerState {
    * motion stops promptly. The server latches the field and remains authoritative
    * over which dice it affects.
    */
-  sendMotionField: (field: [number, number, number]) => void
+  sendMotionField: (
+    field: [number, number, number],
+    angularAccel?: [number, number, number],
+  ) => void
 
   // Drag actions
   startDrag: (dieId: string, grabOffset: [number, number, number], worldPosition: [number, number, number]) => void
@@ -227,6 +245,7 @@ const createInitialState = () => ({
   intentionalDisconnect: false,
   lastJoin: null as MultiplayerState['lastJoin'],
   roomClosedNotice: null as string | null,
+  removedFromRoomNotice: null as string | null,
   hostId: null as string | null,
   isHost: false,
   roomSettings: { version: 1 } as RoomSettings,
@@ -255,7 +274,13 @@ const SOLO_ENGINE_STOPPED_MESSAGE = 'The local dice engine stopped unexpectedly.
  * the same input will not help — so we surface them on the join form instead of
  * silently swallowing the error or auto-reconnecting.
  */
-const JOIN_ERROR_CODES = new Set(['ROOM_FULL', 'INVALID_NAME', 'INVALID_COLOR', 'ALREADY_JOINED'])
+const JOIN_ERROR_CODES = new Set([
+  'ROOM_FULL',
+  'INVALID_NAME',
+  'INVALID_COLOR',
+  'ALREADY_JOINED',
+  'RECONNECT_UNAUTHORIZED',
+])
 
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -275,22 +300,11 @@ function clearReconnectTimer() {
 }
 
 /**
- * Return a stable per-room reconnect token, persisted in sessionStorage so a
- * page reload within the grace window still reclaims the same seat. Falls back
- * to an ephemeral token when sessionStorage is unavailable (SSR/tests).
+ * Return a stable per-room reconnect credential from the durable room-session
+ * record, minting from browser cryptography when none is valid.
  */
 function getOrCreateReconnectToken(roomId: string): string {
-  const key = `dicesuki:reconnectToken:${roomId}`
-  const mint = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
-  try {
-    const existing = sessionStorage.getItem(key)
-    if (existing) return existing
-    const token = mint()
-    sessionStorage.setItem(key, token)
-    return token
-  } catch {
-    return mint()
-  }
+  return loadRoomSession(roomId)?.reconnectToken ?? mintReconnectToken()
 }
 
 /**
@@ -312,7 +326,7 @@ function establishConnection(
   const socket = createRoomSocket(transport, { roomId, serverUrl })
   set({ socket, connectionStatus: 'connecting', serverUrl, parseErrorCount: 0 })
 
-  socket.onopen = () => {
+  socket.onopen = async () => {
     if (get().socket !== socket) {
       socket.close()
       return
@@ -325,8 +339,26 @@ function establishConnection(
       reconnectAttempts: 0,
       connectionError: null,
       roomClosedNotice: null,
+      removedFromRoomNotice: null,
     })
-    const joinMsg: ClientMessage = { type: 'join', roomId, displayName, color, reconnectToken: token }
+    let authToken: string | undefined
+    if (transport === 'websocket') {
+      try {
+        authToken = (await getSupabaseClient()?.auth.getSession())?.data.session?.access_token
+      } catch {
+        // Auth is optional. A failed session read joins as a guest; the server
+        // still prevents a guest from reclaiming an authenticated seat.
+      }
+    }
+    if (get().socket !== socket || socket.readyState !== WebSocket.OPEN) return
+    const joinMsg: ClientMessage = {
+      type: 'join',
+      roomId,
+      displayName,
+      color,
+      reconnectToken: token,
+      ...(authToken ? { authToken } : {}),
+    }
     socket.send(JSON.stringify(joinMsg))
   }
 
@@ -412,23 +444,28 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     const token = getOrCreateReconnectToken(roomId)
 
     // Fresh, user-initiated connection: clear any prior notice and reset the
-    // reconnect budget. The token comes from sessionStorage so a reconnect (or
-    // reload) reclaims the same seat within the grace window.
+    // reconnect budget. The token comes from the bounded local room-session
+    // record so reload/browser restoration can reclaim a held seat.
     set({
       connectionError: null,
       roomClosedNotice: null,
+      removedFromRoomNotice: null,
       intentionalDisconnect: false,
       reconnectAttempts: 0,
       reconnectToken: token,
       lastJoin: { roomId, displayName, color, serverUrl: activeServerUrl, token, transport },
     })
 
+    if (transport === 'websocket') {
+      saveRoomSession({ roomId, displayName, color, reconnectToken: token })
+    }
+
     establishConnection(set, get, { roomId, displayName, color, serverUrl: activeServerUrl, token, transport })
   },
 
   disconnect: () => {
     clearReconnectTimer()
-    const { socket, connectionStatus } = get()
+    const { socket, connectionStatus, roomId, lastJoin } = get()
     // Signal an intentional leave so the server frees the seat immediately
     // (no grace hold) and `onclose` does not auto-reconnect.
     set({ intentionalDisconnect: true })
@@ -442,7 +479,34 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     if (socket) {
       socket.close()
     }
+    const sessionRoomId = roomId ?? lastJoin?.roomId
+    if (sessionRoomId && lastJoin?.transport !== 'worker') clearRoomSession(sessionRoomId)
     get().reset()
+  },
+
+  detach: () => {
+    clearReconnectTimer()
+    const { socket, lastJoin } = get()
+    if (lastJoin?.transport === 'websocket') {
+      saveRoomSession({
+        roomId: lastJoin.roomId,
+        displayName: lastJoin.displayName,
+        color: lastJoin.color,
+        reconnectToken: lastJoin.token,
+      })
+    }
+    set({ intentionalDisconnect: true, socket: null, connectionStatus: 'disconnected' })
+    if (socket) socket.close()
+    get().reset()
+  },
+
+  reconnectNow: () => {
+    const state = get()
+    if (state.intentionalDisconnect || !state.lastJoin || state.lastJoin.transport === 'worker') return
+    if (state.socket?.readyState === WebSocket.OPEN) return
+    clearReconnectTimer()
+    set({ reconnectAttempts: 0 })
+    establishConnection(set, get, state.lastJoin)
   },
 
   sendMessage: (msg: ClientMessage) => {
@@ -486,6 +550,15 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           // than clobbering it with null.
           ...(msg.config ? { engineConfig: msg.config } : {}),
         })
+        const replay = get().lastJoin
+        if (replay?.transport === 'websocket') {
+          saveRoomSession({
+            roomId: replay.roomId,
+            displayName: replay.displayName,
+            color: replay.color,
+            reconnectToken: replay.token,
+          })
+        }
         break
       }
 
@@ -523,6 +596,37 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         const newPlayers = new Map(players)
         newPlayers.delete(msg.playerId)
         set({ players: newPlayers })
+        break
+      }
+
+      case 'player_presence_changed': {
+        const player = get().players.get(msg.playerId)
+        if (!player) break
+        const players = new Map(get().players)
+        players.set(msg.playerId, { ...player, connected: msg.connected })
+        set({ players })
+        break
+      }
+
+      case 'removed_from_room': {
+        clearReconnectTimer()
+        const { roomId, lastJoin, socket } = get()
+        const sessionRoomId = roomId ?? lastJoin?.roomId
+        if (sessionRoomId) clearRoomSession(sessionRoomId)
+        set({
+          intentionalDisconnect: true,
+          connectionStatus: 'disconnected',
+          socket: null,
+          lastJoin: null,
+          reconnectToken: null,
+          removedFromRoomNotice: msg.reason,
+          players: new Map(),
+          dice: new Map(),
+          localPlayerId: null,
+          hostId: null,
+          isHost: false,
+        })
+        if (socket) socket.close()
         break
       }
 
@@ -675,12 +779,17 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         // auto-reconnect doesn't hammer a room that will keep rejecting us.
         if (JOIN_ERROR_CODES.has(msg.code) && get().localPlayerId === null) {
           clearReconnectTimer()
-          const socket = get().socket
+          const { socket, roomId, lastJoin } = get()
+          if (msg.code === 'RECONNECT_UNAUTHORIZED') {
+            const rejectedRoomId = roomId ?? lastJoin?.roomId
+            if (rejectedRoomId) clearRoomSession(rejectedRoomId)
+          }
           set({
             intentionalDisconnect: true,
             connectionError: msg.message,
             connectionStatus: 'disconnected',
             lastJoin: null,
+            ...(msg.code === 'RECONNECT_UNAUTHORIZED' ? { reconnectToken: null } : {}),
           })
           if (socket) socket.close()
           set({ socket: null })
@@ -802,7 +911,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     get().sendMessage({ type: 'set_arena', aspect })
   },
 
-  sendMotionField: (field: [number, number, number]) => {
+  removePlayer: (playerId: string) => {
+    if (!get().isHost || playerId === get().localPlayerId) return
+    get().sendMessage({ type: 'remove_player', playerId })
+  },
+
+  sendMotionField: (field: [number, number, number], angularAccel?: [number, number, number]) => {
     // Optimistic policy gate: when motion is disabled room-wide there is nothing
     // to send. The server re-checks the policy and ownership authoritatively.
     if (getMotionControl(get().roomSettings) === 'off') return
@@ -811,12 +925,17 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     // zero field (motion stopping) skips the throttle so the dice stop promptly —
     // but only the FIRST zero after motion: a held-still phone (motion on, no shake)
     // emits a zero field every frame, and those must not flood the socket.
+    const angular = angularAccel ?? [0, 0, 0]
     const isZero = field[0] === 0 && field[1] === 0 && field[2] === 0
+      && angular[0] === 0 && angular[1] === 0 && angular[2] === 0
+    const message = angularAccel === undefined
+      ? { type: 'motion_field' as const, field }
+      : { type: 'motion_field' as const, field, angularAccel }
     if (isZero) {
       if (lastMotionFieldWasZero) return
       lastMotionFieldWasZero = true
       lastMotionFieldSentAt = performance.now()
-      get().sendMessage({ type: 'motion_field', field })
+      get().sendMessage(message)
       return
     }
 
@@ -825,7 +944,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     lastMotionFieldSentAt = now
     lastMotionFieldWasZero = false
 
-    get().sendMessage({ type: 'motion_field', field })
+    get().sendMessage(message)
   },
 
   startDrag: (dieId, grabOffset, worldPosition) => {
@@ -851,6 +970,8 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   reset: () => {
     clearReconnectTimer()
+    lastMotionFieldSentAt = Number.NEGATIVE_INFINITY
+    lastMotionFieldWasZero = false
     set({
       ...createInitialState(),
       serverUrl: get().serverUrl,

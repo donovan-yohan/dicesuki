@@ -120,6 +120,24 @@ describe('PlayerPanel roster', () => {
     fireEvent.click(screen.getByRole('button', { name: /filter by alice/i }))
     expect(useMultiplayerStore.getState().selectedPlayerId).toBeNull()
   })
+
+  it('shows held-seat presence and lets only the host remove a remote player', () => {
+    const send = vi.fn()
+    setRoster([
+      player('a', 'Alice'),
+      { ...player('b', 'Bob'), connected: false },
+    ], { localPlayerId: 'a', hostId: 'a' })
+    useMultiplayerStore.setState({
+      isHost: true,
+      socket: { send, close: vi.fn() } as never,
+    })
+    renderPanel()
+
+    expect(screen.getByText('Disconnected')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('remove-player-b'))
+    expect(JSON.parse(send.mock.calls[0][0])).toEqual({ type: 'remove_player', playerId: 'b' })
+    expect(screen.queryByTestId('remove-player-a')).not.toBeInTheDocument()
+  })
 })
 
 describe('PlayerPanel motion control', () => {

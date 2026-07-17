@@ -3,6 +3,9 @@ import {
   MOTION_ACCEL_SCALE,
   MOTION_DEADZONE,
   MOTION_GRAVITY_LOWPASS,
+  MOTION_ANGULAR_ACCEL_SCALE,
+  MOTION_ANGULAR_DEADZONE,
+  MOTION_ANGULAR_SAMPLE_STALE_MS,
   MOTION_TILT_DEADZONE_DEG,
   SHAKE_THRESHOLD,
   SHAKE_DURATION,
@@ -11,10 +14,12 @@ import { getEngineConfig } from '../config/engineConfig'
 import {
   combineMotionFields,
   computeMotionField,
+  computeShakeAngularAcceleration,
   computeTiltGravityCorrection,
   dynamicAccelFromTotal,
   initialGravityEstimate,
   type GravityEstimate,
+  type AngularMotionField,
   type MotionField,
   type SensorAcceleration,
 } from '../lib/motionField'
@@ -43,6 +48,8 @@ export interface DeviceMotionState {
    * (Shared-ADR-010).
    */
   motionFieldRef: React.MutableRefObject<MotionField>
+  /** Shake-derived world-space angular acceleration (rad/s²), never tilt-derived. */
+  angularMotionFieldRef: React.MutableRefObject<AngularMotionField>
   /** Real-time shake flag for UI feedback (60fps). */
   isShakingRef: React.MutableRefObject<boolean>
   requestPermission: () => Promise<void>
@@ -79,6 +86,7 @@ export function useDeviceMotion(): DeviceMotionState {
 
   // Real-time refs read by physics/UI without triggering React re-renders.
   const motionFieldRef = useRef<MotionField>([0, 0, 0])
+  const angularMotionFieldRef = useRef<AngularMotionField>([0, 0, 0])
   const accelerationFieldRef = useRef<MotionField>([0, 0, 0])
   const tiltFieldRef = useRef<MotionField>([0, 0, 0])
   const isShakingRef = useRef<boolean>(false)
@@ -87,6 +95,7 @@ export function useDeviceMotion(): DeviceMotionState {
   const gravityEstimateRef = useRef<GravityEstimate>(initialGravityEstimate())
 
   const shakeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const angularSampleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /**
    * Request motion and fused-orientation permission from the same user gesture.
@@ -175,6 +184,16 @@ export function useDeviceMotion(): DeviceMotionState {
         MOTION_ACCEL_SCALE,
         MOTION_DEADZONE
       )
+      angularMotionFieldRef.current = computeShakeAngularAcceleration(
+        linear,
+        event.rotationRate,
+        MOTION_ANGULAR_ACCEL_SCALE,
+        MOTION_ANGULAR_DEADZONE,
+      )
+      if (angularSampleTimeoutRef.current) clearTimeout(angularSampleTimeoutRef.current)
+      angularSampleTimeoutRef.current = setTimeout(() => {
+        angularMotionFieldRef.current = [0, 0, 0]
+      }, MOTION_ANGULAR_SAMPLE_STALE_MS)
       publishCombinedField()
 
       // Shake detection (UI feedback only) uses total acceleration magnitude.
@@ -210,9 +229,13 @@ export function useDeviceMotion(): DeviceMotionState {
       if (shakeTimeoutRef.current) {
         clearTimeout(shakeTimeoutRef.current)
       }
+      if (angularSampleTimeoutRef.current) {
+        clearTimeout(angularSampleTimeoutRef.current)
+      }
       // Drop any residual field (and gravity estimate) so a re-grant doesn't
       // resume a stale push or a stale gravity baseline.
       motionFieldRef.current = [0, 0, 0]
+      angularMotionFieldRef.current = [0, 0, 0]
       accelerationFieldRef.current = [0, 0, 0]
       tiltFieldRef.current = [0, 0, 0]
       gravityEstimateRef.current = initialGravityEstimate()
@@ -225,6 +248,7 @@ export function useDeviceMotion(): DeviceMotionState {
     orientationPermissionState,
     isShaking,
     motionFieldRef,
+    angularMotionFieldRef,
     isShakingRef,
     requestPermission,
   }

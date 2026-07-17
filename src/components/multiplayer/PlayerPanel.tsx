@@ -42,6 +42,8 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
   const setRoomTheme = useMultiplayerStore((s) => s.setRoomTheme)
   const setVisibility = useMultiplayerStore((s) => s.setVisibility)
   const setRoomName = useMultiplayerStore((s) => s.setRoomName)
+  const removePlayer = useMultiplayerStore((s) => s.removePlayer)
+  const disconnect = useMultiplayerStore((s) => s.disconnect)
   const reduceMotion = shouldReduceMotion()
   const { currentTheme } = useTheme()
   const colors = currentTheme.tokens.colors
@@ -124,7 +126,7 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
               const isHostPlayer = player.id === hostId
               const isSelected = player.id === selectedPlayerId
               const indicator = connectionIndicator(
-                isLocal ? connectionStatus : 'connected',
+                isLocal ? connectionStatus : player.connected === false ? 'disconnected' : 'connected',
               )
 
               const isRollerPlayer = player.id === rollerId
@@ -191,6 +193,11 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                         🎲
                       </span>
                     )}
+                    {!isLocal && player.connected === false && (
+                      <span className="text-xs" style={{ color: colors.text.muted }}>
+                        Disconnected
+                      </span>
+                    )}
                   </span>
 
                   {/* Connection state */}
@@ -239,6 +246,28 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                     }}
                   >
                     🎲
+                  </button>
+                )}
+                {isHost && !isLocal && (
+                  <button
+                    type="button"
+                    onClick={() => removePlayer(player.id)}
+                    title={`Remove ${player.displayName} from room`}
+                    aria-label={`Remove ${player.displayName} from room`}
+                    data-testid={`remove-player-${player.id}`}
+                    className="flex items-center justify-center rounded-md"
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      flexShrink: 0,
+                      fontSize: '14px',
+                      cursor: 'pointer',
+                      color: '#fecaca',
+                      backgroundColor: 'rgba(127,29,29,0.35)',
+                      border: '1px solid rgba(248,113,113,0.25)',
+                    }}
+                  >
+                    ×
                   </button>
                 )}
                 </div>
@@ -445,6 +474,23 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
             <span className="text-xs" style={{ color: colors.text.muted, lineHeight: 1.35 }}>
               Sets the shared table look. Your dice skins stay your own.
             </span>
+          </div>
+
+          <div className="px-3 py-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <button
+              type="button"
+              onClick={() => {
+                disconnect()
+              }}
+              className="w-full rounded-md px-2 py-1.5 text-xs font-medium"
+              style={{
+                color: '#fecaca',
+                backgroundColor: 'rgba(127,29,29,0.3)',
+                border: '1px solid rgba(248,113,113,0.25)',
+              }}
+            >
+              Leave room
+            </button>
           </div>
           </>
           )}

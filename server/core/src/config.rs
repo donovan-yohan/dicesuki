@@ -69,6 +69,8 @@ pub struct EngineConfig {
 
     // Device-motion field (Shared-ADR-010; mirrored client-side)
     pub motion_field_max_accel: f32,
+    pub motion_field_max_angular_accel: f32,
+    pub motion_field_max_angular_speed: f32,
     pub motion_field_stale_ms: u64,
 
     // Arena bounds (per room: default 9:16 portrait, aspect-fit for solo)
@@ -117,6 +119,8 @@ impl EngineConfig {
             drag_roll_factor: physics::DRAG_ROLL_FACTOR,
 
             motion_field_max_accel: physics::MOTION_FIELD_MAX_ACCEL,
+            motion_field_max_angular_accel: physics::MOTION_FIELD_MAX_ANGULAR_ACCEL,
+            motion_field_max_angular_speed: physics::MOTION_FIELD_MAX_ANGULAR_SPEED,
             motion_field_stale_ms: physics::MOTION_FIELD_STALE_MS,
 
             arena_half_x: physics::WALL_HALF_X,
@@ -173,12 +177,17 @@ mod tests {
         assert!((c.dice_restitution - physics::DICE_RESTITUTION).abs() < f32::EPSILON);
         assert!((c.dice_friction - physics::DICE_FRICTION).abs() < f32::EPSILON);
         assert!((c.roll_torque_magnitude - physics::ROLL_TORQUE_MAGNITUDE).abs() < f32::EPSILON);
+        assert!((c.drag_roll_factor - physics::DRAG_ROLL_FACTOR).abs() < f32::EPSILON);
         assert!((c.arena_half_x - physics::WALL_HALF_X).abs() < f32::EPSILON);
         assert!((c.arena_half_z - physics::WALL_HALF_Z).abs() < f32::EPSILON);
         assert_eq!(c.rest_duration_ms, physics::REST_DURATION_MS);
         assert!(
             (c.motion_field_max_accel - physics::MOTION_FIELD_MAX_ACCEL).abs() < f32::EPSILON
         );
+        assert!((c.motion_field_max_angular_accel
+            - physics::MOTION_FIELD_MAX_ANGULAR_ACCEL).abs() < f32::EPSILON);
+        assert!((c.motion_field_max_angular_speed
+            - physics::MOTION_FIELD_MAX_ANGULAR_SPEED).abs() < f32::EPSILON);
         assert_eq!(c.motion_field_stale_ms, physics::MOTION_FIELD_STALE_MS);
     }
 

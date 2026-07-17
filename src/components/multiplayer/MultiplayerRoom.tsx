@@ -11,6 +11,7 @@ import { preflightRoom, type PreflightResult } from '../../lib/roomPreflight'
 import { consumePendingRoomSetup, fitCarriedDice } from '../../lib/roomCarry'
 import Scene from '../Scene'
 import { StartupGate, StartupSplash } from '../brand/StartupSplash'
+import { loadRoomSession, saveRoomSession } from '../../lib/roomSession'
 
 export function MultiplayerRoom() {
   const { roomId } = useParams<{ roomId: string }>()
@@ -18,6 +19,7 @@ export function MultiplayerRoom() {
   const connectionStatus = useMultiplayerStore((s) => s.connectionStatus)
   const connectionError = useMultiplayerStore((s) => s.connectionError)
   const roomClosedNotice = useMultiplayerStore((s) => s.roomClosedNotice)
+  const removedFromRoomNotice = useMultiplayerStore((s) => s.removedFromRoomNotice)
   const playerCount = useMultiplayerStore((s) => s.players.size)
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
   const engineConfig = useMultiplayerStore((s) => s.engineConfig)
@@ -25,6 +27,8 @@ export function MultiplayerRoom() {
   const isHost = useMultiplayerStore((s) => s.isHost)
   const connect = useMultiplayerStore((s) => s.connect)
   const disconnect = useMultiplayerStore((s) => s.disconnect)
+  const detach = useMultiplayerStore((s) => s.detach)
+  const reconnectNow = useMultiplayerStore((s) => s.reconnectNow)
   const setRoomTheme = useMultiplayerStore((s) => s.setRoomTheme)
 
   const navigate = useNavigate()
@@ -53,16 +57,88 @@ export function MultiplayerRoom() {
   const roomIsReady =
     connectionStatus === 'connected' && localPlayerId !== null && engineConfig !== null
 
-  // Clear local dice state on mount; disconnect and reset on unmount
+  // Clear render state on mount. Route unmount is a transient detach: it must
+  // not send Leave or erase the durable resume credential (mobile background
+  // and browser page lifecycle commonly remount this route).
   useEffect(() => {
     useDiceStore.getState().reset()
     useDiceManagerStore.getState().removeAllDice()
     return () => {
-      disconnect()
+      detach()
       useDiceStore.getState().reset()
       useDiceManagerStore.getState().removeAllDice()
     }
-  }, [disconnect])
+  }, [detach])
+
+  // Same-route durable resume. We never redirect the root or place the bearer
+  // credential in the URL; only /room/:id consults that room's local record.
+  const autoResumeStartedRef = useRef(false)
+  useEffect(() => {
+    if (autoResumeStartedRef.current || !roomId) return
+    const saved = loadRoomSession(roomId)
+    if (!saved) return
+    autoResumeStartedRef.current = true
+    setDisplayName(saved.displayName)
+    setColor(saved.color)
+    setIsChecking(true)
+    let cancelled = false
+    void preflightRoom(serverConfig.httpUrl, roomId, {
+      maxRetries: READINESS_MAX_RETRIES,
+      onRetry: ({ attempt, maxRetries }) => {
+        setWakingNotice(`Server waking up, retrying… (attempt ${attempt} of ${maxRetries})`)
+      },
+    }).then((result) => {
+      if (cancelled) return
+      setIsChecking(false)
+      setWakingNotice(null)
+      if (result !== 'ok') {
+        setPreflightNotice(result)
+        return
+      }
+      connect(roomId, saved.displayName, saved.color, serverConfig.wsUrl)
+      setHasJoined(true)
+    })
+    return () => {
+      cancelled = true
+      autoResumeStartedRef.current = false
+    }
+  }, [connect, roomId, serverConfig.httpUrl, serverConfig.wsUrl])
+
+  // Browser timers can be heavily throttled while a phone is backgrounded.
+  // Foreground/restore/network signals bypass pending backoff and retry now.
+  useEffect(() => {
+    const resumeIfNeeded = () => {
+      const state = useMultiplayerStore.getState()
+      if (document.visibilityState === 'visible' && state.connectionStatus !== 'connected') {
+        reconnectNow()
+      }
+    }
+    const persistActiveSession = () => {
+      const replay = useMultiplayerStore.getState().lastJoin
+      if (replay?.transport === 'websocket') {
+        saveRoomSession({
+          roomId: replay.roomId,
+          displayName: replay.displayName,
+          color: replay.color,
+          reconnectToken: replay.token,
+        })
+      }
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') persistActiveSession()
+      else resumeIfNeeded()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pageshow', resumeIfNeeded)
+    window.addEventListener('pagehide', persistActiveSession)
+    window.addEventListener('online', resumeIfNeeded)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pageshow', resumeIfNeeded)
+      window.removeEventListener('pagehide', persistActiveSession)
+      window.removeEventListener('online', resumeIfNeeded)
+    }
+  }, [reconnectNow])
 
   // Apply the creation-time theme once, after the creator is confirmed host.
   const appliedThemeRef = useRef(false)
@@ -166,6 +242,24 @@ export function MultiplayerRoom() {
             }}
           >
             <strong>Room unavailable.</strong> {roomClosedNotice}
+          </div>
+        )}
+        {removedFromRoomNotice && (
+          <div
+            role="alert"
+            data-testid="removed-from-room-notice"
+            style={{
+              maxWidth: '28rem',
+              padding: '0.875rem 1rem',
+              borderRadius: '10px',
+              border: '1px solid rgba(248, 113, 113, 0.45)',
+              background: 'rgba(127, 29, 29, 0.45)',
+              color: '#fecaca',
+              fontSize: '0.9rem',
+              lineHeight: 1.4,
+            }}
+          >
+            <strong>Removed from room.</strong> {removedFromRoomNotice}
           </div>
         )}
         {showConnectionError && (

@@ -18,15 +18,17 @@ class MockDeviceMotionEvent extends Event {
   acceleration: DeviceMotionEventAcceleration | null
   accelerationIncludingGravity: DeviceMotionEventAcceleration | null
   interval = 16
-  rotationRate = null
+  rotationRate: DeviceMotionEventRotationRate | null
 
   constructor(
     acceleration: DeviceMotionEventAcceleration | null,
     accelerationIncludingGravity: DeviceMotionEventAcceleration | null = null,
+    rotationRate: DeviceMotionEventRotationRate | null = null,
   ) {
     super('devicemotion')
     this.acceleration = acceleration
     this.accelerationIncludingGravity = accelerationIncludingGravity
+    this.rotationRate = rotationRate
   }
 }
 
@@ -70,6 +72,7 @@ describe('useDeviceMotion', () => {
     expect(tiltOnly[0]).toBeCloseTo(0, 8)
     expect(tiltOnly[1]).toBeGreaterThan(0)
     expect(tiltOnly[2]).toBeCloseTo(120, 8)
+    expect(result.current.angularMotionFieldRef.current).toEqual([0, 0, 0])
 
     act(() => {
       window.dispatchEvent(new MockDeviceMotionEvent({ x: 0.5, y: 0, z: 0 }))
@@ -96,5 +99,45 @@ describe('useDeviceMotion', () => {
       window.dispatchEvent(new MockDeviceMotionEvent({ x: 0.5, y: 0, z: 0 }))
     })
     expect(result.current.motionFieldRef.current).toEqual([-20, 0, 0])
+  })
+
+  it('derives tumble from the high-pass fallback when linear acceleration is absent', async () => {
+    const { result } = renderHook(() => useDeviceMotion())
+    await act(async () => result.current.requestPermission())
+
+    act(() => {
+      // Seed the running gravity estimate without a startup tumble.
+      window.dispatchEvent(new MockDeviceMotionEvent(null, { x: 0, y: 0, z: 9.81 }))
+    })
+    expect(result.current.angularMotionFieldRef.current).toEqual([0, 0, 0])
+
+    act(() => {
+      // A sudden gravity-inclusive X movement survives the high-pass subtraction.
+      window.dispatchEvent(new MockDeviceMotionEvent(null, { x: 5, y: 0, z: 9.81 }))
+    })
+    expect(Math.hypot(...result.current.angularMotionFieldRef.current)).toBeGreaterThan(0)
+  })
+
+  it('publishes shake tumble from linear acceleration and expires it locally', async () => {
+    vi.useFakeTimers()
+    const { result } = renderHook(() => useDeviceMotion())
+
+    await act(async () => result.current.requestPermission())
+    act(() => {
+      window.dispatchEvent(new MockDeviceMotionEvent(
+        { x: 4.5, y: 0, z: 0 },
+        null,
+        { alpha: 0, beta: 0, gamma: 5 },
+      ))
+    })
+    expect(result.current.angularMotionFieldRef.current).toEqual([0, 0, 30])
+
+    // Orientation refreshes tilt but cannot refresh the shake-only tumble sample.
+    act(() => {
+      window.dispatchEvent(new MockDeviceOrientationEvent(20, 0))
+      vi.advanceTimersByTime(101)
+    })
+    expect(result.current.angularMotionFieldRef.current).toEqual([0, 0, 0])
+    vi.useRealTimers()
   })
 })

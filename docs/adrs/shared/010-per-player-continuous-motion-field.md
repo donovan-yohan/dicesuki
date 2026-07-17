@@ -1,7 +1,7 @@
 # ADR 010 - Per-Player Continuous Motion Field (Own-Dice Dice-Box)
 
 * Date: 2026/07/15
-* Amended: 2026/07/16 — fused-orientation tilt is composed into the same per-player field.
+* Amended: 2026/07/17 — shake-derived angular acceleration is latched with the per-player field.
 * Status: Accepted
 * Deciders: Donovan, Development Team
 * Supersedes: the discrete `motion_impulse` shake channel introduced for rooms (the "mobile shake-to-roll" feature) — replaced by a continuous field.
@@ -43,8 +43,9 @@ gravity-direction correction from fused device orientation.
 ### A. Device motion is a continuous, per-player motion field over own dice
 
 * The room protocol MUST carry device motion as a **continuous** client→server
-  message `motion_field` with `field: [f32; 3]` — a per-die acceleration in engine
-  units (U/s²), expressed in world space. It supersedes the discrete `motion_impulse`
+  message `motion_field` with `field: [f32; 3]` and optional, backward-compatible
+  `angularAccel: [f32; 3]` — per-die linear and angular accelerations expressed in
+  world space. It supersedes the discrete `motion_impulse`
   message, which MUST be removed (one motion model, per the "continuous only"
   decision).
 * The field combines two client-derived terms: (1) the **non-inertial pseudo-force**
@@ -54,6 +55,11 @@ gravity-direction correction from fused device orientation.
   sharedGravity`, using the room-delivered engine gravity. A flat, still phone sends
   zero; at 90° the correction cancels downward gravity and replaces it horizontally
   for only the affected dice.
+* `angularAccel` MUST be gated and sized only by the gravity-removed linear
+  acceleration channel (or its high-pass fallback), never fused tilt. Device rotation
+  rate MAY supply the spin axis while a shake is active; otherwise a deterministic
+  acceleration-perpendicular axis is used. The client expires an angular sample after
+  100 ms so orientation-only updates cannot keep a stale tumble latched.
 * The server MUST apply the field **every physics tick** (60Hz), before `step()`, as
   a mass-scaled velocity delta (`field × dt`) to exactly the dice the sender may
   affect under `Room::can_apply_motion` — i.e. the sender's own dice (and, for the
@@ -72,7 +78,13 @@ gravity-direction correction from fused device orientation.
 * `field` MUST be magnitude-clamped server-side to `MOTION_FIELD_MAX_ACCEL` (an engine
   constant in `physics.rs`) so a miscalibrated or malicious client cannot fling dice;
   the existing per-tick velocity clamp (`MAX_DICE_VELOCITY`) remains the final bound.
-* Motion-field constants (`MOTION_FIELD_MAX_ACCEL`, `MOTION_FIELD_STALE_MS`) MUST live
+* `angularAccel` MUST be independently clamped to
+  `MOTION_FIELD_MAX_ANGULAR_ACCEL` (240 rad/s²), integrated through the existing
+  inertia-normalized `apply_spin_impulse` path as `angularAccel × dt`, and capped at
+  `MOTION_FIELD_MAX_ANGULAR_SPEED` (48 rad/s). Across the 200 ms latch, the maximum
+  acceleration contributes at most 48 rad/s: twice the 24 rad/s roll target.
+* Motion-field constants (`MOTION_FIELD_MAX_ACCEL`, `MOTION_FIELD_MAX_ANGULAR_ACCEL`,
+  `MOTION_FIELD_MAX_ANGULAR_SPEED`, `MOTION_FIELD_STALE_MS`) MUST live
   once in `dicesuki-core` (`physics.rs`), be projected through `EngineConfig`
   (ADR 007), and be drift-guarded (`config.rs` assertion + the client guard test).
   The client's sensor→field mapping (which m/s² of hand motion becomes how much U/s²)

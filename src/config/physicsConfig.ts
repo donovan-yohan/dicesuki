@@ -98,6 +98,25 @@ export const MOTION_TILT_DEADZONE_DEG = 2
 export const MOTION_GRAVITY_LOWPASS = 0.8
 
 /**
+ * Scale mapping a deliberate gravity-removed hand acceleration (m/s²) to the
+ * optional angular-acceleration term (rad/s²) sent with the motion field. At
+ * `10`, a representative 13.5 m/s² shake supplies 120 rad/s² after the 1.5 m/s²
+ * deadzone and therefore one
+ * `ROLL_TORQUE_MAGNITUDE`-sized 24 rad/s tumble across the room's 200 ms latch.
+ * The authoritative room clamps both angular acceleration and angular speed.
+ */
+export const MOTION_ANGULAR_ACCEL_SCALE = 10
+
+/** Deliberate-shake threshold for tumble; keeps gentle tilt/translation spin-free. */
+export const MOTION_ANGULAR_DEADZONE = 1.5
+
+/**
+ * Local lifetime of a shake-derived angular sample. Orientation events must not
+ * keep an old tumble alive after the linear-acceleration channel goes quiet.
+ */
+export const MOTION_ANGULAR_SAMPLE_STALE_MS = 100
+
+/**
  * Minimum acceleration magnitude (m/s²) that flags a shake for UI feedback
  * (DeviceMotionButton's "Shaking!" indicator). This is NOT a physics input — the
  * continuous field drives the dice; this only lights up the UI.

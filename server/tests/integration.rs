@@ -17,14 +17,19 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Start a test server on a random port and return its address.
 async fn start_server() -> SocketAddr {
+    start_server_with_manager().await.0
+}
+
+/// Start a test server while retaining the manager for handler-to-core assertions.
+async fn start_server_with_manager() -> (SocketAddr, SharedRoomManager) {
     let room_manager: SharedRoomManager = Arc::new(RwLock::new(RoomManager::new()));
-    let app = build_app(room_manager);
+    let app = build_app(room_manager.clone());
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     });
-    addr
+    (addr, room_manager)
 }
 
 /// Create a room via the REST API and return its ID.
@@ -196,6 +201,44 @@ async fn join_receives_room_state() {
     let players = body["players"].as_array().unwrap();
     assert_eq!(players.len(), 1);
     assert_eq!(players[0]["displayName"], "TestPlayer");
+}
+
+#[tokio::test]
+async fn native_motion_field_angular_accel_reaches_authoritative_room() {
+    let (addr, room_manager) = start_server_with_manager().await;
+    let (room_id, room) = room_manager.write().await.create_room();
+    let url = format!("ws://{addr}/ws/{room_id}");
+    let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
+
+    ws.send(Message::Text(json!({
+        "type": "join",
+        "roomId": room_id,
+        "displayName": "Spinner",
+        "color": "#FF0000"
+    }).to_string())).await.unwrap();
+    let state = recv_json(&mut ws).await;
+    let player_id = state["localPlayerId"].as_str().unwrap().to_string();
+
+    ws.send(Message::Text(json!({
+        "type": "motion_field",
+        "field": [0, 0, 0],
+        "angularAccel": [360, 0, 0]
+    }).to_string())).await.unwrap();
+
+    timeout(TEST_TIMEOUT, async {
+        loop {
+            let angular = room.read().await.players[&player_id].motion_angular_accel;
+            if angular != [0.0, 0.0, 0.0] {
+                assert_eq!(
+                    angular,
+                    [dicesuki_server::physics::MOTION_FIELD_MAX_ANGULAR_ACCEL, 0.0, 0.0],
+                    "native WS dispatch must reach core's authoritative angular clamp"
+                );
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    }).await.expect("motion field did not reach the room");
 }
 
 #[tokio::test]
@@ -487,11 +530,11 @@ async fn dropped_connection_holds_seat_and_rejoin_reclaims_identity() {
     // Player 2's connection drops (raw close, no `leave`). Seat is held.
     ws2.close(None).await.unwrap();
 
-    // Player 1 must NOT be told Bob left — the seat is held during grace.
-    assert!(
-        try_recv_json(&mut ws1).await.is_none(),
-        "A dropped connection must not broadcast player_left during the grace window"
-    );
+    // Player 1 sees a temporary presence change, not a final leave.
+    let disconnected = recv_json(&mut ws1).await;
+    assert_eq!(disconnected["type"], "player_presence_changed");
+    assert_eq!(disconnected["playerId"], bob_id);
+    assert_eq!(disconnected["connected"], false);
 
     // Player 2 rejoins within grace using the same token.
     let (mut ws2b, _) = connect_async(&url).await.unwrap();
@@ -508,11 +551,52 @@ async fn dropped_connection_holds_seat_and_rejoin_reclaims_identity() {
     // No duplicate seat — still just Alice + Bob.
     assert_eq!(rejoin_state["players"].as_array().unwrap().len(), 2);
 
-    // Player 1 must NOT receive a player_joined for the reclaimed seat.
-    assert!(
-        try_recv_json(&mut ws1).await.is_none(),
-        "Reclaiming a held seat must not broadcast a new player_joined"
-    );
+    // Reclaim updates presence without creating a duplicate player_joined.
+    let reconnected = recv_json(&mut ws1).await;
+    assert_eq!(reconnected["type"], "player_presence_changed");
+    assert_eq!(reconnected["playerId"], bob_id);
+    assert_eq!(reconnected["connected"], true);
+}
+
+#[tokio::test]
+async fn host_can_remove_guest_and_guest_cannot_reuse_held_seat() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{addr}/ws/{room_id}");
+
+    let (mut host, _) = connect_async(&url).await.unwrap();
+    host.send(Message::Text(json!({
+        "type": "join", "roomId": room_id, "displayName": "Host", "color": "#FF0000"
+    }).to_string())).await.unwrap();
+    let _ = recv_json(&mut host).await;
+
+    let (mut guest, _) = connect_async(&url).await.unwrap();
+    guest.send(Message::Text(json!({
+        "type": "join", "roomId": room_id, "displayName": "Guest", "color": "#0000FF",
+        "reconnectToken": "guest-secret"
+    }).to_string())).await.unwrap();
+    let joined = recv_json(&mut host).await;
+    let guest_state = recv_json(&mut guest).await;
+    let guest_id = guest_state["localPlayerId"].as_str().unwrap().to_string();
+    assert_eq!(joined["player"]["id"], guest_id);
+
+    host.send(Message::Text(json!({
+        "type": "remove_player", "playerId": guest_id
+    }).to_string())).await.unwrap();
+    let removed = recv_json(&mut guest).await;
+    assert_eq!(removed["type"], "removed_from_room");
+    let left = recv_json(&mut host).await;
+    assert_eq!(left["type"], "player_left");
+    assert_eq!(left["playerId"], guest_id);
+
+    // The same bearer can join only as a fresh seat; the removed identity is gone.
+    let (mut retry, _) = connect_async(&url).await.unwrap();
+    retry.send(Message::Text(json!({
+        "type": "join", "roomId": room_id, "displayName": "Guest", "color": "#0000FF",
+        "reconnectToken": "guest-secret"
+    }).to_string())).await.unwrap();
+    let retry_state = recv_json(&mut retry).await;
+    assert_ne!(retry_state["localPlayerId"], guest_id);
 }
 
 #[tokio::test]

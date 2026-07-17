@@ -11,6 +11,8 @@ export interface JoinMessage {
   color: string
   /** Stable token used to reclaim a held seat after a dropped connection. */
   reconnectToken?: string
+  /** Current Supabase access token; never persisted with room resume data. */
+  authToken?: string
 }
 
 export interface DicePresentationMetadata {
@@ -66,6 +68,11 @@ export interface UpdateColorMessage {
 
 export interface LeaveMessage {
   type: 'leave'
+}
+
+export interface RemovePlayerMessage {
+  type: 'remove_player'
+  playerId: string
 }
 
 export interface DragStartMessage {
@@ -294,6 +301,8 @@ export function setRoomName(settings: RoomSettings, name: string): RoomSettings 
 export interface MotionFieldMessage {
   type: 'motion_field'
   field: [number, number, number]
+  /** Optional for backward compatibility with clients predating shake tumble. */
+  angularAccel?: [number, number, number]
 }
 
 /**
@@ -312,6 +321,7 @@ export type ClientMessage =
   | RollMessage
   | UpdateColorMessage
   | LeaveMessage
+  | RemovePlayerMessage
   | DragStartMessage
   | DragMoveMessage
   | DragEndMessage
@@ -327,6 +337,8 @@ export interface PlayerInfo {
   id: string
   displayName: string
   color: string
+  /** False while the server holds this seat during reconnect grace. */
+  connected?: boolean
 }
 
 export interface DiceState {
@@ -386,6 +398,8 @@ export interface EngineConfig {
   dragSpinFactor: number
   dragRollFactor: number
   motionFieldMaxAccel: number
+  motionFieldMaxAngularAccel: number
+  motionFieldMaxAngularSpeed: number
   motionFieldStaleMs: number
   arenaHalfX: number
   arenaHalfZ: number
@@ -440,6 +454,17 @@ export interface PlayerJoinedMessage {
 export interface PlayerLeftMessage {
   type: 'player_left'
   playerId: string
+}
+
+export interface PlayerPresenceChangedMessage {
+  type: 'player_presence_changed'
+  playerId: string
+  connected: boolean
+}
+
+export interface RemovedFromRoomMessage {
+  type: 'removed_from_room'
+  reason: string
 }
 
 export interface DiceSpawnedMessage {
@@ -505,6 +530,8 @@ export type ServerMessage =
   | ArenaChangedMessage
   | PlayerJoinedMessage
   | PlayerLeftMessage
+  | PlayerPresenceChangedMessage
+  | RemovedFromRoomMessage
   | DiceSpawnedMessage
   | DiceRemovedMessage
   | RollStartedMessage

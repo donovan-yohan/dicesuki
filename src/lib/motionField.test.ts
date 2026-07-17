@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import {
   combineMotionFields,
   computeMotionField,
+  computeShakeAngularAcceleration,
   computeTiltGravityCorrection,
   dynamicAccelFromTotal,
   initialGravityEstimate,
@@ -39,6 +40,36 @@ describe('computeMotionField', () => {
     const a = computeMotionField({ x: 3, y: 0, z: 0 }, 10, 1)
     const b = computeMotionField({ x: 3, y: 0, z: 0 }, 20, 1)
     expect(b[0]).toBeCloseTo(a[0] * 2, 5)
+  })
+})
+
+describe('computeShakeAngularAcceleration', () => {
+  it('requires dynamic linear acceleration even when rotation rate is present', () => {
+    expect(computeShakeAngularAcceleration(
+      { x: 0.2, y: 0, z: 0 },
+      { alpha: 30, beta: 10, gamma: 20 },
+      10,
+      1.5,
+    )).toEqual([0, 0, 0])
+  })
+
+  it('uses rotation rate only to choose the tumble axis', () => {
+    const spin = computeShakeAngularAcceleration(
+      { x: 4.5, y: 0, z: 0 },
+      { alpha: 0, beta: 0, gamma: 5 },
+      10,
+      1.5,
+    )
+    expect(spin).toEqual([0, 0, 30])
+  })
+
+  it('has deterministic fallbacks for horizontal and vertical-only shakes', () => {
+    expect(computeShakeAngularAcceleration(
+      { x: 4.5, y: 0, z: 0 }, null, 10, 1.5,
+    )).toEqual([0, 0, 30])
+    expect(computeShakeAngularAcceleration(
+      { x: 0, y: 0, z: 4.5 }, null, 10, 1.5,
+    )).toEqual([30, 0, 0])
   })
 })
 

@@ -29,12 +29,13 @@ All messages MUST use a `type` field as the discriminator for tagged union deser
 
 | Type | Purpose | Key Fields |
 |------|---------|------------|
-| `join` | Join a room | `roomId`, `displayName`, `color` |
+| `join` | Join or reclaim a room seat | `roomId`, `displayName`, `color`, `reconnectToken?`, `authToken?` |
 | `spawn_dice` | Spawn dice on the table | `dice: [{id, diceType}]` |
 | `remove_dice` | Remove dice from the table | `diceIds: string[]` |
 | `roll` | Roll all of the player's dice | (none) |
 | `update_color` | Change player's dice color | `color` |
 | `leave` | Leave the room | (none) |
+| `remove_player` | Host removes another player | `playerId` |
 | `drag_start` | Begin dragging a die | `dieId`, `grabOffset`, `worldPosition` |
 | `drag_move` | Update drag target position | `dieId`, `worldPosition` |
 | `drag_end` | Release die with throw data | `dieId`, `velocityHistory: [{position, time}]` |
@@ -44,8 +45,10 @@ All messages MUST use a `type` field as the discriminator for tagged union deser
 | Type | Purpose | Key Fields |
 |------|---------|------------|
 | `room_state` | Full room state on join | `roomId`, `players[]`, `dice[]` |
-| `player_joined` | New player entered | `player: {id, displayName, color}` |
-| `player_left` | Player disconnected | `playerId` |
+| `player_joined` | New player entered | `player: {id, displayName, color, connected}` |
+| `player_presence_changed` | Held seat disconnected/reconnected | `playerId`, `connected` |
+| `player_left` | Player finally left/expired/was removed | `playerId` |
+| `removed_from_room` | Host removed this client | `reason` |
 | `dice_spawned` | Dice added to table | `ownerId`, `dice[]` |
 | `dice_removed` | Dice removed from table | `diceIds[]` |
 | `roll_started` | Roll initiated | `playerId`, `diceIds[]` |
@@ -81,7 +84,12 @@ Messages MUST be defined in two locations that are kept manually in sync:
 3. Server responds with `room_state` containing current room snapshot
 4. Server broadcasts `player_joined` to all other clients
 5. Normal message exchange follows
-6. On disconnect, server broadcasts `player_left` and cleans up player's state
+6. Server pings at 20s; 60s without an inbound frame marks the seat disconnected.
+7. Unexpected disconnect broadcasts presence false and holds the seat for 600s;
+   resume broadcasts true. Explicit leave or grace expiry broadcasts `player_left`.
+
+The reconnect-token and presence lifecycle is specified by
+[ADR 011](011-durable-room-resume-presence-and-host-controls.md).
 
 ### Error Codes
 

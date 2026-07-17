@@ -17,7 +17,8 @@ use crate::physics::{
     DRAG_WALL_MARGIN, SETTLED_ORIENTATION_KNOCK_ANGLE,
     THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
     ESCAPE_RESET_MIN_Y, ESCAPE_RESET_MAX_Y,
-    MOTION_FIELD_MAX_ACCEL, MOTION_FIELD_STALE_MS, TICK_DT,
+    MOTION_FIELD_MAX_ACCEL, MOTION_FIELD_MAX_ANGULAR_ACCEL,
+    MOTION_FIELD_MAX_ANGULAR_SPEED, MOTION_FIELD_STALE_MS, TICK_DT,
 };
 use crate::dice::{clamp_position_within, clamp_spawn_position, create_dice_body_with_material, generate_roll_impulse, generate_roll_spin, generate_spawn_position};
 use crate::face_detection::detect_face_value;
@@ -48,6 +49,11 @@ pub enum RoomError {
     /// Device-motion input is disabled for this room (`motionControl == off`), or
     /// the sender is not permitted to affect any dice under the current policy.
     MotionNotAllowed,
+    /// A reconnect bearer credential matched an authenticated seat, but the
+    /// current connection is not authenticated as that same user.
+    ReconnectUnauthorized,
+    /// Hosts may remove guests, but not themselves.
+    CannotRemoveSelf,
 }
 
 impl RoomError {
@@ -69,6 +75,8 @@ impl RoomError {
             RoomError::DuplicateInventoryDie => "DUPLICATE_INVENTORY_DIE",
             RoomError::NotHost => "NOT_HOST",
             RoomError::MotionNotAllowed => "MOTION_NOT_ALLOWED",
+            RoomError::ReconnectUnauthorized => "RECONNECT_UNAUTHORIZED",
+            RoomError::CannotRemoveSelf => "CANNOT_REMOVE_SELF",
         }
     }
 }
@@ -89,6 +97,8 @@ impl std::fmt::Display for RoomError {
             RoomError::DuplicateInventoryDie => "That inventory die is already on the table",
             RoomError::NotHost => "Only the host can change room settings",
             RoomError::MotionNotAllowed => "Motion input is not allowed in this room",
+            RoomError::ReconnectUnauthorized => "Reconnect credential does not belong to this user",
+            RoomError::CannotRemoveSelf => "The host cannot remove themselves",
         };
         write!(f, "{msg}")
     }
@@ -103,7 +113,7 @@ pub const SNAPSHOT_DIVISOR: u64 = 1; // 1 = every tick (60Hz), 2 = 30Hz, 3 = 20H
 /// How long a disconnected player's seat (identity, dice, host status) is held
 /// so they can rejoin without losing their place. See the room-lifecycle policy
 /// in `docs/guides/server.md`.
-pub const RECONNECT_GRACE_SECS: u64 = 120; // 2 minutes
+pub const RECONNECT_GRACE_SECS: u64 = 600; // 10 minutes
 /// Settings key holding the host-configurable player cap.
 pub const PLAYER_CAP_SETTING: &str = "playerCap";
 /// Settings key holding the host-configurable device-motion policy. Value is one
@@ -520,6 +530,17 @@ impl Room {
         player_id: &str,
         field: [f32; 3],
     ) -> Result<(), RoomError> {
+        self.set_motion_field_with_angular(player_id, field, [0.0, 0.0, 0.0])
+    }
+
+    /// Latch linear and shake-derived angular motion together. Kept separate from
+    /// `set_motion_field` so existing core callers retain source compatibility.
+    pub fn set_motion_field_with_angular(
+        &mut self,
+        player_id: &str,
+        field: [f32; 3],
+        angular_accel: [f32; 3],
+    ) -> Result<(), RoomError> {
         if !self.players.contains_key(player_id) {
             return Err(RoomError::PlayerNotFound);
         }
@@ -530,11 +551,14 @@ impl Room {
         // Clamp so a miscalibrated/malicious client cannot fling dice; the per-tick
         // MAX_DICE_VELOCITY clamp is the final bound on the resulting speed.
         let clamped = clamp_impulse(field, MOTION_FIELD_MAX_ACCEL);
-        let is_active = clamped != [0.0, 0.0, 0.0];
+        let angular_clamped = clamp_impulse(angular_accel, MOTION_FIELD_MAX_ANGULAR_ACCEL);
+        let is_active = clamped != [0.0, 0.0, 0.0]
+            || angular_clamped != [0.0, 0.0, 0.0];
 
         let player = self.players.get_mut(player_id)
             .expect("player exists: contains_key checked above");
         player.motion_field = clamped;
+        player.motion_angular_accel = angular_clamped;
         player.motion_field_at = Some(Instant::now());
 
         // A live field must keep (or start) the physics loop so the movement — and
@@ -559,7 +583,8 @@ impl Room {
         let Some(at) = player.motion_field_at else {
             return false;
         };
-        player.motion_field != [0.0, 0.0, 0.0]
+        (player.motion_field != [0.0, 0.0, 0.0]
+            || player.motion_angular_accel != [0.0, 0.0, 0.0])
             && now.saturating_duration_since(at)
                 < Duration::from_millis(MOTION_FIELD_STALE_MS)
     }
@@ -577,17 +602,22 @@ impl Room {
 
         // Snapshot the active (player_id, field) pairs so the dice mutation below
         // does not hold a borrow of `self.players`.
-        let active: Vec<(String, [f32; 3])> = self.players.iter()
+        let active: Vec<(String, [f32; 3], [f32; 3])> = self.players.iter()
             .filter_map(|(id, p)| {
                 if !Self::motion_field_is_fresh_and_nonzero(p, now) {
                     return None;
                 }
-                Some((id.clone(), p.motion_field))
+                Some((id.clone(), p.motion_field, p.motion_angular_accel))
             })
             .collect();
 
-        for (player_id, field) in active {
+        for (player_id, field, angular_accel) in active {
             let delta_v = [field[0] * TICK_DT, field[1] * TICK_DT, field[2] * TICK_DT];
+            let delta_omega = [
+                angular_accel[0] * TICK_DT,
+                angular_accel[1] * TICK_DT,
+                angular_accel[2] * TICK_DT,
+            ];
             let target_ids: Vec<String> = self
                 .dice
                 .iter()
@@ -598,7 +628,16 @@ impl Room {
             for die_id in &target_ids {
                 if let Some(die) = self.dice.get(die_id) {
                     if let Some(handle) = die.body_handle {
-                        self.physics.apply_velocity_impulse(handle, delta_v);
+                        if delta_v != [0.0, 0.0, 0.0] {
+                            self.physics.apply_velocity_impulse(handle, delta_v);
+                        }
+                        if delta_omega != [0.0, 0.0, 0.0] {
+                            self.physics.apply_spin_impulse(handle, delta_omega);
+                            self.physics.clamp_angular_velocity(
+                                handle,
+                                MOTION_FIELD_MAX_ANGULAR_SPEED,
+                            );
+                        }
                     }
                 }
             }
@@ -675,10 +714,30 @@ impl Room {
         }
         // Transfer host if the departing player held it.
         if self.host_id.as_deref() == Some(player_id) {
-            self.host_id = self.oldest_player_id();
+            self.host_id = self.oldest_connected_player_id()
+                .or_else(|| self.oldest_player_id());
         }
         self.touch();
         removed_dice_ids
+    }
+
+    /// Remove another player immediately. The host role is checked in core so
+    /// native and WASM hosts cannot drift on authorization.
+    pub fn remove_player_by_host(
+        &mut self,
+        requester_id: &str,
+        target_id: &str,
+    ) -> Result<Vec<String>, RoomError> {
+        if !self.is_host(requester_id) {
+            return Err(RoomError::NotHost);
+        }
+        if requester_id == target_id {
+            return Err(RoomError::CannotRemoveSelf);
+        }
+        if !self.players.contains_key(target_id) {
+            return Err(RoomError::PlayerNotFound);
+        }
+        Ok(self.remove_player(target_id))
     }
 
     /// Returns the id of the oldest remaining player (lowest `join_order`), or
@@ -729,13 +788,20 @@ impl Room {
             {
                 let player = self.players.get_mut(&existing_id)
                     .expect("player exists: id was just read from self.players");
+                // The reconnect token is a bearer secret, but authenticated
+                // seats require both factors: the bearer and the same user.
+                // Guest seats remain bearer-only by design.
+                if player.user_id.is_some() && player.user_id != user_id {
+                    return Err(RoomError::ReconnectUnauthorized);
+                }
                 player.sender = Box::new(sender);
                 player.connected = true;
                 player.disconnected_at = None;
-                // Refresh the auth binding: a player may sign in (or out) between
-                // sessions and reconnect with a different token. Identity
-                // (name/color/dice/host) is otherwise preserved.
-                player.user_id = user_id;
+                // A guest seat may become authenticated on a valid reclaim;
+                // an authenticated seat can never be downgraded or switched.
+                if player.user_id.is_none() {
+                    player.user_id = user_id;
+                }
                 self.touch();
                 return Ok(JoinResult { player_id: existing_id, reconnected: true });
             }
@@ -2551,6 +2617,19 @@ mod tests {
     }
 
     #[test]
+    fn explicit_host_leave_prefers_oldest_connected_player() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Host")).unwrap();
+        room.add_player(make_player("p2", "Older offline")).unwrap();
+        room.add_player(make_player("p3", "Connected")).unwrap();
+        room.mark_disconnected("p2");
+
+        room.remove_player("p1");
+
+        assert_eq!(room.host_id.as_deref(), Some("p3"));
+    }
+
+    #[test]
     fn test_non_host_disconnect_does_not_change_host() {
         let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "First")).unwrap();
@@ -2891,6 +2970,106 @@ mod tests {
             (mag - MOTION_FIELD_MAX_ACCEL).abs() < 1e-2,
             "field magnitude clamped to MOTION_FIELD_MAX_ACCEL, got {mag}"
         );
+    }
+
+    #[test]
+    fn test_motion_angular_accel_spins_only_owners_dice() {
+        let mut room = make_two_player_room_with_physics_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        let d1 = room.dice["d1"].body_handle.unwrap();
+        let d2 = room.dice["d2"].body_handle.unwrap();
+        room.physics.set_angular_velocity(d1, [0.0, 0.0, 0.0]);
+        room.physics.set_angular_velocity(d2, [0.0, 0.0, 0.0]);
+
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [120.0, 0.0, 0.0],
+        ).unwrap();
+        room.apply_motion_forces();
+
+        assert!(room.physics.get_angular_speed(d1) > 0.1);
+        assert!(room.physics.get_angular_speed(d2) < 1e-6);
+        assert!(room.is_simulating, "spin-only input wakes the room loop");
+    }
+
+    #[test]
+    fn test_motion_angular_accel_is_clamped_and_caps_spin_speed() {
+        let mut room = make_two_player_room_with_physics_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        let d1 = room.dice["d1"].body_handle.unwrap();
+        room.physics.set_angular_velocity(d1, [47.0, 0.0, 0.0]);
+
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [1.0e9, 0.0, 0.0],
+        ).unwrap();
+        let angular = room.players["p1"].motion_angular_accel;
+        assert!((angular[0] - MOTION_FIELD_MAX_ANGULAR_ACCEL).abs() < 1e-2);
+
+        room.apply_motion_forces();
+        assert!(
+            room.physics.get_angular_speed(d1) <= MOTION_FIELD_MAX_ANGULAR_SPEED + 1e-4,
+            "malicious input cannot exceed the device-motion spin ceiling"
+        );
+    }
+
+    #[test]
+    fn test_spin_only_field_liveness_and_knock_evidence() {
+        let mut room = make_two_player_room_with_physics_dice();
+        set_motion_control(&mut room, MotionControl::OwnDice);
+        for die in room.dice.values_mut() {
+            die.is_rolling = false;
+            die.face_value = Some(1);
+            die.settled_rotation = Some(die.rotation);
+        }
+
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [0.01, 0.0, 0.0],
+        ).unwrap();
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.is_empty(), "field presence alone is not knock evidence");
+        assert!(!room.dice["d1"].is_rolling);
+        assert!(room.is_simulating, "fresh spin-only input keeps the loop alive");
+
+        let d1 = room.dice["d1"].body_handle.unwrap();
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [0.0, 0.0, 0.0],
+        ).unwrap();
+        let before_zero = room.physics.get_angular_velocity(d1).unwrap();
+        room.apply_motion_forces();
+        assert_eq!(
+            room.physics.get_angular_velocity(d1).unwrap(),
+            before_zero,
+            "an explicit all-zero update must stop adding spin immediately"
+        );
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.is_empty());
+        assert!(!room.is_simulating, "explicit zero releases spin-only liveness");
+
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [0.01, 0.0, 0.0],
+        ).unwrap();
+        room.players.get_mut("p1").unwrap().motion_field_at =
+            Some(Instant::now() - Duration::from_millis(MOTION_FIELD_STALE_MS + 1));
+        let before_stale = room.physics.get_angular_velocity(d1).unwrap();
+        room.apply_motion_forces();
+        assert_eq!(
+            room.physics.get_angular_velocity(d1).unwrap(),
+            before_stale,
+            "a backdated angular field must not add spin"
+        );
+        let (_, _, knocked) = room.physics_tick();
+        assert!(knocked.is_empty());
+        assert!(!room.is_simulating, "stale angular input releases spin-only liveness");
+
+        room.set_motion_field_with_angular(
+            "p1", [0.0, 0.0, 0.0], [MOTION_FIELD_MAX_ANGULAR_ACCEL, 0.0, 0.0],
+        ).unwrap();
+        for _ in 0..7 {
+            room.apply_motion_forces();
+        }
+        assert!(!room.dice["d1"].is_rolling);
+        let knocked = room.wake_knocked_dice();
+        assert!(knocked.iter().any(|(id, _)| id == "d1"));
+        assert!(room.dice["d1"].is_rolling);
     }
 
     // ── Delegated roller: host-granted control of every die (#73) ────────────
@@ -3293,6 +3472,82 @@ mod tests {
         assert!(rejoin.reconnected);
         assert!(room.is_host("p2"), "An active host is not usurped by a returning player");
         assert!(!room.is_host("p1"));
+    }
+
+    #[test]
+    fn authenticated_reconnect_requires_same_user_and_bearer() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.join(
+            "p1".into(),
+            "Alice".into(),
+            "#FFF".into(),
+            make_sender(),
+            Some("secret-token"),
+            Some("user-a".into()),
+        ).unwrap();
+        room.mark_disconnected("p1");
+
+        let guest = room.join(
+            "guest".into(), "Guest".into(), "#FFF".into(), make_sender(),
+            Some("secret-token"), None,
+        );
+        assert_eq!(guest.unwrap_err(), RoomError::ReconnectUnauthorized);
+        let other = room.join(
+            "other".into(), "Other".into(), "#FFF".into(), make_sender(),
+            Some("secret-token"), Some("user-b".into()),
+        );
+        assert_eq!(other.unwrap_err(), RoomError::ReconnectUnauthorized);
+
+        let same = room.join(
+            "new".into(), "Alice".into(), "#FFF".into(), make_sender(),
+            Some("secret-token"), Some("user-a".into()),
+        ).unwrap();
+        assert!(same.reconnected);
+        assert_eq!(same.player_id, "p1");
+    }
+
+    #[test]
+    fn guest_reconnect_remains_bearer_only() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.join(
+            "p1".into(), "Guest".into(), "#FFF".into(), make_sender(),
+            Some("secret-token"), None,
+        ).unwrap();
+        room.mark_disconnected("p1");
+        let result = room.join(
+            "new".into(), "Guest".into(), "#FFF".into(), make_sender(),
+            Some("secret-token"), None,
+        ).unwrap();
+        assert!(result.reconnected);
+    }
+
+    #[test]
+    fn host_removal_is_authorized_and_frees_seat_dice_and_token() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.join("p1".into(), "Host".into(), "#FFF".into(), make_sender(), None, None).unwrap();
+        room.join("p2".into(), "Guest".into(), "#FFF".into(), make_sender(), Some("tok2"), None).unwrap();
+        room.spawn_dice("p2", vec![("d2".to_string(), DiceType::D6)]).unwrap();
+
+        assert_eq!(
+            room.remove_player_by_host("p2", "p1").unwrap_err(),
+            RoomError::NotHost,
+        );
+        assert_eq!(
+            room.remove_player_by_host("p1", "p1").unwrap_err(),
+            RoomError::CannotRemoveSelf,
+        );
+        assert_eq!(
+            room.remove_player_by_host("p1", "missing").unwrap_err(),
+            RoomError::PlayerNotFound,
+        );
+
+        assert_eq!(room.remove_player_by_host("p1", "p2").unwrap(), vec!["d2"]);
+        assert!(!room.players.contains_key("p2"));
+        assert!(!room.dice.contains_key("d2"));
+        let fresh = room.join(
+            "p3".into(), "Guest".into(), "#FFF".into(), make_sender(), Some("tok2"), None,
+        ).unwrap();
+        assert!(!fresh.reconnected, "removed credentials cannot reclaim the deleted seat");
     }
 
     #[test]
