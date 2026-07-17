@@ -19,12 +19,85 @@ function stripSqlComments(source: string): string {
     .replace(/^\s*--.*$/gm, '')
 }
 
+function splitSqlStatements(source: string): string[] {
+  const statements: string[] = []
+  let current = ''
+  let inSingleQuote = false
+  let dollarTag: string | undefined
+
+  for (let index = 0; index < source.length; index += 1) {
+    if (dollarTag !== undefined) {
+      if (source.startsWith(dollarTag, index)) {
+        current += dollarTag
+        index += dollarTag.length - 1
+        dollarTag = undefined
+      } else {
+        current += source[index]
+      }
+      continue
+    }
+
+    const character = source[index]
+
+    if (inSingleQuote) {
+      current += character
+      if (character === "'") {
+        if (source[index + 1] === "'") {
+          current += source[index + 1]
+          index += 1
+        } else {
+          inSingleQuote = false
+        }
+      }
+      continue
+    }
+
+    if (character === "'") {
+      inSingleQuote = true
+      current += character
+      continue
+    }
+
+    if (character === '$') {
+      const tag = source.slice(index).match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/)?.[0]
+      if (tag !== undefined) {
+        dollarTag = tag
+        current += tag
+        index += tag.length - 1
+        continue
+      }
+    }
+
+    if (character === ';') {
+      statements.push(current)
+      current = ''
+      continue
+    }
+
+    current += character
+  }
+
+  statements.push(current)
+  return statements
+}
+
 function executableStatements(source: string): string[] {
-  return stripSqlComments(source)
-    .split(';')
+  return splitSqlStatements(stripSqlComments(source))
     .map(statement => statement.replace(/\s+/g, ' ').trim().toLowerCase())
     .filter(Boolean)
 }
+
+describe('SQL statement parsing', () => {
+  it('preserves semicolons inside quoted and dollar-quoted bodies', () => {
+    expect(executableStatements(`
+      comment on table public.profiles is 'display-safe; it isn''t secret';
+      do $body$ begin perform 'one;two'; end $body$;
+    `)).toEqual([
+      "comment on table public.profiles is 'display-safe; it isn''t secret'",
+      "do $body$ begin perform 'one;two'; end $body$",
+    ])
+  })
+})
 
 describe('0005 explicit least-privilege grants', () => {
   it('has an exact executable table privilege allowlist', () => {
