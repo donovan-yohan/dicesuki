@@ -7,6 +7,7 @@
 
 import { DiceShape } from '../lib/geometries'
 import type { DiceMetadata } from './customDice'
+import type { CatalogItemRef } from './catalog'
 
 // ============================================================================
 // Enums & Literals
@@ -114,6 +115,8 @@ export interface InventoryDie {
   // Metadata
   acquiredAt: number          // Timestamp
   source: AcquisitionSource
+  /** Catalog definition only; never proof that this client owns the item. */
+  catalogRef?: CatalogItemRef
   lastRolledAt?: number       // Optional local-only recency metadata
   recentRollValues?: number[] // Optional local-only roll history sample
 
@@ -127,6 +130,7 @@ export interface InventoryDie {
   customAsset?: {
     modelUrl: string            // Blob URL for current session
     assetId?: string            // IndexedDB key for persistence (optional for backwards compatibility)
+    storage?: 'bundled' | 'indexeddb'
     metadata: DiceMetadata
   }
 }

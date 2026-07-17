@@ -33,6 +33,7 @@ interface FakeRow {
 function makeFakeClient(initialRows: Partial<Record<string, FakeRow>> = {}) {
   const rows: Record<string, FakeRow | undefined> = { ...initialRows }
   const upsertCalls: Array<{ table: string; row: Record<string, unknown> }> = []
+  const rpc = vi.fn().mockResolvedValue({ data: null, error: null })
 
   const from = vi.fn((table: string) => {
     let mode: 'select' | 'upsert' = 'select'
@@ -60,7 +61,7 @@ function makeFakeClient(initialRows: Partial<Record<string, FakeRow>> = {}) {
     return builder
   })
 
-  return { client: { from } as never, rows, upsertCalls, from }
+  return { client: { from, rpc } as never, rows, upsertCalls, from, rpc }
 }
 
 function makeStubTarget(table: string, payloadRef: { value: Record<string, unknown> }): SyncTarget {
@@ -149,6 +150,30 @@ describe('dataSync', () => {
 
       expect(fake.upsertCalls).toHaveLength(1)
       expect((fake.upsertCalls[0].row.data as Record<string, unknown>).themeId).toBe('dungeon-castle')
+    })
+  })
+
+  describe('starter entitlement bootstrap', () => {
+    it('calls only the server-fixed no-argument RPC before syncing', async () => {
+      const fake = makeFakeClient()
+      const ref = { value: { v: 1 } }
+      const target = makeStubTarget('settings', ref)
+
+      await startSync('user-1', { client: fake.client, targets: [target] })
+
+      expect(fake.rpc).toHaveBeenCalledOnce()
+      expect(fake.rpc).toHaveBeenCalledWith('ensure_starter_entitlements')
+    })
+
+    it('continues local-first sync when the starter RPC fails', async () => {
+      const fake = makeFakeClient()
+      fake.rpc.mockRejectedValueOnce(new Error('offline'))
+      const ref = { value: { v: 1 } }
+      const target = makeStubTarget('settings', ref)
+
+      await expect(startSync('user-1', { client: fake.client, targets: [target] }))
+        .resolves.toBeUndefined()
+      expect(fake.upsertCalls).toHaveLength(1)
     })
   })
 

@@ -87,6 +87,27 @@ state.
   `user_id`, and any later run simply re-applies the now-present remote row, so
   there is no loss or duplication.
 
+### Collectible ownership boundary — issue #145
+
+The synced `inventory.data` blob remains intentionally client-writable and is
+not proof of valuable ownership. It contains runtime/local state such as dice
+instances, customizations, stats, assignments, acquisition labels, render
+copies, and placeholder currency. Guest/offline play and multi-die loadouts
+continue to use it exactly as before.
+
+Canonical collectible identity and asset versions live in public-read,
+immutable `catalog_items` and `catalog_asset_versions` rows. Authenticated users
+may read only their own `user_entitlements`; normal clients cannot directly
+insert, update, or delete them. The fixed no-argument starter grant is the only
+client-callable entitlement write path. Existing-user backfill grants only the
+known 8-item free starter ownership set and never parses inventory JSON. The 23
+starter tray dice remain independent local instances backed by those distinct
+owned catalog items.
+
+See [Collectible Catalog and Entitlements](collectible-catalog.md) and
+[ADR 012](../adrs/shared/012-collectible-catalog-entitlement-boundary.md) for the
+exact client-mutable/server-authoritative split.
+
 ## Owner setup
 
 See the checklist on issue #81 / the PR body. Summary: create a Discord app
@@ -99,3 +120,9 @@ two `VITE_SUPABASE_*` values in `.env.local` and Vercel.
 Supabase SQL editor) to create the `inventory` / `saved_rolls` / `settings`
 tables with own-row RLS. No new env vars — sync reuses the existing
 `VITE_SUPABASE_*` config and degrades to guest mode when unset.
+
+**Issue #145 adds one setup step:** apply
+`supabase/migrations/0004_collectible_catalog.sql` after the existing migrations.
+The repository's Vitest guard validates the SQL contract statically, but there is
+currently no checked-in local Supabase/pgTAP harness; role-by-role live RLS
+execution must therefore be verified when applying it to the target project.

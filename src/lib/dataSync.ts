@@ -29,10 +29,14 @@
 
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient'
 import { useAuthStore } from '../store/useAuthStore'
-import { useInventoryStore } from '../store/useInventoryStore'
+import {
+  migratePersistedInventoryState,
+  useInventoryStore,
+} from '../store/useInventoryStore'
 import { useSavedRollsStore, normalizePersistedSavedRollsState } from '../store/useSavedRollsStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { ensureStarterEntitlements } from './collectibleCatalog'
 
 // ---------------------------------------------------------------------------
 // Sync targets
@@ -62,14 +66,16 @@ export function createRealTargets(): SyncTarget[] {
       table: 'inventory',
       getPayload: () => {
         const s = useInventoryStore.getState()
-        return { v: 2, dice: s.dice, currency: s.currency, assignments: s.assignments }
+        return { v: 3, dice: s.dice, currency: s.currency, assignments: s.assignments }
       },
       applyPayload: (data) => {
         const d = asRecord(data)
+        const version = typeof d.v === 'number' ? d.v : 2
+        const migrated = asRecord(migratePersistedInventoryState(d, version))
         useInventoryStore.setState({
-          dice: Array.isArray(d.dice) ? (d.dice as never[]) : [],
-          currency: asRecord(d.currency) as never,
-          assignments: asRecord(d.assignments) as never,
+          dice: Array.isArray(migrated.dice) ? (migrated.dice as never[]) : [],
+          currency: asRecord(migrated.currency) as never,
+          assignments: asRecord(migrated.assignments) as never,
         })
       },
       subscribe: (listener) => useInventoryStore.subscribe(listener),
@@ -231,6 +237,9 @@ export async function startSync(userId: string, options: StartOptions = {}): Pro
   if (activeUserId) stopSync() // switch accounts cleanly
 
   activeUserId = userId
+  // Best effort: this no-argument RPC can only grant the server-fixed free
+  // starter bundle. Failure/offline state must not block local play or sync.
+  await ensureStarterEntitlements(client)
   const targets = options.targets ?? createRealTargets()
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS
 

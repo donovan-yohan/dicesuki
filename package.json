@@ -9,13 +9,15 @@
     "dev:vite": "vite",
     "build:wasm-room": "bash scripts/build-wasm-room.sh",
     "generate:brand-icons": "node scripts/generate-brand-icons.mjs",
-    "build": "node scripts/generate-dice-manifest.js && tsc && vite build",
+    "build": "node scripts/generate-collectible-catalog.js && node scripts/generate-dice-manifest.js && tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e:solo": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18181} playwright test e2e/solo-wasm-room.spec.ts",
     "test:coverage": "vitest --coverage",
+    "generate:collectible-catalog": "node scripts/generate-collectible-catalog.js",
+    "check:collectible-catalog": "node scripts/generate-collectible-catalog.js --check",
     "generate-dice-manifest": "node scripts/generate-dice-manifest.js"
   },
   "dependencies": {
