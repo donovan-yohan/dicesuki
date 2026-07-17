@@ -5,6 +5,7 @@ import process from 'node:process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { generateEconomyDisclosures } from './generate-economy-disclosures.js'
+import { generateEconomySimulationReports } from './economy-simulator.js'
 
 const __filename = fileURLToPath(import.meta.url)
 
@@ -59,6 +60,31 @@ export function economyHistoryPathsAtRef(ref, cwd = process.cwd()) {
     }
     immutablePaths.add(contract.disclosureArtifact)
   }
+
+  const scenarioPaths = lines(git([
+    'ls-tree',
+    '-r',
+    '--name-only',
+    ref,
+    '--',
+    'economy/simulations/scenarios',
+  ], cwd)).filter(filePath => filePath.endsWith('.json'))
+  for (const scenarioPath of scenarioPaths) {
+    const scenario = JSON.parse(git(['show', `${ref}:${scenarioPath}`], cwd))
+    if (
+      typeof scenario.reportArtifact !== 'string' ||
+      !/^economy\/simulations\/reports\/\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*\.json$/.test(
+        scenario.reportArtifact,
+      )
+    ) {
+      throw new Error(`${scenarioPath} has no valid immutable report anchor at ${ref}`)
+    }
+    if (!pathExistsAtRef(ref, scenario.reportArtifact, cwd)) {
+      throw new Error(`${scenarioPath} references a missing report at ${ref}`)
+    }
+    immutablePaths.add(scenarioPath)
+    immutablePaths.add(scenario.reportArtifact)
+  }
   return [...immutablePaths].sort()
 }
 
@@ -82,6 +108,7 @@ function main() {
   }
 
   generateEconomyDisclosures()
+  generateEconomySimulationReports()
   const { mergeBase, changed } = changedImmutableEconomyPaths(ref)
   if (changed.length > 0) {
     throw new Error(

@@ -1,0 +1,2999 @@
+{
+  "reportVersion": 1,
+  "scenarioId": "candidate-a-vs-collection-first@1",
+  "generatedFrom": "economy/simulations/scenarios/0001-candidate-a-vs-collection-first.json",
+  "purpose": "simulation-only",
+  "runtimeConsumption": "forbidden",
+  "reproducibility": {
+    "algorithm": "xorshift32-with-rejection-sampled-integer-selection",
+    "scenarioSha256": "4dc24984d7463a25ee95f7969fb0217a9217d9eb7fbe5817cf5e6d7c8f1f7b22",
+    "candidateASourceSha256": "458dd1da84272fa8540d1ba72f2fa8b8b436aa33b2bfbbf836dc46fc43dd4208",
+    "candidateADisclosureSha256": "f9651da2b7727c6d8e5828b64e1b2ce0191ddf084ef09f003fdf3252dcaaa918",
+    "seeds": {
+      "targetCandidateA": 147001,
+      "targetCandidateB": 147002,
+      "distributionCandidateA": 147002,
+      "distributionCandidateB": 147003,
+      "collectionCandidateA": 147003,
+      "collectionCandidateB": 147004
+    }
+  },
+  "disclosures": {
+    "candidateA": {
+      "candidateId": "broad-rarity-showcase@1",
+      "purpose": "simulation-only",
+      "runtimeConsumption": "forbidden",
+      "currency": {
+        "currencyId": "stars",
+        "singlePullCost": 160,
+        "tenPullCost": 1600,
+        "balanceClasses": [
+          "paid",
+          "promotional"
+        ],
+        "debitPolicy": "promotional-before-paid"
+      },
+      "baseRandom": {
+        "rarityProbabilities": [
+          {
+            "tierId": "common",
+            "weightUnits": 50,
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 2
+              },
+              "ppm": 500000
+            }
+          },
+          {
+            "tierId": "uncommon",
+            "weightUnits": 28,
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 25
+              },
+              "ppm": 280000
+            }
+          },
+          {
+            "tierId": "rare",
+            "weightUnits": 14,
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 50
+              },
+              "ppm": 140000
+            }
+          },
+          {
+            "tierId": "epic",
+            "weightUnits": 5,
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 20
+              },
+              "ppm": 50000
+            }
+          },
+          {
+            "tierId": "legendary",
+            "weightUnits": 3,
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          }
+        ],
+        "itemProbabilities": [
+          {
+            "catalogItemId": "adventurer-starter/d10/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "adventurer-starter/d12/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "adventurer-starter/d20/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "adventurer-starter/d4/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "adventurer-starter/d6/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "adventurer-starter/d8/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d10/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d12/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d20/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d4/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d6/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d8/common@1",
+            "tierId": "common",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 24
+              },
+              "ppm": 41667
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d10/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d12/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d20/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d4/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d6/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d8/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d10/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d12/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d20/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d4/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d6/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d8/uncommon@1",
+            "tierId": "uncommon",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 300
+              },
+              "ppm": 23333
+            }
+          },
+          {
+            "catalogItemId": "devil-set/devil-d6@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 450
+              },
+              "ppm": 15556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d10/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 450
+              },
+              "ppm": 15556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d12/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 450
+              },
+              "ppm": 15556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d20/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 450
+              },
+              "ppm": 15556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d4/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 450
+              },
+              "ppm": 15556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d6/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 450
+              },
+              "ppm": 15556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d8/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 450
+              },
+              "ppm": 15556
+            }
+          },
+          {
+            "catalogItemId": "materials-lab/rubber-d20@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 450
+              },
+              "ppm": 15556
+            }
+          },
+          {
+            "catalogItemId": "materials-lab/steel-d20@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 7,
+                "denominator": 450
+              },
+              "ppm": 15556
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d10/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 120
+              },
+              "ppm": 8333
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d12/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 120
+              },
+              "ppm": 8333
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d20/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 120
+              },
+              "ppm": 8333
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d4/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 120
+              },
+              "ppm": 8333
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d6/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 120
+              },
+              "ppm": 8333
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d8/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 120
+              },
+              "ppm": 8333
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d10/legendary@1",
+            "tierId": "legendary",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "ppm": 5000
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d12/legendary@1",
+            "tierId": "legendary",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "ppm": 5000
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d20/legendary@1",
+            "tierId": "legendary",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "ppm": 5000
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d4/legendary@1",
+            "tierId": "legendary",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "ppm": 5000
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d6/legendary@1",
+            "tierId": "legendary",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "ppm": 5000
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d8/legendary@1",
+            "tierId": "legendary",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "ppm": 5000
+            }
+          }
+        ]
+      },
+      "guarantees": {
+        "rareOrBetterTenPull": {
+          "minimumRank": 1,
+          "hardGuaranteePull": 10,
+          "scope": "purchased-ten-pull-batch"
+        },
+        "selectedFeatured": {
+          "hardGuaranteePull": 30,
+          "lossPath": "none",
+          "counterScope": "banner-family"
+        }
+      }
+    },
+    "candidateB": {
+      "candidateId": "collection-first-showcase@1",
+      "purpose": "simulation-only",
+      "runtimeConsumption": "forbidden",
+      "currency": {
+        "currencyId": "stars",
+        "singlePullCost": 160,
+        "tenPullCost": 1600,
+        "balanceClasses": [
+          "paid",
+          "promotional"
+        ],
+        "debitPolicy": "promotional-before-paid"
+      },
+      "baseRandom": {
+        "rarityProbabilities": [
+          {
+            "tierId": "standard",
+            "weightUnits": 72,
+            "probability": {
+              "exact": {
+                "numerator": 18,
+                "denominator": 25
+              },
+              "ppm": 720000
+            }
+          },
+          {
+            "tierId": "rare",
+            "weightUnits": 23,
+            "probability": {
+              "exact": {
+                "numerator": 23,
+                "denominator": 100
+              },
+              "ppm": 230000
+            }
+          },
+          {
+            "tierId": "epic",
+            "weightUnits": 4,
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 25
+              },
+              "ppm": 40000
+            }
+          },
+          {
+            "tierId": "signature",
+            "weightUnits": 1,
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 100
+              },
+              "ppm": 10000
+            }
+          }
+        ],
+        "itemProbabilities": [
+          {
+            "catalogItemId": "adventurer-starter/d10/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "adventurer-starter/d12/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "adventurer-starter/d20/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "adventurer-starter/d4/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "adventurer-starter/d6/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "adventurer-starter/d8/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d10/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d10/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d12/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d12/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d20/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d20/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d4/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d4/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d6/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d6/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d8/common@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d8/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d10/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d12/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d20/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d4/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d6/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "lucky-bronze/d8/uncommon@1",
+            "tierId": "standard",
+            "probability": {
+              "exact": {
+                "numerator": 3,
+                "denominator": 100
+              },
+              "ppm": 30000
+            }
+          },
+          {
+            "catalogItemId": "devil-set/devil-d6@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 23,
+                "denominator": 900
+              },
+              "ppm": 25556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d10/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 23,
+                "denominator": 900
+              },
+              "ppm": 25556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d12/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 23,
+                "denominator": 900
+              },
+              "ppm": 25556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d20/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 23,
+                "denominator": 900
+              },
+              "ppm": 25556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d4/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 23,
+                "denominator": 900
+              },
+              "ppm": 25556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d6/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 23,
+                "denominator": 900
+              },
+              "ppm": 25556
+            }
+          },
+          {
+            "catalogItemId": "dragon-jade/d8/rare@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 23,
+                "denominator": 900
+              },
+              "ppm": 25556
+            }
+          },
+          {
+            "catalogItemId": "materials-lab/rubber-d20@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 23,
+                "denominator": 900
+              },
+              "ppm": 25556
+            }
+          },
+          {
+            "catalogItemId": "materials-lab/steel-d20@1",
+            "tierId": "rare",
+            "probability": {
+              "exact": {
+                "numerator": 23,
+                "denominator": 900
+              },
+              "ppm": 25556
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d10/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 150
+              },
+              "ppm": 6667
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d12/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 150
+              },
+              "ppm": 6667
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d20/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 150
+              },
+              "ppm": 6667
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d4/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 150
+              },
+              "ppm": 6667
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d6/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 150
+              },
+              "ppm": 6667
+            }
+          },
+          {
+            "catalogItemId": "celestial-gold/d8/epic@1",
+            "tierId": "epic",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 150
+              },
+              "ppm": 6667
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d10/legendary@1",
+            "tierId": "signature",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 600
+              },
+              "ppm": 1667
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d12/legendary@1",
+            "tierId": "signature",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 600
+              },
+              "ppm": 1667
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d20/legendary@1",
+            "tierId": "signature",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 600
+              },
+              "ppm": 1667
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d4/legendary@1",
+            "tierId": "signature",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 600
+              },
+              "ppm": 1667
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d6/legendary@1",
+            "tierId": "signature",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 600
+              },
+              "ppm": 1667
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d8/legendary@1",
+            "tierId": "signature",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 600
+              },
+              "ppm": 1667
+            }
+          }
+        ]
+      },
+      "guarantees": {
+        "rareOrBetter": {
+          "minimumRank": 1,
+          "hardGuaranteePull": 8,
+          "counterScope": "banner-family",
+          "reset": "qualifying-result-awarded"
+        },
+        "epicOrBetter": {
+          "minimumRank": 2,
+          "hardGuaranteePull": 25,
+          "counterScope": "banner-family",
+          "reset": "qualifying-result-awarded"
+        },
+        "selectedFeaturedUnowned": {
+          "minimumRank": 3,
+          "hardGuaranteePull": 20,
+          "featuredCatalogItemIds": [
+            "void-crystal/d10/legendary@1",
+            "void-crystal/d12/legendary@1",
+            "void-crystal/d20/legendary@1",
+            "void-crystal/d4/legendary@1",
+            "void-crystal/d6/legendary@1",
+            "void-crystal/d8/legendary@1"
+          ],
+          "selection": "lowest-canonical-id-unowned",
+          "lossPath": "none",
+          "softPity": "none",
+          "counterScope": "banner-family",
+          "reset": "selected-featured-awarded"
+        },
+        "resolutionPrecedence": [
+          "selectedFeaturedUnowned",
+          "epicOrBetter",
+          "rareOrBetter",
+          "base"
+        ],
+        "epicReachability": "epic pity is reachable after the finite selected-featured pool is exhausted"
+      }
+    }
+  },
+  "targetAcquisition": {
+    "candidateA": {
+      "trials": 50000,
+      "seed": 147001,
+      "purchaseMode": "ten-pull-batches",
+      "selectedTargetPolicy": "fixed:void-crystal/d20/legendary@1",
+      "expectedFirstAwardPullsMilli": 27825,
+      "expectedPurchasedPullsMilli": 28472,
+      "selectedCost": {
+        "expectedStars": 4555,
+        "p50Stars": 4800,
+        "p90Stars": 4800,
+        "capStars": 4800
+      },
+      "selectedAwardPullDistribution": {
+        "1": 245,
+        "2": 254,
+        "3": 249,
+        "4": 254,
+        "5": 244,
+        "6": 243,
+        "7": 255,
+        "8": 227,
+        "9": 255,
+        "10": 382,
+        "11": 238,
+        "12": 273,
+        "13": 236,
+        "14": 240,
+        "15": 239,
+        "16": 241,
+        "17": 218,
+        "18": 212,
+        "19": 210,
+        "20": 318,
+        "21": 258,
+        "22": 235,
+        "23": 217,
+        "24": 222,
+        "25": 211,
+        "26": 223,
+        "27": 206,
+        "28": 227,
+        "29": 216,
+        "30": 42952
+      },
+      "purchasedPullDistribution": {
+        "10": 2608,
+        "20": 2425,
+        "30": 44967
+      },
+      "resolutionCounts": {
+        "base": 1372445,
+        "rare-batch-guarantee": 8193,
+        "selected-guarantee": 42952
+      },
+      "pityActivationCounts": {
+        "rare-batch-guarantee": 8193,
+        "selected-guarantee": 42952
+      },
+      "duplicates": {
+        "total": 648327,
+        "perTrialMilli": 12967,
+        "shardsTotal": 1758594,
+        "shardsPerPurchasedPullMilli": 1235
+      },
+      "currencyBurn": {
+        "promotionalStarsTotal": 80000000,
+        "paidStarsTotal": 147774400,
+        "debitPolicy": "promotional-before-paid"
+      }
+    },
+    "candidateB": {
+      "trials": 50000,
+      "seed": 147002,
+      "purchaseMode": "single-pulls",
+      "selectedTargetPolicy": "lowest-canonical-id-unowned",
+      "expectedFirstAwardPullsMilli": 19681,
+      "expectedPurchasedPullsMilli": 19681,
+      "selectedCost": {
+        "expectedStars": 3149,
+        "p50Stars": 3200,
+        "p90Stars": 3200,
+        "capStars": 3200
+      },
+      "selectedAwardPullDistribution": {
+        "1": 84,
+        "2": 81,
+        "3": 82,
+        "4": 71,
+        "5": 84,
+        "6": 80,
+        "7": 75,
+        "8": 105,
+        "9": 81,
+        "10": 85,
+        "11": 91,
+        "12": 97,
+        "13": 86,
+        "14": 84,
+        "15": 89,
+        "16": 82,
+        "17": 86,
+        "18": 88,
+        "19": 97,
+        "20": 48372
+      },
+      "purchasedPullDistribution": {
+        "1": 84,
+        "2": 81,
+        "3": 82,
+        "4": 71,
+        "5": 84,
+        "6": 80,
+        "7": 75,
+        "8": 105,
+        "9": 81,
+        "10": 85,
+        "11": 91,
+        "12": 97,
+        "13": 86,
+        "14": 84,
+        "15": 89,
+        "16": 82,
+        "17": 86,
+        "18": 88,
+        "19": 97,
+        "20": 48372
+      },
+      "resolutionCounts": {
+        "base": 914947,
+        "rare-guarantee": 20736,
+        "selected-guarantee": 48372
+      },
+      "pityActivationCounts": {
+        "rare-guarantee": 20736,
+        "selected-guarantee": 48372
+      },
+      "duplicates": {
+        "total": 362899,
+        "perTrialMilli": 7258,
+        "shardsTotal": 1414514,
+        "shardsPerPurchasedPullMilli": 1437
+      },
+      "currencyBurn": {
+        "promotionalStarsTotal": 79414400,
+        "paidStarsTotal": 78034400,
+        "debitPolicy": "promotional-before-paid"
+      }
+    }
+  },
+  "statisticalValidation": {
+    "candidateA": {
+      "draws": 100000,
+      "seed": 147002,
+      "tolerancePpm": 3000,
+      "validationScope": "tier-rollups",
+      "maximumDeviationPpm": 1520,
+      "passed": true,
+      "tiers": [
+        {
+          "tierId": "common",
+          "weightUnits": 50,
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 2
+            },
+            "ppm": 500000
+          },
+          "observedCount": 50147,
+          "observedPpm": 501470,
+          "absoluteDeviationPpm": 1470
+        },
+        {
+          "tierId": "uncommon",
+          "weightUnits": 28,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 25
+            },
+            "ppm": 280000
+          },
+          "observedCount": 27981,
+          "observedPpm": 279810,
+          "absoluteDeviationPpm": 190
+        },
+        {
+          "tierId": "rare",
+          "weightUnits": 14,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 50
+            },
+            "ppm": 140000
+          },
+          "observedCount": 14054,
+          "observedPpm": 140540,
+          "absoluteDeviationPpm": 540
+        },
+        {
+          "tierId": "epic",
+          "weightUnits": 5,
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 20
+            },
+            "ppm": 50000
+          },
+          "observedCount": 4970,
+          "observedPpm": 49700,
+          "absoluteDeviationPpm": 300
+        },
+        {
+          "tierId": "legendary",
+          "weightUnits": 3,
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2848,
+          "observedPpm": 28480,
+          "absoluteDeviationPpm": 1520
+        }
+      ],
+      "namedItems": [
+        {
+          "catalogItemId": "adventurer-starter/d10/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4264,
+          "observedPpm": 42640,
+          "absoluteDeviationPpm": 973
+        },
+        {
+          "catalogItemId": "adventurer-starter/d12/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4151,
+          "observedPpm": 41510,
+          "absoluteDeviationPpm": 157
+        },
+        {
+          "catalogItemId": "adventurer-starter/d20/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4192,
+          "observedPpm": 41920,
+          "absoluteDeviationPpm": 253
+        },
+        {
+          "catalogItemId": "adventurer-starter/d4/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4233,
+          "observedPpm": 42330,
+          "absoluteDeviationPpm": 663
+        },
+        {
+          "catalogItemId": "adventurer-starter/d6/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4138,
+          "observedPpm": 41380,
+          "absoluteDeviationPpm": 287
+        },
+        {
+          "catalogItemId": "adventurer-starter/d8/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4157,
+          "observedPpm": 41570,
+          "absoluteDeviationPpm": 97
+        },
+        {
+          "catalogItemId": "dragon-jade/d10/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4303,
+          "observedPpm": 43030,
+          "absoluteDeviationPpm": 1363
+        },
+        {
+          "catalogItemId": "dragon-jade/d12/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4139,
+          "observedPpm": 41390,
+          "absoluteDeviationPpm": 277
+        },
+        {
+          "catalogItemId": "dragon-jade/d20/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4168,
+          "observedPpm": 41680,
+          "absoluteDeviationPpm": 13
+        },
+        {
+          "catalogItemId": "dragon-jade/d4/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4110,
+          "observedPpm": 41100,
+          "absoluteDeviationPpm": 567
+        },
+        {
+          "catalogItemId": "dragon-jade/d6/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4094,
+          "observedPpm": 40940,
+          "absoluteDeviationPpm": 727
+        },
+        {
+          "catalogItemId": "dragon-jade/d8/common@1",
+          "tierId": "common",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 24
+            },
+            "ppm": 41667
+          },
+          "observedCount": 4198,
+          "observedPpm": 41980,
+          "absoluteDeviationPpm": 313
+        },
+        {
+          "catalogItemId": "dragon-jade/d10/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2402,
+          "observedPpm": 24020,
+          "absoluteDeviationPpm": 687
+        },
+        {
+          "catalogItemId": "dragon-jade/d12/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2264,
+          "observedPpm": 22640,
+          "absoluteDeviationPpm": 693
+        },
+        {
+          "catalogItemId": "dragon-jade/d20/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2353,
+          "observedPpm": 23530,
+          "absoluteDeviationPpm": 197
+        },
+        {
+          "catalogItemId": "dragon-jade/d4/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2282,
+          "observedPpm": 22820,
+          "absoluteDeviationPpm": 513
+        },
+        {
+          "catalogItemId": "dragon-jade/d6/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2342,
+          "observedPpm": 23420,
+          "absoluteDeviationPpm": 87
+        },
+        {
+          "catalogItemId": "dragon-jade/d8/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2403,
+          "observedPpm": 24030,
+          "absoluteDeviationPpm": 697
+        },
+        {
+          "catalogItemId": "lucky-bronze/d10/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2295,
+          "observedPpm": 22950,
+          "absoluteDeviationPpm": 383
+        },
+        {
+          "catalogItemId": "lucky-bronze/d12/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2275,
+          "observedPpm": 22750,
+          "absoluteDeviationPpm": 583
+        },
+        {
+          "catalogItemId": "lucky-bronze/d20/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2327,
+          "observedPpm": 23270,
+          "absoluteDeviationPpm": 63
+        },
+        {
+          "catalogItemId": "lucky-bronze/d4/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2304,
+          "observedPpm": 23040,
+          "absoluteDeviationPpm": 293
+        },
+        {
+          "catalogItemId": "lucky-bronze/d6/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2385,
+          "observedPpm": 23850,
+          "absoluteDeviationPpm": 517
+        },
+        {
+          "catalogItemId": "lucky-bronze/d8/uncommon@1",
+          "tierId": "uncommon",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 300
+            },
+            "ppm": 23333
+          },
+          "observedCount": 2349,
+          "observedPpm": 23490,
+          "absoluteDeviationPpm": 157
+        },
+        {
+          "catalogItemId": "devil-set/devil-d6@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 450
+            },
+            "ppm": 15556
+          },
+          "observedCount": 1592,
+          "observedPpm": 15920,
+          "absoluteDeviationPpm": 364
+        },
+        {
+          "catalogItemId": "dragon-jade/d10/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 450
+            },
+            "ppm": 15556
+          },
+          "observedCount": 1557,
+          "observedPpm": 15570,
+          "absoluteDeviationPpm": 14
+        },
+        {
+          "catalogItemId": "dragon-jade/d12/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 450
+            },
+            "ppm": 15556
+          },
+          "observedCount": 1563,
+          "observedPpm": 15630,
+          "absoluteDeviationPpm": 74
+        },
+        {
+          "catalogItemId": "dragon-jade/d20/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 450
+            },
+            "ppm": 15556
+          },
+          "observedCount": 1634,
+          "observedPpm": 16340,
+          "absoluteDeviationPpm": 784
+        },
+        {
+          "catalogItemId": "dragon-jade/d4/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 450
+            },
+            "ppm": 15556
+          },
+          "observedCount": 1534,
+          "observedPpm": 15340,
+          "absoluteDeviationPpm": 216
+        },
+        {
+          "catalogItemId": "dragon-jade/d6/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 450
+            },
+            "ppm": 15556
+          },
+          "observedCount": 1558,
+          "observedPpm": 15580,
+          "absoluteDeviationPpm": 24
+        },
+        {
+          "catalogItemId": "dragon-jade/d8/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 450
+            },
+            "ppm": 15556
+          },
+          "observedCount": 1556,
+          "observedPpm": 15560,
+          "absoluteDeviationPpm": 4
+        },
+        {
+          "catalogItemId": "materials-lab/rubber-d20@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 450
+            },
+            "ppm": 15556
+          },
+          "observedCount": 1546,
+          "observedPpm": 15460,
+          "absoluteDeviationPpm": 96
+        },
+        {
+          "catalogItemId": "materials-lab/steel-d20@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 450
+            },
+            "ppm": 15556
+          },
+          "observedCount": 1514,
+          "observedPpm": 15140,
+          "absoluteDeviationPpm": 416
+        },
+        {
+          "catalogItemId": "celestial-gold/d10/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 120
+            },
+            "ppm": 8333
+          },
+          "observedCount": 855,
+          "observedPpm": 8550,
+          "absoluteDeviationPpm": 217
+        },
+        {
+          "catalogItemId": "celestial-gold/d12/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 120
+            },
+            "ppm": 8333
+          },
+          "observedCount": 799,
+          "observedPpm": 7990,
+          "absoluteDeviationPpm": 343
+        },
+        {
+          "catalogItemId": "celestial-gold/d20/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 120
+            },
+            "ppm": 8333
+          },
+          "observedCount": 814,
+          "observedPpm": 8140,
+          "absoluteDeviationPpm": 193
+        },
+        {
+          "catalogItemId": "celestial-gold/d4/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 120
+            },
+            "ppm": 8333
+          },
+          "observedCount": 839,
+          "observedPpm": 8390,
+          "absoluteDeviationPpm": 57
+        },
+        {
+          "catalogItemId": "celestial-gold/d6/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 120
+            },
+            "ppm": 8333
+          },
+          "observedCount": 836,
+          "observedPpm": 8360,
+          "absoluteDeviationPpm": 27
+        },
+        {
+          "catalogItemId": "celestial-gold/d8/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 120
+            },
+            "ppm": 8333
+          },
+          "observedCount": 827,
+          "observedPpm": 8270,
+          "absoluteDeviationPpm": 63
+        },
+        {
+          "catalogItemId": "void-crystal/d10/legendary@1",
+          "tierId": "legendary",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 200
+            },
+            "ppm": 5000
+          },
+          "observedCount": 484,
+          "observedPpm": 4840,
+          "absoluteDeviationPpm": 160
+        },
+        {
+          "catalogItemId": "void-crystal/d12/legendary@1",
+          "tierId": "legendary",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 200
+            },
+            "ppm": 5000
+          },
+          "observedCount": 484,
+          "observedPpm": 4840,
+          "absoluteDeviationPpm": 160
+        },
+        {
+          "catalogItemId": "void-crystal/d20/legendary@1",
+          "tierId": "legendary",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 200
+            },
+            "ppm": 5000
+          },
+          "observedCount": 467,
+          "observedPpm": 4670,
+          "absoluteDeviationPpm": 330
+        },
+        {
+          "catalogItemId": "void-crystal/d4/legendary@1",
+          "tierId": "legendary",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 200
+            },
+            "ppm": 5000
+          },
+          "observedCount": 443,
+          "observedPpm": 4430,
+          "absoluteDeviationPpm": 570
+        },
+        {
+          "catalogItemId": "void-crystal/d6/legendary@1",
+          "tierId": "legendary",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 200
+            },
+            "ppm": 5000
+          },
+          "observedCount": 454,
+          "observedPpm": 4540,
+          "absoluteDeviationPpm": 460
+        },
+        {
+          "catalogItemId": "void-crystal/d8/legendary@1",
+          "tierId": "legendary",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 200
+            },
+            "ppm": 5000
+          },
+          "observedCount": 516,
+          "observedPpm": 5160,
+          "absoluteDeviationPpm": 160
+        }
+      ]
+    },
+    "candidateB": {
+      "draws": 100000,
+      "seed": 147003,
+      "tolerancePpm": 3000,
+      "validationScope": "tier-rollups",
+      "maximumDeviationPpm": 2220,
+      "passed": true,
+      "tiers": [
+        {
+          "tierId": "standard",
+          "weightUnits": 72,
+          "probability": {
+            "exact": {
+              "numerator": 18,
+              "denominator": 25
+            },
+            "ppm": 720000
+          },
+          "observedCount": 71778,
+          "observedPpm": 717780,
+          "absoluteDeviationPpm": 2220
+        },
+        {
+          "tierId": "rare",
+          "weightUnits": 23,
+          "probability": {
+            "exact": {
+              "numerator": 23,
+              "denominator": 100
+            },
+            "ppm": 230000
+          },
+          "observedCount": 23086,
+          "observedPpm": 230860,
+          "absoluteDeviationPpm": 860
+        },
+        {
+          "tierId": "epic",
+          "weightUnits": 4,
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 25
+            },
+            "ppm": 40000
+          },
+          "observedCount": 4141,
+          "observedPpm": 41410,
+          "absoluteDeviationPpm": 1410
+        },
+        {
+          "tierId": "signature",
+          "weightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 100
+            },
+            "ppm": 10000
+          },
+          "observedCount": 995,
+          "observedPpm": 9950,
+          "absoluteDeviationPpm": 50
+        }
+      ],
+      "namedItems": [
+        {
+          "catalogItemId": "adventurer-starter/d10/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2993,
+          "observedPpm": 29930,
+          "absoluteDeviationPpm": 70
+        },
+        {
+          "catalogItemId": "adventurer-starter/d12/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3051,
+          "observedPpm": 30510,
+          "absoluteDeviationPpm": 510
+        },
+        {
+          "catalogItemId": "adventurer-starter/d20/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3046,
+          "observedPpm": 30460,
+          "absoluteDeviationPpm": 460
+        },
+        {
+          "catalogItemId": "adventurer-starter/d4/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2987,
+          "observedPpm": 29870,
+          "absoluteDeviationPpm": 130
+        },
+        {
+          "catalogItemId": "adventurer-starter/d6/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2957,
+          "observedPpm": 29570,
+          "absoluteDeviationPpm": 430
+        },
+        {
+          "catalogItemId": "adventurer-starter/d8/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2949,
+          "observedPpm": 29490,
+          "absoluteDeviationPpm": 510
+        },
+        {
+          "catalogItemId": "dragon-jade/d10/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2970,
+          "observedPpm": 29700,
+          "absoluteDeviationPpm": 300
+        },
+        {
+          "catalogItemId": "dragon-jade/d10/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3015,
+          "observedPpm": 30150,
+          "absoluteDeviationPpm": 150
+        },
+        {
+          "catalogItemId": "dragon-jade/d12/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3024,
+          "observedPpm": 30240,
+          "absoluteDeviationPpm": 240
+        },
+        {
+          "catalogItemId": "dragon-jade/d12/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3003,
+          "observedPpm": 30030,
+          "absoluteDeviationPpm": 30
+        },
+        {
+          "catalogItemId": "dragon-jade/d20/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2987,
+          "observedPpm": 29870,
+          "absoluteDeviationPpm": 130
+        },
+        {
+          "catalogItemId": "dragon-jade/d20/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3001,
+          "observedPpm": 30010,
+          "absoluteDeviationPpm": 10
+        },
+        {
+          "catalogItemId": "dragon-jade/d4/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2955,
+          "observedPpm": 29550,
+          "absoluteDeviationPpm": 450
+        },
+        {
+          "catalogItemId": "dragon-jade/d4/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3015,
+          "observedPpm": 30150,
+          "absoluteDeviationPpm": 150
+        },
+        {
+          "catalogItemId": "dragon-jade/d6/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3003,
+          "observedPpm": 30030,
+          "absoluteDeviationPpm": 30
+        },
+        {
+          "catalogItemId": "dragon-jade/d6/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2998,
+          "observedPpm": 29980,
+          "absoluteDeviationPpm": 20
+        },
+        {
+          "catalogItemId": "dragon-jade/d8/common@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2926,
+          "observedPpm": 29260,
+          "absoluteDeviationPpm": 740
+        },
+        {
+          "catalogItemId": "dragon-jade/d8/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3025,
+          "observedPpm": 30250,
+          "absoluteDeviationPpm": 250
+        },
+        {
+          "catalogItemId": "lucky-bronze/d10/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2937,
+          "observedPpm": 29370,
+          "absoluteDeviationPpm": 630
+        },
+        {
+          "catalogItemId": "lucky-bronze/d12/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2964,
+          "observedPpm": 29640,
+          "absoluteDeviationPpm": 360
+        },
+        {
+          "catalogItemId": "lucky-bronze/d20/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2942,
+          "observedPpm": 29420,
+          "absoluteDeviationPpm": 580
+        },
+        {
+          "catalogItemId": "lucky-bronze/d4/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 2982,
+          "observedPpm": 29820,
+          "absoluteDeviationPpm": 180
+        },
+        {
+          "catalogItemId": "lucky-bronze/d6/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3040,
+          "observedPpm": 30400,
+          "absoluteDeviationPpm": 400
+        },
+        {
+          "catalogItemId": "lucky-bronze/d8/uncommon@1",
+          "tierId": "standard",
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 100
+            },
+            "ppm": 30000
+          },
+          "observedCount": 3008,
+          "observedPpm": 30080,
+          "absoluteDeviationPpm": 80
+        },
+        {
+          "catalogItemId": "devil-set/devil-d6@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 23,
+              "denominator": 900
+            },
+            "ppm": 25556
+          },
+          "observedCount": 2542,
+          "observedPpm": 25420,
+          "absoluteDeviationPpm": 136
+        },
+        {
+          "catalogItemId": "dragon-jade/d10/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 23,
+              "denominator": 900
+            },
+            "ppm": 25556
+          },
+          "observedCount": 2665,
+          "observedPpm": 26650,
+          "absoluteDeviationPpm": 1094
+        },
+        {
+          "catalogItemId": "dragon-jade/d12/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 23,
+              "denominator": 900
+            },
+            "ppm": 25556
+          },
+          "observedCount": 2477,
+          "observedPpm": 24770,
+          "absoluteDeviationPpm": 786
+        },
+        {
+          "catalogItemId": "dragon-jade/d20/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 23,
+              "denominator": 900
+            },
+            "ppm": 25556
+          },
+          "observedCount": 2554,
+          "observedPpm": 25540,
+          "absoluteDeviationPpm": 16
+        },
+        {
+          "catalogItemId": "dragon-jade/d4/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 23,
+              "denominator": 900
+            },
+            "ppm": 25556
+          },
+          "observedCount": 2589,
+          "observedPpm": 25890,
+          "absoluteDeviationPpm": 334
+        },
+        {
+          "catalogItemId": "dragon-jade/d6/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 23,
+              "denominator": 900
+            },
+            "ppm": 25556
+          },
+          "observedCount": 2568,
+          "observedPpm": 25680,
+          "absoluteDeviationPpm": 124
+        },
+        {
+          "catalogItemId": "dragon-jade/d8/rare@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 23,
+              "denominator": 900
+            },
+            "ppm": 25556
+          },
+          "observedCount": 2602,
+          "observedPpm": 26020,
+          "absoluteDeviationPpm": 464
+        },
+        {
+          "catalogItemId": "materials-lab/rubber-d20@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 23,
+              "denominator": 900
+            },
+            "ppm": 25556
+          },
+          "observedCount": 2623,
+          "observedPpm": 26230,
+          "absoluteDeviationPpm": 674
+        },
+        {
+          "catalogItemId": "materials-lab/steel-d20@1",
+          "tierId": "rare",
+          "probability": {
+            "exact": {
+              "numerator": 23,
+              "denominator": 900
+            },
+            "ppm": 25556
+          },
+          "observedCount": 2466,
+          "observedPpm": 24660,
+          "absoluteDeviationPpm": 896
+        },
+        {
+          "catalogItemId": "celestial-gold/d10/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 150
+            },
+            "ppm": 6667
+          },
+          "observedCount": 724,
+          "observedPpm": 7240,
+          "absoluteDeviationPpm": 573
+        },
+        {
+          "catalogItemId": "celestial-gold/d12/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 150
+            },
+            "ppm": 6667
+          },
+          "observedCount": 696,
+          "observedPpm": 6960,
+          "absoluteDeviationPpm": 293
+        },
+        {
+          "catalogItemId": "celestial-gold/d20/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 150
+            },
+            "ppm": 6667
+          },
+          "observedCount": 689,
+          "observedPpm": 6890,
+          "absoluteDeviationPpm": 223
+        },
+        {
+          "catalogItemId": "celestial-gold/d4/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 150
+            },
+            "ppm": 6667
+          },
+          "observedCount": 672,
+          "observedPpm": 6720,
+          "absoluteDeviationPpm": 53
+        },
+        {
+          "catalogItemId": "celestial-gold/d6/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 150
+            },
+            "ppm": 6667
+          },
+          "observedCount": 665,
+          "observedPpm": 6650,
+          "absoluteDeviationPpm": 17
+        },
+        {
+          "catalogItemId": "celestial-gold/d8/epic@1",
+          "tierId": "epic",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 150
+            },
+            "ppm": 6667
+          },
+          "observedCount": 695,
+          "observedPpm": 6950,
+          "absoluteDeviationPpm": 283
+        },
+        {
+          "catalogItemId": "void-crystal/d10/legendary@1",
+          "tierId": "signature",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 600
+            },
+            "ppm": 1667
+          },
+          "observedCount": 161,
+          "observedPpm": 1610,
+          "absoluteDeviationPpm": 57
+        },
+        {
+          "catalogItemId": "void-crystal/d12/legendary@1",
+          "tierId": "signature",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 600
+            },
+            "ppm": 1667
+          },
+          "observedCount": 169,
+          "observedPpm": 1690,
+          "absoluteDeviationPpm": 23
+        },
+        {
+          "catalogItemId": "void-crystal/d20/legendary@1",
+          "tierId": "signature",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 600
+            },
+            "ppm": 1667
+          },
+          "observedCount": 158,
+          "observedPpm": 1580,
+          "absoluteDeviationPpm": 87
+        },
+        {
+          "catalogItemId": "void-crystal/d4/legendary@1",
+          "tierId": "signature",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 600
+            },
+            "ppm": 1667
+          },
+          "observedCount": 192,
+          "observedPpm": 1920,
+          "absoluteDeviationPpm": 253
+        },
+        {
+          "catalogItemId": "void-crystal/d6/legendary@1",
+          "tierId": "signature",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 600
+            },
+            "ppm": 1667
+          },
+          "observedCount": 156,
+          "observedPpm": 1560,
+          "absoluteDeviationPpm": 107
+        },
+        {
+          "catalogItemId": "void-crystal/d8/legendary@1",
+          "tierId": "signature",
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 600
+            },
+            "ppm": 1667
+          },
+          "observedCount": 159,
+          "observedPpm": 1590,
+          "absoluteDeviationPpm": 77
+        }
+      ]
+    }
+  },
+  "collectionCompletion": {
+    "candidateA": {
+      "cohorts": 2000,
+      "seed": 147003,
+      "horizonWeeks": 52,
+      "totalCatalogItems": 51,
+      "completionCurve": [
+        {
+          "week": 0,
+          "meanOwnedMilli": 8000,
+          "noUnownedProbabilityPpm": 0,
+          "noEligibleStandardRewardProbabilityPpm": 0,
+          "noEligibleCommunityRewardProbabilityPpm": null
+        },
+        {
+          "week": 4,
+          "meanOwnedMilli": 29874,
+          "noUnownedProbabilityPpm": 0,
+          "noEligibleStandardRewardProbabilityPpm": 16500,
+          "noEligibleCommunityRewardProbabilityPpm": null
+        },
+        {
+          "week": 8,
+          "meanOwnedMilli": 37774,
+          "noUnownedProbabilityPpm": 0,
+          "noEligibleStandardRewardProbabilityPpm": 984500,
+          "noEligibleCommunityRewardProbabilityPpm": null
+        },
+        {
+          "week": 12,
+          "meanOwnedMilli": 41253,
+          "noUnownedProbabilityPpm": 0,
+          "noEligibleStandardRewardProbabilityPpm": 1000000,
+          "noEligibleCommunityRewardProbabilityPpm": null
+        },
+        {
+          "week": 26,
+          "meanOwnedMilli": 44184,
+          "noUnownedProbabilityPpm": 0,
+          "noEligibleStandardRewardProbabilityPpm": 1000000,
+          "noEligibleCommunityRewardProbabilityPpm": null
+        },
+        {
+          "week": 52,
+          "meanOwnedMilli": 44921,
+          "noUnownedProbabilityPpm": 0,
+          "noEligibleStandardRewardProbabilityPpm": 1000000,
+          "noEligibleCommunityRewardProbabilityPpm": null
+        }
+      ],
+      "duplicates": {
+        "total": 978527,
+        "perCohortMilli": 489264,
+        "shardsTotal": 5653037,
+        "shardsPerCohortMilli": 2826519
+      },
+      "resolutionCounts": {
+        "base": 1003003,
+        "rare-batch-guarantee": 5880,
+        "selected-guarantee": 31117
+      },
+      "pityActivationCounts": {
+        "rare-batch-guarantee": 5880,
+        "selected-guarantee": 31117
+      },
+      "currencyBurn": {
+        "promotionalStarsBurned": 166400000,
+        "paidStarsBurned": 0,
+        "debitPolicy": "promotional-before-paid"
+      },
+      "freeNamedItems": {
+        "cadence": "weekly-perpetual-unowned-standard",
+        "exhaustedOutcome": "no-item"
+      }
+    },
+    "candidateB": {
+      "cohorts": 2000,
+      "seed": 147004,
+      "horizonWeeks": 52,
+      "totalCatalogItems": 51,
+      "completionCurve": [
+        {
+          "week": 0,
+          "meanOwnedMilli": 8000,
+          "noUnownedProbabilityPpm": 0,
+          "noEligibleStandardRewardProbabilityPpm": 0,
+          "noEligibleCommunityRewardProbabilityPpm": 0
+        },
+        {
+          "week": 4,
+          "meanOwnedMilli": 32322,
+          "noUnownedProbabilityPpm": 0,
+          "noEligibleStandardRewardProbabilityPpm": 31500,
+          "noEligibleCommunityRewardProbabilityPpm": 0
+        },
+        {
+          "week": 8,
+          "meanOwnedMilli": 41242,
+          "noUnownedProbabilityPpm": 0,
+          "noEligibleStandardRewardProbabilityPpm": 991500,
+          "noEligibleCommunityRewardProbabilityPpm": 0
+        },
+        {
+          "week": 12,
+          "meanOwnedMilli": 45142,
+          "noUnownedProbabilityPpm": 0,
+          "noEligibleStandardRewardProbabilityPpm": 1000000,
+          "noEligibleCommunityRewardProbabilityPpm": 0
+        },
+        {
+          "week": 26,
+          "meanOwnedMilli": 50338,
+          "noUnownedProbabilityPpm": 478000,
+          "noEligibleStandardRewardProbabilityPpm": 1000000,
+          "noEligibleCommunityRewardProbabilityPpm": 1000000
+        },
+        {
+          "week": 52,
+          "meanOwnedMilli": 50948,
+          "noUnownedProbabilityPpm": 949000,
+          "noEligibleStandardRewardProbabilityPpm": 1000000,
+          "noEligibleCommunityRewardProbabilityPpm": 1000000
+        }
+      ],
+      "duplicates": {
+        "total": 977932,
+        "perCohortMilli": 488966,
+        "shardsTotal": 4758608,
+        "shardsPerCohortMilli": 2379304
+      },
+      "resolutionCounts": {
+        "base": 988329,
+        "epic-guarantee": 14764,
+        "rare-guarantee": 26174,
+        "selected-guarantee": 10733
+      },
+      "pityActivationCounts": {
+        "epic-guarantee": 14764,
+        "rare-guarantee": 26174,
+        "selected-guarantee": 10733
+      },
+      "currencyBurn": {
+        "promotionalStarsBurned": 166400000,
+        "paidStarsBurned": 0,
+        "debitPolicy": "promotional-before-paid"
+      },
+      "freeNamedItems": {
+        "cadence": "12-week-passport-plus-four-week-community-claim",
+        "exhaustedOutcome": "no-item"
+      }
+    }
+  },
+  "alternatives": {
+    "candidateA": {
+      "directPurchase": {
+        "priceStars": 2400,
+        "savingsVsExpectedRandomStars": 2155
+      },
+      "deterministicCrafting": {
+        "costShards": 250,
+        "observedShardsPerPullMilli": 1235,
+        "estimatedPullsToCraft": 203,
+        "estimatedStarsToCraft": 32480,
+        "estimateBasis": "fixed-seed target-trial duplicate yield"
+      },
+      "routeMix": {
+        "modeledUsers": 10000,
+        "basisPoints": {
+          "randomPulls": 5500,
+          "directPurchase": 3000,
+          "crafting": 1500
+        },
+        "randomRouteCannibalizationPpm": 450000,
+        "randomStars": 25052500,
+        "directRouteStars": 7200000,
+        "craftingRouteStars": 48720000,
+        "totalModeledStars": 80972500
+      }
+    },
+    "candidateB": {
+      "directPurchase": {
+        "priceStars": 2400,
+        "savingsVsExpectedRandomStars": 749
+      },
+      "deterministicCrafting": {
+        "costShards": 250,
+        "observedShardsPerPullMilli": 1437,
+        "estimatedPullsToCraft": 174,
+        "estimatedStarsToCraft": 27840,
+        "estimateBasis": "fixed-seed target-trial duplicate yield"
+      },
+      "routeMix": {
+        "modeledUsers": 10000,
+        "basisPoints": {
+          "randomPulls": 5500,
+          "directPurchase": 3000,
+          "crafting": 1500
+        },
+        "randomRouteCannibalizationPpm": 450000,
+        "randomStars": 17319500,
+        "directRouteStars": 7200000,
+        "craftingRouteStars": 41760000,
+        "totalModeledStars": 66279500
+      }
+    }
+  },
+  "contentThroughput": {
+    "perpetualWeeklyNewSkuPromise": {
+      "intervalWeeks": 1,
+      "requiredAnnualSkus": 52,
+      "plannedAnnualSkus": 12,
+      "annualSkuDeficit": 40,
+      "requiredAnnualCostCents": 7800000,
+      "plannedAnnualCostCents": 1800000,
+      "annualBudgetCents": 1800000,
+      "sustainable": false,
+      "decision": "rejected",
+      "reason": "planned SKU throughput and budget cannot sustain a perpetual weekly-new entitlement"
+    },
+    "boundedPassport": {
+      "durationWeeks": 12,
+      "promisedRewards": 12,
+      "initiallyUnownedEligibleItems": 19,
+      "requiresNewSkusDuringEdition": false,
+      "exhaustedOutcome": "no-item"
+    }
+  },
+  "comparison": {
+    "expectedSelectedCostDeltaStars": -1406,
+    "selectedCostCapDeltaStars": -1600,
+    "conclusion": "Candidate B lowers the hard selected-item cap and replaces the perpetual weekly-new promise with a bounded passport."
+  }
+}

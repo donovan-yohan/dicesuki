@@ -29,6 +29,14 @@ function contract(version: number, slug: string) {
   })}\n`
 }
 
+function simulation(version: number, slug: string) {
+  return `${JSON.stringify({
+    scenarioVersion: version,
+    slug,
+    reportArtifact: `economy/simulations/reports/${String(version).padStart(4, '0')}-${slug}.json`,
+  })}\n`
+}
+
 function repository() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dicesuki-economy-history-'))
   temporaryDirectories.push(root)
@@ -89,6 +97,38 @@ describe('immutable economy history guard', () => {
         'economy/disclosures/0001-broad-rarity-showcase.json',
       ],
     })
+  })
+
+  it('anchors published simulation scenarios and reports without blocking appended studies', () => {
+    const { root } = repository()
+    write(
+      root,
+      'economy/simulations/scenarios/0001-candidate-study.json',
+      simulation(1, 'candidate-study'),
+    )
+    write(root, 'economy/simulations/reports/0001-candidate-study.json', '{"reportVersion":1}\n')
+    git(root, 'add', '.')
+    git(root, 'commit', '-qm', 'simulation baseline')
+    expect(economyHistoryPathsAtRef('HEAD', root)).toEqual([
+      'economy/contracts/editions/0001-broad-rarity-showcase.json',
+      'economy/disclosures/0001-broad-rarity-showcase.json',
+      'economy/simulations/reports/0001-candidate-study.json',
+      'economy/simulations/scenarios/0001-candidate-study.json',
+    ])
+
+    git(root, 'checkout', '-qb', 'feature')
+    write(
+      root,
+      'economy/simulations/scenarios/0002-next-study.json',
+      simulation(2, 'next-study'),
+    )
+    write(root, 'economy/simulations/reports/0002-next-study.json', '{"reportVersion":2}\n')
+    expect(changedImmutableEconomyPaths('main', root).changed).toEqual([])
+
+    write(root, 'economy/simulations/reports/0001-candidate-study.json', '{"rewritten":true}\n')
+    expect(changedImmutableEconomyPaths('main', root).changed).toEqual([
+      'economy/simulations/reports/0001-candidate-study.json',
+    ])
   })
 
   it('uses the branch merge base even when the target branch advances independently', () => {

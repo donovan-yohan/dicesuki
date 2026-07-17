@@ -38,6 +38,7 @@ jobs:
       - run: npm run check:collectible-catalog
       - run: npm run test:imagegen-uv
       - run: npm run check:economy-disclosures
+      - run: npm run check:economy-simulations
       - run: npm run lint
       - run: npm test -- --run
       - run: npm run build

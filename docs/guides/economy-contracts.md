@@ -30,8 +30,45 @@ duplicate conversion inputs for the future simulator.
 
 The Shard schedule is a versioned hypothesis, not launch economics. Named-item
 direct purchase and deterministic Shard crafting are required alternatives in
-the contract, but their prices and implementation belong to later simulation
-and commerce work.
+the contract. The first simulation study now prices and compares those routes;
+commerce implementation remains a separate production slice.
+
+## Candidate study 1
+
+`candidate-a-vs-collection-first@1` under `economy/simulations/scenarios/`
+compares the v1 broad-rarity contract with a collection-first hypothesis. The
+second candidate uses integer base weights of 72 standard, 23 rare, 4 epic,
+and 1 signature; rolling rare-or-better by pull 8, epic-or-better by pull 25,
+and deterministic selected featured unowned by pull 20; no soft pity or loss
+path; and counter carry across explicitly compatible banner ids.
+
+The simulator resolves simultaneous guarantees in this order: selected,
+epic-or-better, rare-or-better, then base. Selected pity therefore dominates
+epic pity while a featured unowned item remains. Epic pity is still reachable
+after that finite featured pool is exhausted, and focused tests prove the exact
+8, 20, and 25 boundaries plus compatible-family carry.
+
+The immutable generated report includes exact named-item and tier
+probabilities, fixed-seed statistical validation, selected-item expected/p50/
+p90/cap costs, pity and duplicate distributions, Shard yield, paid versus
+promotional Star burn, 52-week completion curves, direct purchase and crafting
+alternatives, route cannibalization, and content-production cost. It rejects a
+perpetual weekly-new entitlement because the modeled 52 annual SKUs exceed the
+12-SKU plan and budget; the alternative is a bounded 12-week passport with an
+explicit no-item exhausted state plus monthly community claims.
+
+Run or verify the study with:
+
+```bash
+npm run generate:economy-simulations
+npm run check:economy-simulations
+npm test -- --run scripts/economy-simulator.test.ts
+```
+
+The generator uses xorshift32 plus rejection-sampled bounded integer choices.
+Seeds and SHA-256 source anchors are recorded in the report; no wall-clock
+timestamp enters the artifact. `--write-new` writes only a missing report and
+refuses to overwrite published output.
 
 ## Exact disclosure math
 
@@ -53,8 +90,8 @@ item when it has not already been awarded.
 
 ## Append-only workflow
 
-Published source contracts and disclosures are immutable. To compare another
-hypothesis:
+Published source contracts, disclosures, simulation scenarios, and reports are
+immutable. To compare another hypothesis:
 
 1. Add the next contiguous file under `economy/contracts/editions/` using
    `<four-digit-version>-<slug>.json`. Never edit an existing edition.
@@ -77,8 +114,10 @@ hypothesis:
    ```
 
 Pull-request CI resolves the branch merge base, then rejects any change to a
-contract or disclosure that existed there. New source/disclosure pairs are
-allowed only at the next contiguous version.
+contract, disclosure, scenario, or report that existed there. New
+source/disclosure and scenario/report pairs are allowed only at the next
+contiguous version. A future study must append the next file under
+`economy/simulations/scenarios/`; it must never rewrite the 0001 snapshot.
 
 ## Safety boundary
 
@@ -89,6 +128,7 @@ incorrect guarantee boundaries, broken family carry, incoherent cadence totals,
 missing or negative Shard values, and random-only acquisition policies.
 
 The same gate scans `src/`, `server/src/`, `server/core/src/`, and
-`server/wasm/src/` for production imports of `economy/contracts` or
-`economy/disclosures`. No wallet, debit, RNG, pull, checkout, entitlement grant,
-or client runtime integration exists in this slice.
+`server/wasm/src/` for production imports of `economy/contracts`,
+`economy/disclosures`, `economy/simulations`, or the simulator. No wallet,
+debit, RNG, pull, checkout, entitlement grant, or client runtime integration
+exists in this slice.

@@ -1,0 +1,245 @@
+{
+  "scenarioVersion": 1,
+  "scenarioId": "candidate-a-vs-collection-first@1",
+  "slug": "candidate-a-vs-collection-first",
+  "purpose": "simulation-only",
+  "reportArtifact": "economy/simulations/reports/0001-candidate-a-vs-collection-first.json",
+  "candidateA": {
+    "candidateId": "broad-rarity-showcase@1",
+    "sourceContract": "economy/contracts/editions/0001-broad-rarity-showcase.json",
+    "sourceDisclosure": "economy/disclosures/0001-broad-rarity-showcase.json",
+    "selectedCatalogItemId": "void-crystal/d20/legendary@1",
+    "purchaseMode": "ten-pull-batches"
+  },
+  "candidateB": {
+    "candidateId": "collection-first-showcase@1",
+    "familyId": "collection-first-showcase",
+    "compatibleBannerIds": [
+      "collection-first-showcase-001",
+      "collection-first-showcase-002"
+    ],
+    "currency": {
+      "currencyId": "stars",
+      "singlePullCost": 160,
+      "tenPullCost": 1600,
+      "balanceClasses": [
+        "paid",
+        "promotional"
+      ],
+      "debitPolicy": "promotional-before-paid"
+    },
+    "weightScale": 100,
+    "tiers": [
+      {
+        "tierId": "standard",
+        "rank": 0,
+        "weightUnits": 72,
+        "catalogItemIds": [
+          "adventurer-starter/d10/common@1",
+          "adventurer-starter/d12/common@1",
+          "adventurer-starter/d20/common@1",
+          "adventurer-starter/d4/common@1",
+          "adventurer-starter/d6/common@1",
+          "adventurer-starter/d8/common@1",
+          "dragon-jade/d10/common@1",
+          "dragon-jade/d10/uncommon@1",
+          "dragon-jade/d12/common@1",
+          "dragon-jade/d12/uncommon@1",
+          "dragon-jade/d20/common@1",
+          "dragon-jade/d20/uncommon@1",
+          "dragon-jade/d4/common@1",
+          "dragon-jade/d4/uncommon@1",
+          "dragon-jade/d6/common@1",
+          "dragon-jade/d6/uncommon@1",
+          "dragon-jade/d8/common@1",
+          "dragon-jade/d8/uncommon@1",
+          "lucky-bronze/d10/uncommon@1",
+          "lucky-bronze/d12/uncommon@1",
+          "lucky-bronze/d20/uncommon@1",
+          "lucky-bronze/d4/uncommon@1",
+          "lucky-bronze/d6/uncommon@1",
+          "lucky-bronze/d8/uncommon@1"
+        ]
+      },
+      {
+        "tierId": "rare",
+        "rank": 1,
+        "weightUnits": 23,
+        "catalogItemIds": [
+          "devil-set/devil-d6@1",
+          "dragon-jade/d10/rare@1",
+          "dragon-jade/d12/rare@1",
+          "dragon-jade/d20/rare@1",
+          "dragon-jade/d4/rare@1",
+          "dragon-jade/d6/rare@1",
+          "dragon-jade/d8/rare@1",
+          "materials-lab/rubber-d20@1",
+          "materials-lab/steel-d20@1"
+        ]
+      },
+      {
+        "tierId": "epic",
+        "rank": 2,
+        "weightUnits": 4,
+        "catalogItemIds": [
+          "celestial-gold/d10/epic@1",
+          "celestial-gold/d12/epic@1",
+          "celestial-gold/d20/epic@1",
+          "celestial-gold/d4/epic@1",
+          "celestial-gold/d6/epic@1",
+          "celestial-gold/d8/epic@1"
+        ]
+      },
+      {
+        "tierId": "signature",
+        "rank": 3,
+        "weightUnits": 1,
+        "catalogItemIds": [
+          "void-crystal/d10/legendary@1",
+          "void-crystal/d12/legendary@1",
+          "void-crystal/d20/legendary@1",
+          "void-crystal/d4/legendary@1",
+          "void-crystal/d6/legendary@1",
+          "void-crystal/d8/legendary@1"
+        ]
+      }
+    ],
+    "guarantees": {
+      "rareOrBetter": {
+        "minimumRank": 1,
+        "hardGuaranteePull": 8,
+        "counterScope": "banner-family",
+        "reset": "qualifying-result-awarded"
+      },
+      "epicOrBetter": {
+        "minimumRank": 2,
+        "hardGuaranteePull": 25,
+        "counterScope": "banner-family",
+        "reset": "qualifying-result-awarded"
+      },
+      "selectedFeaturedUnowned": {
+        "minimumRank": 3,
+        "hardGuaranteePull": 20,
+        "featuredCatalogItemIds": [
+          "void-crystal/d10/legendary@1",
+          "void-crystal/d12/legendary@1",
+          "void-crystal/d20/legendary@1",
+          "void-crystal/d4/legendary@1",
+          "void-crystal/d6/legendary@1",
+          "void-crystal/d8/legendary@1"
+        ],
+        "selection": "lowest-canonical-id-unowned",
+        "lossPath": "none",
+        "softPity": "none",
+        "counterScope": "banner-family",
+        "reset": "selected-featured-awarded"
+      }
+    },
+    "duplicateShardsByTier": {
+      "standard": 2,
+      "rare": 8,
+      "epic": 20,
+      "signature": 50
+    }
+  },
+  "simulation": {
+    "targetTrials": 50000,
+    "distributionDraws": 100000,
+    "collectionCohorts": 2000,
+    "horizonWeeks": 52,
+    "completionCheckpointsWeeks": [
+      0,
+      4,
+      8,
+      12,
+      26,
+      52
+    ],
+    "targetSeed": 147001,
+    "distributionSeed": 147002,
+    "collectionSeed": 147003,
+    "statisticalTolerancePpm": 3000,
+    "promotionalStarsPerTargetTrial": 1600
+  },
+  "initialOwnedCatalogItemIds": [
+    "adventurer-starter/d10/common@1",
+    "adventurer-starter/d12/common@1",
+    "adventurer-starter/d20/common@1",
+    "adventurer-starter/d4/common@1",
+    "adventurer-starter/d8/common@1",
+    "devil-set/devil-d6@1",
+    "materials-lab/rubber-d20@1",
+    "materials-lab/steel-d20@1"
+  ],
+  "freeCadence": {
+    "weeklyStars": 1600,
+    "passport": {
+      "durationWeeks": 12,
+      "rewardCountPerWeek": 1,
+      "eligibleCatalogItemIds": [
+        "adventurer-starter/d10/common@1",
+        "adventurer-starter/d12/common@1",
+        "adventurer-starter/d20/common@1",
+        "adventurer-starter/d4/common@1",
+        "adventurer-starter/d6/common@1",
+        "adventurer-starter/d8/common@1",
+        "dragon-jade/d10/common@1",
+        "dragon-jade/d10/uncommon@1",
+        "dragon-jade/d12/common@1",
+        "dragon-jade/d12/uncommon@1",
+        "dragon-jade/d20/common@1",
+        "dragon-jade/d20/uncommon@1",
+        "dragon-jade/d4/common@1",
+        "dragon-jade/d4/uncommon@1",
+        "dragon-jade/d6/common@1",
+        "dragon-jade/d6/uncommon@1",
+        "dragon-jade/d8/common@1",
+        "dragon-jade/d8/uncommon@1",
+        "lucky-bronze/d10/uncommon@1",
+        "lucky-bronze/d12/uncommon@1",
+        "lucky-bronze/d20/uncommon@1",
+        "lucky-bronze/d4/uncommon@1",
+        "lucky-bronze/d6/uncommon@1",
+        "lucky-bronze/d8/uncommon@1"
+      ],
+      "selection": "lowest-canonical-id-unowned",
+      "whenAllOwned": "no-item"
+    },
+    "communityClaim": {
+      "intervalWeeks": 4,
+      "rewardCount": 1,
+      "eligibleCatalogItemIds": [
+        "infernal-obsidian/d10/mythic@1",
+        "infernal-obsidian/d12/mythic@1",
+        "infernal-obsidian/d20/mythic@1",
+        "infernal-obsidian/d4/mythic@1",
+        "infernal-obsidian/d6/mythic@1",
+        "infernal-obsidian/d8/mythic@1"
+      ],
+      "selection": "lowest-canonical-id-unowned",
+      "whenAllOwned": "no-item"
+    }
+  },
+  "acquisitionAlternatives": {
+    "directPurchaseStarsByCandidate": {
+      "candidateA": 2400,
+      "candidateB": 2400
+    },
+    "craftingCostShardsByCandidate": {
+      "candidateA": 250,
+      "candidateB": 250
+    },
+    "routeMixBasisPoints": {
+      "randomPulls": 5500,
+      "directPurchase": 3000,
+      "crafting": 1500
+    },
+    "modeledUsers": 10000
+  },
+  "contentProduction": {
+    "perpetualUnownedRewardIntervalWeeks": 1,
+    "plannedNewSkusPerYear": 12,
+    "productionCostCentsPerSku": 150000,
+    "annualContentBudgetCents": 1800000
+  }
+}
