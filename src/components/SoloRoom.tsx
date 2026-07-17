@@ -26,8 +26,8 @@ import { StartupGate, type StartupPhase } from './brand/StartupSplash'
 
 /**
  * Fixed room id for the solo worker room. The worker hosts exactly one room per
- * instance, so the id only needs to be stable within a session (it keys the
- * reconnect token in sessionStorage); its value is otherwise irrelevant.
+ * instance, so the id only needs to be stable within that worker session; its
+ * value is otherwise irrelevant and is never persisted as a network resume.
  */
 const SOLO_ROOM_ID = 'solo'
 

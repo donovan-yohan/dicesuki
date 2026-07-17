@@ -64,6 +64,21 @@ describe('computePresenceChanges', () => {
     const roster = new Map([['a', player('a')]])
     expect(computePresenceChanges(roster, new Map(roster), 'a')).toEqual([])
   })
+
+  it('distinguishes temporary disconnect and reconnect from final leave', () => {
+    const connected = player('b', 'Bob')
+    const disconnected = { ...connected, connected: false }
+    expect(computePresenceChanges(
+      new Map([['b', connected]]),
+      new Map([['b', disconnected]]),
+      'a',
+    )).toEqual([{ kind: 'disconnect', player: disconnected }])
+    expect(computePresenceChanges(
+      new Map([['b', disconnected]]),
+      new Map([['b', { ...connected, connected: true }]]),
+      'a',
+    )[0].kind).toBe('reconnect')
+  })
 })
 
 describe('useRoomPresenceNotices', () => {

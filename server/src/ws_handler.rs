@@ -4,6 +4,15 @@ use log::{error, info, warn};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+const WS_PING_INTERVAL: std::time::Duration = std::time::Duration::from_secs(20);
+const WS_SILENT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Pure timing seam for the liveness policy. The async handler supplies elapsed
+/// wall time; tests exercise the threshold without sleeping for a minute.
+fn connection_is_silent(elapsed: std::time::Duration) -> bool {
+    elapsed >= WS_SILENT_TIMEOUT
+}
+
 use crate::messages::{ClientMessage, PlayerInfo, ServerMessage};
 use crate::room::RoomError;
 use crate::room_manager::SharedRoom;
@@ -38,14 +47,26 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
 
     // Spawn write loop: forward messages from channel to WebSocket
     let write_task = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            match serde_json::to_string(&msg) {
-                Ok(json) => {
-                    if ws_sender.send(Message::Text(json)).await.is_err() {
+        let start = tokio::time::Instant::now() + WS_PING_INTERVAL;
+        let mut ping = tokio::time::interval_at(start, WS_PING_INTERVAL);
+        loop {
+            tokio::select! {
+                maybe_msg = rx.recv() => {
+                    let Some(msg) = maybe_msg else { break };
+                    match serde_json::to_string(&msg) {
+                        Ok(json) => {
+                            if ws_sender.send(Message::Text(json)).await.is_err() {
+                                break;
+                            }
+                        }
+                        Err(e) => error!("Failed to serialize message: {e}"),
+                    }
+                }
+                _ = ping.tick() => {
+                    if ws_sender.send(Message::Ping(Vec::new())).await.is_err() {
                         break;
                     }
                 }
-                Err(e) => error!("Failed to serialize message: {e}"),
             }
         }
     });
@@ -57,7 +78,17 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
     let mut intentional_leave = false;
 
     // Read loop: process incoming messages
-    while let Some(msg_result) = ws_receiver.next().await {
+    loop {
+        let wait_started = tokio::time::Instant::now();
+        let msg_result = match tokio::time::timeout(WS_SILENT_TIMEOUT, ws_receiver.next()).await {
+            Ok(Some(result)) => result,
+            Ok(None) => break,
+            Err(_) if connection_is_silent(wait_started.elapsed()) => {
+                warn!("WebSocket from {player_id} silent for 60s; disconnecting");
+                break;
+            }
+            Err(_) => continue,
+        };
         let text = match msg_result {
             Ok(Message::Text(t)) => t,
             Ok(Message::Close(_)) => break,
@@ -169,7 +200,16 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                                         id: player_id.clone(),
                                         display_name,
                                         color,
+                                        connected: true,
                                     },
+                                },
+                                &player_id,
+                            );
+                        } else {
+                            room_guard.broadcast_except(
+                                &ServerMessage::PlayerPresenceChanged {
+                                    player_id: player_id.clone(),
+                                    connected: true,
                                 },
                                 &player_id,
                             );
@@ -386,6 +426,41 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 break;
             }
 
+            ClientMessage::RemovePlayer { player_id: target_id } if is_joined => {
+                let mut room_guard = room.write().await;
+                let previous_host = room_guard.host_id.clone();
+                if room_guard.is_host(&player_id) && player_id != target_id {
+                    if let Some(target) = room_guard.players.get(&target_id) {
+                        let _ = target.send(&ServerMessage::RemovedFromRoom {
+                            reason: "The host removed you from the room.".to_string(),
+                        });
+                    }
+                }
+                match room_guard.remove_player_by_host(&player_id, &target_id) {
+                    Ok(removed_dice) => {
+                        if !removed_dice.is_empty() {
+                            room_guard.broadcast(&ServerMessage::DiceRemoved {
+                                dice_ids: removed_dice,
+                            });
+                        }
+                        room_guard.broadcast(&ServerMessage::PlayerLeft {
+                            player_id: target_id,
+                        });
+                        if room_guard.host_id != previous_host {
+                            if let Some(host_id) = room_guard.host_id.clone() {
+                                room_guard.broadcast(&ServerMessage::HostChanged { host_id });
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        let _ = tx.send(ServerMessage::Error {
+                            code: err.code().to_string(),
+                            message: err.to_string(),
+                        });
+                    }
+                }
+            }
+
             _ => {
                 let _ = tx.send(ServerMessage::Error {
                     code: "NOT_JOINED".to_string(),
@@ -400,6 +475,15 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
     // reconnect grace window so the player can rejoin with the same identity.
     if is_joined {
         let mut room_guard = room.write().await;
+
+        // A host may already have removed this connection's seat. If the
+        // removed client now closes (normally after `removed_from_room`), do not
+        // emit a contradictory presence-false event after the final player_left.
+        if !room_guard.players.contains_key(&player_id) {
+            drop(room_guard);
+            write_task.abort();
+            return;
+        }
 
         if intentional_leave {
             let previous_host = room_guard.host_id.clone();
@@ -442,6 +526,13 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 info!("Host of room {} transferred to {}", room_guard.id, host_id);
                 room_guard.broadcast(&ServerMessage::HostChanged { host_id });
             }
+            room_guard.broadcast_except(
+                &ServerMessage::PlayerPresenceChanged {
+                    player_id: player_id.clone(),
+                    connected: false,
+                },
+                &player_id,
+            );
         }
     }
 
@@ -450,7 +541,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
 
 #[cfg(test)]
 mod tests {
-    use super::is_valid_hex_color;
+    use super::{connection_is_silent, is_valid_hex_color};
 
     #[test]
     fn test_valid_hex_color_rrggbb() {
@@ -466,6 +557,12 @@ mod tests {
         assert!(is_valid_hex_color("#fff"));
         assert!(is_valid_hex_color("#000"));
         assert!(is_valid_hex_color("#1aF"));
+    }
+
+    #[test]
+    fn liveness_threshold_is_inclusive_without_sleeping() {
+        assert!(!connection_is_silent(std::time::Duration::from_secs(59)));
+        assert!(connection_is_silent(std::time::Duration::from_secs(60)));
     }
 
     #[test]

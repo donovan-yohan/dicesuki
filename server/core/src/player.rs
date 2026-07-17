@@ -78,6 +78,7 @@ impl Player {
             id: self.id.clone(),
             display_name: self.display_name.clone(),
             color: self.color.clone(),
+            connected: self.connected,
         }
     }
 }
@@ -115,6 +116,7 @@ mod tests {
         let info = player.to_info();
         assert_eq!(info.id, "p1");
         assert_eq!(info.display_name, "Gandalf");
+        assert!(info.connected);
     }
 
     #[test]

@@ -11,6 +11,8 @@ export interface JoinMessage {
   color: string
   /** Stable token used to reclaim a held seat after a dropped connection. */
   reconnectToken?: string
+  /** Current Supabase access token; never persisted with room resume data. */
+  authToken?: string
 }
 
 export interface DicePresentationMetadata {
@@ -66,6 +68,11 @@ export interface UpdateColorMessage {
 
 export interface LeaveMessage {
   type: 'leave'
+}
+
+export interface RemovePlayerMessage {
+  type: 'remove_player'
+  playerId: string
 }
 
 export interface DragStartMessage {
@@ -314,6 +321,7 @@ export type ClientMessage =
   | RollMessage
   | UpdateColorMessage
   | LeaveMessage
+  | RemovePlayerMessage
   | DragStartMessage
   | DragMoveMessage
   | DragEndMessage
@@ -329,6 +337,8 @@ export interface PlayerInfo {
   id: string
   displayName: string
   color: string
+  /** False while the server holds this seat during reconnect grace. */
+  connected?: boolean
 }
 
 export interface DiceState {
@@ -446,6 +456,17 @@ export interface PlayerLeftMessage {
   playerId: string
 }
 
+export interface PlayerPresenceChangedMessage {
+  type: 'player_presence_changed'
+  playerId: string
+  connected: boolean
+}
+
+export interface RemovedFromRoomMessage {
+  type: 'removed_from_room'
+  reason: string
+}
+
 export interface DiceSpawnedMessage {
   type: 'dice_spawned'
   ownerId: string
@@ -509,6 +530,8 @@ export type ServerMessage =
   | ArenaChangedMessage
   | PlayerJoinedMessage
   | PlayerLeftMessage
+  | PlayerPresenceChangedMessage
+  | RemovedFromRoomMessage
   | DiceSpawnedMessage
   | DiceRemovedMessage
   | RollStartedMessage

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PlayerInfo } from '../lib/multiplayerMessages'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 
-export type PresenceNoticeKind = 'join' | 'leave'
+export type PresenceNoticeKind = 'join' | 'leave' | 'disconnect' | 'reconnect'
 
 export interface PresenceNotice {
   /** Unique per emitted notice (a player may join/leave repeatedly). */
@@ -39,6 +39,13 @@ export function computePresenceChanges(
     if (id === localPlayerId) continue
     if (!prev.has(id)) {
       changes.push({ kind: 'join', player })
+      continue
+    }
+    const previous = prev.get(id)
+    if (previous?.connected !== false && player.connected === false) {
+      changes.push({ kind: 'disconnect', player })
+    } else if (previous?.connected === false && player.connected !== false) {
+      changes.push({ kind: 'reconnect', player })
     }
   }
 

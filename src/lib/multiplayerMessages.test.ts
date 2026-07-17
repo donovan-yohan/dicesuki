@@ -94,6 +94,11 @@ describe('multiplayerMessages', () => {
       expect(msg.type).toBe('leave')
     })
 
+    it('should type-check host removal', () => {
+      const msg: ClientMessage = { type: 'remove_player', playerId: 'p2' }
+      expect(msg.playerId).toBe('p2')
+    })
+
     it('should type-check an update_settings message', () => {
       const msg: ClientMessage = {
         type: 'update_settings',
@@ -127,6 +132,17 @@ describe('multiplayerMessages', () => {
       if (msg.type === 'host_changed') {
         expect(msg.hostId).toBe('p2')
       }
+    })
+
+    it('should parse presence and removal lifecycle messages', () => {
+      const presence: ServerMessage = JSON.parse(
+        '{"type":"player_presence_changed","playerId":"p2","connected":false}',
+      )
+      expect(presence.type).toBe('player_presence_changed')
+      const removed: ServerMessage = JSON.parse(
+        '{"type":"removed_from_room","reason":"The host removed you."}',
+      )
+      expect(removed.type).toBe('removed_from_room')
     })
 
     it('should parse a settings_updated message with unknown forward-compat fields', () => {

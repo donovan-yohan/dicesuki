@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { MultiplayerRoom } from './MultiplayerRoom'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { usePlayerIdentityStore, DEFAULT_PLAYER_COLOR } from '../../store/usePlayerIdentityStore'
+import { saveRoomSession } from '../../lib/roomSession'
 
 /**
  * Renders the room at a deep link. We stay on the join form (disconnected) for
@@ -81,5 +82,47 @@ describe('MultiplayerRoom join deep-link flow (#78)', () => {
     await waitFor(() => {
       expect(usePlayerIdentityStore.getState().displayName).toBe('Pippin')
     })
+  })
+
+  it('preflights and resumes the saved session for this exact room route', async () => {
+    saveRoomSession({
+      roomId: 'ROOM42',
+      displayName: 'Merry',
+      color: '#123456',
+      reconnectToken: '12345678-1234-4234-9234-123456789abc',
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }))
+    class StubSocket {
+      static OPEN = 1
+      readyState = 0
+      onopen = null
+      onmessage = null
+      onerror = null
+      onclose = null
+      send() {}
+      close() {}
+    }
+    vi.stubGlobal('WebSocket', StubSocket)
+
+    renderRoom()
+
+    await waitFor(() => {
+      expect(useMultiplayerStore.getState().lastJoin).toMatchObject({
+        roomId: 'ROOM42',
+        displayName: 'Merry',
+        token: '12345678-1234-4234-9234-123456789abc',
+      })
+    })
+  })
+
+  it('shows the host-supplied removal reason on the join surface', () => {
+    useMultiplayerStore.setState({
+      connectionStatus: 'disconnected',
+      removedFromRoomNotice: 'The host removed you from the room.',
+    })
+    renderRoom()
+    expect(screen.getByTestId('removed-from-room-notice')).toHaveTextContent(
+      'The host removed you from the room.',
+    )
   })
 })

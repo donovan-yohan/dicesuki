@@ -60,6 +60,12 @@ pub enum ClientMessage {
         color: String,
     },
     Leave,
+    /// Host-only removal of another player from the room. This frees the
+    /// target's held seat, reconnect credential, and dice immediately.
+    RemovePlayer {
+        #[serde(rename = "playerId")]
+        player_id: String,
+    },
     DragStart {
         #[serde(rename = "dieId")]
         die_id: String,
@@ -209,6 +215,14 @@ pub enum ServerMessage {
         #[serde(rename = "playerId")]
         player_id: String,
     },
+    PlayerPresenceChanged {
+        #[serde(rename = "playerId")]
+        player_id: String,
+        connected: bool,
+    },
+    RemovedFromRoom {
+        reason: String,
+    },
     DiceSpawned {
         #[serde(rename = "ownerId")]
         owner_id: String,
@@ -264,6 +278,7 @@ pub struct PlayerInfo {
     #[serde(rename = "displayName")]
     pub display_name: String,
     pub color: String,
+    pub connected: bool,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -385,6 +400,27 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_remove_player() {
+        let msg: ClientMessage = serde_json::from_str(
+            r#"{"type":"remove_player","playerId":"p2"}"#,
+        ).unwrap();
+        assert!(matches!(msg, ClientMessage::RemovePlayer { player_id } if player_id == "p2"));
+    }
+
+    #[test]
+    fn test_serialize_presence_and_removal() {
+        let presence = serde_json::to_string(&ServerMessage::PlayerPresenceChanged {
+            player_id: "p2".into(),
+            connected: false,
+        }).unwrap();
+        assert_eq!(presence, r#"{"type":"player_presence_changed","playerId":"p2","connected":false}"#);
+        let removed = serde_json::to_string(&ServerMessage::RemovedFromRoom {
+            reason: "Removed".into(),
+        }).unwrap();
+        assert!(removed.contains(r#""type":"removed_from_room""#));
+    }
+
+    #[test]
     fn test_serialize_room_state() {
         let msg = ServerMessage::RoomState {
             room_id: "abc123".to_string(),
@@ -394,6 +430,7 @@ mod tests {
                 id: "p1".to_string(),
                 display_name: "Gandalf".to_string(),
                 color: "#8B5CF6".to_string(),
+                connected: true,
             }],
             dice: vec![],
             settings: RoomSettings::default(),

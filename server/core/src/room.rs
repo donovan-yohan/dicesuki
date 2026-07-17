@@ -49,6 +49,11 @@ pub enum RoomError {
     /// Device-motion input is disabled for this room (`motionControl == off`), or
     /// the sender is not permitted to affect any dice under the current policy.
     MotionNotAllowed,
+    /// A reconnect bearer credential matched an authenticated seat, but the
+    /// current connection is not authenticated as that same user.
+    ReconnectUnauthorized,
+    /// Hosts may remove guests, but not themselves.
+    CannotRemoveSelf,
 }
 
 impl RoomError {
@@ -70,6 +75,8 @@ impl RoomError {
             RoomError::DuplicateInventoryDie => "DUPLICATE_INVENTORY_DIE",
             RoomError::NotHost => "NOT_HOST",
             RoomError::MotionNotAllowed => "MOTION_NOT_ALLOWED",
+            RoomError::ReconnectUnauthorized => "RECONNECT_UNAUTHORIZED",
+            RoomError::CannotRemoveSelf => "CANNOT_REMOVE_SELF",
         }
     }
 }
@@ -90,6 +97,8 @@ impl std::fmt::Display for RoomError {
             RoomError::DuplicateInventoryDie => "That inventory die is already on the table",
             RoomError::NotHost => "Only the host can change room settings",
             RoomError::MotionNotAllowed => "Motion input is not allowed in this room",
+            RoomError::ReconnectUnauthorized => "Reconnect credential does not belong to this user",
+            RoomError::CannotRemoveSelf => "The host cannot remove themselves",
         };
         write!(f, "{msg}")
     }
@@ -104,7 +113,7 @@ pub const SNAPSHOT_DIVISOR: u64 = 1; // 1 = every tick (60Hz), 2 = 30Hz, 3 = 20H
 /// How long a disconnected player's seat (identity, dice, host status) is held
 /// so they can rejoin without losing their place. See the room-lifecycle policy
 /// in `docs/guides/server.md`.
-pub const RECONNECT_GRACE_SECS: u64 = 120; // 2 minutes
+pub const RECONNECT_GRACE_SECS: u64 = 600; // 10 minutes
 /// Settings key holding the host-configurable player cap.
 pub const PLAYER_CAP_SETTING: &str = "playerCap";
 /// Settings key holding the host-configurable device-motion policy. Value is one
@@ -705,10 +714,30 @@ impl Room {
         }
         // Transfer host if the departing player held it.
         if self.host_id.as_deref() == Some(player_id) {
-            self.host_id = self.oldest_player_id();
+            self.host_id = self.oldest_connected_player_id()
+                .or_else(|| self.oldest_player_id());
         }
         self.touch();
         removed_dice_ids
+    }
+
+    /// Remove another player immediately. The host role is checked in core so
+    /// native and WASM hosts cannot drift on authorization.
+    pub fn remove_player_by_host(
+        &mut self,
+        requester_id: &str,
+        target_id: &str,
+    ) -> Result<Vec<String>, RoomError> {
+        if !self.is_host(requester_id) {
+            return Err(RoomError::NotHost);
+        }
+        if requester_id == target_id {
+            return Err(RoomError::CannotRemoveSelf);
+        }
+        if !self.players.contains_key(target_id) {
+            return Err(RoomError::PlayerNotFound);
+        }
+        Ok(self.remove_player(target_id))
     }
 
     /// Returns the id of the oldest remaining player (lowest `join_order`), or
@@ -759,13 +788,20 @@ impl Room {
             {
                 let player = self.players.get_mut(&existing_id)
                     .expect("player exists: id was just read from self.players");
+                // The reconnect token is a bearer secret, but authenticated
+                // seats require both factors: the bearer and the same user.
+                // Guest seats remain bearer-only by design.
+                if player.user_id.is_some() && player.user_id != user_id {
+                    return Err(RoomError::ReconnectUnauthorized);
+                }
                 player.sender = Box::new(sender);
                 player.connected = true;
                 player.disconnected_at = None;
-                // Refresh the auth binding: a player may sign in (or out) between
-                // sessions and reconnect with a different token. Identity
-                // (name/color/dice/host) is otherwise preserved.
-                player.user_id = user_id;
+                // A guest seat may become authenticated on a valid reclaim;
+                // an authenticated seat can never be downgraded or switched.
+                if player.user_id.is_none() {
+                    player.user_id = user_id;
+                }
                 self.touch();
                 return Ok(JoinResult { player_id: existing_id, reconnected: true });
             }
@@ -2581,6 +2617,19 @@ mod tests {
     }
 
     #[test]
+    fn explicit_host_leave_prefers_oldest_connected_player() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Host")).unwrap();
+        room.add_player(make_player("p2", "Older offline")).unwrap();
+        room.add_player(make_player("p3", "Connected")).unwrap();
+        room.mark_disconnected("p2");
+
+        room.remove_player("p1");
+
+        assert_eq!(room.host_id.as_deref(), Some("p3"));
+    }
+
+    #[test]
     fn test_non_host_disconnect_does_not_change_host() {
         let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "First")).unwrap();
@@ -3423,6 +3472,82 @@ mod tests {
         assert!(rejoin.reconnected);
         assert!(room.is_host("p2"), "An active host is not usurped by a returning player");
         assert!(!room.is_host("p1"));
+    }
+
+    #[test]
+    fn authenticated_reconnect_requires_same_user_and_bearer() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.join(
+            "p1".into(),
+            "Alice".into(),
+            "#FFF".into(),
+            make_sender(),
+            Some("secret-token"),
+            Some("user-a".into()),
+        ).unwrap();
+        room.mark_disconnected("p1");
+
+        let guest = room.join(
+            "guest".into(), "Guest".into(), "#FFF".into(), make_sender(),
+            Some("secret-token"), None,
+        );
+        assert_eq!(guest.unwrap_err(), RoomError::ReconnectUnauthorized);
+        let other = room.join(
+            "other".into(), "Other".into(), "#FFF".into(), make_sender(),
+            Some("secret-token"), Some("user-b".into()),
+        );
+        assert_eq!(other.unwrap_err(), RoomError::ReconnectUnauthorized);
+
+        let same = room.join(
+            "new".into(), "Alice".into(), "#FFF".into(), make_sender(),
+            Some("secret-token"), Some("user-a".into()),
+        ).unwrap();
+        assert!(same.reconnected);
+        assert_eq!(same.player_id, "p1");
+    }
+
+    #[test]
+    fn guest_reconnect_remains_bearer_only() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.join(
+            "p1".into(), "Guest".into(), "#FFF".into(), make_sender(),
+            Some("secret-token"), None,
+        ).unwrap();
+        room.mark_disconnected("p1");
+        let result = room.join(
+            "new".into(), "Guest".into(), "#FFF".into(), make_sender(),
+            Some("secret-token"), None,
+        ).unwrap();
+        assert!(result.reconnected);
+    }
+
+    #[test]
+    fn host_removal_is_authorized_and_frees_seat_dice_and_token() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.join("p1".into(), "Host".into(), "#FFF".into(), make_sender(), None, None).unwrap();
+        room.join("p2".into(), "Guest".into(), "#FFF".into(), make_sender(), Some("tok2"), None).unwrap();
+        room.spawn_dice("p2", vec![("d2".to_string(), DiceType::D6)]).unwrap();
+
+        assert_eq!(
+            room.remove_player_by_host("p2", "p1").unwrap_err(),
+            RoomError::NotHost,
+        );
+        assert_eq!(
+            room.remove_player_by_host("p1", "p1").unwrap_err(),
+            RoomError::CannotRemoveSelf,
+        );
+        assert_eq!(
+            room.remove_player_by_host("p1", "missing").unwrap_err(),
+            RoomError::PlayerNotFound,
+        );
+
+        assert_eq!(room.remove_player_by_host("p1", "p2").unwrap(), vec!["d2"]);
+        assert!(!room.players.contains_key("p2"));
+        assert!(!room.dice.contains_key("d2"));
+        let fresh = room.join(
+            "p3".into(), "Guest".into(), "#FFF".into(), make_sender(), Some("tok2"), None,
+        ).unwrap();
+        assert!(!fresh.reconnected, "removed credentials cannot reclaim the deleted seat");
     }
 
     #[test]

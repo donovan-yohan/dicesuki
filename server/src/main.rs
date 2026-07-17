@@ -26,7 +26,7 @@ async fn main() {
 
     // Spawn periodic room maintenance task (every 60s): expires reconnect grace
     // windows and cleans up stale empty rooms. A 60s cadence keeps grace expiry
-    // (120s window) responsive without excessive lock churn.
+    // (600s window) responsive without excessive lock churn.
     let cleanup_mgr = room_manager.clone();
     tokio::spawn(async move {
         loop {

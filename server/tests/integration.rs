@@ -530,11 +530,11 @@ async fn dropped_connection_holds_seat_and_rejoin_reclaims_identity() {
     // Player 2's connection drops (raw close, no `leave`). Seat is held.
     ws2.close(None).await.unwrap();
 
-    // Player 1 must NOT be told Bob left — the seat is held during grace.
-    assert!(
-        try_recv_json(&mut ws1).await.is_none(),
-        "A dropped connection must not broadcast player_left during the grace window"
-    );
+    // Player 1 sees a temporary presence change, not a final leave.
+    let disconnected = recv_json(&mut ws1).await;
+    assert_eq!(disconnected["type"], "player_presence_changed");
+    assert_eq!(disconnected["playerId"], bob_id);
+    assert_eq!(disconnected["connected"], false);
 
     // Player 2 rejoins within grace using the same token.
     let (mut ws2b, _) = connect_async(&url).await.unwrap();
@@ -551,11 +551,52 @@ async fn dropped_connection_holds_seat_and_rejoin_reclaims_identity() {
     // No duplicate seat — still just Alice + Bob.
     assert_eq!(rejoin_state["players"].as_array().unwrap().len(), 2);
 
-    // Player 1 must NOT receive a player_joined for the reclaimed seat.
-    assert!(
-        try_recv_json(&mut ws1).await.is_none(),
-        "Reclaiming a held seat must not broadcast a new player_joined"
-    );
+    // Reclaim updates presence without creating a duplicate player_joined.
+    let reconnected = recv_json(&mut ws1).await;
+    assert_eq!(reconnected["type"], "player_presence_changed");
+    assert_eq!(reconnected["playerId"], bob_id);
+    assert_eq!(reconnected["connected"], true);
+}
+
+#[tokio::test]
+async fn host_can_remove_guest_and_guest_cannot_reuse_held_seat() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{addr}/ws/{room_id}");
+
+    let (mut host, _) = connect_async(&url).await.unwrap();
+    host.send(Message::Text(json!({
+        "type": "join", "roomId": room_id, "displayName": "Host", "color": "#FF0000"
+    }).to_string())).await.unwrap();
+    let _ = recv_json(&mut host).await;
+
+    let (mut guest, _) = connect_async(&url).await.unwrap();
+    guest.send(Message::Text(json!({
+        "type": "join", "roomId": room_id, "displayName": "Guest", "color": "#0000FF",
+        "reconnectToken": "guest-secret"
+    }).to_string())).await.unwrap();
+    let joined = recv_json(&mut host).await;
+    let guest_state = recv_json(&mut guest).await;
+    let guest_id = guest_state["localPlayerId"].as_str().unwrap().to_string();
+    assert_eq!(joined["player"]["id"], guest_id);
+
+    host.send(Message::Text(json!({
+        "type": "remove_player", "playerId": guest_id
+    }).to_string())).await.unwrap();
+    let removed = recv_json(&mut guest).await;
+    assert_eq!(removed["type"], "removed_from_room");
+    let left = recv_json(&mut host).await;
+    assert_eq!(left["type"], "player_left");
+    assert_eq!(left["playerId"], guest_id);
+
+    // The same bearer can join only as a fresh seat; the removed identity is gone.
+    let (mut retry, _) = connect_async(&url).await.unwrap();
+    retry.send(Message::Text(json!({
+        "type": "join", "roomId": room_id, "displayName": "Guest", "color": "#0000FF",
+        "reconnectToken": "guest-secret"
+    }).to_string())).await.unwrap();
+    let retry_state = recv_json(&mut retry).await;
+    assert_ne!(retry_state["localPlayerId"], guest_id);
 }
 
 #[tokio::test]

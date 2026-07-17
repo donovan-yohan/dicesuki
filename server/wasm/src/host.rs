@@ -233,6 +233,15 @@ impl RoomHost {
                 // down by the host. Nothing to broadcast.
             }
 
+            ClientMessage::RemovePlayer { player_id } if self.joined => {
+                // The solo player is necessarily both requester and target;
+                // dispatch through core so self-removal is rejected coherently.
+                match self.room.remove_player_by_host(SOLO_PLAYER_ID, &player_id) {
+                    Ok(_) => {}
+                    Err(err) => self.send_error(err.code(), &err.to_string()),
+                }
+            }
+
             _ => self.send_error("NOT_JOINED", "Must join the room first"),
         }
     }
@@ -380,6 +389,18 @@ mod tests {
         host.handle_message(r#"{"type":"join","roomId":"solo","displayName":"Solo","color":"purple"}"#);
         let out = host.drain_json();
         assert!(out[0].contains("INVALID_COLOR"));
+    }
+
+    #[test]
+    fn solo_rejects_self_removal_through_shared_core_policy() {
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
+        let _ = join(&mut host);
+        host.handle_message(
+            r#"{"type":"remove_player","playerId":"solo-player"}"#,
+        );
+        let out = host.drain_json();
+        assert_eq!(out.len(), 1);
+        assert!(out[0].contains("CANNOT_REMOVE_SELF"));
     }
 
     #[test]
