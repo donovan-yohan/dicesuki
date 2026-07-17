@@ -38,17 +38,14 @@ for (const colorScheme of ['light', 'dark'] as const) {
 }
 
 test('renders the d and e wordmark counters as transparent pixels', async ({ page }) => {
-  await page.goto('/brand/dicesuki-wordmark.svg')
+  await page.goto('/')
 
   const counterPixels = await page.evaluate(async () => {
     const image = new Image()
     image.src = '/brand/dicesuki-wordmark.svg'
     await image.decode()
 
-    const canvas = document.createElementNS(
-      'http://www.w3.org/1999/xhtml',
-      'canvas',
-    ) as HTMLCanvasElement
+    const canvas = document.createElement('canvas')
     canvas.width = image.naturalWidth
     canvas.height = image.naturalHeight
     const context = canvas.getContext('2d')
