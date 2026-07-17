@@ -1,0 +1,1175 @@
+{
+  "disclosureVersion": 1,
+  "contractId": "broad-rarity-showcase@1",
+  "contractVersion": 1,
+  "generatedFrom": "economy/contracts/editions/0001-broad-rarity-showcase.json",
+  "purpose": "simulation-only",
+  "runtimeConsumption": "forbidden",
+  "catalogContractVersion": 1,
+  "currency": {
+    "currencyId": "stars",
+    "singlePullCost": 160,
+    "tenPullCost": 1600,
+    "balanceClasses": [
+      "paid",
+      "promotional"
+    ],
+    "debitPolicy": "promotional-before-paid"
+  },
+  "paidRandom": {
+    "bannerId": "broad-rarity-showcase-001",
+    "familyId": "broad-rarity-showcase",
+    "weightScale": 100,
+    "excludedRarities": [
+      "mythic"
+    ],
+    "rarityProbabilities": [
+      {
+        "rarity": "common",
+        "weightUnits": 50,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 2
+          },
+          "displayPercent": "50.000000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "rarity": "uncommon",
+        "weightUnits": 28,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 25
+          },
+          "displayPercent": "28.000000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "rarity": "rare",
+        "weightUnits": 14,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 50
+          },
+          "displayPercent": "14.000000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "rarity": "epic",
+        "weightUnits": 5,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 20
+          },
+          "displayPercent": "5.000000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "rarity": "legendary",
+        "weightUnits": 3,
+        "probability": {
+          "exact": {
+            "numerator": 3,
+            "denominator": 100
+          },
+          "displayPercent": "3.000000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      }
+    ],
+    "itemProbabilities": [
+      {
+        "catalogItemId": "adventurer-starter/d10/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "adventurer-starter/d12/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "adventurer-starter/d20/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "adventurer-starter/d4/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "adventurer-starter/d6/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "adventurer-starter/d8/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d10/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d12/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d20/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d4/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d6/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d8/common@1",
+        "rarity": "common",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 24
+          },
+          "displayPercent": "4.166667%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d10/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d12/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d20/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d4/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d6/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d8/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "lucky-bronze/d10/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "lucky-bronze/d12/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "lucky-bronze/d20/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "lucky-bronze/d4/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "lucky-bronze/d6/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "lucky-bronze/d8/uncommon@1",
+        "rarity": "uncommon",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 300
+          },
+          "displayPercent": "2.333333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "devil-set/devil-d6@1",
+        "rarity": "rare",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 450
+          },
+          "displayPercent": "1.555556%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d10/rare@1",
+        "rarity": "rare",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 450
+          },
+          "displayPercent": "1.555556%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d12/rare@1",
+        "rarity": "rare",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 450
+          },
+          "displayPercent": "1.555556%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d20/rare@1",
+        "rarity": "rare",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 450
+          },
+          "displayPercent": "1.555556%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d4/rare@1",
+        "rarity": "rare",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 450
+          },
+          "displayPercent": "1.555556%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d6/rare@1",
+        "rarity": "rare",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 450
+          },
+          "displayPercent": "1.555556%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "dragon-jade/d8/rare@1",
+        "rarity": "rare",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 450
+          },
+          "displayPercent": "1.555556%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "materials-lab/rubber-d20@1",
+        "rarity": "rare",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 450
+          },
+          "displayPercent": "1.555556%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "materials-lab/steel-d20@1",
+        "rarity": "rare",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 7,
+            "denominator": 450
+          },
+          "displayPercent": "1.555556%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "celestial-gold/d10/epic@1",
+        "rarity": "epic",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 120
+          },
+          "displayPercent": "0.833333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "celestial-gold/d12/epic@1",
+        "rarity": "epic",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 120
+          },
+          "displayPercent": "0.833333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "celestial-gold/d20/epic@1",
+        "rarity": "epic",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 120
+          },
+          "displayPercent": "0.833333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "celestial-gold/d4/epic@1",
+        "rarity": "epic",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 120
+          },
+          "displayPercent": "0.833333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "celestial-gold/d6/epic@1",
+        "rarity": "epic",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 120
+          },
+          "displayPercent": "0.833333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "celestial-gold/d8/epic@1",
+        "rarity": "epic",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 120
+          },
+          "displayPercent": "0.833333%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "void-crystal/d10/legendary@1",
+        "rarity": "legendary",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 200
+          },
+          "displayPercent": "0.500000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "void-crystal/d12/legendary@1",
+        "rarity": "legendary",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 200
+          },
+          "displayPercent": "0.500000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "void-crystal/d20/legendary@1",
+        "rarity": "legendary",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 200
+          },
+          "displayPercent": "0.500000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "void-crystal/d4/legendary@1",
+        "rarity": "legendary",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 200
+          },
+          "displayPercent": "0.500000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "void-crystal/d6/legendary@1",
+        "rarity": "legendary",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 200
+          },
+          "displayPercent": "0.500000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      },
+      {
+        "catalogItemId": "void-crystal/d8/legendary@1",
+        "rarity": "legendary",
+        "itemWeightUnits": 1,
+        "probability": {
+          "exact": {
+            "numerator": 1,
+            "denominator": 200
+          },
+          "displayPercent": "0.500000%",
+          "displayRounding": "nearest-0.000001-percent"
+        }
+      }
+    ],
+    "rareOrBetterBaseProbability": {
+      "exact": {
+        "numerator": 11,
+        "denominator": 50
+      },
+      "displayPercent": "22.000000%",
+      "displayRounding": "nearest-0.000001-percent"
+    },
+    "rareOrBetterReplacementProbabilities": {
+      "distribution": "base-weights-conditioned-on-minimum-rarity",
+      "rarityProbabilities": [
+        {
+          "rarity": "rare",
+          "weightUnits": 14,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 11
+            },
+            "displayPercent": "63.636364%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "rarity": "epic",
+          "weightUnits": 5,
+          "probability": {
+            "exact": {
+              "numerator": 5,
+              "denominator": 22
+            },
+            "displayPercent": "22.727273%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "rarity": "legendary",
+          "weightUnits": 3,
+          "probability": {
+            "exact": {
+              "numerator": 3,
+              "denominator": 22
+            },
+            "displayPercent": "13.636364%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        }
+      ],
+      "itemProbabilities": [
+        {
+          "catalogItemId": "devil-set/devil-d6@1",
+          "rarity": "rare",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 99
+            },
+            "displayPercent": "7.070707%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "dragon-jade/d10/rare@1",
+          "rarity": "rare",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 99
+            },
+            "displayPercent": "7.070707%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "dragon-jade/d12/rare@1",
+          "rarity": "rare",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 99
+            },
+            "displayPercent": "7.070707%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "dragon-jade/d20/rare@1",
+          "rarity": "rare",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 99
+            },
+            "displayPercent": "7.070707%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "dragon-jade/d4/rare@1",
+          "rarity": "rare",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 99
+            },
+            "displayPercent": "7.070707%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "dragon-jade/d6/rare@1",
+          "rarity": "rare",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 99
+            },
+            "displayPercent": "7.070707%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "dragon-jade/d8/rare@1",
+          "rarity": "rare",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 99
+            },
+            "displayPercent": "7.070707%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "materials-lab/rubber-d20@1",
+          "rarity": "rare",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 99
+            },
+            "displayPercent": "7.070707%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "materials-lab/steel-d20@1",
+          "rarity": "rare",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 7,
+              "denominator": 99
+            },
+            "displayPercent": "7.070707%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "celestial-gold/d10/epic@1",
+          "rarity": "epic",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 5,
+              "denominator": 132
+            },
+            "displayPercent": "3.787879%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "celestial-gold/d12/epic@1",
+          "rarity": "epic",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 5,
+              "denominator": 132
+            },
+            "displayPercent": "3.787879%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "celestial-gold/d20/epic@1",
+          "rarity": "epic",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 5,
+              "denominator": 132
+            },
+            "displayPercent": "3.787879%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "celestial-gold/d4/epic@1",
+          "rarity": "epic",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 5,
+              "denominator": 132
+            },
+            "displayPercent": "3.787879%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "celestial-gold/d6/epic@1",
+          "rarity": "epic",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 5,
+              "denominator": 132
+            },
+            "displayPercent": "3.787879%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "celestial-gold/d8/epic@1",
+          "rarity": "epic",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 5,
+              "denominator": 132
+            },
+            "displayPercent": "3.787879%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "void-crystal/d10/legendary@1",
+          "rarity": "legendary",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 44
+            },
+            "displayPercent": "2.272727%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "void-crystal/d12/legendary@1",
+          "rarity": "legendary",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 44
+            },
+            "displayPercent": "2.272727%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "void-crystal/d20/legendary@1",
+          "rarity": "legendary",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 44
+            },
+            "displayPercent": "2.272727%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "void-crystal/d4/legendary@1",
+          "rarity": "legendary",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 44
+            },
+            "displayPercent": "2.272727%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "void-crystal/d6/legendary@1",
+          "rarity": "legendary",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 44
+            },
+            "displayPercent": "2.272727%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        },
+        {
+          "catalogItemId": "void-crystal/d8/legendary@1",
+          "rarity": "legendary",
+          "itemWeightUnits": 1,
+          "probability": {
+            "exact": {
+              "numerator": 1,
+              "denominator": 44
+            },
+            "displayPercent": "2.272727%",
+            "displayRounding": "nearest-0.000001-percent"
+          }
+        }
+      ]
+    },
+    "guarantees": {
+      "rareOrBetterTenPull": {
+        "windowPulls": 10,
+        "windowScope": "purchased-ten-pull-batch",
+        "singlePullBehavior": "does-not-advance-or-satisfy-window",
+        "rollingBehavior": "does-not-carry-between-purchases",
+        "reset": "after-each-purchased-ten-pull-batch",
+        "minimumRarity": "rare",
+        "trigger": "replace-final-pull-if-window-misses",
+        "replacementDistribution": "base-weights-conditioned-on-minimum-rarity"
+      },
+      "selectedFeatured": {
+        "featuredCatalogItemIds": [
+          "void-crystal/d10/legendary@1",
+          "void-crystal/d12/legendary@1",
+          "void-crystal/d20/legendary@1",
+          "void-crystal/d4/legendary@1",
+          "void-crystal/d6/legendary@1",
+          "void-crystal/d8/legendary@1"
+        ],
+        "selection": "player-selected-before-pull",
+        "hardGuaranteePull": 30,
+        "trigger": "replace-pull-at-counter-if-selected-not-awarded",
+        "lossPath": "none",
+        "counterScope": "banner-family",
+        "carryFamilyId": "broad-rarity-showcase",
+        "reset": "selected-featured-awarded",
+        "baseProbabilities": [
+          {
+            "catalogItemId": "void-crystal/d10/legendary@1",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "displayPercent": "0.500000%",
+              "displayRounding": "nearest-0.000001-percent"
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d12/legendary@1",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "displayPercent": "0.500000%",
+              "displayRounding": "nearest-0.000001-percent"
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d20/legendary@1",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "displayPercent": "0.500000%",
+              "displayRounding": "nearest-0.000001-percent"
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d4/legendary@1",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "displayPercent": "0.500000%",
+              "displayRounding": "nearest-0.000001-percent"
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d6/legendary@1",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "displayPercent": "0.500000%",
+              "displayRounding": "nearest-0.000001-percent"
+            }
+          },
+          {
+            "catalogItemId": "void-crystal/d8/legendary@1",
+            "probability": {
+              "exact": {
+                "numerator": 1,
+                "denominator": 200
+              },
+              "displayPercent": "0.500000%",
+              "displayRounding": "nearest-0.000001-percent"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "freeCadence": {
+    "dailyBank": {
+      "accrualPeriodDays": 1,
+      "capacityDays": 7,
+      "claimOrder": "oldest-first",
+      "streakLoss": false,
+      "rewardPerAccrual": {
+        "currencyId": "stars",
+        "amount": 160
+      }
+    },
+    "weeklyFlexibleBonus": {
+      "intervalDays": 7,
+      "reward": {
+        "currencyId": "stars",
+        "amount": 480
+      }
+    },
+    "weeklyStarBudget": {
+      "periodDays": 7,
+      "totalAmount": 1600
+    },
+    "weeklyUnownedEvergreen": {
+      "intervalDays": 7,
+      "rewardCount": 1,
+      "eligibleRarities": [
+        "common",
+        "uncommon"
+      ],
+      "catalogItemIds": [
+        "adventurer-starter/d10/common@1",
+        "adventurer-starter/d12/common@1",
+        "adventurer-starter/d20/common@1",
+        "adventurer-starter/d4/common@1",
+        "adventurer-starter/d6/common@1",
+        "adventurer-starter/d8/common@1",
+        "dragon-jade/d10/common@1",
+        "dragon-jade/d10/uncommon@1",
+        "dragon-jade/d12/common@1",
+        "dragon-jade/d12/uncommon@1",
+        "dragon-jade/d20/common@1",
+        "dragon-jade/d20/uncommon@1",
+        "dragon-jade/d4/common@1",
+        "dragon-jade/d4/uncommon@1",
+        "dragon-jade/d6/common@1",
+        "dragon-jade/d6/uncommon@1",
+        "dragon-jade/d8/common@1",
+        "dragon-jade/d8/uncommon@1",
+        "lucky-bronze/d10/uncommon@1",
+        "lucky-bronze/d12/uncommon@1",
+        "lucky-bronze/d20/uncommon@1",
+        "lucky-bronze/d4/uncommon@1",
+        "lucky-bronze/d6/uncommon@1",
+        "lucky-bronze/d8/uncommon@1"
+      ],
+      "selection": "lowest-canonical-id-unowned",
+      "whenAllOwned": "no-item"
+    }
+  },
+  "duplicateConversion": {
+    "currencyId": "shards",
+    "mode": "fixed-by-rarity",
+    "amountByRarity": {
+      "common": 1,
+      "uncommon": 3,
+      "rare": 8,
+      "epic": 20,
+      "legendary": 50,
+      "mythic": 0
+    }
+  },
+  "acquisitionPolicy": {
+    "randomOnly": false,
+    "requiredNamedItemRoutes": [
+      "direct-purchase",
+      "deterministic-shard-crafting"
+    ]
+  }
+}

@@ -1,0 +1,212 @@
+{
+  "contractVersion": 1,
+  "contractId": "broad-rarity-showcase@1",
+  "slug": "broad-rarity-showcase",
+  "purpose": "simulation-only",
+  "catalogContractVersion": 1,
+  "disclosureArtifact": "economy/disclosures/0001-broad-rarity-showcase.json",
+  "currency": {
+    "currencyId": "stars",
+    "singlePullCost": 160,
+    "tenPullCost": 1600,
+    "balanceClasses": [
+      "paid",
+      "promotional"
+    ],
+    "debitPolicy": "promotional-before-paid"
+  },
+  "banner": {
+    "bannerId": "broad-rarity-showcase-001",
+    "familyId": "broad-rarity-showcase",
+    "paidRandom": {
+      "weightScale": 100,
+      "tiers": [
+        {
+          "rarity": "common",
+          "weightUnits": 50,
+          "items": [
+            { "catalogItemId": "adventurer-starter/d10/common@1", "weightUnits": 1 },
+            { "catalogItemId": "adventurer-starter/d12/common@1", "weightUnits": 1 },
+            { "catalogItemId": "adventurer-starter/d20/common@1", "weightUnits": 1 },
+            { "catalogItemId": "adventurer-starter/d4/common@1", "weightUnits": 1 },
+            { "catalogItemId": "adventurer-starter/d6/common@1", "weightUnits": 1 },
+            { "catalogItemId": "adventurer-starter/d8/common@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d10/common@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d12/common@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d20/common@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d4/common@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d6/common@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d8/common@1", "weightUnits": 1 }
+          ]
+        },
+        {
+          "rarity": "uncommon",
+          "weightUnits": 28,
+          "items": [
+            { "catalogItemId": "dragon-jade/d10/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d12/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d20/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d4/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d6/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d8/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "lucky-bronze/d10/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "lucky-bronze/d12/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "lucky-bronze/d20/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "lucky-bronze/d4/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "lucky-bronze/d6/uncommon@1", "weightUnits": 1 },
+            { "catalogItemId": "lucky-bronze/d8/uncommon@1", "weightUnits": 1 }
+          ]
+        },
+        {
+          "rarity": "rare",
+          "weightUnits": 14,
+          "items": [
+            { "catalogItemId": "devil-set/devil-d6@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d10/rare@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d12/rare@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d20/rare@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d4/rare@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d6/rare@1", "weightUnits": 1 },
+            { "catalogItemId": "dragon-jade/d8/rare@1", "weightUnits": 1 },
+            { "catalogItemId": "materials-lab/rubber-d20@1", "weightUnits": 1 },
+            { "catalogItemId": "materials-lab/steel-d20@1", "weightUnits": 1 }
+          ]
+        },
+        {
+          "rarity": "epic",
+          "weightUnits": 5,
+          "items": [
+            { "catalogItemId": "celestial-gold/d10/epic@1", "weightUnits": 1 },
+            { "catalogItemId": "celestial-gold/d12/epic@1", "weightUnits": 1 },
+            { "catalogItemId": "celestial-gold/d20/epic@1", "weightUnits": 1 },
+            { "catalogItemId": "celestial-gold/d4/epic@1", "weightUnits": 1 },
+            { "catalogItemId": "celestial-gold/d6/epic@1", "weightUnits": 1 },
+            { "catalogItemId": "celestial-gold/d8/epic@1", "weightUnits": 1 }
+          ]
+        },
+        {
+          "rarity": "legendary",
+          "weightUnits": 3,
+          "items": [
+            { "catalogItemId": "void-crystal/d10/legendary@1", "weightUnits": 1 },
+            { "catalogItemId": "void-crystal/d12/legendary@1", "weightUnits": 1 },
+            { "catalogItemId": "void-crystal/d20/legendary@1", "weightUnits": 1 },
+            { "catalogItemId": "void-crystal/d4/legendary@1", "weightUnits": 1 },
+            { "catalogItemId": "void-crystal/d6/legendary@1", "weightUnits": 1 },
+            { "catalogItemId": "void-crystal/d8/legendary@1", "weightUnits": 1 }
+          ]
+        }
+      ],
+      "excludedRarities": [
+        "mythic"
+      ]
+    },
+    "guarantees": {
+      "rareOrBetterTenPull": {
+        "windowPulls": 10,
+        "windowScope": "purchased-ten-pull-batch",
+        "singlePullBehavior": "does-not-advance-or-satisfy-window",
+        "rollingBehavior": "does-not-carry-between-purchases",
+        "reset": "after-each-purchased-ten-pull-batch",
+        "minimumRarity": "rare",
+        "trigger": "replace-final-pull-if-window-misses",
+        "replacementDistribution": "base-weights-conditioned-on-minimum-rarity"
+      },
+      "selectedFeatured": {
+        "featuredCatalogItemIds": [
+          "void-crystal/d10/legendary@1",
+          "void-crystal/d12/legendary@1",
+          "void-crystal/d20/legendary@1",
+          "void-crystal/d4/legendary@1",
+          "void-crystal/d6/legendary@1",
+          "void-crystal/d8/legendary@1"
+        ],
+        "selection": "player-selected-before-pull",
+        "hardGuaranteePull": 30,
+        "trigger": "replace-pull-at-counter-if-selected-not-awarded",
+        "lossPath": "none",
+        "counterScope": "banner-family",
+        "carryFamilyId": "broad-rarity-showcase",
+        "reset": "selected-featured-awarded"
+      }
+    }
+  },
+  "freeCadence": {
+    "dailyBank": {
+      "accrualPeriodDays": 1,
+      "capacityDays": 7,
+      "claimOrder": "oldest-first",
+      "streakLoss": false,
+      "rewardPerAccrual": {
+        "currencyId": "stars",
+        "amount": 160
+      }
+    },
+    "weeklyFlexibleBonus": {
+      "intervalDays": 7,
+      "reward": {
+        "currencyId": "stars",
+        "amount": 480
+      }
+    },
+    "weeklyStarBudget": {
+      "periodDays": 7,
+      "totalAmount": 1600
+    },
+    "weeklyUnownedEvergreen": {
+      "intervalDays": 7,
+      "rewardCount": 1,
+      "eligibleRarities": [
+        "common",
+        "uncommon"
+      ],
+      "catalogItemIds": [
+        "adventurer-starter/d10/common@1",
+        "adventurer-starter/d12/common@1",
+        "adventurer-starter/d20/common@1",
+        "adventurer-starter/d4/common@1",
+        "adventurer-starter/d6/common@1",
+        "adventurer-starter/d8/common@1",
+        "dragon-jade/d10/common@1",
+        "dragon-jade/d10/uncommon@1",
+        "dragon-jade/d12/common@1",
+        "dragon-jade/d12/uncommon@1",
+        "dragon-jade/d20/common@1",
+        "dragon-jade/d20/uncommon@1",
+        "dragon-jade/d4/common@1",
+        "dragon-jade/d4/uncommon@1",
+        "dragon-jade/d6/common@1",
+        "dragon-jade/d6/uncommon@1",
+        "dragon-jade/d8/common@1",
+        "dragon-jade/d8/uncommon@1",
+        "lucky-bronze/d10/uncommon@1",
+        "lucky-bronze/d12/uncommon@1",
+        "lucky-bronze/d20/uncommon@1",
+        "lucky-bronze/d4/uncommon@1",
+        "lucky-bronze/d6/uncommon@1",
+        "lucky-bronze/d8/uncommon@1"
+      ],
+      "selection": "lowest-canonical-id-unowned",
+      "whenAllOwned": "no-item"
+    }
+  },
+  "duplicateConversion": {
+    "currencyId": "shards",
+    "mode": "fixed-by-rarity",
+    "amountByRarity": {
+      "common": 1,
+      "uncommon": 3,
+      "rare": 8,
+      "epic": 20,
+      "legendary": 50,
+      "mythic": 0
+    }
+  },
+  "acquisitionPolicy": {
+    "randomOnly": false,
+    "requiredNamedItemRoutes": [
+      "direct-purchase",
+      "deterministic-shard-crafting"
+    ]
+  }
+}
