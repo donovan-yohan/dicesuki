@@ -20,6 +20,12 @@
     "check:collectible-catalog": "node scripts/generate-collectible-catalog.js --check",
     "check:immutable-catalog-history": "node scripts/check-immutable-catalog-history.js",
     "prepare:collectible-edition": "node scripts/generate-collectible-catalog.js --prepare-edition",
+    "generate:imagegen-uv": "node scripts/imagegen-uv/generate-authoring-kit.mjs",
+    "generate:imagegen-uv:raster": "node scripts/imagegen-uv/generate-authoring-kit.mjs --rasterize",
+    "validate:imagegen-uv": "node scripts/imagegen-uv/generate-authoring-kit.mjs --validate-only",
+    "check:imagegen-authoring-boundary": "node scripts/imagegen-uv/check-authoring-boundary.mjs",
+    "check:immutable-imagegen-history": "node scripts/imagegen-uv/check-canonical-history.mjs",
+    "test:imagegen-uv": "node --test scripts/imagegen-uv/imagegen-authoring.node-test.mjs && npm run check:imagegen-authoring-boundary",
     "generate-dice-manifest": "node scripts/generate-dice-manifest.js"
   },
   "dependencies": {

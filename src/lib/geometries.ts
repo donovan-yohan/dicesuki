@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { POLYHEDRON_DETAIL_LEVEL } from '../config/physicsConfig'
 import type { DiceShape } from '../types/diceShape'
+import D10_GEOMETRY_CONTRACT from './d10GeometryContract.json'
 import { getDiceShapeSize } from './diceShapeScale'
 
 // Re-export for backwards compatibility
@@ -86,7 +87,7 @@ export const D8_FACE_NORMALS: DiceFace[] = [
  *   Lower kites (5-9): odd values (3,1,9,7,5)
  *   Opposite pairs: kite 0↔7, 1↔8, 2↔9, 3↔5, 4↔6
  */
-const D10_KITE_VALUES = [0, 2, 4, 6, 8, 3, 1, 9, 7, 5] as const
+const D10_KITE_VALUES = D10_GEOMETRY_CONTRACT.kiteValuesByMaterial
 
 // Computed at module load from createD10Geometry. Each grouped kite is planar,
 // so the first triangle normal is the face normal for both triangles.
@@ -355,14 +356,14 @@ export function createD10Geometry(size: number = 1): THREE.BufferGeometry {
 
   // Generate 10 middle vertices in a zigzag pattern (alternating heights).
   // The altitude ratio tan(18°)^2 makes each 4-vertex kite planar.
-  const sides = 10
-  const altitude = Math.tan(Math.PI / sides) ** 2 * size
+  const sides = D10_GEOMETRY_CONTRACT.ringVertexCount
+  const altitude = D10_GEOMETRY_CONTRACT.altitudeRatio * size
 
   for (let i = 0; i < sides; i++) {
     const angle = (i * Math.PI * 2) / sides
     const x = -Math.cos(angle) * size
     const z = -Math.sin(angle) * size
-    const y = altitude * (i % 2 ? 1 : -1) // Alternate up/down
+    const y = altitude * D10_GEOMETRY_CONTRACT.ringHeightParity[i % 2]
     vertices.push(x, y, z)
   }
 
@@ -371,21 +372,7 @@ export function createD10Geometry(size: number = 1): THREE.BufferGeometry {
   // Upper kites are centered on low even ring vertices; lower kites are centered
   // on high odd ring vertices. Pairing the other way creates folded quads whose
   // two triangle normals disagree, which breaks both texturing and face results.
-  const indices = new Uint16Array([
-    // Upper kites (top apex = vertex 0)
-    0, 2, 11,  0, 3, 2,     // Kite 0: centered on ring 0
-    0, 4, 3,   0, 5, 4,     // Kite 1: centered on ring 2
-    0, 6, 5,   0, 7, 6,     // Kite 2: centered on ring 4
-    0, 8, 7,   0, 9, 8,     // Kite 3: centered on ring 6
-    0, 10, 9,  0, 11, 10,   // Kite 4: centered on ring 8
-
-    // Lower kites (bottom apex = vertex 1)
-    1, 2, 3,   1, 3, 4,     // Kite 5: centered on ring 1
-    1, 4, 5,   1, 5, 6,     // Kite 6: centered on ring 3
-    1, 6, 7,   1, 7, 8,     // Kite 7: centered on ring 5
-    1, 8, 9,   1, 9, 10,    // Kite 8: centered on ring 7
-    1, 10, 11, 1, 11, 2,    // Kite 9: centered on ring 9
-  ])
+  const indices = new Uint16Array(D10_GEOMETRY_CONTRACT.triangleIndices)
 
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3))

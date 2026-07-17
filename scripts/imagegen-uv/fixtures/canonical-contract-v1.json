@@ -1,0 +1,120 @@
+{
+  "referenceVersion": 1,
+  "manifestVersion": "1.0",
+  "canvasSize": 2048,
+  "provenance": {
+    "checkpointCommit": "15648ed8e498234a6fe002e5fee617a16a45e9e9",
+    "reconciledCommit": "7393d112c5e062570ec7caf37970206c4d05c08c",
+    "note": "Frozen extraction baseline; add a new reference version for intentional topology or UV changes."
+  },
+  "shapes": {
+    "d4": {
+      "faceValues": [1, 2, 3, 4],
+      "materialMap": { "1": 0, "2": 1, "3": 2, "4": 3 },
+      "faces": [
+        { "value": 1, "materialIndex": 0, "triangleIndices": [0] },
+        { "value": 2, "materialIndex": 1, "triangleIndices": [1] },
+        { "value": 3, "materialIndex": 2, "triangleIndices": [2] },
+        { "value": 4, "materialIndex": 3, "triangleIndices": [3] }
+      ],
+      "uvDigest": "2563a92b8e018729fcb5a6bfee4d967d3aac1fdb7df3c4d0b5648fa7ece69d08",
+      "meshDigest": "0175246aca93ec17d91b2961f47a387903d44a3eef5d37ee95dc1d42c5463dec"
+    },
+    "d6": {
+      "faceValues": [1, 2, 3, 4, 5, 6],
+      "materialMap": { "1": 3, "2": 4, "3": 0, "4": 1, "5": 5, "6": 2 },
+      "faces": [
+        { "value": 1, "materialIndex": 3, "triangleIndices": [6, 7] },
+        { "value": 2, "materialIndex": 4, "triangleIndices": [8, 9] },
+        { "value": 3, "materialIndex": 0, "triangleIndices": [0, 1] },
+        { "value": 4, "materialIndex": 1, "triangleIndices": [2, 3] },
+        { "value": 5, "materialIndex": 5, "triangleIndices": [10, 11] },
+        { "value": 6, "materialIndex": 2, "triangleIndices": [4, 5] }
+      ],
+      "uvDigest": "92c5c252b2a6c375275c0bc5852b9f6fecc1a345f1e318ad21c14e39571558a8",
+      "meshDigest": "bdad58ff923405d2d35b260cf95ed00799e593ac648b9d07f7dfd4886100fce9"
+    },
+    "d8": {
+      "faceValues": [1, 2, 3, 4, 5, 6, 7, 8],
+      "materialMap": { "1": 0, "2": 1, "3": 2, "4": 3, "5": 6, "6": 7, "7": 4, "8": 5 },
+      "faces": [
+        { "value": 1, "materialIndex": 0, "triangleIndices": [0] },
+        { "value": 2, "materialIndex": 1, "triangleIndices": [1] },
+        { "value": 3, "materialIndex": 2, "triangleIndices": [2] },
+        { "value": 4, "materialIndex": 3, "triangleIndices": [3] },
+        { "value": 5, "materialIndex": 6, "triangleIndices": [6] },
+        { "value": 6, "materialIndex": 7, "triangleIndices": [7] },
+        { "value": 7, "materialIndex": 4, "triangleIndices": [4] },
+        { "value": 8, "materialIndex": 5, "triangleIndices": [5] }
+      ],
+      "uvDigest": "56ec049a6528892af0d8bb3c8a3dc2110decbc0e488e3c42285c94f13935421f",
+      "meshDigest": "39fcec088f0690c6c4c464428c139e182f00ecc3ed7d5e4e8d816f8bbc99c572"
+    },
+    "d10": {
+      "faceValues": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "materialMap": { "0": 0, "1": 6, "2": 1, "3": 5, "4": 2, "5": 9, "6": 3, "7": 8, "8": 4, "9": 7 },
+      "faces": [
+        { "value": 0, "materialIndex": 0, "triangleIndices": [0, 1] },
+        { "value": 1, "materialIndex": 6, "triangleIndices": [12, 13] },
+        { "value": 2, "materialIndex": 1, "triangleIndices": [2, 3] },
+        { "value": 3, "materialIndex": 5, "triangleIndices": [10, 11] },
+        { "value": 4, "materialIndex": 2, "triangleIndices": [4, 5] },
+        { "value": 5, "materialIndex": 9, "triangleIndices": [18, 19] },
+        { "value": 6, "materialIndex": 3, "triangleIndices": [6, 7] },
+        { "value": 7, "materialIndex": 8, "triangleIndices": [16, 17] },
+        { "value": 8, "materialIndex": 4, "triangleIndices": [8, 9] },
+        { "value": 9, "materialIndex": 7, "triangleIndices": [14, 15] }
+      ],
+      "uvDigest": "be4a5ff572e075729159c9ba2e483dceab5a5b7e5ec3a2338a28472b9e0b46d9",
+      "meshDigest": "ffb6a7c8eca49f5193006ffb0ebb29242c60be21fc2630e61094acbaad470a56"
+    },
+    "d12": {
+      "faceValues": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      "materialMap": { "1": 0, "2": 1, "3": 2, "4": 3, "5": 5, "6": 6, "7": 10, "8": 11, "9": 9, "10": 7, "11": 4, "12": 8 },
+      "faces": [
+        { "value": 1, "materialIndex": 0, "triangleIndices": [0, 1, 2] },
+        { "value": 2, "materialIndex": 1, "triangleIndices": [3, 4, 5] },
+        { "value": 3, "materialIndex": 2, "triangleIndices": [6, 7, 8] },
+        { "value": 4, "materialIndex": 3, "triangleIndices": [9, 10, 11] },
+        { "value": 5, "materialIndex": 5, "triangleIndices": [15, 16, 17] },
+        { "value": 6, "materialIndex": 6, "triangleIndices": [18, 19, 20] },
+        { "value": 7, "materialIndex": 10, "triangleIndices": [30, 31, 32] },
+        { "value": 8, "materialIndex": 11, "triangleIndices": [33, 34, 35] },
+        { "value": 9, "materialIndex": 9, "triangleIndices": [27, 28, 29] },
+        { "value": 10, "materialIndex": 7, "triangleIndices": [21, 22, 23] },
+        { "value": 11, "materialIndex": 4, "triangleIndices": [12, 13, 14] },
+        { "value": 12, "materialIndex": 8, "triangleIndices": [24, 25, 26] }
+      ],
+      "uvDigest": "96911385d4e4522264eaeecc954b110fcf92ce616abfcac81238aae09ac58b5d",
+      "meshDigest": "eaf5ceb3ab6237e581379a0b129d159738cd96a3578146583d5df769208c5e5c"
+    },
+    "d20": {
+      "faceValues": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+      "materialMap": { "1": 0, "2": 1, "3": 2, "4": 3, "5": 4, "6": 5, "7": 6, "8": 7, "9": 8, "10": 9, "11": 16, "12": 15, "13": 19, "14": 18, "15": 17, "16": 14, "17": 10, "18": 11, "19": 12, "20": 13 },
+      "faces": [
+        { "value": 1, "materialIndex": 0, "triangleIndices": [0] },
+        { "value": 2, "materialIndex": 1, "triangleIndices": [1] },
+        { "value": 3, "materialIndex": 2, "triangleIndices": [2] },
+        { "value": 4, "materialIndex": 3, "triangleIndices": [3] },
+        { "value": 5, "materialIndex": 4, "triangleIndices": [4] },
+        { "value": 6, "materialIndex": 5, "triangleIndices": [5] },
+        { "value": 7, "materialIndex": 6, "triangleIndices": [6] },
+        { "value": 8, "materialIndex": 7, "triangleIndices": [7] },
+        { "value": 9, "materialIndex": 8, "triangleIndices": [8] },
+        { "value": 10, "materialIndex": 9, "triangleIndices": [9] },
+        { "value": 11, "materialIndex": 16, "triangleIndices": [16] },
+        { "value": 12, "materialIndex": 15, "triangleIndices": [15] },
+        { "value": 13, "materialIndex": 19, "triangleIndices": [19] },
+        { "value": 14, "materialIndex": 18, "triangleIndices": [18] },
+        { "value": 15, "materialIndex": 17, "triangleIndices": [17] },
+        { "value": 16, "materialIndex": 14, "triangleIndices": [14] },
+        { "value": 17, "materialIndex": 10, "triangleIndices": [10] },
+        { "value": 18, "materialIndex": 11, "triangleIndices": [11] },
+        { "value": 19, "materialIndex": 12, "triangleIndices": [12] },
+        { "value": 20, "materialIndex": 13, "triangleIndices": [13] }
+      ],
+      "uvDigest": "ab12e8fbb18d24629bd8550ec2a5bffba5e76831d6bd380b7cf8414c8c232e9f",
+      "meshDigest": "5ae864c158a38566f600e413b0b2de929d8a0e1a32978bae66d492d992932feb"
+    }
+  }
+}
