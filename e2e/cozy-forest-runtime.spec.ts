@@ -23,6 +23,7 @@ const catalog = JSON.parse(fs.readFileSync(
 const cozyAssets = catalog.assetVersions.filter(asset => (
   asset.catalogItemId.startsWith('cozy-forest-imagegen-set/')
 ))
+const cozyD20 = cozyAssets.find(asset => asset.metadata.diceMetadata.diceType === 'd20')
 
 test('inventory stays thumbnail-only and each Cozy Forest GLB loads on table demand', async ({
   page,
@@ -47,19 +48,16 @@ test('inventory stays thumbnail-only and each Cozy Forest GLB loads on table dem
     { timeout: 30_000 },
   )
 
-  // Solo may place one inventory D20 on startup. That is table demand, never a
-  // catalog-wide preload.
-  await page.waitForTimeout(1_500)
-  await expect.poll(() => new Set(modelRequests).size).toBeLessThanOrEqual(1)
-  const modelsBeforeInventory = new Set(modelRequests).size
-
   await page.getByRole('button', { name: 'Manage Dice' }).click()
   await page.getByRole('button', { name: 'Open full dice inventory' }).click()
   await expect(page.getByRole('heading', { name: 'Dice Collection' }).first()).toBeVisible()
   await page.getByLabel('Filter by set').selectOption('cozy-forest-imagegen-set')
   await expect(page.getByTestId('dice-thumbnail')).toHaveCount(6)
   await expect.poll(() => new Set(thumbnailRequests).size).toBe(6)
-  await expect.poll(() => new Set(modelRequests).size).toBe(modelsBeforeInventory)
+  await page.waitForTimeout(1_500)
+  const modelsBeforePlacements = [...new Set(modelRequests)]
+  expect(modelsBeforePlacements.length).toBeLessThanOrEqual(1)
+  expect(modelsBeforePlacements.every(modelPath => modelPath === cozyD20?.modelPath)).toBe(true)
 
   fs.mkdirSync(path.resolve(process.cwd(), '.artifacts/cozy-forest-runtime'), { recursive: true })
   await page.screenshot({
