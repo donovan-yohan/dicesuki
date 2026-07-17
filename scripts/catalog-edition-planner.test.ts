@@ -26,7 +26,21 @@ function asset(
   assetVersion = 1,
   modelPath = '/dice/test-set/d6/model.glb',
 ) {
-  const metadata = { source: 'production', name: `Test d6 asset ${assetVersion}` }
+  const metadata = {
+    source: 'production',
+    name: `Test d6 asset ${assetVersion}`,
+    appearance: {
+      baseColor: '#8b5cf6',
+      accentColor: '#ffffff',
+      material: 'plastic',
+    },
+    vfx: {},
+    diceMetadata: {
+      diceType: 'd6',
+      setId: 'test-set',
+      rarity: 'rare',
+    },
+  }
   return {
     id: `${catalogItem.id}/asset@${assetVersion}`,
     catalogItemId: catalogItem.id,
@@ -94,6 +108,74 @@ describe('catalog edition planner', () => {
       .toThrow(/must have asset version 1/)
   })
 
+  it('enforces item and asset enums plus renderer-compatible metadata', () => {
+    const first = edition1()
+    expect(() => flattenEditions([{
+      ...first,
+      items: [{ ...first.items[0], itemKind: 'bundle' }],
+    }])).toThrow(/Item kind.*unsupported/)
+    expect(() => flattenEditions([{
+      ...first,
+      items: [{ ...first.items[0], diceType: 'd100' }],
+    }])).toThrow(/Dice type.*unsupported/)
+    expect(() => flattenEditions([{
+      ...first,
+      items: [{ ...first.items[0], rarity: 'priceless' }],
+    }])).toThrow(/Rarity.*unsupported/)
+    expect(() => flattenEditions([{
+      ...first,
+      assetVersions: [{ ...first.assetVersions[0], assetKind: 'obj' }],
+    }])).toThrow(/Asset kind.*unsupported/)
+
+    const incompleteMetadata = { source: 'production', name: 'Missing renderer data' }
+    expect(() => flattenEditions([{
+      ...first,
+      assetVersions: [{
+        ...first.assetVersions[0],
+        metadata: incompleteMetadata,
+        metadataSha256: hashCatalogRow(incompleteMetadata),
+      }],
+    }])).toThrow(/metadata appearance/)
+
+    const builtinMetadata = {
+      source: 'configured',
+      name: 'Configured d6',
+      appearance: {
+        baseColor: '#000000',
+        accentColor: '#ffffff',
+        material: 'plastic',
+      },
+      vfx: {},
+    }
+    expect(() => flattenEditions([{
+      ...first,
+      assetVersions: [{
+        ...first.assetVersions[0],
+        assetKind: 'builtin',
+        modelPath: 'builtin:d20',
+        modelSha256: null,
+        metadata: builtinMetadata,
+        metadataSha256: hashCatalogRow(builtinMetadata),
+      }],
+    }])).toThrow(/must use model path builtin:d6/)
+
+    const mismatchedProductionMetadata = {
+      ...first.assetVersions[0].metadata,
+      diceMetadata: {
+        ...first.assetVersions[0].metadata.diceMetadata,
+        diceType: 'd20',
+      },
+    }
+    expect(() => flattenEditions([{
+      ...first,
+      assetVersions: [{
+        ...first.assetVersions[0],
+        metadata: mismatchedProductionMetadata,
+        metadataSha256: hashCatalogRow(mismatchedProductionMetadata),
+      }],
+    }])).toThrow(/dice metadata type must match/)
+  })
+
   it('validates canonical hashes and recomputes the metadata hash', () => {
     const first = edition1()
     expect(() => flattenEditions([{
@@ -118,7 +200,7 @@ describe('catalog edition planner', () => {
     expect(() => planCatalogEdition([edition1()], desired(changedItem, asset(changedItem))))
       .toThrow(/changed without a version bump/)
 
-    const changedMetadata = { source: 'production', name: 'Mutated' }
+    const changedMetadata = { ...asset().metadata, name: 'Mutated' }
     const changedAsset = {
       ...asset(),
       metadata: changedMetadata,
@@ -252,7 +334,7 @@ describe('catalog edition planner', () => {
     expect(() => buildCatalogDeltaSql(published, 'REPLAY', published))
       .toThrow(/already published/)
 
-    const changedMetadata = { source: 'production', name: 'Collision' }
+    const changedMetadata = { ...asset().metadata, name: 'Collision' }
     const payloadCollision = {
       items: [],
       assetVersions: [{

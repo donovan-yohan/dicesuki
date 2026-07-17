@@ -47,17 +47,31 @@ export type CatalogAssetMetadata =
   | BuiltinCatalogAssetMetadata
   | GltfCatalogAssetMetadata
 
-/** Append-only asset revision. Existing rows are never edited in place. */
-export interface CatalogAssetVersion {
+interface CatalogAssetVersionBase {
   readonly id: string
   readonly catalogItemId: string
   readonly assetVersion: number
-  readonly assetKind: CatalogAssetKind
-  readonly modelPath: string
-  readonly modelSha256: string | null
-  readonly metadata: CatalogAssetMetadata
   readonly metadataSha256: string
 }
+
+export interface BuiltinCatalogAssetVersion extends CatalogAssetVersionBase {
+  readonly assetKind: 'builtin'
+  readonly modelPath: `builtin:${DiceShape}`
+  readonly modelSha256: null
+  readonly metadata: BuiltinCatalogAssetMetadata
+}
+
+export interface GltfCatalogAssetVersion extends CatalogAssetVersionBase {
+  readonly assetKind: 'gltf'
+  readonly modelPath: string
+  readonly modelSha256: string
+  readonly metadata: GltfCatalogAssetMetadata
+}
+
+/** Append-only asset revision. Existing rows are never edited in place. */
+export type CatalogAssetVersion =
+  | BuiltinCatalogAssetVersion
+  | GltfCatalogAssetVersion
 
 export interface CollectibleCatalog {
   readonly contractVersion: typeof COLLECTIBLE_CATALOG_CONTRACT_VERSION

@@ -114,9 +114,10 @@ and production metadata remains machine-generated from canonical config and
 sidecars rather than hand-copied into SQL.
 
 Normal clients receive SELECT privileges only. `service_role` is the trusted
-future grant/revoke authority and must never ship to the browser. Future paid or
-randomized systems must perform their transaction server-side and write an
-entitlement before the client treats value as owned.
+future grant/revoke authority: it may insert grants and update only
+`revoked_at`, and it must never ship to the browser. Future paid or randomized
+systems must perform their transaction server-side and write an entitlement
+before the client treats value as owned.
 
 This workflow is not a mutable product CMS, a deletion mechanism, or an excuse
 to mint a new identity for every cosmetic correction. It does not automatically

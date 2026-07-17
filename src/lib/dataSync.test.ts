@@ -175,6 +175,86 @@ describe('dataSync', () => {
         .resolves.toBeUndefined()
       expect(fake.upsertCalls).toHaveLength(1)
     })
+
+    it('continues hydration after a bounded wait when the starter RPC hangs', async () => {
+      vi.useFakeTimers()
+      const fake = makeFakeClient()
+      fake.rpc.mockReturnValueOnce(new Promise(() => undefined))
+      const ref = { value: { v: 1 } }
+      const target = makeStubTarget('settings', ref)
+
+      const sync = startSync('user-1', {
+        client: fake.client,
+        targets: [target],
+        starterTimeoutMs: 250,
+      })
+
+      await vi.advanceTimersByTimeAsync(249)
+      expect(fake.upsertCalls).toHaveLength(0)
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(sync).resolves.toBeUndefined()
+      expect(fake.upsertCalls).toHaveLength(1)
+    })
+
+    it('does not resume an older user after switching accounts during the starter wait', async () => {
+      vi.useFakeTimers()
+      const first = makeFakeClient()
+      first.rpc.mockReturnValueOnce(new Promise(() => undefined))
+      const firstRef = { value: { v: 1, user: 'first' } }
+      const firstTarget = makeStubTarget('settings', firstRef)
+      const firstSubscribe = vi.spyOn(firstTarget, 'subscribe')
+
+      const second = makeFakeClient()
+      const secondRef = { value: { v: 1, user: 'second' } }
+      const secondTarget = makeStubTarget('settings', secondRef)
+      const secondSubscribe = vi.spyOn(secondTarget, 'subscribe')
+
+      const firstStart = startSync('user-1', {
+        client: first.client,
+        targets: [firstTarget],
+        starterTimeoutMs: 3000,
+      })
+      const secondStart = startSync('user-2', {
+        client: second.client,
+        targets: [secondTarget],
+      })
+
+      await expect(secondStart).resolves.toBeUndefined()
+      expect(second.upsertCalls).toHaveLength(1)
+      expect(secondSubscribe).toHaveBeenCalledOnce()
+      expect(first.upsertCalls).toHaveLength(0)
+      expect(firstSubscribe).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(3000)
+      await expect(firstStart).resolves.toBeUndefined()
+      expect(first.upsertCalls).toHaveLength(0)
+      expect(firstSubscribe).not.toHaveBeenCalled()
+      expect(secondSubscribe).toHaveBeenCalledOnce()
+    })
+
+    it('shares one in-flight start for concurrent calls from the same user', async () => {
+      const fake = makeFakeClient()
+      let resolveStarter: (() => void) | undefined
+      fake.rpc.mockReturnValueOnce(new Promise((resolve) => {
+        resolveStarter = () => resolve({ data: null, error: null })
+      }))
+      const ref = { value: { v: 1 } }
+      const target = makeStubTarget('settings', ref)
+      const subscribe = vi.spyOn(target, 'subscribe')
+
+      const first = startSync('user-1', { client: fake.client, targets: [target] })
+      const second = startSync('user-1', { client: fake.client, targets: [target] })
+
+      expect(second).toBe(first)
+      expect(fake.rpc).toHaveBeenCalledOnce()
+      expect(fake.upsertCalls).toHaveLength(0)
+      expect(subscribe).not.toHaveBeenCalled()
+
+      resolveStarter?.()
+      await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined])
+      expect(fake.upsertCalls).toHaveLength(1)
+      expect(subscribe).toHaveBeenCalledOnce()
+    })
   })
 
   describe('guest / unconfigured are untouched', () => {

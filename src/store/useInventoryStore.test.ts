@@ -122,29 +122,32 @@ describe('useInventoryStore', () => {
 
   describe('v3 catalog ref migration', () => {
     it('preserves local ids, assignments, stats, custom data and duplicate copies', () => {
-      const first = useInventoryStore.getState().addDie(makeNewDie({
-        id: 'legacy-devil-1',
-        setId: 'devil-set',
-        rarity: 'rare',
-        name: 'Devil d6 #1',
-        stats: { timesRolled: 3, totalValue: 11 },
-        customAsset: {
-          modelUrl: '/dice/devil-set/devil-d6/model.glb',
-          assetId: 'devil-set/devil-d6',
-          metadata: {
-            version: '1.0',
-            diceType: 'd6',
-            name: 'Devil D6',
-            artist: 'Zabi',
-            created: '2025-12-08',
-            scale: 0.4,
-            faceNormals: [],
-            physics: { density: 0.2, restitution: 0.4, friction: 0.6 },
-            colliderType: 'roundCuboid',
-            colliderArgs: {},
+      const first = {
+        ...useInventoryStore.getState().addDie(makeNewDie({
+          id: 'legacy-devil-1',
+          setId: 'devil-set',
+          rarity: 'rare',
+          name: 'Devil d6 #1',
+          stats: { timesRolled: 3, totalValue: 11 },
+          customAsset: {
+            modelUrl: '/dice/devil-set/devil-d6/model.glb',
+            assetId: 'devil-set/devil-d6',
+            metadata: {
+              version: '1.0',
+              diceType: 'd6',
+              name: 'Devil D6',
+              artist: 'Zabi',
+              created: '2025-12-08',
+              scale: 0.4,
+              faceNormals: [],
+              physics: { density: 0.2, restitution: 0.4, friction: 0.6 },
+              colliderType: 'roundCuboid',
+              colliderArgs: {},
+            },
           },
-        },
-      }))
+        })),
+      }
+      delete first.catalogRef
       const second = { ...first, id: 'legacy-devil-2', name: 'Devil d6 #2' }
       const persisted = {
         dice: [first, second],
@@ -154,6 +157,7 @@ describe('useInventoryStore', () => {
 
       const migrated = migratePersistedInventoryState(persisted, 2) as typeof persisted
 
+      expect('catalogRef' in first).toBe(false)
       expect(migrated.dice.map(die => die.id)).toEqual(['legacy-devil-1', 'legacy-devil-2'])
       expect(migrated.assignments).toEqual(persisted.assignments)
       expect(migrated.currency).toEqual(persisted.currency)

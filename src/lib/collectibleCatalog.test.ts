@@ -254,7 +254,7 @@ describe('collectible catalog', () => {
 
     const snapshot = await fetchCatalogSnapshot({ from } as never)
 
-    expect(snapshot?.contractVersion).toBe(1)
+    expect(snapshot?.contractVersion).toBe(COLLECTIBLE_CATALOG.contractVersion)
     expect(getCatalogItemByKey('adventurer-starter/d20/common', snapshot!)).toMatchObject({
       id: 'adventurer-starter/d20/common@10',
       contractVersion: 10,

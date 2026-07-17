@@ -361,9 +361,10 @@ grant select on table public.catalog_asset_versions to anon, authenticated;
 grant select on table public.user_entitlements to authenticated;
 grant select on table public.catalog_items to service_role;
 grant select on table public.catalog_asset_versions to service_role;
-grant select, insert, update on table public.user_entitlements to service_role;
+grant select, insert on table public.user_entitlements to service_role;
+grant update (revoked_at) on table public.user_entitlements to service_role;
 
 -- Deliberately no INSERT/UPDATE/DELETE policy exists for any table above, and
 -- service_role receives no catalog mutation or entitlement DELETE privilege.
--- It may append grants and mark revocations; the narrowly scoped starter
+-- It may append grants and update only revoked_at; the narrowly scoped starter
 -- function is the only authenticated-client write capability.

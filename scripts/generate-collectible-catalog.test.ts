@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  buildCatalog,
   buildSql,
   catalogPaths,
   createPreparedCatalogEdition,
@@ -27,7 +28,16 @@ function item(contractVersion = 1) {
   }
 }
 
-function asset(assetVersion = 1, metadata = { name: 'Test d6', source: 'configured' }) {
+function asset(assetVersion = 1, metadata = {
+  name: 'Test d6',
+  source: 'configured',
+  appearance: {
+    baseColor: '#000000',
+    accentColor: '#ffffff',
+    material: 'plastic',
+  },
+  vfx: {},
+}) {
   return {
     id: `test-set/d6@1/asset@${assetVersion}`,
     catalogItemId: 'test-set/d6@1',
@@ -80,6 +90,43 @@ afterEach(() => {
 })
 
 describe('collectible catalog edition integration', () => {
+  it('rejects model path overrides for non-production catalog keys', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dicesuki-catalog-source-'))
+    temporaryDirectories.push(root)
+    const paths = catalogPaths(root)
+    fs.mkdirSync(path.dirname(paths.sourcePath), { recursive: true })
+    fs.mkdirSync(paths.diceDir, { recursive: true })
+    fs.writeFileSync(paths.sourcePath, JSON.stringify({
+      contractVersion: 1,
+      assetVersion: 1,
+      setVersionOverrides: {},
+      versionOverrides: {
+        'test-set/d6/rare': {
+          modelPath: '/dice/test-set/d6/versions/v2/model.glb',
+        },
+      },
+      diceShapes: ['d6'],
+      configuredSets: [{
+        id: 'test-set',
+        name: 'Test Set',
+        description: 'Configured renderer test set',
+        rarityVariants: {
+          rare: {
+            appearance: {
+              baseColor: '#000000',
+              accentColor: '#ffffff',
+              material: 'plastic',
+            },
+            vfx: {},
+          },
+        },
+      }],
+      standaloneItems: [],
+    }))
+
+    expect(() => buildCatalog(paths)).toThrow(/requires a production catalog key/)
+  })
+
   it('resolves model paths inside public and rejects traversal before reading bytes', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dicesuki-model-path-'))
     temporaryDirectories.push(root)
@@ -121,9 +168,68 @@ describe('collectible catalog edition integration', () => {
     })).toThrow(/stale|frozen catalog edition/)
   })
 
+  it('allows catalog references but rejects catalog DML outside the frozen block', () => {
+    const { paths, edition } = fixture()
+    const baseline = fs.readFileSync(paths.baselineMigrationPath, 'utf8')
+    const legitimateReferences = `
+-- insert into public.catalog_items is documentation, not executable SQL.
+-- merge into public.catalog_items, truncate table public.catalog_items, and
+-- copy public.catalog_items from stdin are also documentation here.
+select count(*) from public.catalog_items;
+select 'update public.catalog_asset_versions set asset_version = 2';
+select 'merge into public.catalog_items using source on false when not matched then do nothing';
+select 'truncate table public.catalog_asset_versions';
+select 'copy public.catalog_items from stdin';
+copy public.catalog_items to stdout;
+copy (select * from public.catalog_asset_versions) to stdout;
+create index catalog_items_lookup on public.catalog_items (catalog_key);
+create policy "insert into public.catalog_items is not a statement"
+  on public.catalog_items for select using (true);
+create trigger catalog_items_immutable
+  before update or delete on public.catalog_items
+  for each row execute function public.reject_catalog_mutation();
+create policy catalog_assets_read on public.catalog_asset_versions for select using (true);
+`
+    fs.writeFileSync(paths.baselineMigrationPath, baseline + legitimateReferences)
+    expect(() => verifyPublishedEditions([edition], paths)).not.toThrow()
+
+    const forbiddenStatements = {
+      insert: "insert into public.catalog_items (id) values ('unexpected');",
+      update: 'update only "public"."catalog_asset_versions"* set asset_version = 2;',
+      delete: 'delete from only public.catalog_items where id = current_user;',
+      merge: `merge into only "public"."catalog_items"* as target
+       using incoming_catalog as source on target.id = source.id
+       when matched then update set id = source.id;`,
+      truncate: `truncate table public.unrelated_table,
+       only "public"."catalog_asset_versions"* restart identity;`,
+      truncateWithoutTable: 'truncate catalog_items;',
+      copyFrom: 'copy "public"."catalog_items" (id, catalog_key) from stdin;',
+      copyBareFrom: 'copy catalog_asset_versions from stdin;',
+      proceduralDelete: `create function mutate_catalog() returns trigger language plpgsql as $$
+       begin
+         delete from public.catalog_asset_versions where id = old.id;
+         return old;
+       end
+       $$;`,
+      dynamicTruncate: `create function dynamically_mutate_catalog() returns void language plpgsql as $function$
+       begin
+         execute $catalog_write$truncate table public.catalog_items$catalog_write$;
+       end
+       $function$;`,
+    }
+    for (const [operation, statement] of Object.entries(forbiddenStatements)) {
+      fs.writeFileSync(
+        paths.baselineMigrationPath,
+        `${baseline}${legitimateReferences}\n${statement}\n`,
+      )
+      expect(() => verifyPublishedEditions([edition], paths), operation)
+        .toThrow(/catalog DML outside its generated block/)
+    }
+  })
+
   it('prepares and publishes one delta without replaying historical rows', () => {
     const { paths, edition } = fixture()
-    const metadata = { name: 'Test d6 remaster', source: 'configured' }
+    const metadata = { ...asset().metadata, name: 'Test d6 remaster' }
     const asset2 = asset(2, metadata)
     const desired = {
       contractVersion: 1,

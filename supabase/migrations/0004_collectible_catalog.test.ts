@@ -33,7 +33,11 @@ function functionBody(name: string): string {
 }
 
 function starterItemIds(source: string): string[] {
-  return [...source.matchAll(/\('([^']+@1)'\)/g)].map(match => match[1])
+  const values = source.match(
+    /(?:from|cross join)\s*\(values([\s\S]*?)\)\s*as starter\s*\(catalog_item_id\)/i,
+  )?.[1] ?? ''
+
+  return [...values.matchAll(/\(\s*'([^']+@\d+)'\s*\)/g)].map(match => match[1])
 }
 
 function stripLineComments(source: string): string {
@@ -132,7 +136,10 @@ describe('0004 collectible catalog schema', () => {
       /grant select on table public\.catalog_asset_versions to service_role/,
     )
     expect(sql).toMatch(
-      /grant select, insert, update on table public\.user_entitlements to service_role/,
+      /grant select, insert on table public\.user_entitlements to service_role/,
+    )
+    expect(sql).toMatch(
+      /grant update \(revoked_at\) on table public\.user_entitlements to service_role/,
     )
     expect(stripLineComments(sql)).not.toMatch(
       /grant\s+[^;]*(insert|update|delete|all)[^;]*on table public\.(catalog_items|catalog_asset_versions) to (anon|authenticated|service_role)/i,
@@ -142,6 +149,9 @@ describe('0004 collectible catalog schema', () => {
     )
     expect(stripLineComments(sql)).not.toMatch(
       /grant\s+[^;]*(delete|all)[^;]*on table public\.user_entitlements to service_role/i,
+    )
+    expect(stripLineComments(sql)).not.toMatch(
+      /grant\s+[^;]*\bupdate\b(?!\s*\(revoked_at\))[^;]*on table public\.user_entitlements to service_role/i,
     )
   })
 
@@ -165,6 +175,16 @@ describe('0004 collectible catalog schema', () => {
 })
 
 describe('0004 fixed starter entitlement boundary', () => {
+  it('extracts every versioned starter VALUES id without unrelated strings', () => {
+    expect(starterItemIds(`
+      select 'unrelated/catalog@99';
+      from (values
+        ('starter/d4@1'),
+        ('starter/d6@2')
+      ) as starter(catalog_item_id)
+    `)).toEqual(['starter/d4@1', 'starter/d6@2'])
+  })
+
   it('offers one no-argument, authenticated, idempotent starter RPC', () => {
     const starterFunction = functionBody('ensure_starter_entitlements')
 

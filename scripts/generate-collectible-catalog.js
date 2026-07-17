@@ -119,7 +119,7 @@ function assertRecord(value, label) {
   }
 }
 
-function validateVersionOverrides(source, catalogKeys, setIds) {
+function validateVersionOverrides(source, catalogKeys, setIds, productionCatalogKeys) {
   assertRecord(source.setVersionOverrides, 'setVersionOverrides')
   assertRecord(source.versionOverrides, 'versionOverrides')
 
@@ -142,6 +142,9 @@ function validateVersionOverrides(source, catalogKeys, setIds) {
       if (!['contractVersion', 'assetVersion', 'modelPath'].includes(key)) {
         throw new Error(`Unsupported version override ${catalogKey}.${key}`)
       }
+    }
+    if (Object.hasOwn(override, 'modelPath') && !productionCatalogKeys.has(catalogKey)) {
+      throw new Error(`Model path override requires a production catalog key: ${catalogKey}`)
     }
   }
 }
@@ -343,6 +346,11 @@ export function buildCatalog(paths = DEFAULT_PATHS) {
     source,
     new Set(entries.map(entry => entry.item.catalogKey)),
     new Set(entries.map(entry => entry.item.setId)),
+    new Set(
+      entries
+        .filter(entry => entry.asset.assetKind === 'gltf')
+        .map(entry => entry.item.catalogKey),
+    ),
   )
 
   const duplicateIds = entries
@@ -511,6 +519,135 @@ function verifyFile(filePath, expected, command, paths = DEFAULT_PATHS) {
   }
 }
 
+function maskSqlCommentsAndStrings(source) {
+  let masked = ''
+  let index = 0
+  const dollarQuoteDelimiters = []
+
+  while (index < source.length) {
+    if (source.startsWith('--', index)) {
+      while (index < source.length && source[index] !== '\n') {
+        masked += ' '
+        index += 1
+      }
+      continue
+    }
+    if (source.startsWith('/*', index)) {
+      let depth = 1
+      masked += '  '
+      index += 2
+      while (index < source.length && depth > 0) {
+        if (source.startsWith('/*', index)) {
+          depth += 1
+          masked += '  '
+          index += 2
+        } else if (source.startsWith('*/', index)) {
+          depth -= 1
+          masked += '  '
+          index += 2
+        } else {
+          masked += source[index] === '\n' ? '\n' : ' '
+          index += 1
+        }
+      }
+      continue
+    }
+    if (source[index] === "'") {
+      masked += ' '
+      index += 1
+      while (index < source.length) {
+        if (source[index] === "'" && source[index + 1] === "'") {
+          masked += '  '
+          index += 2
+        } else if (source[index] === "'") {
+          masked += ' '
+          index += 1
+          break
+        } else {
+          masked += source[index] === '\n' ? '\n' : ' '
+          index += 1
+        }
+      }
+      continue
+    }
+    if (source[index] === '"') {
+      let identifier = ''
+      let consumed = '"'
+      index += 1
+      while (index < source.length) {
+        if (source[index] === '"' && source[index + 1] === '"') {
+          identifier += '"'
+          consumed += '""'
+          index += 2
+        } else if (source[index] === '"') {
+          consumed += '"'
+          index += 1
+          break
+        } else {
+          identifier += source[index]
+          consumed += source[index]
+          index += 1
+        }
+      }
+      masked += ['public', 'catalog_items', 'catalog_asset_versions'].includes(identifier)
+        ? `"${identifier}"`
+        : consumed.replace(/[^\n]/g, ' ')
+      continue
+    }
+    if (source[index] === '$') {
+      const delimiter = source.slice(index).match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/)?.[0]
+      const closesCurrentQuote = delimiter === dollarQuoteDelimiters.at(-1)
+      const canOpenQuote = index === 0 || !/[A-Za-z0-9_$]/.test(source[index - 1])
+      if (delimiter && (closesCurrentQuote || canOpenQuote)) {
+        if (closesCurrentQuote) dollarQuoteDelimiters.pop()
+        else dollarQuoteDelimiters.push(delimiter)
+        masked += ' '.repeat(delimiter.length)
+        index += delimiter.length
+        continue
+      }
+    }
+    masked += source[index]
+    index += 1
+  }
+
+  return masked
+}
+
+function assertNoCatalogDml(source, migrationName) {
+  const schema = '(?:(?:public|"public")\\s*\\.\\s*)?'
+  const table = '(?:catalog_items|"catalog_items"|catalog_asset_versions|"catalog_asset_versions")'
+  const catalogTable = `${schema}${table}`
+  const tableEnd = '(?=\\s|\\(|\\*|;|$)'
+  const statements = [
+    ['INSERT', new RegExp(`\\binsert\\s+into\\s+(?:only\\s+)?${catalogTable}${tableEnd}`, 'i')],
+    ['UPDATE', new RegExp(`\\bupdate\\s+(?:only\\s+)?${catalogTable}${tableEnd}`, 'i')],
+    ['DELETE', new RegExp(`\\bdelete\\s+from\\s+(?:only\\s+)?${catalogTable}${tableEnd}`, 'i')],
+    ['MERGE', new RegExp(`\\bmerge\\s+into\\s+(?:only\\s+)?${catalogTable}${tableEnd}`, 'i')],
+    [
+      'TRUNCATE',
+      new RegExp(
+        `\\btruncate\\s+(?:table\\s+)?[^;]*?(?:only\\s+)?${catalogTable}${tableEnd}`,
+        'i',
+      ),
+    ],
+    [
+      'COPY FROM',
+      new RegExp(
+        `\\bcopy\\s+${catalogTable}${tableEnd}(?:\\s*\\*)?` +
+        `\\s*(?:\\([^;)]*\\)\\s*)?from\\b`,
+        'i',
+      ),
+    ],
+  ]
+  const executableSql = maskSqlCommentsAndStrings(source)
+  const forbidden = statements.find(([, pattern]) => pattern.test(executableSql))
+  if (forbidden) {
+    throw new Error(
+      `${migrationName} contains ${forbidden[0]} catalog DML outside its generated block`,
+    )
+  }
+}
+
 function exactGeneratedBlock(source, expected, migrationName) {
   const expectedBlock = expected.trimEnd()
   const [beginMarker] = expectedBlock.split('\n')
@@ -528,6 +665,10 @@ function exactGeneratedBlock(source, expected, migrationName) {
   const actualBlock = source.slice(beginAt, endAt + endMarker.length)
   if (actualBlock !== expectedBlock) {
     throw new Error(`${migrationName} no longer contains its frozen catalog edition byte-for-byte`)
+  }
+  return {
+    beginAt,
+    endAt: endAt + endMarker.length,
   }
 }
 
@@ -550,7 +691,9 @@ export function verifyPublishedEditions(editions, paths = DEFAULT_PATHS) {
       const migration = fs.existsSync(paths.baselineMigrationPath)
         ? fs.readFileSync(paths.baselineMigrationPath, 'utf8')
         : ''
-      exactGeneratedBlock(migration, sql, edition.migration)
+      const generatedBlock = exactGeneratedBlock(migration, sql, edition.migration)
+      assertNoCatalogDml(migration.slice(0, generatedBlock.beginAt), edition.migration)
+      assertNoCatalogDml(migration.slice(generatedBlock.endAt), edition.migration)
       continue
     }
 

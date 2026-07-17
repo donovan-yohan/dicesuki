@@ -1,12 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import generatedCatalog from '../generated/collectibleCatalog.json'
 import type {
-  CatalogAssetMetadata,
+  BuiltinCatalogAssetVersion,
   CatalogAssetVersion,
   CatalogItem,
   CatalogItemRef,
   CollectibleCatalog,
   CollectibleEntitlement,
+  GltfCatalogAssetVersion,
 } from '../types/catalog'
 import type { AcquisitionSource, InventoryDie, NewInventoryDie } from '../types/inventory'
 
@@ -141,7 +142,7 @@ export function createInventoryDieFromCatalogItem(
     catalogRef: getCatalogItemRef(item),
   }
 
-  if (asset.assetKind === 'gltf' && asset.metadata.source === 'production') {
+  if (asset.assetKind === 'gltf') {
     die.customAsset = {
       modelUrl: asset.modelPath,
       assetId: item.catalogKey,
@@ -163,16 +164,27 @@ interface CatalogItemRow {
   rarity: CatalogItem['rarity']
 }
 
-interface CatalogAssetRow {
+interface CatalogAssetRowBase {
   id: string
   catalog_item_id: string
   asset_version: number
-  asset_kind: CatalogAssetVersion['assetKind']
-  model_path: string
-  model_sha256: string | null
-  metadata: CatalogAssetMetadata
   metadata_sha256: string
 }
+
+type CatalogAssetRow = CatalogAssetRowBase & (
+  | {
+      asset_kind: 'builtin'
+      model_path: BuiltinCatalogAssetVersion['modelPath']
+      model_sha256: null
+      metadata: BuiltinCatalogAssetVersion['metadata']
+    }
+  | {
+      asset_kind: 'gltf'
+      model_path: string
+      model_sha256: string
+      metadata: GltfCatalogAssetVersion['metadata']
+    }
+)
 
 /** Read the public server catalog. Returns null on an unavailable/offline backend. */
 export async function fetchCatalogSnapshot(client: SupabaseClient): Promise<CollectibleCatalog | null> {
@@ -188,16 +200,30 @@ export async function fetchCatalogSnapshot(client: SupabaseClient): Promise<Coll
     if (itemResult.error || assetResult.error) return null
 
     const assetVersions = ((assetResult.data ?? []) as unknown as CatalogAssetRow[])
-      .map(row => ({
-        id: row.id,
-        catalogItemId: row.catalog_item_id,
-        assetVersion: row.asset_version,
-        assetKind: row.asset_kind,
-        modelPath: row.model_path,
-        modelSha256: row.model_sha256,
-        metadata: row.metadata,
-        metadataSha256: row.metadata_sha256,
-      }) satisfies CatalogAssetVersion)
+      .map(row => {
+        const common = {
+          id: row.id,
+          catalogItemId: row.catalog_item_id,
+          assetVersion: row.asset_version,
+          metadataSha256: row.metadata_sha256,
+        }
+        if (row.asset_kind === 'gltf') {
+          return {
+            ...common,
+            assetKind: row.asset_kind,
+            modelPath: row.model_path,
+            modelSha256: row.model_sha256,
+            metadata: row.metadata,
+          } satisfies GltfCatalogAssetVersion
+        }
+        return {
+          ...common,
+          assetKind: row.asset_kind,
+          modelPath: row.model_path,
+          modelSha256: row.model_sha256,
+          metadata: row.metadata,
+        } satisfies BuiltinCatalogAssetVersion
+      })
     const latestAssetByItemId = indexLatestAssetsByItemId(assetVersions)
 
     const items = ((itemResult.data ?? []) as unknown as CatalogItemRow[])
@@ -217,7 +243,7 @@ export async function fetchCatalogSnapshot(client: SupabaseClient): Promise<Coll
       })
       .filter((item): item is CatalogItem => item !== null)
 
-    return { contractVersion: 1, items, assetVersions }
+    return { contractVersion: COLLECTIBLE_CATALOG.contractVersion, items, assetVersions }
   } catch {
     return null
   }

@@ -4,6 +4,24 @@ const POSTGRES_INTEGER_MAX = 2_147_483_647
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
 const PATH_SEGMENT_PATTERN = /^[a-z0-9][a-z0-9_-]*$/
 const GLB_FILE_PATTERN = /^[a-z0-9][a-z0-9_-]*\.glb$/
+const ITEM_KINDS = new Set(['die'])
+const DICE_TYPES = new Set(['d4', 'd6', 'd8', 'd10', 'd12', 'd20'])
+const RARITIES = new Set(['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'])
+const ASSET_KINDS = new Set(['builtin', 'gltf'])
+const BUILTIN_METADATA_SOURCES = new Set(['configured', 'standalone'])
+const DIE_MATERIALS = new Set([
+  'plastic',
+  'resin',
+  'metal',
+  'rubber',
+  'stone',
+  'glass',
+  'crystal',
+  'wood',
+  'bone',
+  'obsidian',
+  'celestial',
+])
 
 function compareStrings(left, right) {
   return left < right ? -1 : left > right ? 1 : 0
@@ -27,6 +45,24 @@ function canonicalJson(value) {
 function assertPositiveInteger(value, label) {
   if (!Number.isSafeInteger(value) || value < 1 || value > POSTGRES_INTEGER_MAX) {
     throw new Error(`${label} must be a positive PostgreSQL integer`)
+  }
+}
+
+function assertRecord(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`)
+  }
+}
+
+function assertNonEmptyString(value, label) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${label} must be a non-empty string`)
+  }
+}
+
+function assertEnum(value, allowed, label) {
+  if (!allowed.has(value)) {
+    throw new Error(`${label} is unsupported`)
   }
 }
 
@@ -111,31 +147,102 @@ function sortAssets(assets) {
 }
 
 function assertItemShape(item) {
+  assertRecord(item, 'Catalog item')
   assertPositiveInteger(item.contractVersion, `Contract version for ${item.id}`)
+  assertEnum(item.itemKind, ITEM_KINDS, `Item kind for ${item.id}`)
+  assertEnum(item.diceType, DICE_TYPES, `Dice type for ${item.id}`)
+  assertEnum(item.rarity, RARITIES, `Rarity for ${item.id}`)
   if (item.id !== `${item.catalogKey}@${item.contractVersion}`) {
     throw new Error(`Catalog item ${item.id} does not match its key and version`)
   }
 }
 
-function assertAssetShape(asset, itemIds) {
+function assertAssetMetadata(asset, item) {
+  assertRecord(asset.metadata, `Catalog asset ${asset.id} metadata`)
+  assertNonEmptyString(asset.metadata.name, `Catalog asset ${asset.id} metadata name`)
+  assertRecord(asset.metadata.appearance, `Catalog asset ${asset.id} metadata appearance`)
+  assertNonEmptyString(
+    asset.metadata.appearance.baseColor,
+    `Catalog asset ${asset.id} appearance base color`,
+  )
+  assertNonEmptyString(
+    asset.metadata.appearance.accentColor,
+    `Catalog asset ${asset.id} appearance accent color`,
+  )
+  assertEnum(
+    asset.metadata.appearance.material,
+    DIE_MATERIALS,
+    `Catalog asset ${asset.id} appearance material`,
+  )
+  assertRecord(asset.metadata.vfx, `Catalog asset ${asset.id} metadata vfx`)
+  if (
+    asset.metadata.description !== undefined &&
+    typeof asset.metadata.description !== 'string'
+  ) {
+    throw new Error(`Catalog asset ${asset.id} metadata description must be a string`)
+  }
+
+  if (asset.assetKind === 'builtin') {
+    assertEnum(
+      asset.metadata.source,
+      BUILTIN_METADATA_SOURCES,
+      `Builtin catalog asset ${asset.id} metadata source`,
+    )
+    if (asset.modelPath !== `builtin:${item.diceType}`) {
+      throw new Error(
+        `Builtin catalog asset ${asset.id} must use model path builtin:${item.diceType}`,
+      )
+    }
+    if (asset.modelSha256 !== null) {
+      throw new Error(`Builtin catalog asset ${asset.id} must not declare a model hash`)
+    }
+    if ('diceMetadata' in asset.metadata) {
+      throw new Error(`Builtin catalog asset ${asset.id} must not declare GLTF dice metadata`)
+    }
+    return
+  }
+
+  if (asset.metadata.source !== 'production') {
+    throw new Error(`GLB catalog asset ${asset.id} metadata source must be production`)
+  }
+  assertRecord(asset.metadata.diceMetadata, `GLB catalog asset ${asset.id} dice metadata`)
+  if (asset.metadata.diceMetadata.diceType !== item.diceType) {
+    throw new Error(`GLB catalog asset ${asset.id} dice metadata type must match its item`)
+  }
+  if (
+    asset.metadata.diceMetadata.setId !== undefined &&
+    asset.metadata.diceMetadata.setId !== item.setId
+  ) {
+    throw new Error(`GLB catalog asset ${asset.id} dice metadata set must match its item`)
+  }
+  if (
+    asset.metadata.diceMetadata.rarity !== undefined &&
+    asset.metadata.diceMetadata.rarity !== item.rarity
+  ) {
+    throw new Error(`GLB catalog asset ${asset.id} dice metadata rarity must match its item`)
+  }
+}
+
+function assertAssetShape(asset, itemsById) {
+  assertRecord(asset, 'Catalog asset')
   assertPositiveInteger(asset.assetVersion, `Asset version for ${asset.id}`)
+  assertEnum(asset.assetKind, ASSET_KINDS, `Asset kind for ${asset.id}`)
   if (asset.id !== `${asset.catalogItemId}/asset@${asset.assetVersion}`) {
     throw new Error(`Catalog asset ${asset.id} does not match its item and version`)
   }
-  if (!itemIds.has(asset.catalogItemId)) {
+  const item = itemsById.get(asset.catalogItemId)
+  if (!item) {
     throw new Error(`Catalog asset ${asset.id} references unknown item ${asset.catalogItemId}`)
   }
-  if (!asset.metadata || typeof asset.metadata !== 'object' || Array.isArray(asset.metadata)) {
-    throw new Error(`Catalog asset ${asset.id} metadata must be an object`)
-  }
+  assertAssetMetadata(asset, item)
   assertSha256(asset.metadataSha256, `Metadata hash for ${asset.id}`)
   const expectedMetadataSha256 = hashCatalogRow(asset.metadata)
   if (asset.metadataSha256 !== expectedMetadataSha256) {
     throw new Error(`Catalog asset ${asset.id} metadata hash does not match canonical metadata`)
   }
-  assertSha256(asset.modelSha256, `Model hash for ${asset.id}`, {
-    nullable: asset.assetKind !== 'gltf',
-  })
+  if (asset.assetKind === 'gltf') {
+    assertSha256(asset.modelSha256, `Model hash for ${asset.id}`)
+  }
   assertCanonicalGltfPath(asset)
 }
 
@@ -172,16 +279,16 @@ function validateVersionSequences(items, assets) {
 }
 
 function validateRows(items, assets) {
-  const itemIds = new Set()
+  const itemsById = new Map()
   for (const item of items) {
     assertItemShape(item)
-    if (itemIds.has(item.id)) throw new Error(`Duplicate catalog item id ${item.id}`)
-    itemIds.add(item.id)
+    if (itemsById.has(item.id)) throw new Error(`Duplicate catalog item id ${item.id}`)
+    itemsById.set(item.id, item)
   }
 
   const assetIds = new Set()
   for (const asset of assets) {
-    assertAssetShape(asset, itemIds)
+    assertAssetShape(asset, itemsById)
     if (assetIds.has(asset.id)) throw new Error(`Duplicate catalog asset id ${asset.id}`)
     assetIds.add(asset.id)
   }
@@ -303,6 +410,7 @@ export function planCatalogEdition(editions, desiredCurrent) {
 
   const newItems = []
   const newAssets = []
+  const knownItemsById = new Map(historicalItemsById)
   for (const item of desiredItems) {
     const historicalItem = historicalItemsById.get(item.id)
     const previousItem = historicalLatestItems.get(item.catalogKey)
@@ -322,10 +430,11 @@ export function planCatalogEdition(editions, desiredCurrent) {
       }
       newItems.push(item)
     }
+    knownItemsById.set(item.id, item)
 
     const asset = desiredAssetsByItem.get(item.id)
     if (!asset) throw new Error(`Desired catalog item ${item.id} has no current asset`)
-    assertAssetShape(asset, new Set([...historicalItemsById.keys(), ...newItems.map(row => row.id)]))
+    assertAssetShape(asset, knownItemsById)
 
     const historicalAsset = historicalAssetsById.get(asset.id)
     const previousAsset = historicalLatestAssets.get(item.id)

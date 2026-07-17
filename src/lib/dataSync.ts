@@ -155,6 +155,7 @@ export async function pushTarget(
   client: SupabaseClient,
   userId: string,
   target: SyncTarget,
+  isCurrent: () => boolean = () => true,
 ): Promise<void> {
   const payload = target.getPayload()
   const { data, error } = await client
@@ -163,7 +164,7 @@ export async function pushTarget(
     .select('updated_at')
     .maybeSingle()
 
-  if (error) return
+  if (error || !isCurrent()) return
   const updatedAt = data?.updated_at ? Date.parse(data.updated_at as string) : Date.now()
   setLocalMeta(target.table, Number.isNaN(updatedAt) ? Date.now() : updatedAt)
 }
@@ -177,6 +178,7 @@ export async function hydrateTarget(
   client: SupabaseClient,
   userId: string,
   target: SyncTarget,
+  isCurrent: () => boolean = () => true,
 ): Promise<void> {
   const { data: row, error } = await client
     .from(target.table)
@@ -184,11 +186,11 @@ export async function hydrateTarget(
     .eq('user_id', userId)
     .maybeSingle()
 
-  if (error) return
+  if (error || !isCurrent()) return
 
   if (!row) {
     // First sign-in for this account: migrate existing local data up.
-    await pushTarget(client, userId, target)
+    await pushTarget(client, userId, target, isCurrent)
     return
   }
 
@@ -217,11 +219,16 @@ interface StartOptions {
   client?: SupabaseClient | null
   targets?: SyncTarget[]
   debounceMs?: number
+  starterTimeoutMs?: number
 }
 
 const DEFAULT_DEBOUNCE_MS = 1000
+const DEFAULT_STARTER_TIMEOUT_MS = 3000
 
 let activeUserId: string | null = null
+let startingUserId: string | null = null
+let startPromise: Promise<void> | null = null
+let syncGeneration = 0
 let unsubscribers: Array<() => void> = []
 const pushTimers = new Map<SyncTable, ReturnType<typeof setTimeout>>()
 const lastSerialized = new Map<SyncTable, string>()
@@ -230,28 +237,45 @@ const lastSerialized = new Map<SyncTable, string>()
  * Begin syncing for a signed-in user: hydrate every domain, then wire debounced
  * push-on-change. No-op when Supabase is unconfigured or no client is available.
  */
-export async function startSync(userId: string, options: StartOptions = {}): Promise<void> {
-  const client = options.client ?? getSupabaseClient()
-  if (!client || !userId) return
-  if (activeUserId === userId) return // already syncing this user
-  if (activeUserId) stopSync() // switch accounts cleanly
+async function startSyncGeneration(
+  client: SupabaseClient,
+  userId: string,
+  generation: number,
+  options: StartOptions,
+): Promise<void> {
+  const isCurrent = () => syncGeneration === generation && activeUserId === userId
 
-  activeUserId = userId
   // Best effort: this no-argument RPC can only grant the server-fixed free
-  // starter bundle. Failure/offline state must not block local play or sync.
-  await ensureStarterEntitlements(client)
+  // starter bundle. Failure, offline state, or a hung request must not block
+  // local hydration or play indefinitely.
+  const starterTimeoutMs = options.starterTimeoutMs ?? DEFAULT_STARTER_TIMEOUT_MS
+  let starterTimeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      ensureStarterEntitlements(client),
+      new Promise<void>((resolve) => {
+        starterTimeout = setTimeout(resolve, starterTimeoutMs)
+      }),
+    ])
+  } finally {
+    if (starterTimeout) clearTimeout(starterTimeout)
+  }
+  if (!isCurrent()) return
+
   const targets = options.targets ?? createRealTargets()
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS
 
   for (const target of targets) {
-    await hydrateTarget(client, userId, target)
+    if (!isCurrent()) return
+    await hydrateTarget(client, userId, target, isCurrent)
+    if (!isCurrent()) return
     // Seed the change-dedupe baseline from the post-hydrate payload so the
     // hydrate itself never triggers a redundant echo push.
     lastSerialized.set(target.table, JSON.stringify(target.getPayload()))
 
     const unsub = target.subscribe(() => {
       if (applyingRemote) return
-      if (activeUserId !== userId) return
+      if (!isCurrent()) return
       const serialized = JSON.stringify(target.getPayload())
       if (serialized === lastSerialized.get(target.table)) return
       lastSerialized.set(target.table, serialized)
@@ -262,7 +286,8 @@ export async function startSync(userId: string, options: StartOptions = {}): Pro
         target.table,
         setTimeout(() => {
           pushTimers.delete(target.table)
-          void pushTarget(client, userId, target)
+          if (!isCurrent()) return
+          void pushTarget(client, userId, target, isCurrent)
         }, debounceMs),
       )
     })
@@ -270,14 +295,38 @@ export async function startSync(userId: string, options: StartOptions = {}): Pro
   }
 }
 
+export function startSync(userId: string, options: StartOptions = {}): Promise<void> {
+  const client = options.client ?? getSupabaseClient()
+  if (!client || !userId) return Promise.resolve()
+  if (startingUserId === userId && startPromise) return startPromise
+  if (activeUserId === userId) return Promise.resolve()
+  if (activeUserId || startPromise) stopSync() // switch accounts cleanly
+
+  activeUserId = userId
+  startingUserId = userId
+  const generation = ++syncGeneration
+  const pending = startSyncGeneration(client, userId, generation, options)
+    .finally(() => {
+      if (startPromise === pending) {
+        startPromise = null
+        startingUserId = null
+      }
+    })
+  startPromise = pending
+  return pending
+}
+
 /** Stop syncing and tear down subscriptions/timers. Leaves local cache intact. */
 export function stopSync(): void {
+  syncGeneration += 1
   for (const unsub of unsubscribers) unsub()
   unsubscribers = []
   for (const timer of pushTimers.values()) clearTimeout(timer)
   pushTimers.clear()
   lastSerialized.clear()
   activeUserId = null
+  startingUserId = null
+  startPromise = null
 }
 
 // ---------------------------------------------------------------------------

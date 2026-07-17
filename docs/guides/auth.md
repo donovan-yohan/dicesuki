@@ -114,9 +114,9 @@ exact client-mutable/server-authoritative split.
 See the checklist on issue #81 / the PR body. Summary: create a Discord app
 (redirect `https://nksxdfcjabgbxeefwkdc.supabase.co/auth/v1/callback`), enable
 the Discord provider in Supabase Auth, apply `0001_profiles.sql`, and set the
-  `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env.local` and
-  Vercel. The publishable key is public client configuration; never substitute a
-  secret or service-role key.
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env.local` and
+Vercel. The publishable key is public client configuration; never substitute a
+secret or service-role key.
 
 **Issue #82 adds one setup step:** after `0001_profiles.sql`, apply
 `supabase/migrations/0002_user_data.sql` (`supabase db push`, or paste into the
