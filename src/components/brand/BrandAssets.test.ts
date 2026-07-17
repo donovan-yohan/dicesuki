@@ -49,9 +49,14 @@ describe('Dicesuki brand vectors', () => {
       'translate(913,195)',
       'translate(913,195)',
     ])
+    // The base d/e paths each contain one outline plus one counter. Their two
+    // highlight paths each contain two overlapping source subpaths, so they need
+    // two counter copies to keep the even-odd result transparent.
     expect(
-      cutoutPaths.every((path) => ((path.getAttribute('d') ?? '').match(/M/g) ?? []).length >= 2),
-    ).toBe(true)
+      cutoutPaths
+        .map((path) => ((path.getAttribute('d') ?? '').match(/M/g) ?? []).length)
+        .sort((a, b) => a - b),
+    ).toEqual([2, 2, 4, 4])
   })
 
   it('keeps the corrected vectors in the lockup and square favicon', async () => {
