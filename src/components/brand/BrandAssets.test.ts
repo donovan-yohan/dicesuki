@@ -17,8 +17,28 @@ async function readSvg(relativePath: string) {
   return { document, svg }
 }
 
+function expectIconArtworkClipped(document: Document) {
+  const clipPath = document.querySelector('clipPath#dicesuki-icon-silhouette')
+  const clipShape = clipPath?.querySelector('path')
+  const clippedGroups = [
+    ...document.querySelectorAll('g[clip-path="url(#dicesuki-icon-silhouette)"]'),
+  ]
+  const clipData = clipShape?.getAttribute('d') ?? ''
+  const outline = [...document.querySelectorAll('svg > path')].find((path) =>
+    (path.getAttribute('d') ?? '').startsWith(clipData),
+  )
+
+  expect(clipPath?.getAttribute('clipPathUnits')).toBe('userSpaceOnUse')
+  expect(clipData).not.toBe('')
+  expect(outline).toBeDefined()
+  expect(outline?.getAttribute('transform')).toBe(clipShape?.getAttribute('transform'))
+  expect(clippedGroups).toHaveLength(1)
+  expect(clippedGroups[0].querySelectorAll('path')).toHaveLength(2)
+  expect(clippedGroups[0].querySelector('path')?.getAttribute('d')?.trim()).toBe(clipData)
+}
+
 describe('Dicesuki brand vectors', () => {
-  it('keeps padding beyond the illustrated icon contour without pale fringe paths', async () => {
+  it('clips the icon base fills to the plum outer contour without shrinking its padding', async () => {
     const { document, svg } = await readSvg('brand/dicesuki-icon.svg')
     const [x, , width] = (svg.getAttribute('viewBox') ?? '').split(/\s+/).map(Number)
     const paths = [...document.querySelectorAll('path')]
@@ -33,11 +53,14 @@ describe('Dicesuki brand vectors', () => {
           ),
       ),
     ).toBe(false)
+    expectIconArtworkClipped(document)
   })
 
   it('cuts the d and e counters directly into the visible letter paths', async () => {
     const { document, svg } = await readSvg('brand/dicesuki-wordmark.svg')
-    const visibleGroup = [...svg.children].find((child) => child.localName === 'g')
+    const visibleGroup = [...svg.children].find(
+      (child) => child.querySelectorAll('path[fill-rule="evenodd"]').length === 4,
+    )
     const cutoutPaths = [...(visibleGroup?.querySelectorAll('path[fill-rule="evenodd"]') ?? [])]
 
     expect(document.querySelector('mask')).toBeNull()
@@ -69,5 +92,7 @@ describe('Dicesuki brand vectors', () => {
     expect(faviconDocument.querySelector('rect')?.getAttribute('fill')).toBe('#f3ebe2')
     expect(faviconDocument.querySelector('path[transform="translate(536,277)"]')).toBeNull()
     expect(faviconDocument.querySelector('path[transform="translate(366,246)"]')).toBeNull()
+    expectIconArtworkClipped(lockup)
+    expectIconArtworkClipped(faviconDocument)
   })
 })
