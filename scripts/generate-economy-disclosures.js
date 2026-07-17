@@ -622,7 +622,7 @@ export function validateNoRuntimeEconomyConsumers(rootDir = ROOT_DIR) {
     path.join(rootDir, 'server', 'core', 'src'),
     path.join(rootDir, 'server', 'wasm', 'src'),
   ]
-  const forbiddenReference = /economy[\\/](?:contracts|disclosures)|generate-economy-disclosures/
+  const forbiddenReference = /economy[\\/](?:contracts|disclosures|simulations)|(?:generate-economy-disclosures|economy-simulator)/
   const offenders = runtimeRoots.flatMap(runtimeRoot => listFilesRecursively(runtimeRoot))
     .filter(filePath => RUNTIME_SOURCE_EXTENSIONS.has(path.extname(filePath)))
     .filter(filePath => !/\.test\.[cm]?[jt]sx?$/.test(filePath))

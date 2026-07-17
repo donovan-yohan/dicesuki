@@ -302,6 +302,11 @@ describe('economy disclosure publication boundary', () => {
       "import config from '../economy/contracts/editions/0001-broad-rarity-showcase.json'\n",
     ],
     [
+      'frontend simulator',
+      'src/economySimulator.ts',
+      "import report from '../economy/simulations/reports/0001-candidate-a-vs-collection-first.json'\n",
+    ],
+    [
       'server adapter',
       'server/src/economy_runtime.rs',
       'const CONTRACT: &str = include_str!("../../economy/contracts/editions/0001-broad-rarity-showcase.json");\n',
