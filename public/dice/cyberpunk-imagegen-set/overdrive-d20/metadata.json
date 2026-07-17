@@ -1,0 +1,194 @@
+{
+  "version": "1.0",
+  "diceType": "d20",
+  "name": "Overdrive D20",
+  "artist": "Codex ImageGen via Daisu UV Workflow",
+  "created": "2026-07-10",
+  "scale": 1.3888888888888888,
+  "rarity": "epic",
+  "description": "Overdrive D20 belongs to Neon Street Overdrive, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+  "canonicalReferenceVersion": 2,
+  "tags": [
+    "cyberpunk",
+    "street-tech",
+    "anime",
+    "neon",
+    "hazard",
+    "codex-imagegen",
+    "d20",
+    "complete-polyhedral-set",
+    "numbered-faces",
+    "edge-parallel-numerals",
+    "uv-atlas",
+    "derived-normal-map"
+  ],
+  "faceNormals": [
+    {
+      "value": 1,
+      "normal": [
+        -0.57735,
+        0.57735,
+        0.57735
+      ]
+    },
+    {
+      "value": 2,
+      "normal": [
+        0,
+        0.934172,
+        0.356822
+      ]
+    },
+    {
+      "value": 3,
+      "normal": [
+        0,
+        0.934172,
+        -0.356822
+      ]
+    },
+    {
+      "value": 4,
+      "normal": [
+        -0.57735,
+        0.57735,
+        -0.57735
+      ]
+    },
+    {
+      "value": 5,
+      "normal": [
+        -0.934172,
+        0.356822,
+        0
+      ]
+    },
+    {
+      "value": 6,
+      "normal": [
+        0.57735,
+        0.57735,
+        0.57735
+      ]
+    },
+    {
+      "value": 7,
+      "normal": [
+        -0.356822,
+        0,
+        0.934172
+      ]
+    },
+    {
+      "value": 8,
+      "normal": [
+        -0.934172,
+        -0.356822,
+        0
+      ]
+    },
+    {
+      "value": 9,
+      "normal": [
+        -0.356822,
+        0,
+        -0.934172
+      ]
+    },
+    {
+      "value": 10,
+      "normal": [
+        0.57735,
+        0.57735,
+        -0.57735
+      ]
+    },
+    {
+      "value": 11,
+      "normal": [
+        -0.57735,
+        -0.57735,
+        0.57735
+      ]
+    },
+    {
+      "value": 12,
+      "normal": [
+        0.356822,
+        0,
+        0.934172
+      ]
+    },
+    {
+      "value": 13,
+      "normal": [
+        0.934172,
+        0.356822,
+        0
+      ]
+    },
+    {
+      "value": 14,
+      "normal": [
+        0.356822,
+        0,
+        -0.934172
+      ]
+    },
+    {
+      "value": 15,
+      "normal": [
+        -0.57735,
+        -0.57735,
+        -0.57735
+      ]
+    },
+    {
+      "value": 16,
+      "normal": [
+        0.934172,
+        -0.356822,
+        0
+      ]
+    },
+    {
+      "value": 17,
+      "normal": [
+        0.57735,
+        -0.57735,
+        0.57735
+      ]
+    },
+    {
+      "value": 18,
+      "normal": [
+        0,
+        -0.934172,
+        0.356822
+      ]
+    },
+    {
+      "value": 19,
+      "normal": [
+        0,
+        -0.934172,
+        -0.356822
+      ]
+    },
+    {
+      "value": 20,
+      "normal": [
+        0.57735,
+        -0.57735,
+        -0.57735
+      ]
+    }
+  ],
+  "physics": {
+    "density": 0.52,
+    "restitution": 0.36,
+    "friction": 0.52
+  },
+  "colliderType": "hull",
+  "colliderArgs": {}
+}

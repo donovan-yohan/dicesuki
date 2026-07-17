@@ -44,7 +44,7 @@ function inventoryDie(overrides: Partial<InventoryDie> = {}): InventoryDie {
 describe('collectible catalog', () => {
   it('uses stable version-in-id contracts and excludes local artist dice', () => {
     expect(COLLECTIBLE_CATALOG.contractVersion).toBe(1)
-    expect(COLLECTIBLE_CATALOG.items).toHaveLength(57)
+    expect(COLLECTIBLE_CATALOG.items).toHaveLength(63)
     expect(COLLECTIBLE_CATALOG.items.every(item => item.id === `${item.catalogKey}@1`)).toBe(true)
     expect(COLLECTIBLE_CATALOG.assetVersions.every(asset => (
       asset.id === `${asset.catalogItemId}/asset@${asset.assetVersion}`
@@ -136,7 +136,7 @@ describe('collectible catalog', () => {
     expect(die).not.toHaveProperty('entitlementId')
   })
 
-  it('resolves Cozy Forest delivery metadata without fetching the GLB', () => {
+  it('resolves ImageGen runtime delivery metadata without fetching the GLB', () => {
     const asset = getBundledCustomDiceAsset('cozy-forest-imagegen-set/hearthwood-d6')
 
     expect(asset).toMatchObject({
@@ -148,6 +148,21 @@ describe('collectible catalog', () => {
         scale: 1.1,
         canonicalReferenceVersion: 2,
         physics: { density: 0.38 },
+      },
+    })
+    expect(getBundledCustomDiceAsset(
+      'cyberpunk-imagegen-set/neon-grid-d6',
+      'cyberpunk-imagegen-set/neon-grid-d6@1/asset@1',
+      'd6',
+    )).toMatchObject({
+      id: 'cyberpunk-imagegen-set/neon-grid-d6',
+      modelUrl: '/dice/cyberpunk-imagegen-set/neon-grid-d6/model.glb',
+      thumbnailUrl: '/dice/cyberpunk-imagegen-set/neon-grid-d6/thumbnail.png',
+      metadata: {
+        diceType: 'd6',
+        scale: 1.1,
+        canonicalReferenceVersion: 2,
+        physics: { density: 0.52 },
       },
     })
     expect(getBundledCustomDiceAsset('not-a-real/catalog-key')).toBeNull()

@@ -4,7 +4,10 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { RUNTIME_ASSET_BUDGETS } from '../runtime-dice-assets/runtime-asset-contract.mjs'
+import {
+  RUNTIME_ASSET_BUDGETS,
+  runtimeAssetManifestPaths,
+} from '../runtime-dice-assets/runtime-asset-contract.mjs'
 
 const MAX_TOOLING_FILE_BYTES = 128 * 1024
 const DEFAULT_MAX_FILE_BYTES = 1024 * 1024
@@ -64,14 +67,11 @@ export function checkAuthoringBoundary(repoRoot = process.cwd()) {
 
 function reviewedBinaryFileLimits(repoRoot) {
   const limits = new Map(REVIEWED_BINARY_FILE_LIMITS)
-  const manifestPath = path.join(
-    repoRoot,
-    'public/dice/cozy-forest-imagegen-set/runtime-assets.json',
-  )
-  try {
+  for (const manifestPath of runtimeAssetManifestPaths(repoRoot)) {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-    if (manifest.setId !== 'cozy-forest-imagegen-set' || !Array.isArray(manifest.assets)) {
-      return limits
+    const directorySetId = path.basename(path.dirname(manifestPath))
+    if (manifest.setId !== directorySetId || !Array.isArray(manifest.assets)) {
+      throw new Error(`${manifestPath} is not a canonical runtime asset manifest`)
     }
     for (const asset of manifest.assets ?? []) {
       const expectedRoot = `/dice/${manifest.setId}/${asset.diceId}`
@@ -82,8 +82,6 @@ function reviewedBinaryFileLimits(repoRoot) {
         limits.set(`public${asset.thumbnail.path}`, RUNTIME_ASSET_BUDGETS.thumbnailMaxBytes)
       }
     }
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error
   }
   return limits
 }

@@ -135,7 +135,7 @@ an approximation and must not be used for production mapping proof.
 
 ## Issue #146 promotion status
 
-The Cozy Forest pilot is promoted by the separate, reproducible runtime pipeline
-documented in [runtime-dice-assets.md](runtime-dice-assets.md). Cyberpunk and
-Dark Dungeon still require the same optimization, delivery, visual proof, and
-mobile contrast/normal-map review before promotion.
+Cozy Forest and Cyberpunk are promoted by the separate, reproducible runtime
+pipeline documented in [runtime-dice-assets.md](runtime-dice-assets.md). Dark
+Dungeon still requires the same optimization, delivery, visual proof, and mobile
+contrast/normal-map review before issue #146 can close.

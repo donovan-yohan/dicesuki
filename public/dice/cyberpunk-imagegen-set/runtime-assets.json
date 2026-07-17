@@ -1,0 +1,155 @@
+{
+  "contractVersion": 1,
+  "setId": "cyberpunk-imagegen-set",
+  "canonicalReferenceVersion": 2,
+  "budgets": {
+    "thumbnailMaxBytes": 153600,
+    "modelTargetBytes": 1572864,
+    "modelHardMaxBytes": 3145728,
+    "embeddedTextureMaxBytesPerDie": 1048576,
+    "completeSetMaxBytes": 10485760
+  },
+  "optimization": {
+    "tool": "@gltf-transform/cli",
+    "toolVersion": "4.4.1",
+    "maxTextureDimension": 1024,
+    "baseColor": {
+      "format": "webp",
+      "quality": 80,
+      "effort": 80
+    },
+    "normal": {
+      "format": "webp",
+      "lossless": true,
+      "effort": 80
+    },
+    "geometryCompression": "none"
+  },
+  "source": {
+    "tag": "imagegen-cyberpunk-authoring-v1",
+    "archiveSha256": "62cd38c688dac894adf1f66a9b585ca4b4a245bfaacaba039ccf5bc9b418a0ef",
+    "sourceCommit": "7393d112c5e062570ec7caf37970206c4d05c08c"
+  },
+  "assets": [
+    {
+      "catalogKey": "cyberpunk-imagegen-set/chrome-relay-d12",
+      "diceId": "chrome-relay-d12",
+      "diceType": "d12",
+      "model": {
+        "path": "/dice/cyberpunk-imagegen-set/chrome-relay-d12/model.glb",
+        "bytes": 702028,
+        "sha256": "c42f090f85995a3a33ae03880a6761f6b6d2cce13689068dcf27ebd1133e4445",
+        "embeddedTextureBytes": 697034,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-imagegen-set/chrome-relay-d12/thumbnail.png",
+        "bytes": 65554,
+        "sha256": "57bb3c7f594129a7e26153bfe9821486c14cbffc203000dd361fe4e62c1306ed",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "cyberpunk-imagegen-set/cipher-core-d10",
+      "diceId": "cipher-core-d10",
+      "diceType": "d10",
+      "model": {
+        "path": "/dice/cyberpunk-imagegen-set/cipher-core-d10/model.glb",
+        "bytes": 248504,
+        "sha256": "9af75e17f2effa6c53170c33020a3686ddb74b3480683cc2baecd6e8c4fd33f9",
+        "embeddedTextureBytes": 245050,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-imagegen-set/cipher-core-d10/thumbnail.png",
+        "bytes": 53290,
+        "sha256": "63602d8c2789f54643dd0bec1fac09d0d3095030051e9f83a9fe7d03cfa7dd0b",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "cyberpunk-imagegen-set/neon-grid-d6",
+      "diceId": "neon-grid-d6",
+      "diceType": "d6",
+      "model": {
+        "path": "/dice/cyberpunk-imagegen-set/neon-grid-d6/model.glb",
+        "bytes": 874268,
+        "sha256": "32eb3f7ee4b69ea3fed78eabd3f027335461886733a289f5914398b148fccce7",
+        "embeddedTextureBytes": 871670,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-imagegen-set/neon-grid-d6/thumbnail.png",
+        "bytes": 63028,
+        "sha256": "f436a9ef27c42947a6b2d4bb613a351037c114c6e8b7cd9015ea5762382a02db",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "cyberpunk-imagegen-set/overdrive-d20",
+      "diceId": "overdrive-d20",
+      "diceType": "d20",
+      "model": {
+        "path": "/dice/cyberpunk-imagegen-set/overdrive-d20/model.glb",
+        "bytes": 565400,
+        "sha256": "13adb27ad11102294b3ec0ce5ad27ef5caad8889d708f6a70eea576090c48f58",
+        "embeddedTextureBytes": 561946,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-imagegen-set/overdrive-d20/thumbnail.png",
+        "bytes": 61812,
+        "sha256": "537bdbaee6912693a98239d78dcb5003190a8a5ae181f72bf3cfce280246c875",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "cyberpunk-imagegen-set/pulse-shard-d4",
+      "diceId": "pulse-shard-d4",
+      "diceType": "d4",
+      "model": {
+        "path": "/dice/cyberpunk-imagegen-set/pulse-shard-d4/model.glb",
+        "bytes": 611764,
+        "sha256": "fe5b7112e8fb68245661949e8069ac0889487b79294e2389e3787101fc62487e",
+        "embeddedTextureBytes": 609838,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-imagegen-set/pulse-shard-d4/thumbnail.png",
+        "bytes": 34250,
+        "sha256": "fa692d3f052dd658dd97129274c0048514d711efcbe5d714ce2fd3c496d61ba1",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "cyberpunk-imagegen-set/volt-prism-d8",
+      "diceId": "volt-prism-d8",
+      "diceType": "d8",
+      "model": {
+        "path": "/dice/cyberpunk-imagegen-set/volt-prism-d8/model.glb",
+        "bytes": 319564,
+        "sha256": "5f559027b074069c62fbb20550a87701812a324abb5c7f5b21d9c73320109a35",
+        "embeddedTextureBytes": 317272,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-imagegen-set/volt-prism-d8/thumbnail.png",
+        "bytes": 43252,
+        "sha256": "f9206c70298194357006a728f5ee8420e2437c005956ec3b2d87a2317fe0df8f",
+        "width": 320,
+        "height": 320
+      }
+    }
+  ]
+}

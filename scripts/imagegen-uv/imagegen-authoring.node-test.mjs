@@ -228,6 +228,32 @@ test('reviewed binary paths still enforce their approved size ceiling', async ()
   }
 })
 
+test('authoring boundary discovers every runtime manifest without a set allowlist', async () => {
+  const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-imagegen-runtime-sets-'))
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repository })
+    for (const setId of ['alpha-runtime-set', 'beta-runtime-set']) {
+      const diceId = `${setId}-d6`
+      const setRoot = path.join(repository, 'public', 'dice', setId)
+      const dieRoot = path.join(setRoot, diceId)
+      await mkdir(dieRoot, { recursive: true })
+      await writeFile(path.join(dieRoot, 'model.glb'), Buffer.alloc(1024 * 1024 + 1, 0))
+      await writeFile(path.join(setRoot, 'runtime-assets.json'), `${JSON.stringify({
+        setId,
+        assets: [{
+          diceId,
+          model: { path: `/dice/${setId}/${diceId}/model.glb` },
+        }],
+      })}\n`)
+    }
+
+    const result = checkAuthoringBoundary(repository)
+    assert.equal(result.valid, true, result.errors.join('; '))
+  } finally {
+    await rm(repository, { recursive: true, force: true })
+  }
+})
+
 test('generator refuses unmanaged dirty output and preserves it', async () => {
   const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-imagegen-dirty-'))
   try {
@@ -309,6 +335,65 @@ test('published canonical references append v2, select it, and preserve v1', asy
     await writeFile(firstReference, frozenV1.replace('"referenceVersion": 1', '"referenceVersion": 1,\n  "rewritten": true'))
     assert.deepEqual(changedCanonicalReferencePaths(baseline, repository), [
       'scripts/imagegen-uv/fixtures/canonical-contract-v1.json',
+    ])
+  } finally {
+    await rm(repository, { recursive: true, force: true })
+  }
+})
+
+test('published runtime source locks are immutable and accept append-only supplements', async () => {
+  const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-runtime-lock-history-'))
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repository })
+    execFileSync('git', ['config', 'user.name', 'ImageGen Test'], { cwd: repository })
+    execFileSync('git', ['config', 'user.email', 'imagegen-test@example.invalid'], { cwd: repository })
+    const lockDirectory = path.join(repository, 'scripts/runtime-dice-assets/sources')
+    await mkdir(lockDirectory, { recursive: true })
+    const primaryLock = path.join(lockDirectory, 'first-v1.lock.json')
+    await writeFile(primaryLock, '{"contractVersion":1}\n')
+    execFileSync('git', ['add', '.'], { cwd: repository })
+    execFileSync('git', ['commit', '-qm', 'runtime source lock baseline'], { cwd: repository })
+    const baseline = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repository,
+      encoding: 'utf8',
+    }).trim()
+
+    await writeFile(path.join(lockDirectory, 'first-v1.metadata.lock.json'), '{"contractVersion":1}\n')
+    assert.deepEqual(changedCanonicalReferencePaths(baseline, repository), [])
+
+    await writeFile(primaryLock, '{"contractVersion":1,"rewritten":true}\n')
+    assert.deepEqual(changedCanonicalReferencePaths(baseline, repository), [
+      'scripts/runtime-dice-assets/sources/first-v1.lock.json',
+    ])
+  } finally {
+    await rm(repository, { recursive: true, force: true })
+  }
+})
+
+test('published runtime manifests are immutable and accept a new set manifest', async () => {
+  const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-runtime-manifest-history-'))
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repository })
+    execFileSync('git', ['config', 'user.name', 'ImageGen Test'], { cwd: repository })
+    execFileSync('git', ['config', 'user.email', 'imagegen-test@example.invalid'], { cwd: repository })
+    const firstManifest = path.join(repository, 'public/dice/first-set/runtime-assets.json')
+    await mkdir(path.dirname(firstManifest), { recursive: true })
+    await writeFile(firstManifest, '{"contractVersion":1,"setId":"first-set"}\n')
+    execFileSync('git', ['add', '.'], { cwd: repository })
+    execFileSync('git', ['commit', '-qm', 'runtime manifest baseline'], { cwd: repository })
+    const baseline = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repository,
+      encoding: 'utf8',
+    }).trim()
+
+    const secondManifest = path.join(repository, 'public/dice/second-set/runtime-assets.json')
+    await mkdir(path.dirname(secondManifest), { recursive: true })
+    await writeFile(secondManifest, '{"contractVersion":1,"setId":"second-set"}\n')
+    assert.deepEqual(changedCanonicalReferencePaths(baseline, repository), [])
+
+    await writeFile(firstManifest, '{"contractVersion":1,"setId":"rewritten-first-set"}\n')
+    assert.deepEqual(changedCanonicalReferencePaths(baseline, repository), [
+      'public/dice/first-set/runtime-assets.json',
     ])
   } finally {
     await rm(repository, { recursive: true, force: true })

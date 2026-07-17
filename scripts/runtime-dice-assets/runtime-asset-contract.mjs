@@ -38,6 +38,16 @@ export function publicAssetFile(repoRoot, publicPath) {
   return candidate
 }
 
+export function runtimeAssetManifestPaths(repoRoot = process.cwd()) {
+  const diceRoot = path.resolve(repoRoot, 'public', 'dice')
+  if (!fs.existsSync(diceRoot)) return []
+  return fs.readdirSync(diceRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => path.join(diceRoot, entry.name, 'runtime-assets.json'))
+    .filter(manifestPath => fs.existsSync(manifestPath))
+    .sort()
+}
+
 export async function inspectGlb(filePath) {
   const buffer = fs.readFileSync(filePath)
   if (buffer.length < 20 || buffer.readUInt32LE(0) !== GLB_MAGIC) {

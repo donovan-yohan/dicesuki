@@ -1,0 +1,16 @@
+{
+  "id": "cyberpunk-imagegen-set",
+  "name": "Neon Street Overdrive",
+  "artist": "Codex ImageGen via Daisu UV Workflow",
+  "description": "Cel-shaded street-tech polyhedra with electric-yellow armor, cyan data lights, and hot-magenta hazard graphics.",
+  "releaseDate": "2026-07-10",
+  "tags": [
+    "cyberpunk",
+    "street-tech",
+    "anime",
+    "neon",
+    "hazard",
+    "codex-imagegen"
+  ],
+  "availability": "always"
+}
