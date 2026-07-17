@@ -22,6 +22,7 @@ import { getDieMax } from '../lib/diceHelpers'
 import { getDieSetById } from '../config/dieSets'
 import { STARTER_DICE } from '../config/starterDice'
 import { createBlobUrlFromStorage, deleteCustomDiceModel } from '../lib/customDiceDB'
+import { mapInventoryDieToCatalogRef } from '../lib/collectibleCatalog'
 // CRAFTING_RECIPES imported for future use
 // import { CRAFTING_RECIPES } from '../config/craftingRecipes'
 
@@ -182,13 +183,66 @@ function getDefaultStats(): DieStats {
  * Create a complete InventoryDie from NewInventoryDie
  */
 function createInventoryDie(newDie: NewInventoryDie): InventoryDie {
-  return {
+  const die: InventoryDie = {
     ...newDie,
     id: newDie.id || generateDieId(),
     acquiredAt: newDie.acquiredAt || Date.now(),
     stats: { ...getDefaultStats(), ...newDie.stats },
     assignedToRolls: newDie.assignedToRolls || []
   }
+  const catalogRef = mapInventoryDieToCatalogRef(die)
+  return catalogRef ? { ...die, catalogRef } : die
+}
+
+function emptyPersistedInventory() {
+  return {
+    dice: [] as InventoryDie[],
+    currency: {
+      coins: 0,
+      gems: 0,
+      standardTokens: 0,
+      premiumTokens: 0,
+    },
+    assignments: {} as Record<string, string>,
+  }
+}
+
+function isLegacyBundledDevilAsset(die: InventoryDie): boolean {
+  return die.setId === 'devil-set' &&
+    !die.isDev &&
+    (die.customAsset?.assetId === 'devil-set/devil-d6' ||
+      die.customAsset?.modelUrl === '/dice/devil-set/devil-d6/model.glb')
+}
+
+/**
+ * v2 -> v3 adds best-effort catalog definition refs without replacing any
+ * client-local instance. It also marks the one known production GLTF as a
+ * bundled asset so legacy sessions never try to load it from IndexedDB. IDs,
+ * order, assignments, stats and duplicate copies are otherwise preserved.
+ */
+export function migratePersistedInventoryState(
+  persistedState: unknown,
+  version: number,
+): unknown {
+  if (!persistedState || typeof persistedState !== 'object') {
+    return emptyPersistedInventory()
+  }
+  if (version >= 3) return persistedState
+
+  const state = persistedState as Record<string, unknown>
+  if (!Array.isArray(state.dice)) return persistedState
+
+  const dice = state.dice.map(value => {
+    if (!value || typeof value !== 'object') return value
+    const die = value as InventoryDie
+    const migratedDie = isLegacyBundledDevilAsset(die) && die.customAsset
+      ? { ...die, customAsset: { ...die.customAsset, storage: 'bundled' as const } }
+      : die
+    const catalogRef = mapInventoryDieToCatalogRef(migratedDie)
+    return catalogRef ? { ...migratedDie, catalogRef } : migratedDie
+  })
+
+  return { ...state, dice }
 }
 
 // ============================================================================
@@ -722,7 +776,9 @@ export const useInventoryStore = create<InventoryStore>()(
         set({ customDiceLoadErrors: [] })
 
         const state = get()
-        const customDice = state.dice.filter(die => die.customAsset)
+        const customDice = state.dice.filter(
+          die => die.customAsset && die.customAsset.storage !== 'bundled',
+        )
 
         console.log(`[InventoryStore] Regenerating blob URLs for ${customDice.length} custom dice`)
 
@@ -819,30 +875,13 @@ export const useInventoryStore = create<InventoryStore>()(
       // SCHEMA VERSION
       // Increment this when starter dice or inventory structure changes
       // This will trigger the migrate function below
-      version: 2,
+      version: 3,
 
       // Migration function - runs when stored version doesn't match current version
       migrate: (persistedState, version) => {
         // Keep migration logs in production - they're useful for debugging user issues
-        console.log(`[InventoryStore] Migrating from version ${version} to 2`)
-
-        // Version 1 -> 2: Reset inventory to get new devil d6 starter dice
-        if (version < 2) {
-          console.log('[InventoryStore] v1->v2: Resetting inventory for devil d6 starter dice')
-          // Return empty state - initializeStarterDice will populate fresh starter dice
-          return {
-            dice: [],
-            currency: {
-              coins: 0,
-              gems: 0,
-              standardTokens: 0,
-              premiumTokens: 0
-            },
-            assignments: {}
-          }
-        }
-
-        return persistedState as InventoryStore
+        console.log(`[InventoryStore] Migrating from version ${version} to 3`)
+        return migratePersistedInventoryState(persistedState, version) as InventoryStore
       },
 
       // Partial persistence (only save essential data)

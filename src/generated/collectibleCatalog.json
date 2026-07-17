@@ -1,0 +1,1894 @@
+{
+  "contractVersion": 1,
+  "items": [
+    {
+      "id": "adventurer-starter/d10/common@1",
+      "catalogKey": "adventurer-starter/d10/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "adventurer-starter",
+      "diceType": "d10",
+      "rarity": "common",
+      "assetVersionId": "adventurer-starter/d10/common@1/asset@1"
+    },
+    {
+      "id": "adventurer-starter/d12/common@1",
+      "catalogKey": "adventurer-starter/d12/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "adventurer-starter",
+      "diceType": "d12",
+      "rarity": "common",
+      "assetVersionId": "adventurer-starter/d12/common@1/asset@1"
+    },
+    {
+      "id": "adventurer-starter/d20/common@1",
+      "catalogKey": "adventurer-starter/d20/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "adventurer-starter",
+      "diceType": "d20",
+      "rarity": "common",
+      "assetVersionId": "adventurer-starter/d20/common@1/asset@1"
+    },
+    {
+      "id": "adventurer-starter/d4/common@1",
+      "catalogKey": "adventurer-starter/d4/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "adventurer-starter",
+      "diceType": "d4",
+      "rarity": "common",
+      "assetVersionId": "adventurer-starter/d4/common@1/asset@1"
+    },
+    {
+      "id": "adventurer-starter/d6/common@1",
+      "catalogKey": "adventurer-starter/d6/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "adventurer-starter",
+      "diceType": "d6",
+      "rarity": "common",
+      "assetVersionId": "adventurer-starter/d6/common@1/asset@1"
+    },
+    {
+      "id": "adventurer-starter/d8/common@1",
+      "catalogKey": "adventurer-starter/d8/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "adventurer-starter",
+      "diceType": "d8",
+      "rarity": "common",
+      "assetVersionId": "adventurer-starter/d8/common@1/asset@1"
+    },
+    {
+      "id": "celestial-gold/d10/epic@1",
+      "catalogKey": "celestial-gold/d10/epic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "celestial-gold",
+      "diceType": "d10",
+      "rarity": "epic",
+      "assetVersionId": "celestial-gold/d10/epic@1/asset@1"
+    },
+    {
+      "id": "celestial-gold/d12/epic@1",
+      "catalogKey": "celestial-gold/d12/epic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "celestial-gold",
+      "diceType": "d12",
+      "rarity": "epic",
+      "assetVersionId": "celestial-gold/d12/epic@1/asset@1"
+    },
+    {
+      "id": "celestial-gold/d20/epic@1",
+      "catalogKey": "celestial-gold/d20/epic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "celestial-gold",
+      "diceType": "d20",
+      "rarity": "epic",
+      "assetVersionId": "celestial-gold/d20/epic@1/asset@1"
+    },
+    {
+      "id": "celestial-gold/d4/epic@1",
+      "catalogKey": "celestial-gold/d4/epic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "celestial-gold",
+      "diceType": "d4",
+      "rarity": "epic",
+      "assetVersionId": "celestial-gold/d4/epic@1/asset@1"
+    },
+    {
+      "id": "celestial-gold/d6/epic@1",
+      "catalogKey": "celestial-gold/d6/epic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "celestial-gold",
+      "diceType": "d6",
+      "rarity": "epic",
+      "assetVersionId": "celestial-gold/d6/epic@1/asset@1"
+    },
+    {
+      "id": "celestial-gold/d8/epic@1",
+      "catalogKey": "celestial-gold/d8/epic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "celestial-gold",
+      "diceType": "d8",
+      "rarity": "epic",
+      "assetVersionId": "celestial-gold/d8/epic@1/asset@1"
+    },
+    {
+      "id": "devil-set/devil-d6@1",
+      "catalogKey": "devil-set/devil-d6",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "devil-set",
+      "diceType": "d6",
+      "rarity": "rare",
+      "assetVersionId": "devil-set/devil-d6@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d10/common@1",
+      "catalogKey": "dragon-jade/d10/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d10",
+      "rarity": "common",
+      "assetVersionId": "dragon-jade/d10/common@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d10/rare@1",
+      "catalogKey": "dragon-jade/d10/rare",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d10",
+      "rarity": "rare",
+      "assetVersionId": "dragon-jade/d10/rare@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d10/uncommon@1",
+      "catalogKey": "dragon-jade/d10/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d10",
+      "rarity": "uncommon",
+      "assetVersionId": "dragon-jade/d10/uncommon@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d12/common@1",
+      "catalogKey": "dragon-jade/d12/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d12",
+      "rarity": "common",
+      "assetVersionId": "dragon-jade/d12/common@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d12/rare@1",
+      "catalogKey": "dragon-jade/d12/rare",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d12",
+      "rarity": "rare",
+      "assetVersionId": "dragon-jade/d12/rare@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d12/uncommon@1",
+      "catalogKey": "dragon-jade/d12/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d12",
+      "rarity": "uncommon",
+      "assetVersionId": "dragon-jade/d12/uncommon@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d20/common@1",
+      "catalogKey": "dragon-jade/d20/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d20",
+      "rarity": "common",
+      "assetVersionId": "dragon-jade/d20/common@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d20/rare@1",
+      "catalogKey": "dragon-jade/d20/rare",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d20",
+      "rarity": "rare",
+      "assetVersionId": "dragon-jade/d20/rare@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d20/uncommon@1",
+      "catalogKey": "dragon-jade/d20/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d20",
+      "rarity": "uncommon",
+      "assetVersionId": "dragon-jade/d20/uncommon@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d4/common@1",
+      "catalogKey": "dragon-jade/d4/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d4",
+      "rarity": "common",
+      "assetVersionId": "dragon-jade/d4/common@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d4/rare@1",
+      "catalogKey": "dragon-jade/d4/rare",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d4",
+      "rarity": "rare",
+      "assetVersionId": "dragon-jade/d4/rare@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d4/uncommon@1",
+      "catalogKey": "dragon-jade/d4/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d4",
+      "rarity": "uncommon",
+      "assetVersionId": "dragon-jade/d4/uncommon@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d6/common@1",
+      "catalogKey": "dragon-jade/d6/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d6",
+      "rarity": "common",
+      "assetVersionId": "dragon-jade/d6/common@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d6/rare@1",
+      "catalogKey": "dragon-jade/d6/rare",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d6",
+      "rarity": "rare",
+      "assetVersionId": "dragon-jade/d6/rare@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d6/uncommon@1",
+      "catalogKey": "dragon-jade/d6/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d6",
+      "rarity": "uncommon",
+      "assetVersionId": "dragon-jade/d6/uncommon@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d8/common@1",
+      "catalogKey": "dragon-jade/d8/common",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d8",
+      "rarity": "common",
+      "assetVersionId": "dragon-jade/d8/common@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d8/rare@1",
+      "catalogKey": "dragon-jade/d8/rare",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d8",
+      "rarity": "rare",
+      "assetVersionId": "dragon-jade/d8/rare@1/asset@1"
+    },
+    {
+      "id": "dragon-jade/d8/uncommon@1",
+      "catalogKey": "dragon-jade/d8/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dragon-jade",
+      "diceType": "d8",
+      "rarity": "uncommon",
+      "assetVersionId": "dragon-jade/d8/uncommon@1/asset@1"
+    },
+    {
+      "id": "infernal-obsidian/d10/mythic@1",
+      "catalogKey": "infernal-obsidian/d10/mythic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "infernal-obsidian",
+      "diceType": "d10",
+      "rarity": "mythic",
+      "assetVersionId": "infernal-obsidian/d10/mythic@1/asset@1"
+    },
+    {
+      "id": "infernal-obsidian/d12/mythic@1",
+      "catalogKey": "infernal-obsidian/d12/mythic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "infernal-obsidian",
+      "diceType": "d12",
+      "rarity": "mythic",
+      "assetVersionId": "infernal-obsidian/d12/mythic@1/asset@1"
+    },
+    {
+      "id": "infernal-obsidian/d20/mythic@1",
+      "catalogKey": "infernal-obsidian/d20/mythic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "infernal-obsidian",
+      "diceType": "d20",
+      "rarity": "mythic",
+      "assetVersionId": "infernal-obsidian/d20/mythic@1/asset@1"
+    },
+    {
+      "id": "infernal-obsidian/d4/mythic@1",
+      "catalogKey": "infernal-obsidian/d4/mythic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "infernal-obsidian",
+      "diceType": "d4",
+      "rarity": "mythic",
+      "assetVersionId": "infernal-obsidian/d4/mythic@1/asset@1"
+    },
+    {
+      "id": "infernal-obsidian/d6/mythic@1",
+      "catalogKey": "infernal-obsidian/d6/mythic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "infernal-obsidian",
+      "diceType": "d6",
+      "rarity": "mythic",
+      "assetVersionId": "infernal-obsidian/d6/mythic@1/asset@1"
+    },
+    {
+      "id": "infernal-obsidian/d8/mythic@1",
+      "catalogKey": "infernal-obsidian/d8/mythic",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "infernal-obsidian",
+      "diceType": "d8",
+      "rarity": "mythic",
+      "assetVersionId": "infernal-obsidian/d8/mythic@1/asset@1"
+    },
+    {
+      "id": "lucky-bronze/d10/uncommon@1",
+      "catalogKey": "lucky-bronze/d10/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "lucky-bronze",
+      "diceType": "d10",
+      "rarity": "uncommon",
+      "assetVersionId": "lucky-bronze/d10/uncommon@1/asset@1"
+    },
+    {
+      "id": "lucky-bronze/d12/uncommon@1",
+      "catalogKey": "lucky-bronze/d12/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "lucky-bronze",
+      "diceType": "d12",
+      "rarity": "uncommon",
+      "assetVersionId": "lucky-bronze/d12/uncommon@1/asset@1"
+    },
+    {
+      "id": "lucky-bronze/d20/uncommon@1",
+      "catalogKey": "lucky-bronze/d20/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "lucky-bronze",
+      "diceType": "d20",
+      "rarity": "uncommon",
+      "assetVersionId": "lucky-bronze/d20/uncommon@1/asset@1"
+    },
+    {
+      "id": "lucky-bronze/d4/uncommon@1",
+      "catalogKey": "lucky-bronze/d4/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "lucky-bronze",
+      "diceType": "d4",
+      "rarity": "uncommon",
+      "assetVersionId": "lucky-bronze/d4/uncommon@1/asset@1"
+    },
+    {
+      "id": "lucky-bronze/d6/uncommon@1",
+      "catalogKey": "lucky-bronze/d6/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "lucky-bronze",
+      "diceType": "d6",
+      "rarity": "uncommon",
+      "assetVersionId": "lucky-bronze/d6/uncommon@1/asset@1"
+    },
+    {
+      "id": "lucky-bronze/d8/uncommon@1",
+      "catalogKey": "lucky-bronze/d8/uncommon",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "lucky-bronze",
+      "diceType": "d8",
+      "rarity": "uncommon",
+      "assetVersionId": "lucky-bronze/d8/uncommon@1/asset@1"
+    },
+    {
+      "id": "materials-lab/rubber-d20@1",
+      "catalogKey": "materials-lab/rubber-d20",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "materials-lab",
+      "diceType": "d20",
+      "rarity": "rare",
+      "assetVersionId": "materials-lab/rubber-d20@1/asset@1"
+    },
+    {
+      "id": "materials-lab/steel-d20@1",
+      "catalogKey": "materials-lab/steel-d20",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "materials-lab",
+      "diceType": "d20",
+      "rarity": "rare",
+      "assetVersionId": "materials-lab/steel-d20@1/asset@1"
+    },
+    {
+      "id": "void-crystal/d10/legendary@1",
+      "catalogKey": "void-crystal/d10/legendary",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "void-crystal",
+      "diceType": "d10",
+      "rarity": "legendary",
+      "assetVersionId": "void-crystal/d10/legendary@1/asset@1"
+    },
+    {
+      "id": "void-crystal/d12/legendary@1",
+      "catalogKey": "void-crystal/d12/legendary",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "void-crystal",
+      "diceType": "d12",
+      "rarity": "legendary",
+      "assetVersionId": "void-crystal/d12/legendary@1/asset@1"
+    },
+    {
+      "id": "void-crystal/d20/legendary@1",
+      "catalogKey": "void-crystal/d20/legendary",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "void-crystal",
+      "diceType": "d20",
+      "rarity": "legendary",
+      "assetVersionId": "void-crystal/d20/legendary@1/asset@1"
+    },
+    {
+      "id": "void-crystal/d4/legendary@1",
+      "catalogKey": "void-crystal/d4/legendary",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "void-crystal",
+      "diceType": "d4",
+      "rarity": "legendary",
+      "assetVersionId": "void-crystal/d4/legendary@1/asset@1"
+    },
+    {
+      "id": "void-crystal/d6/legendary@1",
+      "catalogKey": "void-crystal/d6/legendary",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "void-crystal",
+      "diceType": "d6",
+      "rarity": "legendary",
+      "assetVersionId": "void-crystal/d6/legendary@1/asset@1"
+    },
+    {
+      "id": "void-crystal/d8/legendary@1",
+      "catalogKey": "void-crystal/d8/legendary",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "void-crystal",
+      "diceType": "d8",
+      "rarity": "legendary",
+      "assetVersionId": "void-crystal/d8/legendary@1/asset@1"
+    }
+  ],
+  "assetVersions": [
+    {
+      "id": "adventurer-starter/d10/common@1/asset@1",
+      "catalogItemId": "adventurer-starter/d10/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d10",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Adventurer's Starter Set D10",
+        "description": "A reliable set of dice for every aspiring adventurer. Simple, practical, and ready for any quest.",
+        "appearance": {
+          "baseColor": "#3b82f6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "0d9a13c362e510d5df552e4779dda818e3f8060df2ec8acc6c23da87691151a7"
+    },
+    {
+      "id": "adventurer-starter/d12/common@1/asset@1",
+      "catalogItemId": "adventurer-starter/d12/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d12",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Adventurer's Starter Set D12",
+        "description": "A reliable set of dice for every aspiring adventurer. Simple, practical, and ready for any quest.",
+        "appearance": {
+          "baseColor": "#3b82f6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "e756055ba5df7809b9d77e10212a5f0c11f211175489d608a75ab14e5a56063f"
+    },
+    {
+      "id": "adventurer-starter/d20/common@1/asset@1",
+      "catalogItemId": "adventurer-starter/d20/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d20",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Adventurer's Starter Set D20",
+        "description": "A reliable set of dice for every aspiring adventurer. Simple, practical, and ready for any quest.",
+        "appearance": {
+          "baseColor": "#3b82f6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "0909e7381dde270ab832011b3cc80a1bb4be9b422df6feb311167d4032c2e837"
+    },
+    {
+      "id": "adventurer-starter/d4/common@1/asset@1",
+      "catalogItemId": "adventurer-starter/d4/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d4",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Adventurer's Starter Set D4",
+        "description": "A reliable set of dice for every aspiring adventurer. Simple, practical, and ready for any quest.",
+        "appearance": {
+          "baseColor": "#3b82f6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "073e3b2824b59c0d570da438df20f3b227abecb914e94af927f4f44f85884ec5"
+    },
+    {
+      "id": "adventurer-starter/d6/common@1/asset@1",
+      "catalogItemId": "adventurer-starter/d6/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d6",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Adventurer's Starter Set D6",
+        "description": "A reliable set of dice for every aspiring adventurer. Simple, practical, and ready for any quest.",
+        "appearance": {
+          "baseColor": "#3b82f6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "fe191b8859017b782550836739241b357df791fa901de3fc7dc3435b72000b99"
+    },
+    {
+      "id": "adventurer-starter/d8/common@1/asset@1",
+      "catalogItemId": "adventurer-starter/d8/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d8",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Adventurer's Starter Set D8",
+        "description": "A reliable set of dice for every aspiring adventurer. Simple, practical, and ready for any quest.",
+        "appearance": {
+          "baseColor": "#3b82f6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "71948e409dabd03b24f0b64ab3f773c18c11032275146564ad339a0efa62bc86"
+    },
+    {
+      "id": "celestial-gold/d10/epic@1/asset@1",
+      "catalogItemId": "celestial-gold/d10/epic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d10",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Celestial Gold Collection D10",
+        "description": "Forged from stardust and divine essence, these golden dice shimmer with otherworldly radiance.",
+        "appearance": {
+          "baseColor": "#fbbf24",
+          "accentColor": "#78350f",
+          "material": "metal",
+          "metalness": 0.95,
+          "roughness": 0.15,
+          "emissive": "#fef3c7",
+          "emissiveIntensity": 0.3
+        },
+        "vfx": {
+          "trailEffect": "golden-sparkles",
+          "impactEffect": "light-burst",
+          "rollSound": "metal_divine",
+          "criticalAnimation": "celestial-beam"
+        }
+      },
+      "metadataSha256": "4f4a024d8fc8625625ed674786e4b4e9ea632f9b3cce3135d171c2c30bdbd032"
+    },
+    {
+      "id": "celestial-gold/d12/epic@1/asset@1",
+      "catalogItemId": "celestial-gold/d12/epic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d12",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Celestial Gold Collection D12",
+        "description": "Forged from stardust and divine essence, these golden dice shimmer with otherworldly radiance.",
+        "appearance": {
+          "baseColor": "#fbbf24",
+          "accentColor": "#78350f",
+          "material": "metal",
+          "metalness": 0.95,
+          "roughness": 0.15,
+          "emissive": "#fef3c7",
+          "emissiveIntensity": 0.3
+        },
+        "vfx": {
+          "trailEffect": "golden-sparkles",
+          "impactEffect": "light-burst",
+          "rollSound": "metal_divine",
+          "criticalAnimation": "celestial-beam"
+        }
+      },
+      "metadataSha256": "f9fc373be241664ff32d54d1980e21c14f68d33295ac8e6c56e829940c6abad8"
+    },
+    {
+      "id": "celestial-gold/d20/epic@1/asset@1",
+      "catalogItemId": "celestial-gold/d20/epic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d20",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Celestial Gold Collection D20",
+        "description": "Forged from stardust and divine essence, these golden dice shimmer with otherworldly radiance.",
+        "appearance": {
+          "baseColor": "#fbbf24",
+          "accentColor": "#78350f",
+          "material": "metal",
+          "metalness": 0.95,
+          "roughness": 0.15,
+          "emissive": "#fef3c7",
+          "emissiveIntensity": 0.3
+        },
+        "vfx": {
+          "trailEffect": "golden-sparkles",
+          "impactEffect": "light-burst",
+          "rollSound": "metal_divine",
+          "criticalAnimation": "celestial-beam"
+        }
+      },
+      "metadataSha256": "94c09baf5e124e722943577352443bc459de80e8f33c61e64058134f4c9f5417"
+    },
+    {
+      "id": "celestial-gold/d4/epic@1/asset@1",
+      "catalogItemId": "celestial-gold/d4/epic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d4",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Celestial Gold Collection D4",
+        "description": "Forged from stardust and divine essence, these golden dice shimmer with otherworldly radiance.",
+        "appearance": {
+          "baseColor": "#fbbf24",
+          "accentColor": "#78350f",
+          "material": "metal",
+          "metalness": 0.95,
+          "roughness": 0.15,
+          "emissive": "#fef3c7",
+          "emissiveIntensity": 0.3
+        },
+        "vfx": {
+          "trailEffect": "golden-sparkles",
+          "impactEffect": "light-burst",
+          "rollSound": "metal_divine",
+          "criticalAnimation": "celestial-beam"
+        }
+      },
+      "metadataSha256": "6cd595bcbbbfa33617f26f2c890df2d62752a15266ff3fff944950030d740395"
+    },
+    {
+      "id": "celestial-gold/d6/epic@1/asset@1",
+      "catalogItemId": "celestial-gold/d6/epic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d6",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Celestial Gold Collection D6",
+        "description": "Forged from stardust and divine essence, these golden dice shimmer with otherworldly radiance.",
+        "appearance": {
+          "baseColor": "#fbbf24",
+          "accentColor": "#78350f",
+          "material": "metal",
+          "metalness": 0.95,
+          "roughness": 0.15,
+          "emissive": "#fef3c7",
+          "emissiveIntensity": 0.3
+        },
+        "vfx": {
+          "trailEffect": "golden-sparkles",
+          "impactEffect": "light-burst",
+          "rollSound": "metal_divine",
+          "criticalAnimation": "celestial-beam"
+        }
+      },
+      "metadataSha256": "52ddf44860bdebc4a82d65d68151e8876aa0a38260e9546348a1875ac8650f19"
+    },
+    {
+      "id": "celestial-gold/d8/epic@1/asset@1",
+      "catalogItemId": "celestial-gold/d8/epic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d8",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Celestial Gold Collection D8",
+        "description": "Forged from stardust and divine essence, these golden dice shimmer with otherworldly radiance.",
+        "appearance": {
+          "baseColor": "#fbbf24",
+          "accentColor": "#78350f",
+          "material": "metal",
+          "metalness": 0.95,
+          "roughness": 0.15,
+          "emissive": "#fef3c7",
+          "emissiveIntensity": 0.3
+        },
+        "vfx": {
+          "trailEffect": "golden-sparkles",
+          "impactEffect": "light-burst",
+          "rollSound": "metal_divine",
+          "criticalAnimation": "celestial-beam"
+        }
+      },
+      "metadataSha256": "e99c99c5cdc59670efff5e74e1c36f513e7dc0915781825ce3ee275eac2ab8f2"
+    },
+    {
+      "id": "devil-set/devil-d6@1/asset@1",
+      "catalogItemId": "devil-set/devil-d6@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/devil-set/devil-d6/model.glb",
+      "modelSha256": "eaec6b31e73ff33ba9ee4aa8094f530d7d715d5453afe88204d0bd033559dc72",
+      "metadata": {
+        "source": "production",
+        "name": "Devil D6",
+        "description": "A fiery die from the Devil Collection",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d6",
+          "name": "Devil D6",
+          "artist": "Zabi",
+          "created": "2025-12-08",
+          "scale": 0.4,
+          "rarity": "rare",
+          "description": "A fiery die from the Devil Collection",
+          "setId": "devil-set",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0.19944679289912032,
+                0.3543332366985917,
+                0.9136021750045012
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.8471490184729035,
+                -0.5141427188065125,
+                0.13414844463743922
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                -0.03203371138028793,
+                -0.9994514461355557,
+                0.008405245549706689
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.26567059240604196,
+                0.9640638341443597,
+                -0.0002450010189993582
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.9864952371565209,
+                -0.0021288041269176493,
+                0.16377611321706467
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.15573002002007064,
+                -0.08028842700476305,
+                -0.9845313247193558
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.2,
+            "restitution": 0.4,
+            "friction": 0.6
+          },
+          "colliderType": "roundCuboid",
+          "colliderArgs": {
+            "halfExtents": [
+              0.5,
+              0.5,
+              0.5
+            ],
+            "borderRadius": 0.08
+          }
+        }
+      },
+      "metadataSha256": "3f50fe68cfcf71cc3d60fe9f888fbdcf4c731b2788aec735dde672446d49c617"
+    },
+    {
+      "id": "dragon-jade/d10/common@1/asset@1",
+      "catalogItemId": "dragon-jade/d10/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d10",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D10",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#10b981",
+          "accentColor": "#ffffff",
+          "material": "stone",
+          "roughness": 0.6
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "8315f0cb86e8a10fe41ee4fc2fe047828ad6f24307675d71db8becf94abd7296"
+    },
+    {
+      "id": "dragon-jade/d10/rare@1/asset@1",
+      "catalogItemId": "dragon-jade/d10/rare@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d10",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D10",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#047857",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.4,
+          "emissive": "#10b981",
+          "emissiveIntensity": 0.2
+        },
+        "vfx": {
+          "trailEffect": "dragon-scales",
+          "impactEffect": "jade-shatter",
+          "rollSound": "stone_mystical",
+          "criticalAnimation": "dragon-roar"
+        }
+      },
+      "metadataSha256": "d0598b5d0c27f873c86612c9178a40dbfaa3ee123d97587517f6e9d7ef03cda3"
+    },
+    {
+      "id": "dragon-jade/d10/uncommon@1/asset@1",
+      "catalogItemId": "dragon-jade/d10/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d10",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D10",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#059669",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.5
+        },
+        "vfx": {
+          "trailEffect": "sparkles"
+        }
+      },
+      "metadataSha256": "d840c742c763bc52e7de3e7c7279f2f7174d040810934b51c2be0f7a1aec96c5"
+    },
+    {
+      "id": "dragon-jade/d12/common@1/asset@1",
+      "catalogItemId": "dragon-jade/d12/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d12",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D12",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#10b981",
+          "accentColor": "#ffffff",
+          "material": "stone",
+          "roughness": 0.6
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "c67220621e6f98e2fde89da105c2e50b41d63c0c8968bf71c9187b9256931bd7"
+    },
+    {
+      "id": "dragon-jade/d12/rare@1/asset@1",
+      "catalogItemId": "dragon-jade/d12/rare@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d12",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D12",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#047857",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.4,
+          "emissive": "#10b981",
+          "emissiveIntensity": 0.2
+        },
+        "vfx": {
+          "trailEffect": "dragon-scales",
+          "impactEffect": "jade-shatter",
+          "rollSound": "stone_mystical",
+          "criticalAnimation": "dragon-roar"
+        }
+      },
+      "metadataSha256": "c8b87364e800778de9d32c0c83b603c11a72c4b11d8f72b6cf0411c3eca59ac7"
+    },
+    {
+      "id": "dragon-jade/d12/uncommon@1/asset@1",
+      "catalogItemId": "dragon-jade/d12/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d12",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D12",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#059669",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.5
+        },
+        "vfx": {
+          "trailEffect": "sparkles"
+        }
+      },
+      "metadataSha256": "2a7c21103ec22a2f2b6462a0876d38ee8b0ab69b4ec27927bc7528f9664aa31f"
+    },
+    {
+      "id": "dragon-jade/d20/common@1/asset@1",
+      "catalogItemId": "dragon-jade/d20/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d20",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D20",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#10b981",
+          "accentColor": "#ffffff",
+          "material": "stone",
+          "roughness": 0.6
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "0f0334a848d224d6ff003a5b3a4efc55e5638bbdffa0cce2c96a82c8771c29bb"
+    },
+    {
+      "id": "dragon-jade/d20/rare@1/asset@1",
+      "catalogItemId": "dragon-jade/d20/rare@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d20",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D20",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#047857",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.4,
+          "emissive": "#10b981",
+          "emissiveIntensity": 0.2
+        },
+        "vfx": {
+          "trailEffect": "dragon-scales",
+          "impactEffect": "jade-shatter",
+          "rollSound": "stone_mystical",
+          "criticalAnimation": "dragon-roar"
+        }
+      },
+      "metadataSha256": "b239a6c6cd861bbdba984c9ef2ffa2130d56e45a997b21ac098044825fd54675"
+    },
+    {
+      "id": "dragon-jade/d20/uncommon@1/asset@1",
+      "catalogItemId": "dragon-jade/d20/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d20",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D20",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#059669",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.5
+        },
+        "vfx": {
+          "trailEffect": "sparkles"
+        }
+      },
+      "metadataSha256": "df314ada43b4a5f66530a1dea6002439c56cdc2072dabce7da79138c8bdd9231"
+    },
+    {
+      "id": "dragon-jade/d4/common@1/asset@1",
+      "catalogItemId": "dragon-jade/d4/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d4",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D4",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#10b981",
+          "accentColor": "#ffffff",
+          "material": "stone",
+          "roughness": 0.6
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "a9cd65cef2f4c8f874686cea219852382ab5458bf36279e85e73a0f5947583b0"
+    },
+    {
+      "id": "dragon-jade/d4/rare@1/asset@1",
+      "catalogItemId": "dragon-jade/d4/rare@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d4",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D4",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#047857",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.4,
+          "emissive": "#10b981",
+          "emissiveIntensity": 0.2
+        },
+        "vfx": {
+          "trailEffect": "dragon-scales",
+          "impactEffect": "jade-shatter",
+          "rollSound": "stone_mystical",
+          "criticalAnimation": "dragon-roar"
+        }
+      },
+      "metadataSha256": "6076ab24fc3b080ed30839ad5bba6f52ebbfdf4a56f5128be0b977cab4e74295"
+    },
+    {
+      "id": "dragon-jade/d4/uncommon@1/asset@1",
+      "catalogItemId": "dragon-jade/d4/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d4",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D4",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#059669",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.5
+        },
+        "vfx": {
+          "trailEffect": "sparkles"
+        }
+      },
+      "metadataSha256": "c0ae488b26bbe3e5adfa4d6bf8a243d48c22e281dff38c793bbdde37339fe172"
+    },
+    {
+      "id": "dragon-jade/d6/common@1/asset@1",
+      "catalogItemId": "dragon-jade/d6/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d6",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D6",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#10b981",
+          "accentColor": "#ffffff",
+          "material": "stone",
+          "roughness": 0.6
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "673af9e364086a80a368b99fd760b87361f5c21b8f782cc911b7278262f01199"
+    },
+    {
+      "id": "dragon-jade/d6/rare@1/asset@1",
+      "catalogItemId": "dragon-jade/d6/rare@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d6",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D6",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#047857",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.4,
+          "emissive": "#10b981",
+          "emissiveIntensity": 0.2
+        },
+        "vfx": {
+          "trailEffect": "dragon-scales",
+          "impactEffect": "jade-shatter",
+          "rollSound": "stone_mystical",
+          "criticalAnimation": "dragon-roar"
+        }
+      },
+      "metadataSha256": "87f71bd1567c6d5f06f24dde53ecc24eb391fce3fac422f6a9fccbf57ab94747"
+    },
+    {
+      "id": "dragon-jade/d6/uncommon@1/asset@1",
+      "catalogItemId": "dragon-jade/d6/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d6",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D6",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#059669",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.5
+        },
+        "vfx": {
+          "trailEffect": "sparkles"
+        }
+      },
+      "metadataSha256": "e6910384b37c5f730decd7b7376f1249d8bbc127b5c7fe6eff5b53b60164430e"
+    },
+    {
+      "id": "dragon-jade/d8/common@1/asset@1",
+      "catalogItemId": "dragon-jade/d8/common@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d8",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D8",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#10b981",
+          "accentColor": "#ffffff",
+          "material": "stone",
+          "roughness": 0.6
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "e8eaffad2056ac76a7026821aa35c624e8927c3a3f5c59d54e8040add7a776a3"
+    },
+    {
+      "id": "dragon-jade/d8/rare@1/asset@1",
+      "catalogItemId": "dragon-jade/d8/rare@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d8",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D8",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#047857",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.4,
+          "emissive": "#10b981",
+          "emissiveIntensity": 0.2
+        },
+        "vfx": {
+          "trailEffect": "dragon-scales",
+          "impactEffect": "jade-shatter",
+          "rollSound": "stone_mystical",
+          "criticalAnimation": "dragon-roar"
+        }
+      },
+      "metadataSha256": "b465f8268b83ef43ff61aa2191cad01eeb4374e6e88cc7262863cef2186f7590"
+    },
+    {
+      "id": "dragon-jade/d8/uncommon@1/asset@1",
+      "catalogItemId": "dragon-jade/d8/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d8",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Dragon Jade Collection D8",
+        "description": "Carved from mystical jade, these dice pulse with ancient draconic energy. Each face tells a story of power and wisdom.",
+        "appearance": {
+          "baseColor": "#059669",
+          "accentColor": "#fbbf24",
+          "material": "stone",
+          "roughness": 0.5
+        },
+        "vfx": {
+          "trailEffect": "sparkles"
+        }
+      },
+      "metadataSha256": "d8eb509a63528b65df9562c0d1708612e19dc01378a1afaf9e90463a7800c41e"
+    },
+    {
+      "id": "infernal-obsidian/d10/mythic@1/asset@1",
+      "catalogItemId": "infernal-obsidian/d10/mythic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d10",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Infernal Obsidian Collection D10",
+        "description": "Forged in the depths of the underworld, these dice burn with eternal flame. Only the bravest dare roll them.",
+        "appearance": {
+          "baseColor": "#1f2937",
+          "accentColor": "#ef4444",
+          "material": "obsidian",
+          "metalness": 0.9,
+          "roughness": 0.1,
+          "emissive": "#ef4444",
+          "emissiveIntensity": 0.7
+        },
+        "vfx": {
+          "trailEffect": "flame-trail",
+          "impactEffect": "infernal-explosion",
+          "rollSound": "obsidian_demonic",
+          "criticalAnimation": "hellfire-eruption"
+        }
+      },
+      "metadataSha256": "1e714d30ef57ab324852fa473b1a7a200c7d2e707a70973d1730bbd3fd53f0a0"
+    },
+    {
+      "id": "infernal-obsidian/d12/mythic@1/asset@1",
+      "catalogItemId": "infernal-obsidian/d12/mythic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d12",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Infernal Obsidian Collection D12",
+        "description": "Forged in the depths of the underworld, these dice burn with eternal flame. Only the bravest dare roll them.",
+        "appearance": {
+          "baseColor": "#1f2937",
+          "accentColor": "#ef4444",
+          "material": "obsidian",
+          "metalness": 0.9,
+          "roughness": 0.1,
+          "emissive": "#ef4444",
+          "emissiveIntensity": 0.7
+        },
+        "vfx": {
+          "trailEffect": "flame-trail",
+          "impactEffect": "infernal-explosion",
+          "rollSound": "obsidian_demonic",
+          "criticalAnimation": "hellfire-eruption"
+        }
+      },
+      "metadataSha256": "90bb1ea912fbe9afd6b45692653bc3ffdfe42c4dd1629feaf2b2d09dd8e73c7a"
+    },
+    {
+      "id": "infernal-obsidian/d20/mythic@1/asset@1",
+      "catalogItemId": "infernal-obsidian/d20/mythic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d20",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Infernal Obsidian Collection D20",
+        "description": "Forged in the depths of the underworld, these dice burn with eternal flame. Only the bravest dare roll them.",
+        "appearance": {
+          "baseColor": "#1f2937",
+          "accentColor": "#ef4444",
+          "material": "obsidian",
+          "metalness": 0.9,
+          "roughness": 0.1,
+          "emissive": "#ef4444",
+          "emissiveIntensity": 0.7
+        },
+        "vfx": {
+          "trailEffect": "flame-trail",
+          "impactEffect": "infernal-explosion",
+          "rollSound": "obsidian_demonic",
+          "criticalAnimation": "hellfire-eruption"
+        }
+      },
+      "metadataSha256": "41491345d89c8106512454d303c2d2eaf5d463c5cc8a35db3d5e5739d9aa0175"
+    },
+    {
+      "id": "infernal-obsidian/d4/mythic@1/asset@1",
+      "catalogItemId": "infernal-obsidian/d4/mythic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d4",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Infernal Obsidian Collection D4",
+        "description": "Forged in the depths of the underworld, these dice burn with eternal flame. Only the bravest dare roll them.",
+        "appearance": {
+          "baseColor": "#1f2937",
+          "accentColor": "#ef4444",
+          "material": "obsidian",
+          "metalness": 0.9,
+          "roughness": 0.1,
+          "emissive": "#ef4444",
+          "emissiveIntensity": 0.7
+        },
+        "vfx": {
+          "trailEffect": "flame-trail",
+          "impactEffect": "infernal-explosion",
+          "rollSound": "obsidian_demonic",
+          "criticalAnimation": "hellfire-eruption"
+        }
+      },
+      "metadataSha256": "8136cd8b26d43b0b1d6966f7921f0e842a625a50c6a1c3e2efae7e599f55a4a0"
+    },
+    {
+      "id": "infernal-obsidian/d6/mythic@1/asset@1",
+      "catalogItemId": "infernal-obsidian/d6/mythic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d6",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Infernal Obsidian Collection D6",
+        "description": "Forged in the depths of the underworld, these dice burn with eternal flame. Only the bravest dare roll them.",
+        "appearance": {
+          "baseColor": "#1f2937",
+          "accentColor": "#ef4444",
+          "material": "obsidian",
+          "metalness": 0.9,
+          "roughness": 0.1,
+          "emissive": "#ef4444",
+          "emissiveIntensity": 0.7
+        },
+        "vfx": {
+          "trailEffect": "flame-trail",
+          "impactEffect": "infernal-explosion",
+          "rollSound": "obsidian_demonic",
+          "criticalAnimation": "hellfire-eruption"
+        }
+      },
+      "metadataSha256": "e5348a03215a248bbf06a192abe3cd28d7d1b66ac31843f292aa0d34627c3ab0"
+    },
+    {
+      "id": "infernal-obsidian/d8/mythic@1/asset@1",
+      "catalogItemId": "infernal-obsidian/d8/mythic@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d8",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Infernal Obsidian Collection D8",
+        "description": "Forged in the depths of the underworld, these dice burn with eternal flame. Only the bravest dare roll them.",
+        "appearance": {
+          "baseColor": "#1f2937",
+          "accentColor": "#ef4444",
+          "material": "obsidian",
+          "metalness": 0.9,
+          "roughness": 0.1,
+          "emissive": "#ef4444",
+          "emissiveIntensity": 0.7
+        },
+        "vfx": {
+          "trailEffect": "flame-trail",
+          "impactEffect": "infernal-explosion",
+          "rollSound": "obsidian_demonic",
+          "criticalAnimation": "hellfire-eruption"
+        }
+      },
+      "metadataSha256": "fd25eb11ad5ca34b59e22daa9dfa61e4bcecddebacb3df1246fe8d2cd32d7551"
+    },
+    {
+      "id": "lucky-bronze/d10/uncommon@1/asset@1",
+      "catalogItemId": "lucky-bronze/d10/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d10",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Lucky Bronze Collection D10",
+        "description": "Bronze dice with a subtle shimmer. Said to bring fortune to those who earn them through perseverance.",
+        "appearance": {
+          "baseColor": "#cd7f32",
+          "accentColor": "#ffd700",
+          "material": "metal",
+          "metalness": 0.8,
+          "roughness": 0.3
+        },
+        "vfx": {
+          "trailEffect": "sparkles",
+          "rollSound": "metal_light"
+        }
+      },
+      "metadataSha256": "b24ab793afae13c2370379801ed06bc2929345eb0adfcdc06884f3ce4c0bd1a5"
+    },
+    {
+      "id": "lucky-bronze/d12/uncommon@1/asset@1",
+      "catalogItemId": "lucky-bronze/d12/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d12",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Lucky Bronze Collection D12",
+        "description": "Bronze dice with a subtle shimmer. Said to bring fortune to those who earn them through perseverance.",
+        "appearance": {
+          "baseColor": "#cd7f32",
+          "accentColor": "#ffd700",
+          "material": "metal",
+          "metalness": 0.8,
+          "roughness": 0.3
+        },
+        "vfx": {
+          "trailEffect": "sparkles",
+          "rollSound": "metal_light"
+        }
+      },
+      "metadataSha256": "21889b298531111c5bfbe01324b1c38fdcbfc9fb6672c7acc4f514e03a811b5e"
+    },
+    {
+      "id": "lucky-bronze/d20/uncommon@1/asset@1",
+      "catalogItemId": "lucky-bronze/d20/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d20",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Lucky Bronze Collection D20",
+        "description": "Bronze dice with a subtle shimmer. Said to bring fortune to those who earn them through perseverance.",
+        "appearance": {
+          "baseColor": "#cd7f32",
+          "accentColor": "#ffd700",
+          "material": "metal",
+          "metalness": 0.8,
+          "roughness": 0.3
+        },
+        "vfx": {
+          "trailEffect": "sparkles",
+          "rollSound": "metal_light"
+        }
+      },
+      "metadataSha256": "313b2b31357facd33f6722578a98e815c32695e959defb80386fd8718e1270ab"
+    },
+    {
+      "id": "lucky-bronze/d4/uncommon@1/asset@1",
+      "catalogItemId": "lucky-bronze/d4/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d4",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Lucky Bronze Collection D4",
+        "description": "Bronze dice with a subtle shimmer. Said to bring fortune to those who earn them through perseverance.",
+        "appearance": {
+          "baseColor": "#cd7f32",
+          "accentColor": "#ffd700",
+          "material": "metal",
+          "metalness": 0.8,
+          "roughness": 0.3
+        },
+        "vfx": {
+          "trailEffect": "sparkles",
+          "rollSound": "metal_light"
+        }
+      },
+      "metadataSha256": "0760d75e887482f262910c48277263480e045c507c482ac634c6d25b644d1e57"
+    },
+    {
+      "id": "lucky-bronze/d6/uncommon@1/asset@1",
+      "catalogItemId": "lucky-bronze/d6/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d6",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Lucky Bronze Collection D6",
+        "description": "Bronze dice with a subtle shimmer. Said to bring fortune to those who earn them through perseverance.",
+        "appearance": {
+          "baseColor": "#cd7f32",
+          "accentColor": "#ffd700",
+          "material": "metal",
+          "metalness": 0.8,
+          "roughness": 0.3
+        },
+        "vfx": {
+          "trailEffect": "sparkles",
+          "rollSound": "metal_light"
+        }
+      },
+      "metadataSha256": "70a4388f58c9d1e90b6a680a6e999603b090238b674a4bb184252797a960fdf1"
+    },
+    {
+      "id": "lucky-bronze/d8/uncommon@1/asset@1",
+      "catalogItemId": "lucky-bronze/d8/uncommon@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d8",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Lucky Bronze Collection D8",
+        "description": "Bronze dice with a subtle shimmer. Said to bring fortune to those who earn them through perseverance.",
+        "appearance": {
+          "baseColor": "#cd7f32",
+          "accentColor": "#ffd700",
+          "material": "metal",
+          "metalness": 0.8,
+          "roughness": 0.3
+        },
+        "vfx": {
+          "trailEffect": "sparkles",
+          "rollSound": "metal_light"
+        }
+      },
+      "metadataSha256": "3e3d47b1588bd931b26a6a2ce23750375211d09a289bb60f455a30b09ff7b0eb"
+    },
+    {
+      "id": "materials-lab/rubber-d20@1/asset@1",
+      "catalogItemId": "materials-lab/rubber-d20@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d20",
+      "modelSha256": null,
+      "metadata": {
+        "source": "standalone",
+        "name": "Rubber d20",
+        "description": "A rubber d20 — feel how a rubber die rolls and bounces under this gravity.",
+        "appearance": {
+          "baseColor": "#e9d5ff",
+          "accentColor": "#ffffff",
+          "material": "rubber",
+          "metalness": 0,
+          "roughness": 0.95
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "2a849a9f0c13a6fb285a7c2472c4ed9ec36e47a2acc8431539d311f076c66b92"
+    },
+    {
+      "id": "materials-lab/steel-d20@1/asset@1",
+      "catalogItemId": "materials-lab/steel-d20@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d20",
+      "modelSha256": null,
+      "metadata": {
+        "source": "standalone",
+        "name": "Steel d20",
+        "description": "A metal d20 — feel how a metal die rolls and bounces under this gravity.",
+        "appearance": {
+          "baseColor": "#c2c7cf",
+          "accentColor": "#ffffff",
+          "material": "metal",
+          "metalness": 1,
+          "roughness": 0.28
+        },
+        "vfx": {}
+      },
+      "metadataSha256": "457ca62b80fc5c78dd3f019e029fbb8e19beffb434581f66692ca05da47856d5"
+    },
+    {
+      "id": "void-crystal/d10/legendary@1/asset@1",
+      "catalogItemId": "void-crystal/d10/legendary@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d10",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Void Crystal Collection D10",
+        "description": "Crystalline dice that reflect the infinite depths of the cosmos. Reality bends around them as they tumble.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#e9d5ff",
+          "material": "crystal",
+          "metalness": 0.1,
+          "roughness": 0.05,
+          "emissive": "#8b5cf6",
+          "emissiveIntensity": 0.5
+        },
+        "vfx": {
+          "trailEffect": "void-particles",
+          "impactEffect": "reality-crack",
+          "rollSound": "crystal_ethereal",
+          "criticalAnimation": "void-collapse"
+        }
+      },
+      "metadataSha256": "296648f936d70f58c461790e1cc57124d4cae6172683269168979688c6fcd9b3"
+    },
+    {
+      "id": "void-crystal/d12/legendary@1/asset@1",
+      "catalogItemId": "void-crystal/d12/legendary@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d12",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Void Crystal Collection D12",
+        "description": "Crystalline dice that reflect the infinite depths of the cosmos. Reality bends around them as they tumble.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#e9d5ff",
+          "material": "crystal",
+          "metalness": 0.1,
+          "roughness": 0.05,
+          "emissive": "#8b5cf6",
+          "emissiveIntensity": 0.5
+        },
+        "vfx": {
+          "trailEffect": "void-particles",
+          "impactEffect": "reality-crack",
+          "rollSound": "crystal_ethereal",
+          "criticalAnimation": "void-collapse"
+        }
+      },
+      "metadataSha256": "c2b4b953749025a5b1860608a4176d9629a44915fb2c22d66263164c8dad5909"
+    },
+    {
+      "id": "void-crystal/d20/legendary@1/asset@1",
+      "catalogItemId": "void-crystal/d20/legendary@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d20",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Void Crystal Collection D20",
+        "description": "Crystalline dice that reflect the infinite depths of the cosmos. Reality bends around them as they tumble.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#e9d5ff",
+          "material": "crystal",
+          "metalness": 0.1,
+          "roughness": 0.05,
+          "emissive": "#8b5cf6",
+          "emissiveIntensity": 0.5
+        },
+        "vfx": {
+          "trailEffect": "void-particles",
+          "impactEffect": "reality-crack",
+          "rollSound": "crystal_ethereal",
+          "criticalAnimation": "void-collapse"
+        }
+      },
+      "metadataSha256": "b14746d8818e4af76a43ff2f6d1d69a62b0d5dd5cf8cf42cc87474deb01af78d"
+    },
+    {
+      "id": "void-crystal/d4/legendary@1/asset@1",
+      "catalogItemId": "void-crystal/d4/legendary@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d4",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Void Crystal Collection D4",
+        "description": "Crystalline dice that reflect the infinite depths of the cosmos. Reality bends around them as they tumble.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#e9d5ff",
+          "material": "crystal",
+          "metalness": 0.1,
+          "roughness": 0.05,
+          "emissive": "#8b5cf6",
+          "emissiveIntensity": 0.5
+        },
+        "vfx": {
+          "trailEffect": "void-particles",
+          "impactEffect": "reality-crack",
+          "rollSound": "crystal_ethereal",
+          "criticalAnimation": "void-collapse"
+        }
+      },
+      "metadataSha256": "c1a008dc692e1a057f160594d7dacf4be316e10eda7cdd677358f6011e99ff8d"
+    },
+    {
+      "id": "void-crystal/d6/legendary@1/asset@1",
+      "catalogItemId": "void-crystal/d6/legendary@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d6",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Void Crystal Collection D6",
+        "description": "Crystalline dice that reflect the infinite depths of the cosmos. Reality bends around them as they tumble.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#e9d5ff",
+          "material": "crystal",
+          "metalness": 0.1,
+          "roughness": 0.05,
+          "emissive": "#8b5cf6",
+          "emissiveIntensity": 0.5
+        },
+        "vfx": {
+          "trailEffect": "void-particles",
+          "impactEffect": "reality-crack",
+          "rollSound": "crystal_ethereal",
+          "criticalAnimation": "void-collapse"
+        }
+      },
+      "metadataSha256": "77b2aee148c95e822f95d6e3b1745c26e413cb2063bb8542c49fb1dfd8dc16fe"
+    },
+    {
+      "id": "void-crystal/d8/legendary@1/asset@1",
+      "catalogItemId": "void-crystal/d8/legendary@1",
+      "assetVersion": 1,
+      "assetKind": "builtin",
+      "modelPath": "builtin:d8",
+      "modelSha256": null,
+      "metadata": {
+        "source": "configured",
+        "name": "Void Crystal Collection D8",
+        "description": "Crystalline dice that reflect the infinite depths of the cosmos. Reality bends around them as they tumble.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#e9d5ff",
+          "material": "crystal",
+          "metalness": 0.1,
+          "roughness": 0.05,
+          "emissive": "#8b5cf6",
+          "emissiveIntensity": 0.5
+        },
+        "vfx": {
+          "trailEffect": "void-particles",
+          "impactEffect": "reality-crack",
+          "rollSound": "crystal_ethereal",
+          "criticalAnimation": "void-collapse"
+        }
+      },
+      "metadataSha256": "383732dbdb4ddc7ea75aad1221a8450ba115fd820b8b88d212f2871ce03c4832"
+    }
+  ]
+}

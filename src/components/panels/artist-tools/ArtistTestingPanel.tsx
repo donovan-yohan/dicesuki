@@ -223,6 +223,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       source: 'event', // Artist submissions are special events
       customAsset: {
         modelUrl: blobUrl,
+        storage: 'indexeddb',
         metadata: uploadState.metadata,
       },
     })

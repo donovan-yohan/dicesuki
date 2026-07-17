@@ -29,7 +29,7 @@ use tokio::sync::RwLock;
 
 /// Default Supabase project (public-safe id, per ADR 006). Overridable via
 /// `SUPABASE_URL` for a different project or a self-hosted instance.
-const DEFAULT_SUPABASE_URL: &str = "https://htsgornelumjyjwknwby.supabase.co";
+const DEFAULT_SUPABASE_URL: &str = "https://nksxdfcjabgbxeefwkdc.supabase.co";
 
 /// How long a fetched JWKS is trusted before a refresh is attempted. Supabase
 /// keys rotate rarely; a 1-hour TTL keeps callouts negligible while bounding the
@@ -339,6 +339,14 @@ mod tests {
             // Far-future expiry.
             exp: 4_102_444_800,
         }
+    }
+
+    #[test]
+    fn default_project_matches_the_canonical_supabase_project() {
+        assert_eq!(
+            DEFAULT_SUPABASE_URL,
+            "https://nksxdfcjabgbxeefwkdc.supabase.co"
+        );
     }
 
     #[test]

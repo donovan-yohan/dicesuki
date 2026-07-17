@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useInventoryStore } from './useInventoryStore'
+import {
+  migratePersistedInventoryState,
+  useInventoryStore,
+} from './useInventoryStore'
 import type { NewInventoryDie } from '../types/inventory'
 
 // Minimal valid die for test fixtures
@@ -100,6 +103,115 @@ describe('useInventoryStore', () => {
       // Assert
       expect(result).toBe(false)
       expect(useInventoryStore.getState().dice).toHaveLength(1)
+    })
+  })
+
+  it('adds a descriptive catalog ref to configured dice but not local custom dice', () => {
+    const configured = useInventoryStore.getState().addDie(makeNewDie({
+      setId: 'adventurer-starter',
+    }))
+    const custom = useInventoryStore.getState().addDie(makeNewDie({
+      setId: 'custom-artist',
+      rarity: 'rare',
+      isDev: true,
+    }))
+
+    expect(configured.catalogRef?.itemId).toBe('adventurer-starter/d6/common@1')
+    expect(custom.catalogRef).toBeUndefined()
+  })
+
+  describe('v3 catalog ref migration', () => {
+    it('preserves local ids, assignments, stats, custom data and duplicate copies', () => {
+      const first = {
+        ...useInventoryStore.getState().addDie(makeNewDie({
+          id: 'legacy-devil-1',
+          setId: 'devil-set',
+          rarity: 'rare',
+          name: 'Devil d6 #1',
+          stats: { timesRolled: 3, totalValue: 11 },
+          customAsset: {
+            modelUrl: '/dice/devil-set/devil-d6/model.glb',
+            assetId: 'devil-set/devil-d6',
+            metadata: {
+              version: '1.0',
+              diceType: 'd6',
+              name: 'Devil D6',
+              artist: 'Zabi',
+              created: '2025-12-08',
+              scale: 0.4,
+              faceNormals: [],
+              physics: { density: 0.2, restitution: 0.4, friction: 0.6 },
+              colliderType: 'roundCuboid',
+              colliderArgs: {},
+            },
+          },
+        })),
+      }
+      delete first.catalogRef
+      const second = { ...first, id: 'legacy-devil-2', name: 'Devil d6 #2' }
+      const persisted = {
+        dice: [first, second],
+        currency: { coins: 123, gems: 0, standardTokens: 5, premiumTokens: 0 },
+        assignments: { 'roll-1:entry-1:0': first.id, 'roll-1:entry-1:1': second.id },
+      }
+
+      const migrated = migratePersistedInventoryState(persisted, 2) as typeof persisted
+
+      expect('catalogRef' in first).toBe(false)
+      expect(migrated.dice.map(die => die.id)).toEqual(['legacy-devil-1', 'legacy-devil-2'])
+      expect(migrated.assignments).toEqual(persisted.assignments)
+      expect(migrated.currency).toEqual(persisted.currency)
+      expect(migrated.dice[0].stats).toEqual(first.stats)
+      expect(migrated.dice[0].customAsset).toEqual({
+        ...first.customAsset,
+        storage: 'bundled',
+      })
+      expect(migrated.dice[1].customAsset).toEqual({
+        ...second.customAsset,
+        storage: 'bundled',
+      })
+      expect(migrated.dice.map(die => die.catalogRef?.itemId)).toEqual([
+        'devil-set/devil-d6@1',
+        'devil-set/devil-d6@1',
+      ])
+    })
+
+    it('keeps local custom artist dice unmapped and never resets older states', () => {
+      const custom = useInventoryStore.getState().addDie(makeNewDie({
+        id: 'custom-local-1',
+        setId: 'custom-artist',
+        rarity: 'rare',
+        isDev: true,
+        customAsset: {
+          modelUrl: '/dice/devil-set/devil-d6/model.glb',
+          assetId: 'devil-set/devil-d6',
+          storage: 'indexeddb',
+          metadata: {
+            version: '1.0',
+            diceType: 'd6',
+            name: 'Local custom die',
+            artist: 'Test Artist',
+            created: '2026-07-17',
+            scale: 1,
+            faceNormals: [],
+            physics: { density: 1, restitution: 0.4, friction: 0.6 },
+            colliderType: 'roundCuboid',
+            colliderArgs: {},
+          },
+        },
+      }))
+      const persisted = {
+        dice: [custom],
+        currency: { coins: 9, gems: 8, standardTokens: 7, premiumTokens: 6 },
+        assignments: { 'roll:entry:0': custom.id },
+      }
+
+      const migrated = migratePersistedInventoryState(persisted, 1) as typeof persisted
+
+      expect(migrated.dice).toHaveLength(1)
+      expect(migrated.dice[0]).toEqual(custom)
+      expect(migrated.assignments).toEqual(persisted.assignments)
+      expect(migrated.currency).toEqual(persisted.currency)
     })
   })
 })

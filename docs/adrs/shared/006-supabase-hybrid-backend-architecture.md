@@ -43,8 +43,10 @@ Supabase owns identity and durable data; the dev-box Axum room servers remain
 authoritative for physics and gain thin JWT verification plus heartbeat-based
 registration.
 
-The Supabase project already exists: project id **`htsgornelumjyjwknwby`** (the project
-id is public-safe and may appear in client configuration and docs).
+The canonical Supabase project is the fresh project **`nksxdfcjabgbxeefwkdc`** (the
+project id is public-safe and may appear in client configuration and docs). It starts
+without legacy production data, so rollout applies the repository migrations in order
+instead of migrating data from the retired project.
 
 ### Identity and Durable Data Live in Supabase
 
@@ -152,6 +154,6 @@ relational data), plus proprietary Google lock-in.
 - Downstream implementation: #81 (Discord auth + guest mode + profile), #82 (Postgres
   tables + RLS + local-cache/migration), #83 (Axum JWT middleware + `rooms` heartbeat +
   TLS/WS reverse proxy).
-- Supabase project id: `htsgornelumjyjwknwby` (public-safe).
+- Supabase project id: `nksxdfcjabgbxeefwkdc` (public-safe).
 </content>
 </invoke>
