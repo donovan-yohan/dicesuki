@@ -118,6 +118,11 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: true,
-    exclude: [...configDefaults.exclude, 'e2e/**', '.worktrees/**'],
+    exclude: [
+      ...configDefaults.exclude,
+      'e2e/**',
+      '.worktrees/**',
+      'supabase/tests/**/*.test.mjs',
+    ],
   }
 })
