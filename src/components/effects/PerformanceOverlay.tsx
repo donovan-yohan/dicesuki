@@ -22,7 +22,7 @@ export function PerformanceOverlay() {
   if (!show) return null
 
   return (
-    <div className="fixed top-4 left-4 bg-black bg-opacity-75 text-white p-3 rounded-lg font-mono text-sm z-50">
+    <div className="fixed top-4 left-4 bg-theme-bg/80 text-theme-text p-3 rounded-lg font-mono text-sm z-50">
       <div className="space-y-1">
         <div>FPS: {stats.fps}</div>
         <div>Frame: {stats.frameTime}ms</div>
