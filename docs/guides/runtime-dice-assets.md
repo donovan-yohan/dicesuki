@@ -1,8 +1,8 @@
 # Runtime Dice Assets
 
 Issue #146 promotes complete D4/D6/D8/D10/D12/D20 sets from preserved ImageGen
-authoring output into bounded, deployable assets. Cozy Forest and Cyberpunk use
-the same profile-driven pipeline; Dark Dungeon remains a later promotion slice.
+authoring output into bounded, deployable assets. Cozy Forest, Cyberpunk, and
+Dark Dungeon use the same profile-driven pipeline.
 Raw authoring files remain outside the application bundle. Reproducibility locks
 live in `scripts/runtime-dice-assets/sources/`; each profile's primary lock records
 the source commit and release archive URL and SHA-256. Primary locks and optional
@@ -19,10 +19,14 @@ run the optimizer against the extracted root:
 npm ci
 sha256sum cozy-forest-imagegen-authoring-v1.tar.gz
 sha256sum cyberpunk-imagegen-authoring-v1.tar.gz
+sha256sum dark-dungeon-imagegen-authoring-v1.tar.gz
 npm run build:runtime-dice-assets -- --source /path/to/extracted/archive
 npm run build:runtime-dice-assets -- \
   --source /path/to/extracted/cyberpunk-archive \
   --profile cyberpunk-v1
+npm run build:runtime-dice-assets -- \
+  --source /path/to/extracted/dark-dungeon-archive \
+  --profile dark-dungeon-v1
 npm run check:runtime-dice-assets
 ```
 
@@ -31,9 +35,10 @@ textures to at most 1024 px, encodes base color as quality-80 WebP, encodes the
 normal map as lossless WebP, preserves directly inspectable canonical geometry,
 and creates deterministic 320 px PNG catalog thumbnails from the locked proof
 captures. It copies the locked set metadata, replaces authoring-only UV links
-with canonical-reference version 2, applies the canonical per-shape scale, writes
-files atomically, and emits `runtime-assets.json` with exact hashes and byte
-counts. Omitting `--profile` preserves the `cozy-forest-v1` default.
+with canonical-reference version 2, applies any profile-owned fallback appearance
+and the canonical per-shape scale, writes files atomically, and emits
+`runtime-assets.json` with exact hashes and byte counts. Omitting `--profile`
+preserves the `cozy-forest-v1` default.
 
 ## Enforced budgets
 
@@ -69,8 +74,9 @@ slice does not add a second custom LRU implementation.
 The catalog snapshot embeds delivery hashes, sizes, thumbnail path, texture
 format, texture dimension, and canonical reference version inside the immutable
 asset metadata. Edition `0002-cozy-forest.json` / migration
-`0006_catalog_cozy_forest.sql` and edition `0003-cyberpunk.json` / migration
-`0007_catalog_cyberpunk.sql` each append only their six new rows. They do not
+`0006_catalog_cozy_forest.sql`, edition `0003-cyberpunk.json` / migration
+`0007_catalog_cyberpunk.sql`, and edition `0004-dark-dungeon.json` / migration
+`0008_catalog_dark_dungeon.sql` each append only their six new rows. They do not
 rewrite prior editions, the v1 SQL seed, prior migrations, or published asset
 bytes.
 

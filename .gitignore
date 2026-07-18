@@ -37,6 +37,7 @@ coverage/
 .artifacts/imagegen-uv/
 .artifacts/cozy-forest-runtime/
 .artifacts/cyberpunk-runtime/
+.artifacts/dark-dungeon-runtime/
 
 # Design/planning documents (architecture captured via ADRs instead)
 docs/plans/

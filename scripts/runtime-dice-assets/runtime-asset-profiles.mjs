@@ -31,6 +31,28 @@ export const RUNTIME_ASSET_PROFILES = Object.freeze({
       Object.freeze({ diceId: 'volt-prism-d8', diceType: 'd8', proofFace: 8, scale: 1.3888888888888888 }),
     ]),
   }),
+  'dark-dungeon-v1': Object.freeze({
+    displayName: 'Dark Dungeon',
+    setId: 'dark-dungeon-imagegen-set',
+    proofPrefix: 'dark-dungeon',
+    sourceLockFile: 'dark-dungeon-v1.lock.json',
+    sourceLockSupplementFiles: Object.freeze([]),
+    appearance: Object.freeze({
+      baseColor: '#1a1a1a',
+      accentColor: '#b91c1c',
+      material: 'stone',
+      roughness: 0.6,
+      metalness: 0.1,
+    }),
+    dice: Object.freeze([
+      Object.freeze({ diceId: 'cinder-spike-d4', diceType: 'd4', proofFace: 4, scale: 1.3888888888888888 }),
+      Object.freeze({ diceId: 'crypt-seal-d12', diceType: 'd12', proofFace: 12, scale: 1.25 }),
+      Object.freeze({ diceId: 'dread-gate-d20', diceType: 'd20', proofFace: 20, scale: 1.3888888888888888 }),
+      Object.freeze({ diceId: 'gaoler-key-d10', diceType: 'd10', proofFace: 9, scale: 1.3888888888888888 }),
+      Object.freeze({ diceId: 'iron-vault-d6', diceType: 'd6', proofFace: 6, scale: 1.1 }),
+      Object.freeze({ diceId: 'obsidian-fang-d8', diceType: 'd8', proofFace: 8, scale: 1.3888888888888888 }),
+    ]),
+  }),
 })
 
 export function getRuntimeAssetProfile(profileId = DEFAULT_RUNTIME_ASSET_PROFILE) {

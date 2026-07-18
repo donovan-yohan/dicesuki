@@ -242,6 +242,66 @@
       "assetVersionId": "cyberpunk-imagegen-set/volt-prism-d8@1/asset@1"
     },
     {
+      "id": "dark-dungeon-imagegen-set/cinder-spike-d4@1",
+      "catalogKey": "dark-dungeon-imagegen-set/cinder-spike-d4",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dark-dungeon-imagegen-set",
+      "diceType": "d4",
+      "rarity": "uncommon",
+      "assetVersionId": "dark-dungeon-imagegen-set/cinder-spike-d4@1/asset@1"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/crypt-seal-d12@1",
+      "catalogKey": "dark-dungeon-imagegen-set/crypt-seal-d12",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dark-dungeon-imagegen-set",
+      "diceType": "d12",
+      "rarity": "rare",
+      "assetVersionId": "dark-dungeon-imagegen-set/crypt-seal-d12@1/asset@1"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/dread-gate-d20@1",
+      "catalogKey": "dark-dungeon-imagegen-set/dread-gate-d20",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dark-dungeon-imagegen-set",
+      "diceType": "d20",
+      "rarity": "epic",
+      "assetVersionId": "dark-dungeon-imagegen-set/dread-gate-d20@1/asset@1"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/gaoler-key-d10@1",
+      "catalogKey": "dark-dungeon-imagegen-set/gaoler-key-d10",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dark-dungeon-imagegen-set",
+      "diceType": "d10",
+      "rarity": "rare",
+      "assetVersionId": "dark-dungeon-imagegen-set/gaoler-key-d10@1/asset@1"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/iron-vault-d6@1",
+      "catalogKey": "dark-dungeon-imagegen-set/iron-vault-d6",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dark-dungeon-imagegen-set",
+      "diceType": "d6",
+      "rarity": "uncommon",
+      "assetVersionId": "dark-dungeon-imagegen-set/iron-vault-d6@1/asset@1"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/obsidian-fang-d8@1",
+      "catalogKey": "dark-dungeon-imagegen-set/obsidian-fang-d8",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "dark-dungeon-imagegen-set",
+      "diceType": "d8",
+      "rarity": "uncommon",
+      "assetVersionId": "dark-dungeon-imagegen-set/obsidian-fang-d8@1/asset@1"
+    },
+    {
       "id": "devil-set/devil-d6@1",
       "catalogKey": "devil-set/devil-d6",
       "contractVersion": 1,
@@ -2702,6 +2762,885 @@
         }
       },
       "metadataSha256": "507aee3ae19021ce2f9cbd6c208d0625c95180d70e502f1be17be7c58949839a"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/cinder-spike-d4@1/asset@1",
+      "catalogItemId": "dark-dungeon-imagegen-set/cinder-spike-d4@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/dark-dungeon-imagegen-set/cinder-spike-d4/model.glb",
+      "modelSha256": "4b9bbd200ddf5a76e790900d206db5d6e08b204f60dd29bedf3da54438d74cb8",
+      "metadata": {
+        "source": "production",
+        "name": "Cinder Spike D4",
+        "description": "Cinder Spike D4 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d4",
+          "name": "Cinder Spike D4",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "uncommon",
+          "description": "Cinder Spike D4 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "dark-dungeon",
+            "stone",
+            "iron",
+            "gothic",
+            "codex-imagegen",
+            "d4",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.62,
+            "restitution": 0.24,
+            "friction": 0.76
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/dark-dungeon-imagegen-set/cinder-spike-d4/thumbnail.png",
+          "thumbnailSha256": "1de6426f6b7656a317fc03203fe46167fb5578671b5c9fa299d8636e5d18ac2a",
+          "thumbnailBytes": 21075,
+          "modelBytes": 674748,
+          "embeddedTextureBytes": 672826,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "1f85cbd6fffcbc48f859b3e7a8fb8644e2319c1cf15575c3969958eec3896e1d"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/crypt-seal-d12@1/asset@1",
+      "catalogItemId": "dark-dungeon-imagegen-set/crypt-seal-d12@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/dark-dungeon-imagegen-set/crypt-seal-d12/model.glb",
+      "modelSha256": "3f12ff16e56109420f8a770a65abb4e6b43067f09cc5a0a294309fbb01a63738",
+      "metadata": {
+        "source": "production",
+        "name": "Crypt Seal D12",
+        "description": "Crypt Seal D12 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d12",
+          "name": "Crypt Seal D12",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.25,
+          "rarity": "rare",
+          "description": "Crypt Seal D12 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "dark-dungeon",
+            "stone",
+            "iron",
+            "gothic",
+            "codex-imagegen",
+            "d12",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                0.850651,
+                0.525731
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.850651,
+                0.525731,
+                0
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.525731,
+                0,
+                -0.850651
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.525731,
+                0,
+                -0.850651
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0.850651,
+                -0.525731
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.850651,
+                0.525731,
+                0
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.850651,
+                -0.525731,
+                0
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                0,
+                -0.850651,
+                0.525731
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.525731,
+                0,
+                0.850651
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                -0.525731,
+                0,
+                0.850651
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.850651,
+                -0.525731,
+                0
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0,
+                -0.850651,
+                -0.525731
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.62,
+            "restitution": 0.24,
+            "friction": 0.76
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/dark-dungeon-imagegen-set/crypt-seal-d12/thumbnail.png",
+          "thumbnailSha256": "902864aad74a4a8d8e1acd67a10bca4d8fc5f35ff562862ddf7ab9b50bbe01bf",
+          "thumbnailBytes": 41651,
+          "modelBytes": 732044,
+          "embeddedTextureBytes": 727052,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "80055020a37af1c10803500d3bd46efdf46ce7ae74c2ade44bcb770fa0b78e50"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/dread-gate-d20@1/asset@1",
+      "catalogItemId": "dark-dungeon-imagegen-set/dread-gate-d20@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/dark-dungeon-imagegen-set/dread-gate-d20/model.glb",
+      "modelSha256": "d28b2958bb0407f275cb9a65778167dd7535613b45cd5c3164a119a089610661",
+      "metadata": {
+        "source": "production",
+        "name": "Dread Gate D20",
+        "description": "Dread Gate D20 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d20",
+          "name": "Dread Gate D20",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "epic",
+          "description": "Dread Gate D20 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "dark-dungeon",
+            "stone",
+            "iron",
+            "gothic",
+            "codex-imagegen",
+            "d20",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0.934172,
+                0.356822
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0,
+                0.934172,
+                -0.356822
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.934172,
+                0.356822,
+                0
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.356822,
+                0,
+                0.934172
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.934172,
+                -0.356822,
+                0
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                -0.356822,
+                0,
+                -0.934172
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0.356822,
+                0,
+                0.934172
+              ]
+            },
+            {
+              "value": 13,
+              "normal": [
+                0.934172,
+                0.356822,
+                0
+              ]
+            },
+            {
+              "value": 14,
+              "normal": [
+                0.356822,
+                0,
+                -0.934172
+              ]
+            },
+            {
+              "value": 15,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 16,
+              "normal": [
+                0.934172,
+                -0.356822,
+                0
+              ]
+            },
+            {
+              "value": 17,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 18,
+              "normal": [
+                0,
+                -0.934172,
+                0.356822
+              ]
+            },
+            {
+              "value": 19,
+              "normal": [
+                0,
+                -0.934172,
+                -0.356822
+              ]
+            },
+            {
+              "value": 20,
+              "normal": [
+                0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.62,
+            "restitution": 0.24,
+            "friction": 0.76
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/dark-dungeon-imagegen-set/dread-gate-d20/thumbnail.png",
+          "thumbnailSha256": "3b4699d5bb91acf332a5f84cbd8fd33cca4ac54de658a240829b612cb890c0ec",
+          "thumbnailBytes": 37734,
+          "modelBytes": 567768,
+          "embeddedTextureBytes": 564314,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "93d49685528040c08131b765583c9f614a0de2be2457512875247eb95962c3a6"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/gaoler-key-d10@1/asset@1",
+      "catalogItemId": "dark-dungeon-imagegen-set/gaoler-key-d10@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/dark-dungeon-imagegen-set/gaoler-key-d10/model.glb",
+      "modelSha256": "d036458cc64fb025d28b593dca1763d24c33573b1691e9ec26c57448b7b20c99",
+      "metadata": {
+        "source": "production",
+        "name": "Gaoler Key D10",
+        "description": "Gaoler Key D10 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d10",
+          "name": "Gaoler Key D10",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "rare",
+          "description": "Gaoler Key D10 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "dark-dungeon",
+            "stone",
+            "iron",
+            "gothic",
+            "codex-imagegen",
+            "d10",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map",
+            "planar-kite-faces",
+            "two-triangles-per-kite"
+          ],
+          "faceNormals": [
+            {
+              "value": 0,
+              "normal": [
+                -0.599991,
+                0.67081,
+                -0.435919
+              ]
+            },
+            {
+              "value": 1,
+              "normal": [
+                0.599991,
+                -0.67081,
+                -0.435919
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.229176,
+                0.67081,
+                -0.705331
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                -0.229176,
+                -0.67081,
+                -0.705331
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.741629,
+                0.67081,
+                0
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.741629,
+                -0.67081,
+                0
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.229176,
+                0.67081,
+                0.705331
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.229176,
+                -0.67081,
+                0.705331
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.599991,
+                0.67081,
+                0.435919
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.599991,
+                -0.67081,
+                0.435919
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.62,
+            "restitution": 0.24,
+            "friction": 0.76
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/dark-dungeon-imagegen-set/gaoler-key-d10/thumbnail.png",
+          "thumbnailSha256": "9a3685c5be11622ae856d9c49de1c1a41ab5bde55461df6e4d04ba23c981413a",
+          "thumbnailBytes": 30208,
+          "modelBytes": 230096,
+          "embeddedTextureBytes": 226642,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "ae16ccb7307ff54fee98d134600513e386f624064a6d3874f2a7596ea37d4303"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/iron-vault-d6@1/asset@1",
+      "catalogItemId": "dark-dungeon-imagegen-set/iron-vault-d6@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/dark-dungeon-imagegen-set/iron-vault-d6/model.glb",
+      "modelSha256": "76cad36f7f084c3ad60e85ac9200edfbc318f317d63925027887dde77cdd4620",
+      "metadata": {
+        "source": "production",
+        "name": "Iron Vault D6",
+        "description": "Iron Vault D6 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d6",
+          "name": "Iron Vault D6",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.1,
+          "rarity": "uncommon",
+          "description": "Iron Vault D6 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "dark-dungeon",
+            "stone",
+            "iron",
+            "gothic",
+            "codex-imagegen",
+            "d6",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                -1,
+                0
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0,
+                -1
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.62,
+            "restitution": 0.24,
+            "friction": 0.76
+          },
+          "colliderType": "roundCuboid",
+          "colliderArgs": {
+            "halfExtents": [
+              0.5,
+              0.5,
+              0.5
+            ],
+            "borderRadius": 0.06
+          }
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/dark-dungeon-imagegen-set/iron-vault-d6/thumbnail.png",
+          "thumbnailSha256": "7dea61c8590d68a9e8d3f198667cdd7f7bab2445144ffe0b1fc6a14347c70641",
+          "thumbnailBytes": 39320,
+          "modelBytes": 945932,
+          "embeddedTextureBytes": 943332,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "3ded68d59c37d5924b665d1376862f854e34c870af0c36ba0e02f3b47797b495"
+    },
+    {
+      "id": "dark-dungeon-imagegen-set/obsidian-fang-d8@1/asset@1",
+      "catalogItemId": "dark-dungeon-imagegen-set/obsidian-fang-d8@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/dark-dungeon-imagegen-set/obsidian-fang-d8/model.glb",
+      "modelSha256": "54564da2bb8e4e169d11de0fab9638d1973e5913e510e62a5f82fdb1a24f24d7",
+      "metadata": {
+        "source": "production",
+        "name": "Obsidian Fang D8",
+        "description": "Obsidian Fang D8 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d8",
+          "name": "Obsidian Fang D8",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-07-10",
+          "scale": 1.3888888888888888,
+          "rarity": "uncommon",
+          "description": "Obsidian Fang D8 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "dark-dungeon",
+            "stone",
+            "iron",
+            "gothic",
+            "codex-imagegen",
+            "d8",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.62,
+            "restitution": 0.24,
+            "friction": 0.76
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/dark-dungeon-imagegen-set/obsidian-fang-d8/thumbnail.png",
+          "thumbnailSha256": "6f9d8b8a29ecdcae7e0ab4f052676f8047380d49fadcd9a888c8630e06268917",
+          "thumbnailBytes": 24084,
+          "modelBytes": 335564,
+          "embeddedTextureBytes": 333268,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "b43a243d81fa678096565769e9c80752ec3e6b6e44a4fc7f452bbc8ed5a12b54"
     },
     {
       "id": "devil-set/devil-d6@1/asset@1",

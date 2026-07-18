@@ -1,0 +1,22 @@
+{
+  "id": "dark-dungeon-imagegen-set",
+  "name": "Dark Dungeon Armory",
+  "artist": "Codex ImageGen via Daisu UV Workflow",
+  "description": "Black stone and iron dice with blood-red inlay, fortress trim, and deeply engraved gothic numerals.",
+  "releaseDate": "2026-07-10",
+  "tags": [
+    "dark-dungeon",
+    "stone",
+    "iron",
+    "gothic",
+    "codex-imagegen"
+  ],
+  "availability": "always",
+  "appearance": {
+    "baseColor": "#1a1a1a",
+    "accentColor": "#b91c1c",
+    "material": "stone",
+    "roughness": 0.6,
+    "metalness": 0.1
+  }
+}

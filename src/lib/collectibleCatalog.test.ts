@@ -44,12 +44,42 @@ function inventoryDie(overrides: Partial<InventoryDie> = {}): InventoryDie {
 describe('collectible catalog', () => {
   it('uses stable version-in-id contracts and excludes local artist dice', () => {
     expect(COLLECTIBLE_CATALOG.contractVersion).toBe(1)
-    expect(COLLECTIBLE_CATALOG.items).toHaveLength(63)
+    expect(COLLECTIBLE_CATALOG.items).toHaveLength(69)
     expect(COLLECTIBLE_CATALOG.items.every(item => item.id === `${item.catalogKey}@1`)).toBe(true)
     expect(COLLECTIBLE_CATALOG.assetVersions.every(asset => (
       asset.id === `${asset.catalogItemId}/asset@${asset.assetVersion}`
     ))).toBe(true)
     expect(COLLECTIBLE_CATALOG.items.some(item => item.setId === 'custom-artist')).toBe(false)
+  })
+
+  it('uses the Dark Dungeon fallback appearance without rewriting prior runtime defaults', () => {
+    const appearancesFor = (setId: string) => COLLECTIBLE_CATALOG.assetVersions
+      .filter(asset => asset.catalogItemId.startsWith(`${setId}/`))
+      .map(asset => asset.metadata.appearance)
+
+    const darkDungeonAppearance = {
+      baseColor: '#1a1a1a',
+      accentColor: '#b91c1c',
+      material: 'stone',
+      roughness: 0.6,
+      metalness: 0.1,
+    }
+    expect(appearancesFor('dark-dungeon-imagegen-set')).toEqual(
+      Array.from({ length: 6 }, () => darkDungeonAppearance),
+    )
+
+    const publishedDefault = {
+      baseColor: '#8b5cf6',
+      accentColor: '#ffffff',
+      material: 'plastic',
+      roughness: 0.7,
+      metalness: 0,
+    }
+    for (const setId of ['cozy-forest-imagegen-set', 'cyberpunk-imagegen-set']) {
+      expect(appearancesFor(setId)).toEqual(
+        Array.from({ length: 6 }, () => publishedDefault),
+      )
+    }
   })
 
   it('keeps Steel and Rubber as distinct catalog definitions', () => {

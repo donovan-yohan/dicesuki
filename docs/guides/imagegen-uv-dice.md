@@ -135,7 +135,8 @@ an approximation and must not be used for production mapping proof.
 
 ## Issue #146 promotion status
 
-Cozy Forest and Cyberpunk are promoted by the separate, reproducible runtime
-pipeline documented in [runtime-dice-assets.md](runtime-dice-assets.md). Dark
-Dungeon still requires the same optimization, delivery, visual proof, and mobile
-contrast/normal-map review before issue #146 can close.
+Cozy Forest, Cyberpunk, and Dark Dungeon are promoted by the separate,
+reproducible runtime pipeline documented in
+[runtime-dice-assets.md](runtime-dice-assets.md). Each set has checksum-locked
+authoring provenance, bounded deployable assets, append-only catalog history,
+and high/mid-tier runtime proof.

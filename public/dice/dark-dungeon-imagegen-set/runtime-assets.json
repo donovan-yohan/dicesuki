@@ -1,0 +1,155 @@
+{
+  "contractVersion": 1,
+  "setId": "dark-dungeon-imagegen-set",
+  "canonicalReferenceVersion": 2,
+  "budgets": {
+    "thumbnailMaxBytes": 153600,
+    "modelTargetBytes": 1572864,
+    "modelHardMaxBytes": 3145728,
+    "embeddedTextureMaxBytesPerDie": 1048576,
+    "completeSetMaxBytes": 10485760
+  },
+  "optimization": {
+    "tool": "@gltf-transform/cli",
+    "toolVersion": "4.4.1",
+    "maxTextureDimension": 1024,
+    "baseColor": {
+      "format": "webp",
+      "quality": 80,
+      "effort": 80
+    },
+    "normal": {
+      "format": "webp",
+      "lossless": true,
+      "effort": 80
+    },
+    "geometryCompression": "none"
+  },
+  "source": {
+    "tag": "imagegen-dark-dungeon-authoring-v1",
+    "archiveSha256": "fb201ace8a1dc22c9a27918008787dac2e5cbe03067564e1fb8cc34d17eec4b4",
+    "sourceCommit": "7393d112c5e062570ec7caf37970206c4d05c08c"
+  },
+  "assets": [
+    {
+      "catalogKey": "dark-dungeon-imagegen-set/cinder-spike-d4",
+      "diceId": "cinder-spike-d4",
+      "diceType": "d4",
+      "model": {
+        "path": "/dice/dark-dungeon-imagegen-set/cinder-spike-d4/model.glb",
+        "bytes": 674748,
+        "sha256": "4b9bbd200ddf5a76e790900d206db5d6e08b204f60dd29bedf3da54438d74cb8",
+        "embeddedTextureBytes": 672826,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/dark-dungeon-imagegen-set/cinder-spike-d4/thumbnail.png",
+        "bytes": 21075,
+        "sha256": "1de6426f6b7656a317fc03203fe46167fb5578671b5c9fa299d8636e5d18ac2a",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "dark-dungeon-imagegen-set/crypt-seal-d12",
+      "diceId": "crypt-seal-d12",
+      "diceType": "d12",
+      "model": {
+        "path": "/dice/dark-dungeon-imagegen-set/crypt-seal-d12/model.glb",
+        "bytes": 732044,
+        "sha256": "3f12ff16e56109420f8a770a65abb4e6b43067f09cc5a0a294309fbb01a63738",
+        "embeddedTextureBytes": 727052,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/dark-dungeon-imagegen-set/crypt-seal-d12/thumbnail.png",
+        "bytes": 41651,
+        "sha256": "902864aad74a4a8d8e1acd67a10bca4d8fc5f35ff562862ddf7ab9b50bbe01bf",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "dark-dungeon-imagegen-set/dread-gate-d20",
+      "diceId": "dread-gate-d20",
+      "diceType": "d20",
+      "model": {
+        "path": "/dice/dark-dungeon-imagegen-set/dread-gate-d20/model.glb",
+        "bytes": 567768,
+        "sha256": "d28b2958bb0407f275cb9a65778167dd7535613b45cd5c3164a119a089610661",
+        "embeddedTextureBytes": 564314,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/dark-dungeon-imagegen-set/dread-gate-d20/thumbnail.png",
+        "bytes": 37734,
+        "sha256": "3b4699d5bb91acf332a5f84cbd8fd33cca4ac54de658a240829b612cb890c0ec",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "dark-dungeon-imagegen-set/gaoler-key-d10",
+      "diceId": "gaoler-key-d10",
+      "diceType": "d10",
+      "model": {
+        "path": "/dice/dark-dungeon-imagegen-set/gaoler-key-d10/model.glb",
+        "bytes": 230096,
+        "sha256": "d036458cc64fb025d28b593dca1763d24c33573b1691e9ec26c57448b7b20c99",
+        "embeddedTextureBytes": 226642,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/dark-dungeon-imagegen-set/gaoler-key-d10/thumbnail.png",
+        "bytes": 30208,
+        "sha256": "9a3685c5be11622ae856d9c49de1c1a41ab5bde55461df6e4d04ba23c981413a",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "dark-dungeon-imagegen-set/iron-vault-d6",
+      "diceId": "iron-vault-d6",
+      "diceType": "d6",
+      "model": {
+        "path": "/dice/dark-dungeon-imagegen-set/iron-vault-d6/model.glb",
+        "bytes": 945932,
+        "sha256": "76cad36f7f084c3ad60e85ac9200edfbc318f317d63925027887dde77cdd4620",
+        "embeddedTextureBytes": 943332,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/dark-dungeon-imagegen-set/iron-vault-d6/thumbnail.png",
+        "bytes": 39320,
+        "sha256": "7dea61c8590d68a9e8d3f198667cdd7f7bab2445144ffe0b1fc6a14347c70641",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "dark-dungeon-imagegen-set/obsidian-fang-d8",
+      "diceId": "obsidian-fang-d8",
+      "diceType": "d8",
+      "model": {
+        "path": "/dice/dark-dungeon-imagegen-set/obsidian-fang-d8/model.glb",
+        "bytes": 335564,
+        "sha256": "54564da2bb8e4e169d11de0fab9638d1973e5913e510e62a5f82fdb1a24f24d7",
+        "embeddedTextureBytes": 333268,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/dark-dungeon-imagegen-set/obsidian-fang-d8/thumbnail.png",
+        "bytes": 24084,
+        "sha256": "6f9d8b8a29ecdcae7e0ab4f052676f8047380d49fadcd9a888c8630e06268917",
+        "width": 320,
+        "height": 320
+      }
+    }
+  ]
+}
