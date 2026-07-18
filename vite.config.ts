@@ -73,7 +73,15 @@ export default defineConfig({
         // rewrite (#108) is never shadowed and (b) they degrade honestly when
         // offline instead of loading a shell that can't connect. `/api/` is
         // reserved for Vercel serverless (og.js) and stays network-only.
-        navigateFallbackDenylist: [/^\/room\//, /^\/rooms(?:\/|$)/, /^\/api\//],
+        // `/checkout/` is the payments return surface (issue #153): it must
+        // reach the live app + Supabase to read authoritative order status, and
+        // must never be shadowed by a cached offline shell mid-payment.
+        navigateFallbackDenylist: [
+          /^\/room\//,
+          /^\/rooms(?:\/|$)/,
+          /^\/checkout\//,
+          /^\/api\//,
+        ],
         runtimeCaching: [
           {
             // Dice models/textures (e.g. the starter Devil D6 GLB, ~18MB) are

@@ -50,6 +50,7 @@
     "@react-three/fiber": "^9.4.0",
     "@react-three/postprocessing": "^3.0.4",
     "@supabase/supabase-js": "^2.110.2",
+    "@xsolla/pay-station-sdk": "1.1.0",
     "detect-gpu": "^5.0.0",
     "framer-motion": "^12.23.24",
     "qrcode-generator": "^1.4.4",
