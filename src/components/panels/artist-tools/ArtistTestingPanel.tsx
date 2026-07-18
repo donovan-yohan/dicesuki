@@ -348,7 +348,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
               <p className="text-theme-text-muted mb-4">Drag & drop your .glb file here, or</p>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="bg-theme-accent hover:bg-theme-accent px-6 py-2 rounded-md font-medium"
+                className="bg-theme-accent hover:brightness-110 px-6 py-2 rounded-md font-medium transition-all"
               >
                 Choose File
               </button>
@@ -679,7 +679,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
             </p>
             <button
               onClick={handleReset}
-              className="bg-theme-secondary hover:bg-theme-secondary px-6 py-2 rounded-lg font-medium transition-colors"
+              className="bg-theme-secondary hover:brightness-110 px-6 py-2 rounded-lg font-medium transition-all"
             >
               Add Another Die
             </button>
@@ -689,7 +689,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
             <button
               onClick={handleAddToInventory}
               disabled={!canPreview}
-              className="flex-1 bg-theme-secondary hover:bg-theme-secondary disabled:bg-theme-secondary disabled:cursor-not-allowed px-6 py-3 rounded-lg font-bold text-lg transition-colors"
+              className="flex-1 bg-theme-secondary hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-bold text-lg transition-all"
             >
               {canPreview ? '✨ Add to Inventory' : 'Complete steps above to add'}
             </button>
