@@ -1,0 +1,89 @@
+{
+  "contractVersion": 1,
+  "sourceCommit": "7393d112c5e062570ec7caf37970206c4d05c08c",
+  "release": {
+    "tag": "imagegen-dark-dungeon-authoring-v1",
+    "assetName": "dark-dungeon-imagegen-authoring-v1.tar.gz",
+    "url": "https://github.com/donovan-yohan/dicesuki/releases/download/imagegen-dark-dungeon-authoring-v1/dark-dungeon-imagegen-authoring-v1.tar.gz",
+    "bytes": 41222861,
+    "sha256": "fb201ace8a1dc22c9a27918008787dac2e5cbe03067564e1fb8cc34d17eec4b4"
+  },
+  "files": [
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/set.json",
+      "sha256": "171add188b71f02b1bef818888566f19396bf64e11078224cd29520496fb77cf"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/cinder-spike-d4/metadata.json",
+      "sha256": "c5f89053de565ee7579b40c0dbf5ca5b70046b8fcc6d30ffbe8b41fb0e1cd619"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/cinder-spike-d4/model.glb",
+      "sha256": "3c83b096c803c7a5b91471bab014c54265b3a9c6651e3bbb1e3bc3b092e781ce"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/dark-dungeon-cinder-spike-d4-face-4.png",
+      "sha256": "3fb9050e4d71ce34ecd000da28258d040a393b5928372e870892c4c28d7437f2"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/crypt-seal-d12/metadata.json",
+      "sha256": "6fe0671068b59907ba08f52b947b773cdd5f04e836e108db2845b5125487715f"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/crypt-seal-d12/model.glb",
+      "sha256": "885df422c2d2da4e00a5c132f63cabf3a8159e3a5da7f24619a61253a67ba328"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/dark-dungeon-crypt-seal-d12-face-12.png",
+      "sha256": "a5e51e8291305ab039149f90b802b14a79d6b98852c869f0ab431e388c0f7a72"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/dread-gate-d20/metadata.json",
+      "sha256": "315ffcc7ec8a19c8b3c0e845f82fb3d18cfde60c5c84725dc1cb4e19f0c2a81b"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/dread-gate-d20/model.glb",
+      "sha256": "49dc6bc47b2d5e945abc9c06d7abf0b8e80315c6ba9501b53db540f549651c00"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/dark-dungeon-dread-gate-d20-face-20.png",
+      "sha256": "0a1edbb9e5408e2a7b27120e67a6143481dfd2a2921094e72aff34d73c251f01"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/gaoler-key-d10/metadata.json",
+      "sha256": "9197ff98264f58376da6135e6b0ffc319d36d2b717109d247bd04ad6542cfd6b"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/gaoler-key-d10/model.glb",
+      "sha256": "22877b68e05f27abcf8b9615c6c7baeaa49ce3cdda803e513b766492cd68a33a"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/dark-dungeon-gaoler-key-d10-face-9.png",
+      "sha256": "ecfac88902316fa40060a1d991e5cbe5aa56921076e0b4d77b0df04d5b88f947"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/iron-vault-d6/metadata.json",
+      "sha256": "a7df137c88c7e159a87a3c1fd9329dbce2240f8bc6924a8e1f559cec2f0fe480"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/iron-vault-d6/model.glb",
+      "sha256": "7909f180ac7054645da912247af53364a93c1d3b36e4c70ee08f8cd1b913b3c9"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/dark-dungeon-iron-vault-d6-face-6.png",
+      "sha256": "827048866e4952668913f91a88c5f3cfd501dec59ee229ce4447f4e5b44e3319"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/obsidian-fang-d8/metadata.json",
+      "sha256": "119abfd2ade5545496df71c22024abe8e51794597df7ea4245158f7011505ccd"
+    },
+    {
+      "path": "public/dice/dark-dungeon-imagegen-set/obsidian-fang-d8/model.glb",
+      "sha256": "0eb9b008fd23150641514dfc64a1e105388d765d7274a1c9c4b215d089f06e47"
+    },
+    {
+      "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/dark-dungeon-obsidian-fang-d8-face-8.png",
+      "sha256": "47ce501a50014bcc38df13f39456a2fc2f9d676d3960940f50d5fefe0a9429f4"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "version": "1.0",
+  "diceType": "d6",
+  "name": "Iron Vault D6",
+  "artist": "Codex ImageGen via Daisu UV Workflow",
+  "created": "2026-07-10",
+  "scale": 1.1,
+  "rarity": "uncommon",
+  "description": "Iron Vault D6 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+  "canonicalReferenceVersion": 2,
+  "tags": [
+    "dark-dungeon",
+    "stone",
+    "iron",
+    "gothic",
+    "codex-imagegen",
+    "d6",
+    "complete-polyhedral-set",
+    "numbered-faces",
+    "edge-parallel-numerals",
+    "uv-atlas",
+    "derived-normal-map"
+  ],
+  "faceNormals": [
+    {
+      "value": 1,
+      "normal": [
+        0,
+        -1,
+        0
+      ]
+    },
+    {
+      "value": 2,
+      "normal": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "value": 3,
+      "normal": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "value": 4,
+      "normal": [
+        -1,
+        0,
+        0
+      ]
+    },
+    {
+      "value": 5,
+      "normal": [
+        0,
+        0,
+        -1
+      ]
+    },
+    {
+      "value": 6,
+      "normal": [
+        0,
+        1,
+        0
+      ]
+    }
+  ],
+  "physics": {
+    "density": 0.62,
+    "restitution": 0.24,
+    "friction": 0.76
+  },
+  "colliderType": "roundCuboid",
+  "colliderArgs": {
+    "halfExtents": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "borderRadius": 0.06
+  }
+}

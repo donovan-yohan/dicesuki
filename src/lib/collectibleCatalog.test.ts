@@ -44,7 +44,7 @@ function inventoryDie(overrides: Partial<InventoryDie> = {}): InventoryDie {
 describe('collectible catalog', () => {
   it('uses stable version-in-id contracts and excludes local artist dice', () => {
     expect(COLLECTIBLE_CATALOG.contractVersion).toBe(1)
-    expect(COLLECTIBLE_CATALOG.items).toHaveLength(63)
+    expect(COLLECTIBLE_CATALOG.items).toHaveLength(69)
     expect(COLLECTIBLE_CATALOG.items.every(item => item.id === `${item.catalogKey}@1`)).toBe(true)
     expect(COLLECTIBLE_CATALOG.assetVersions.every(asset => (
       asset.id === `${asset.catalogItemId}/asset@${asset.assetVersion}`

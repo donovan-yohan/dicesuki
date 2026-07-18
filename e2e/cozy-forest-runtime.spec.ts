@@ -31,6 +31,11 @@ const runtimeSets = [
     label: 'Cyberpunk',
     artifactDirectory: 'cyberpunk-runtime',
   },
+  {
+    setId: 'dark-dungeon-imagegen-set',
+    label: 'Dark Dungeon',
+    artifactDirectory: 'dark-dungeon-runtime',
+  },
 ] as const
 
 for (const runtimeSet of runtimeSets) {
@@ -81,6 +86,14 @@ async function runRuntimeSetProof(
     { timeout: 30_000 },
   )
 
+  await page.waitForTimeout(1_500)
+  const tableLoadBaseline = requestedModelPaths()
+  const expectedD20ModelPaths = assets
+    .filter(asset => asset.metadata.diceMetadata.diceType === 'd20')
+    .map(asset => asset.modelPath)
+  expect(tableLoadBaseline.length).toBeLessThanOrEqual(1)
+  expect(tableLoadBaseline.every(modelPath => expectedD20ModelPaths.includes(modelPath))).toBe(true)
+
   await page.getByRole('button', { name: 'Manage Dice' }).click()
   await page.getByRole('button', { name: 'Open full dice inventory' }).click()
   await expect(page.getByRole('heading', { name: 'Dice Collection' }).first()).toBeVisible()
@@ -88,7 +101,7 @@ async function runRuntimeSetProof(
   await expect(page.getByTestId('dice-thumbnail')).toHaveCount(6)
   await expect.poll(() => new Set(thumbnailRequests).size).toBe(6)
   await page.waitForTimeout(1_500)
-  expect(requestedModelPaths()).toEqual([])
+  expect(requestedModelPaths()).toEqual(tableLoadBaseline)
 
   const artifactRoot = path.resolve(
     process.cwd(),

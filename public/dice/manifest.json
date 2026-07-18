@@ -74,6 +74,42 @@
       ]
     },
     {
+      "id": "dark-dungeon-imagegen-set",
+      "path": "dark-dungeon-imagegen-set",
+      "dice": [
+        {
+          "id": "cinder-spike-d4",
+          "path": "dark-dungeon-imagegen-set/cinder-spike-d4",
+          "hasThumbnail": true
+        },
+        {
+          "id": "crypt-seal-d12",
+          "path": "dark-dungeon-imagegen-set/crypt-seal-d12",
+          "hasThumbnail": true
+        },
+        {
+          "id": "dread-gate-d20",
+          "path": "dark-dungeon-imagegen-set/dread-gate-d20",
+          "hasThumbnail": true
+        },
+        {
+          "id": "gaoler-key-d10",
+          "path": "dark-dungeon-imagegen-set/gaoler-key-d10",
+          "hasThumbnail": true
+        },
+        {
+          "id": "iron-vault-d6",
+          "path": "dark-dungeon-imagegen-set/iron-vault-d6",
+          "hasThumbnail": true
+        },
+        {
+          "id": "obsidian-fang-d8",
+          "path": "dark-dungeon-imagegen-set/obsidian-fang-d8",
+          "hasThumbnail": true
+        }
+      ]
+    },
+    {
       "id": "devil-set",
       "path": "devil-set",
       "dice": [
