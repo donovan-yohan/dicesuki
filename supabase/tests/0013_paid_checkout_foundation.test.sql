@@ -5,7 +5,9 @@ insert into auth.users (id) values
   ('c0130000-0000-4000-8000-000000000002'),
   ('c0130000-0000-4000-8000-000000000003'),
   ('c0130000-0000-4000-8000-000000000004'),
-  ('c0130000-0000-4000-8000-000000000005');
+  ('c0130000-0000-4000-8000-000000000005'),
+  ('c0130000-0000-4000-8000-000000000006'),
+  ('c0130000-0000-4000-8000-000000000007');
 
 -- Stash generated order identifiers for the trusted (postgres-role) steps. The
 -- buyer-visible RLS checks below filter by user_id and never read this table.
@@ -347,6 +349,185 @@ begin
   exception when sqlstate '23503' then
     null;
   end;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Entitlement lineage (P1a): earned-grant -> buy -> refund. The order only LINKS
+-- the die the buyer already earned, so its refund must not revoke that die.
+-- ---------------------------------------------------------------------------
+insert into public.user_entitlements (user_id, catalog_item_id, grant_reason, grant_ref, provenance)
+values (
+  'c0130000-0000-4000-8000-000000000006',
+  'dragon-jade/d20/rare@1',
+  'earned',
+  'test:earned:dragon',
+  jsonb_build_object('source', 'earned')
+);
+
+insert into order_ctx (label, order_id, external_id, txn)
+select 'e', created.id, created.external_id, 900000006
+from public.create_payment_order(
+  'c0130000-0000-4000-8000-000000000006',
+  'dragon-jade/d20/rare@1',
+  599,
+  'USD',
+  true
+) as created;
+
+do $$
+declare
+  ctx order_ctx%rowtype;
+  earned_id uuid;
+  fulfilled public.payment_orders%rowtype;
+  refunded public.payment_orders%rowtype;
+begin
+  select * into strict ctx from order_ctx where label = 'e';
+  select id into strict earned_id
+  from public.user_entitlements
+  where user_id = 'c0130000-0000-4000-8000-000000000006'
+    and catalog_item_id = 'dragon-jade/d20/rare@1';
+
+  -- Fulfillment links the pre-existing earned grant and records that this order
+  -- did NOT establish it (entitlement_created is false).
+  fulfilled := public.fulfill_payment_order(ctx.external_id, ctx.txn, 'payment', true, '{}'::jsonb);
+  if fulfilled.entitlement_id <> earned_id or fulfilled.entitlement_created then
+    raise exception 'An order over an earned grant wrongly claimed entitlement creation';
+  end if;
+  if (select count(*) from public.user_entitlements
+      where user_id = 'c0130000-0000-4000-8000-000000000006'
+        and catalog_item_id = 'dragon-jade/d20/rare@1') <> 1 then
+    raise exception 'Fulfilling over an earned grant duplicated the entitlement';
+  end if;
+
+  -- Refund marks the order refunded and audits the reversal, but the earned die
+  -- the buyer owned independently must survive intact.
+  refunded := public.refund_payment_order(ctx.txn, 'refund', true, '{}'::jsonb);
+  if refunded.status <> 'refunded' then
+    raise exception 'Refund did not mark the linked-earned order refunded';
+  end if;
+  if (select revoked_at from public.user_entitlements where id = earned_id) is not null then
+    raise exception 'Refund over-revoked an independently-earned entitlement';
+  end if;
+  if (select count(*) from public.user_entitlements
+      where user_id = 'c0130000-0000-4000-8000-000000000006'
+        and catalog_item_id = 'dragon-jade/d20/rare@1'
+        and revoked_at is null) <> 1 then
+    raise exception 'The earned die did not survive the refund as a single active row';
+  end if;
+  if (select count(*) from public.payment_events
+      where order_id = ctx.order_id and event_type = 'refund') <> 1 then
+    raise exception 'Refund without a revoke skipped its audit event';
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Entitlement lineage (P1b): buy -> refund -> buy. The refund revokes the row
+-- this purchase created; the second purchase reactivates that same row rather
+-- than under-granting. One entitlement row, both fulfill calls settle fulfilled.
+-- ---------------------------------------------------------------------------
+insert into order_ctx (label, order_id, external_id, txn)
+select 'f', created.id, created.external_id, 900000007
+from public.create_payment_order(
+  'c0130000-0000-4000-8000-000000000007',
+  'lucky-bronze/d20/uncommon@1',
+  349,
+  'USD',
+  true
+) as created;
+
+insert into order_ctx (label, order_id, external_id, txn)
+select 'g', created.id, created.external_id, 900000008
+from public.create_payment_order(
+  'c0130000-0000-4000-8000-000000000007',
+  'lucky-bronze/d20/uncommon@1',
+  349,
+  'USD',
+  true
+) as created;
+
+do $$
+declare
+  first_ctx    order_ctx%rowtype;
+  second_ctx   order_ctx%rowtype;
+  first_order  public.payment_orders%rowtype;
+  second_order public.payment_orders%rowtype;
+  entitlement_id_1 uuid;
+  entitlement_id_2 uuid;
+begin
+  select * into strict first_ctx  from order_ctx where label = 'f';
+  select * into strict second_ctx from order_ctx where label = 'g';
+
+  -- Buy: creates and owns the entitlement.
+  first_order := public.fulfill_payment_order(first_ctx.external_id, first_ctx.txn, 'payment', true, '{}'::jsonb);
+  if first_order.status <> 'fulfilled' or not first_order.entitlement_created then
+    raise exception 'First purchase did not fulfill and record entitlement creation';
+  end if;
+  entitlement_id_1 := first_order.entitlement_id;
+  if (select revoked_at from public.user_entitlements where id = entitlement_id_1) is not null then
+    raise exception 'First purchase left the entitlement revoked';
+  end if;
+
+  -- Refund: revokes the row this purchase created.
+  perform public.refund_payment_order(first_ctx.txn, 'refund', true, '{}'::jsonb);
+  if (select revoked_at from public.user_entitlements where id = entitlement_id_1) is null then
+    raise exception 'Refund of a self-created purchase did not revoke the entitlement';
+  end if;
+
+  -- Buy again: reactivates the SAME revoked row instead of under-granting.
+  second_order := public.fulfill_payment_order(second_ctx.external_id, second_ctx.txn, 'payment', true, '{}'::jsonb);
+  if second_order.status <> 'fulfilled' or not second_order.entitlement_created then
+    raise exception 'Second purchase after refund did not fulfill and re-establish the grant';
+  end if;
+  entitlement_id_2 := second_order.entitlement_id;
+  if entitlement_id_2 <> entitlement_id_1 then
+    raise exception 'Second purchase created a duplicate entitlement instead of reactivating';
+  end if;
+  if (select count(*) from public.user_entitlements
+      where user_id = 'c0130000-0000-4000-8000-000000000007'
+        and catalog_item_id = 'lucky-bronze/d20/uncommon@1') <> 1 then
+    raise exception 'Buy-refund-buy left more than one entitlement row';
+  end if;
+  if (select revoked_at from public.user_entitlements where id = entitlement_id_2) is not null then
+    raise exception 'Second purchase did not reactivate the revoked entitlement';
+  end if;
+  if (select status from public.payment_orders where id = first_ctx.order_id) <> 'refunded' or
+     (select status from public.payment_orders where id = second_ctx.order_id) <> 'fulfilled' then
+    raise exception 'Buy-refund-buy did not leave order one refunded and order two fulfilled';
+  end if;
+
+  -- Lineage re-ownership: because the second purchase re-established the die, a
+  -- later refund of that order revokes it again (no free die survives a refund).
+  perform public.refund_payment_order(second_ctx.txn, 'refund', true, '{}'::jsonb);
+  if (select revoked_at from public.user_entitlements where id = entitlement_id_2) is null then
+    raise exception 'Refund of the reactivating purchase did not revoke the die';
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Realtime (P2): payment_orders is published so a buyer's client receives its
+-- own fulfill/refund transitions; the raw event ledger is never published.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'payment_orders'
+  ) then
+    raise exception 'payment_orders is not published to supabase_realtime';
+  end if;
+  if exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'payment_events'
+  ) then
+    raise exception 'payment_events must never be published to supabase_realtime';
+  end if;
 end;
 $$;
 

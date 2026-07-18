@@ -45,6 +45,8 @@ describe('0013 paid checkout foundation', () => {
     )
     expect(sql).toMatch(/xsolla_transaction_id\s+bigint\s+unique/)
     expect(sql).toMatch(/dry_run\s+boolean\s+not null/)
+    // Entitlement lineage flag records whether this order established the grant.
+    expect(sql).toMatch(/entitlement_created\s+boolean\s+not null default false/)
     expect(sql).toMatch(
       /foreign key \(entitlement_id, user_id, catalog_item_id\)\s+references public\.user_entitlements \(id, user_id, catalog_item_id\)/,
     )
@@ -113,6 +115,11 @@ describe('0013 paid checkout foundation', () => {
     expect(fn.indexOf('insert into public.user_entitlements')).toBeLessThan(
       fn.indexOf("set status = 'fulfilled'"),
     )
+    // Entitlement lineage: a revoked prior-purchase row is reactivated (not left
+    // under-granted), and the order records whether it established the grant.
+    expect(fn).toMatch(/conflicting_revoked_at is not null/)
+    expect(fn).toMatch(/set revoked_at = null/)
+    expect(fn).toMatch(/entitlement_created = entitlement_created_now/)
     // No wallet debit/credit for a direct cosmetic purchase.
     expect(fn).not.toMatch(/append_wallet_ledger_entry/)
   })
@@ -130,6 +137,16 @@ describe('0013 paid checkout foundation', () => {
     expect(refund).toMatch(/update public\.user_entitlements\s+set revoked_at = now\(\)/)
     expect(refund).toMatch(/set status = 'refunded'/)
     expect(refund).toMatch(/event_inserted = 0 or target_order\.status = 'refunded'/)
+    // Refund revokes only the die this order established; an order that merely
+    // linked an independently-owned grant is refunded without revoking it.
+    expect(refund).toMatch(
+      /if target_order\.entitlement_created then\s*\n\s*update public\.user_entitlements/,
+    )
+  })
+
+  it('publishes payment_orders to realtime but never the raw event ledger', () => {
+    expect(sql).toMatch(/alter publication supabase_realtime add table public\.payment_orders/)
+    expect(sql).not.toMatch(/alter publication supabase_realtime add table public\.payment_events/)
   })
 
   it('forces RLS, gives buyers own-row reads, and grants no client write path', () => {

@@ -53,6 +53,11 @@ create table public.payment_orders (
     check (xsolla_transaction_id is null or xsolla_transaction_id > 0),
   dry_run                boolean     not null,
   entitlement_id         uuid,
+  -- True only when THIS order's fulfill created or reactivated the linked
+  -- entitlement, so a refund reverses exactly the die this purchase established
+  -- and never a grant the buyer already owned (an earned grant or a prior,
+  -- un-refunded purchase). Set false when fulfill only links such a grant.
+  entitlement_created    boolean     not null default false,
   raw_event              jsonb       not null default '{}'::jsonb,
   created_at             timestamptz not null default now(),
   updated_at             timestamptz not null default now(),
@@ -75,6 +80,7 @@ create table public.payment_orders (
     check (
       status <> 'pending' or
       (xsolla_transaction_id is null and entitlement_id is null and
+       entitlement_created is false and
        paid_at is null and fulfilled_at is null and refunded_at is null)
     ),
   constraint payment_orders_fulfilled_shape
@@ -258,6 +264,8 @@ declare
   target_order public.payment_orders%rowtype;
   result_order public.payment_orders%rowtype;
   granted_entitlement_id uuid;
+  entitlement_created_now boolean;
+  conflicting_revoked_at timestamptz;
   event_inserted integer;
 begin
   if p_external_id is null then
@@ -327,9 +335,14 @@ begin
     return target_order;
   end if;
 
-  -- Grant the purchased cosmetic. A buyer who already owns it (a prior earned or
-  -- purchased grant) keeps that single entitlement; the order links the existing
-  -- row rather than creating a duplicate.
+  -- Grant the purchased cosmetic and record whether THIS order established the
+  -- currently-active grant (its entitlement lineage). Three cases:
+  --   1. The INSERT creates a new row              -> this order owns it.
+  --   2. Conflict on a REVOKED row (a prior purchase of this die was refunded)
+  --      -> reactivate it; this purchase re-establishes and owns it.
+  --   3. Conflict on an ACTIVE row (an earned grant or an un-refunded prior
+  --      purchase the buyer already owns) -> link it but do NOT own it, so a
+  --      later refund of this order cannot revoke a die owned independently.
   insert into public.user_entitlements (
     id,
     user_id,
@@ -354,17 +367,42 @@ begin
   on conflict (user_id, catalog_item_id) do nothing
   returning id into granted_entitlement_id;
 
-  if granted_entitlement_id is null then
-    select id into strict granted_entitlement_id
+  if granted_entitlement_id is not null then
+    -- Case 1: the INSERT actually inserted a fresh entitlement row.
+    entitlement_created_now := true;
+  else
+    -- Conflict: exactly one row already exists for this (user, item). Inspect it.
+    select id, revoked_at
+      into strict granted_entitlement_id, conflicting_revoked_at
     from public.user_entitlements
     where user_id = target_order.user_id
       and catalog_item_id = target_order.catalog_item_id;
+
+    if conflicting_revoked_at is not null then
+      -- Case 2: a previously refunded purchase of this die. Reactivate the same
+      -- row (append provenance) instead of leaving the buyer under-granted.
+      update public.user_entitlements
+      set revoked_at = null,
+          provenance = provenance || jsonb_build_object(
+            'reactivatedBy', 'purchase',
+            'reactivationOrderId', target_order.id,
+            'reactivationExternalId', target_order.external_id,
+            'reactivationXsollaTransactionId', p_xsolla_transaction_id,
+            'reactivationDryRun', p_dry_run
+          )
+      where id = granted_entitlement_id;
+      entitlement_created_now := true;
+    else
+      -- Case 3: the buyer already owns this die independently; only link it.
+      entitlement_created_now := false;
+    end if;
   end if;
 
   update public.payment_orders
   set status = 'fulfilled',
       xsolla_transaction_id = p_xsolla_transaction_id,
       entitlement_id = granted_entitlement_id,
+      entitlement_created = entitlement_created_now,
       paid_at = now(),
       fulfilled_at = now(),
       raw_event = p_raw_event,
@@ -382,8 +420,11 @@ comment on function public.fulfill_payment_order(uuid, bigint, text, boolean, js
 -- ---------------------------------------------------------------------------
 -- Service-only refund/chargeback reversal boundary.
 --
--- A refund webhook reverses the purchase: the linked entitlement is revoked and
--- the order is marked refunded, keeping its fulfillment lineage for audit. The
+-- A refund webhook reverses the purchase. It revokes the linked entitlement only
+-- when this order established it (`entitlement_created`); when the order merely
+-- linked a die the buyer already owned independently (an earned grant or an
+-- un-refunded prior purchase), the order is marked refunded and audited without
+-- touching that die. Either way the order keeps its fulfillment lineage and the
 -- append-only event key makes the reversal idempotent. A future paid-currency
 -- purchase would also append a reversing ledger entry; direct cosmetics revoke
 -- the entitlement only.
@@ -460,11 +501,16 @@ begin
       using errcode = '55000';
   end if;
 
-  update public.user_entitlements
-  set revoked_at = now()
-  where id = target_order.entitlement_id
-    and user_id = target_order.user_id
-    and revoked_at is null;
+  -- Reverse the die only when THIS order established it. An order that just
+  -- linked a grant the buyer owned independently (earned, or an un-refunded
+  -- prior purchase) is marked refunded and audited above without revoking it.
+  if target_order.entitlement_created then
+    update public.user_entitlements
+    set revoked_at = now()
+    where id = target_order.entitlement_id
+      and user_id = target_order.user_id
+      and revoked_at is null;
+  end if;
 
   update public.payment_orders
   set status = 'refunded',
@@ -479,7 +525,7 @@ end;
 $$;
 
 comment on function public.refund_payment_order(bigint, text, boolean, jsonb) is
-  'Service-role-only refund/chargeback reversal. Idempotent on the append-only event key; revokes the purchased entitlement and marks the order refunded while retaining its auditable fulfillment lineage.';
+  'Service-role-only refund/chargeback reversal. Idempotent on the append-only event key; revokes the purchased entitlement only when this order established it (entitlement_created), otherwise marks the order refunded without touching an independently-owned die, always retaining auditable fulfillment lineage.';
 
 -- ---------------------------------------------------------------------------
 -- Forced RLS and least-privilege Data API grants.
@@ -499,6 +545,16 @@ create policy "users read their own payment orders"
   for select
   to authenticated
   using ((select auth.uid()) = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Realtime: publish payment_orders so a buyer's client receives its own order's
+-- fulfill/refund status transitions live (Xsolla settles asynchronously via the
+-- webhook, so the client cannot observe fulfillment from a redirect). The forced
+-- buyer own-row RLS policy above governs delivery: Realtime authorizes each
+-- subscriber against that policy, so a subscriber only ever receives changes to
+-- its own orders. The raw webhook ledger (payment_events) stays unpublished.
+-- ---------------------------------------------------------------------------
+alter publication supabase_realtime add table public.payment_orders;
 
 revoke all on table public.payment_orders
   from public, anon, authenticated, service_role;
