@@ -8,6 +8,8 @@ import {
   extractExternalId,
   extractDryRun,
   extractUserId,
+  isDeliberateNoGrantError,
+  RPC_DELIBERATE_NO_GRANT_SQLSTATE,
   type WebhookDeps,
   type OrderRpcResult,
 } from './webhookDispatch.ts'
@@ -15,8 +17,9 @@ import {
 function makeDeps(overrides: Partial<WebhookDeps> = {}): WebhookDeps {
   return {
     userExists: vi.fn(async () => true),
-    fulfillOrder: vi.fn(async (): Promise<OrderRpcResult> => ({ ok: true, replay: false })),
-    reverseOrder: vi.fn(async (): Promise<OrderRpcResult> => ({ ok: true, replay: false })),
+    // The RPCs return the order ROW; the dep normalizes it to { ok, status }.
+    fulfillOrder: vi.fn(async (): Promise<OrderRpcResult> => ({ ok: true, status: 'fulfilled' })),
+    reverseOrder: vi.fn(async (): Promise<OrderRpcResult> => ({ ok: true, status: 'refunded' })),
     ...overrides,
   }
 }
@@ -126,13 +129,14 @@ describe('payment / order_paid fulfillment', () => {
     )
   })
 
-  it('maps an idempotent replay to 200 replay:true (no double grant)', async () => {
-    // Simulate the RPC gate: the second delivery of the SAME transaction id
-    // returns a replay result. Dispatch must surface it as a clean 200.
+  it('maps a returned order row (grant OR idempotent replay) to a clean 200', async () => {
+    // The RPC returns the order row on both a fresh grant and an idempotent
+    // replay — they are indistinguishable and both a clean 200. The second
+    // delivery of the SAME transaction id must never re-grant (the RPC gate's
+    // job); dispatch just forwards the same idempotency key and returns 200.
     const fulfillOrder = vi
       .fn<WebhookDeps['fulfillOrder']>()
-      .mockResolvedValueOnce({ ok: true, replay: false })
-      .mockResolvedValueOnce({ ok: true, replay: true })
+      .mockResolvedValue({ ok: true, status: 'fulfilled' })
     const deps = makeDeps({ fulfillOrder })
     const payload = {
       notification_type: 'payment',
@@ -141,12 +145,27 @@ describe('payment / order_paid fulfillment', () => {
     const first = await dispatchWebhook(payload, deps)
     const second = await dispatchWebhook(payload, deps)
     expect(first.status).toBe(200)
-    expect(first.body).toMatchObject({ replay: false })
+    expect(first.body).toMatchObject({ ok: true, status: 'fulfilled' })
     expect(second.status).toBe(200)
-    expect(second.body).toMatchObject({ replay: true })
+    expect(second.body).toMatchObject({ ok: true, status: 'fulfilled' })
     // Both deliveries forward the SAME idempotency key to the RPC gate.
     expect(fulfillOrder.mock.calls[0][0].xsollaTransactionId).toBe(777)
     expect(fulfillOrder.mock.calls[1][0].xsollaTransactionId).toBe(777)
+  })
+
+  it('surfaces a deliberate-no-grant ack (acked:true) as a 200', async () => {
+    // When the RPC raises a deliberate-no-grant SQLSTATE, the dep 200-acks with
+    // { ok: false, acked: true } instead of throwing; dispatch echoes it as 200.
+    const fulfillOrder = vi
+      .fn<WebhookDeps['fulfillOrder']>()
+      .mockResolvedValue({ ok: false, acked: true })
+    const deps = makeDeps({ fulfillOrder })
+    const res = await dispatchWebhook(
+      { notification_type: 'payment', transaction: { id: 888, external_id: 'ext-4', dry_run: 1 } },
+      deps,
+    )
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ ok: false, acked: true })
   })
 
   it('returns 400 when the transaction id is missing', async () => {
@@ -157,7 +176,7 @@ describe('payment / order_paid fulfillment', () => {
   })
 })
 
-describe('refund reversal', () => {
+describe('refund / chargeback reversal', () => {
   it('calls reverseOrder with event_type=refund', async () => {
     const deps = makeDeps()
     const res = await dispatchWebhook(
@@ -168,10 +187,51 @@ describe('refund reversal', () => {
       deps,
     )
     expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ ok: true, status: 'refunded' })
     expect(deps.reverseOrder).toHaveBeenCalledWith(
       expect.objectContaining({ xsollaTransactionId: 321, eventType: 'refund' }),
     )
     expect(deps.fulfillOrder).not.toHaveBeenCalled()
+  })
+
+  it('routes chargeback to reverseOrder with event_type=chargeback', async () => {
+    // refund_payment_order accepts 'refund' | 'chargeback'; both reverse.
+    const deps = makeDeps()
+    const res = await dispatchWebhook(
+      {
+        notification_type: 'chargeback',
+        transaction: { id: 654, external_id: 'ext-10', dry_run: 1 },
+      },
+      deps,
+    )
+    expect(res.status).toBe(200)
+    expect(deps.reverseOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ xsollaTransactionId: 654, eventType: 'chargeback' }),
+    )
+    expect(deps.fulfillOrder).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when a chargeback is missing its transaction id', async () => {
+    const deps = makeDeps()
+    const res = await dispatchWebhook({ notification_type: 'chargeback', transaction: {} }, deps)
+    expect(res.status).toBe(400)
+    expect(deps.reverseOrder).not.toHaveBeenCalled()
+  })
+})
+
+describe('isDeliberateNoGrantError', () => {
+  it('recognizes the invalid_parameter_value SQLSTATE (dry_run mismatch, etc.)', () => {
+    expect(RPC_DELIBERATE_NO_GRANT_SQLSTATE).toBe('22023')
+    expect(isDeliberateNoGrantError('22023')).toBe(true)
+  })
+
+  it('treats every other code (and missing codes) as retryable', () => {
+    // 23503 (unknown order) and 55000 (order not yet fulfilled) can race with a
+    // sibling webhook, so they stay retryable → 5xx.
+    expect(isDeliberateNoGrantError('23503')).toBe(false)
+    expect(isDeliberateNoGrantError('55000')).toBe(false)
+    expect(isDeliberateNoGrantError(undefined)).toBe(false)
+    expect(isDeliberateNoGrantError(null)).toBe(false)
   })
 })
 

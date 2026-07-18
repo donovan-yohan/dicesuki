@@ -4,8 +4,8 @@ First edge functions in the repo (exec plan: `docs/exec-plans/active/2026-07-18-
 
 | Function | Auth | Purpose |
 |----------|------|---------|
-| `create-checkout` | JWT (verify on) | Authenticated buy flow: validate SKU → server-side price → insert `pending` `payment_orders` row → mint an Xsolla payment token. Returns `{ token, external_id }`. |
-| `xsolla-webhook` | **public** (`--no-verify-jwt`) | Server-to-server Xsolla notifications: SHA-1 signature check → dispatch `user_validation` / `payment` / `order_paid` / `refund` → idempotent `fulfill_payment_order` RPC. |
+| `create-checkout` | JWT (verify on) | Authenticated buy flow: validate SKU → server-side price → open a `pending` order via the `create_payment_order` RPC → mint an Xsolla payment token. Returns `{ token, external_id }` (the RPC-generated external_id). |
+| `xsolla-webhook` | **public** (`--no-verify-jwt`) | Server-to-server Xsolla notifications: SHA-1 signature check → dispatch `user_validation` / `payment` / `order_paid` → `fulfill_payment_order`, and `refund` / `chargeback` → `refund_payment_order` (both idempotent RPCs). |
 
 ## Layout
 
@@ -100,16 +100,41 @@ When `deno` becomes available, the same pure modules can also be exercised with 
 
 ## Contract dependency (migration 0013 / Packet A)
 
-The webhook calls one RPC that Packet A owns:
+Packet A owns three service-role-only `SECURITY DEFINER` boundaries. Each
+`returns public.payment_orders` — the order ROW, **not** a `{ ok, replay }` jsonb.
+No API role holds table DML; every write flows through these functions.
 
 ```sql
-fulfill_payment_order(
-  p_external_id           uuid,     -- our order key (may be null)
+create_payment_order(          -- create-checkout: open the pending order
+  p_user_id         uuid,
+  p_catalog_item_id text,
+  p_amount_minor    bigint,
+  p_currency        text,
+  p_dry_run         boolean
+) returns public.payment_orders   -- RPC generates external_id; use the returned row
+
+fulfill_payment_order(         -- webhook payment / order_paid → grant
+  p_external_id           uuid,     -- locates the pending order (required)
   p_xsolla_transaction_id bigint,   -- Xsolla transaction id (idempotency key)
-  p_event_type            text,     -- 'payment' | 'order_paid' | 'refund'
-  p_dry_run               boolean,  -- sandbox transaction flag
+  p_event_type            text,     -- 'payment' | 'order_paid'
+  p_dry_run               boolean,
   p_raw_event             jsonb
-) returns jsonb  -- { "ok": true, "replay": false, "status": "fulfilled" }
+) returns public.payment_orders
+
+refund_payment_order(          -- webhook refund / chargeback → reversal
+  p_xsolla_transaction_id bigint,   -- locates the fulfilled order (NO external_id)
+  p_event_type            text,     -- 'refund' | 'chargeback'
+  p_dry_run               boolean,
+  p_raw_event             jsonb
+) returns public.payment_orders
 ```
 
-`SECURITY DEFINER`, service-role only. The `(xsolla_transaction_id, event_type)` `payment_events` row is the idempotency gate: a replay returns the prior result with `"replay": true` and never re-grants. `event_type = 'refund'` selects the reversal branch. `create-checkout` also inserts into `payment_orders` (`external_id`, `user_id`, `catalog_item_id`, `amount_minor`, `currency`, `status='pending'`, `dry_run`). If Packet A's column/param names differ, reconcile against this file.
+The `(xsolla_transaction_id, event_type)` `payment_events` row is the idempotency
+gate: an exact replay (or out-of-order type on an already-advanced order) re-returns
+the prior order row and never re-grants/re-revokes. On a hard failure the RPC
+`RAISE`s → the webhook returns 5xx so Xsolla retries — **except** a deliberate-no-grant
+SQLSTATE (`22023` invalid_parameter_value, e.g. a sandbox/production `dry_run`
+mismatch), which the webhook 200-acks + audit-logs so Xsolla stops retrying a
+permanently-rejected event. `create-checkout` must NOT insert into `payment_orders`
+directly (service_role has SELECT only); it calls `create_payment_order`. If Packet
+A's column/param names differ, reconcile against migration 0013.

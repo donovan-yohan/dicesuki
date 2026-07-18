@@ -4,7 +4,9 @@
 //   1. Verify the Supabase JWT; reject anonymous/guest users.
 //   2. Validate the client SKU against the SERVER-side price catalog + DB
 //      (invariant #5 — never trust a client-sent price/SKU mapping).
-//   3. Insert a `pending` payment_orders row with a fresh external_id.
+//   3. Open a `pending` payment_orders row via the create_payment_order RPC
+//      (migration 0013 grants service_role SELECT only on the table — a direct
+//      insert is 'permission denied'; the RPC returns the row + its external_id).
 //   4. Mint an Xsolla Pay Station payment token.
 //   5. Return { token, external_id }.
 //
@@ -80,20 +82,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
 
-  // 3. Insert the pending order with our own fresh external_id.
-  const externalId = crypto.randomUUID()
+  // 3. Open the pending order through the service-role SECURITY DEFINER boundary.
+  //    A direct `.from('payment_orders').insert(...)` fails 'permission denied':
+  //    migration 0013 grants service_role SELECT only on the table; every write
+  //    flows through the create/fulfill/refund functions. The RPC generates the
+  //    order's external_id and returns the row — we no longer mint one here.
   const sandbox = isSandbox()
-  const { error: insertError } = await service.from('payment_orders').insert({
-    external_id: externalId,
-    user_id: user.id,
-    catalog_item_id: product.catalogItemId,
-    amount_minor: product.amountMinor,
-    currency: product.currency,
-    status: 'pending',
-    dry_run: sandbox,
+  const { data: orderData, error: createOrderError } = await service.rpc('create_payment_order', {
+    p_user_id: user.id,
+    p_catalog_item_id: product.catalogItemId,
+    p_amount_minor: product.amountMinor,
+    p_currency: product.currency,
+    p_dry_run: sandbox,
   })
-  if (insertError) {
-    console.error('payment_orders insert failed', insertError)
+  if (createOrderError) {
+    console.error('create_payment_order failed', createOrderError)
+    return jsonResponse({ error: { code: 'ORDER_INSERT_FAILED', message: 'Could not open order' } }, 500)
+  }
+  // `create_payment_order` returns public.payment_orders (the row); PostgREST
+  // hands it back as an object (array-wrapped for a SETOF-shaped return).
+  const orderRow = (Array.isArray(orderData) ? orderData[0] : orderData) as
+    | { external_id?: unknown }
+    | null
+  const externalId =
+    typeof orderRow?.external_id === 'string' ? orderRow.external_id : null
+  if (!externalId) {
+    console.error('create_payment_order returned no external_id', orderData)
     return jsonResponse({ error: { code: 'ORDER_INSERT_FAILED', message: 'Could not open order' } }, 500)
   }
 

@@ -14,11 +14,40 @@ export interface WebhookResult {
   body: unknown
 }
 
-/** Outcome of a fulfillment/reversal RPC call. `replay` marks a no-op replay. */
+/**
+ * Outcome of a fulfillment/reversal RPC call.
+ *
+ * The `create_payment_order` / `fulfill_payment_order` / `refund_payment_order`
+ * boundaries each `returns public.payment_orders`, i.e. the order ROW — there is
+ * no `{ ok, replay }` envelope. A returned row means the event was accepted:
+ * either a fresh grant/reversal or an idempotent replay (both re-return the row,
+ * indistinguishable by design, which is fine — Xsolla only needs a 2xx). `ok` is
+ * therefore `true` whenever a row came back. `acked` is set only when the RPC
+ * RAISED a deliberate-no-grant SQLSTATE that we 200-ack instead of retrying.
+ */
 export interface OrderRpcResult {
+  /** True when the RPC returned an order row (grant/reversal or idempotent replay). */
   ok: boolean
-  replay?: boolean
-  [key: string]: unknown
+  /** `status` column of the returned order row, when a row came back. */
+  status?: string
+  /** True when a deliberate-no-grant SQLSTATE was 200-acked (never retried). */
+  acked?: boolean
+}
+
+/**
+ * Postgres SQLSTATE the paid-checkout RPCs raise for an event that is
+ * DELIBERATELY rejected and will never succeed on retry — `invalid_parameter_value`
+ * (`22023`), which `fulfill_payment_order` / `refund_payment_order` raise for a
+ * sandbox/production `dry_run` mismatch (and every other deterministic parameter
+ * rejection). These are permanent, not transient, so the webhook 200-acks them
+ * (with an audit log) to stop Xsolla's ~20-retry storm on a doomed event. Every
+ * other SQLSTATE is treated as retryable and surfaces as 5xx.
+ */
+export const RPC_DELIBERATE_NO_GRANT_SQLSTATE = '22023'
+
+/** True iff a Postgres error code marks a deliberate, non-retryable no-grant. */
+export function isDeliberateNoGrantError(code: unknown): boolean {
+  return code === RPC_DELIBERATE_NO_GRANT_SQLSTATE
 }
 
 export interface FulfillArgs {
@@ -38,11 +67,26 @@ export interface WebhookDeps {
   reverseOrder(args: FulfillArgs): Promise<OrderRpcResult>
 }
 
-/** Xsolla webhook types we act on. Everything else is acked (200). */
+/** Xsolla webhook types that grant an entitlement. Everything else is acked (200). */
 const FULFILL_TYPES = new Set(['payment', 'order_paid'])
+
+/**
+ * Xsolla webhook types that reverse an entitlement. Both route to the single
+ * `refund_payment_order` boundary, whose `p_event_type` check accepts exactly
+ * these two values.
+ */
+const REVERSAL_TYPES = new Set(['refund', 'chargeback'])
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+}
+
+/** 200-ack body echoing the RPC outcome. Xsolla ignores the body on a 2xx. */
+function ackBody(result: OrderRpcResult): Record<string, unknown> {
+  const body: Record<string, unknown> = { ok: result.ok }
+  if (typeof result.status === 'string') body.status = result.status
+  if (result.acked) body.acked = true
+  return body
 }
 
 /** Coerce an Xsolla id (number or numeric string) to a finite number, else null. */
@@ -136,12 +180,13 @@ export async function dispatchWebhook(
       eventType: type,
       rawEvent: record,
     })
-    // Success AND idempotent replay both return 200 — never re-granting on
-    // replay is the RPC's job (invariant #2).
-    return { status: 200, body: { ok: result.ok, replay: result.replay ?? false } }
+    // A returned order row (fresh grant OR idempotent replay) is a 200; a
+    // deliberate-no-grant SQLSTATE is 200-acked by the dep; every other RPC
+    // failure throws before we get here → 5xx → Xsolla retries (invariant #2).
+    return { status: 200, body: ackBody(result) }
   }
 
-  if (type === 'refund') {
+  if (REVERSAL_TYPES.has(type)) {
     const xsollaTransactionId = extractTransactionId(record)
     if (xsollaTransactionId === null) {
       return {
@@ -149,6 +194,8 @@ export async function dispatchWebhook(
         body: { error: { code: 'INVALID_PARAMETER', message: 'Missing transaction id' } },
       }
     }
+    // refund_payment_order locates the order by transaction id (no external_id
+    // param) and accepts event_type 'refund' | 'chargeback'.
     const result = await deps.reverseOrder({
       xsollaTransactionId,
       externalId: extractExternalId(record),
@@ -156,7 +203,7 @@ export async function dispatchWebhook(
       eventType: type,
       rawEvent: record,
     })
-    return { status: 200, body: { ok: result.ok, replay: result.replay ?? false } }
+    return { status: 200, body: ackBody(result) }
   }
 
   // Unknown notification types are acknowledged so Xsolla stops retrying.

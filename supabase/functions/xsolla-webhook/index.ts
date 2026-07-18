@@ -7,7 +7,7 @@
 //   3. Dispatch by notification_type:
 //        - user_validation → 200 if the Supabase user exists, else 400
 //        - payment / order_paid → fulfill_payment_order (idempotent grant)
-//        - refund → fulfill_payment_order with event_type='refund' (reverse)
+//        - refund / chargeback → refund_payment_order (idempotent reversal)
 //        - unknown → 200 ack
 //   4. Respond fast. 5xx makes Xsolla retry (~20 times / 12h); the DB
 //      idempotency gate inside the RPC makes replays safe (invariants #1, #2).
@@ -16,26 +16,39 @@
 //   supabase functions deploy xsolla-webhook --project-ref nksxdfcjabgbxeefwkdc --no-verify-jwt
 //
 // ---------------------------------------------------------------------------
-// RPC CONTRACT expected of migration 0013 (Packet A owns the definition):
+// RPC CONTRACT (migration 0013 / feat/xsolla-paid-checkout-schema owns it).
+// Both boundaries are SECURITY DEFINER, service-role EXECUTE only, and each
+// `returns public.payment_orders` — the order ROW, NOT a { ok, replay } jsonb.
 //
 //   fulfill_payment_order(
-//     p_external_id            uuid,     -- our order key (may be null)
+//     p_external_id            uuid,     -- locates the pending order (required)
 //     p_xsolla_transaction_id  bigint,   -- Xsolla transaction id (idempotency)
-//     p_event_type             text,     -- 'payment' | 'order_paid' | 'refund'
+//     p_event_type             text,     -- 'payment' | 'order_paid'
 //     p_dry_run                boolean,  -- sandbox transaction flag
 //     p_raw_event              jsonb     -- bounded raw notification
-//   ) returns jsonb  -- e.g. { "ok": true, "replay": false, "status": "fulfilled" }
+//   ) returns public.payment_orders
 //
-// SECURITY DEFINER, service-role only. The (xsolla_transaction_id, event_type)
-// payment_events row is the idempotency lock: a replay returns the prior result
-// with "replay": true and never re-grants. The 'refund' branch reverses the
-// entitlement + marks the ledger row (invariant #4).
+//   refund_payment_order(               -- NO p_external_id: found by tx id
+//     p_xsolla_transaction_id  bigint,   -- locates the fulfilled order
+//     p_event_type             text,     -- 'refund' | 'chargeback'
+//     p_dry_run                boolean,
+//     p_raw_event              jsonb
+//   ) returns public.payment_orders
+//
+// The (xsolla_transaction_id, event_type) payment_events row is the idempotency
+// lock: an exact replay (or out-of-order type on an already-advanced order)
+// re-returns the prior order row and never re-grants/re-revokes. On any hard
+// failure the RPC RAISEs — we let that become a 5xx so Xsolla retries — EXCEPT a
+// deliberate-no-grant SQLSTATE (invalid_parameter_value, e.g. a sandbox/production
+// dry_run mismatch), which we 200-ack + audit-log so Xsolla stops retrying a
+// permanently-rejected event (invariants #1, #2, #4).
 // ---------------------------------------------------------------------------
 
 import { createServiceRoleClient } from '../_shared/supabaseClient.ts'
 import { verifyXsollaSignature } from '../_shared/xsollaSignature.ts'
 import {
   dispatchWebhook,
+  isDeliberateNoGrantError,
   type FulfillArgs,
   type OrderRpcResult,
   type WebhookDeps,
@@ -49,33 +62,54 @@ function jsonResponse(body: unknown, status: number): Response {
   })
 }
 
-/** Normalize the RPC return (jsonb object, row, or array) into OrderRpcResult. */
+/**
+ * Normalize the RPC return into an OrderRpcResult. Each boundary
+ * `returns public.payment_orders`, so PostgREST hands back the order ROW as an
+ * object (array-wrapped for a SETOF-shaped return). A returned row means the
+ * event was accepted — a fresh grant/reversal or an idempotent replay, which are
+ * indistinguishable and both a clean 200.
+ */
 function normalizeRpcResult(data: unknown): OrderRpcResult {
   const row = Array.isArray(data) ? data[0] : data
   if (row && typeof row === 'object') {
-    const rec = row as Record<string, unknown>
-    // Normalized booleans win over raw fields (spread first).
-    return {
-      ...rec,
-      ok: rec.ok !== false,
-      replay: rec.replay === true,
-    }
+    const status = (row as Record<string, unknown>).status
+    return { ok: true, status: typeof status === 'string' ? status : undefined }
   }
-  return { ok: true, replay: false }
+  return { ok: true }
+}
+
+/** Shape of a Supabase RPC error we branch on (subset of PostgrestError). */
+interface RpcError {
+  code?: string
+  message: string
 }
 
 function buildDeps(service: SupabaseClient): WebhookDeps {
-  const callFulfill = async (args: FulfillArgs): Promise<OrderRpcResult> => {
-    const { data, error } = await service.rpc('fulfill_payment_order', {
-      p_external_id: args.externalId,
-      p_xsolla_transaction_id: args.xsollaTransactionId,
-      p_event_type: args.eventType,
-      p_dry_run: args.dryRun,
-      p_raw_event: args.rawEvent,
-    })
+  const callOrderRpc = async (
+    fn: 'fulfill_payment_order' | 'refund_payment_order',
+    params: Record<string, unknown>,
+    args: FulfillArgs,
+  ): Promise<OrderRpcResult> => {
+    const { data, error } = await service.rpc(fn, params)
     if (error) {
-      // Throw → 500 → Xsolla retries. The idempotency gate keeps retries safe.
-      throw new Error(`fulfill_payment_order failed: ${error.message}`)
+      const rpcError = error as RpcError
+      if (isDeliberateNoGrantError(rpcError.code)) {
+        // Deliberate no-grant (e.g. sandbox/production dry_run mismatch): this
+        // event can NEVER succeed on retry. 200-ack so Xsolla stops its retry
+        // storm; audit-log so the permanently-rejected event stays observable.
+        console.warn('xsolla-webhook deliberate no-grant (200-ack, no retry)', {
+          fn,
+          code: rpcError.code,
+          message: rpcError.message,
+          eventType: args.eventType,
+          xsollaTransactionId: args.xsollaTransactionId,
+          externalId: args.externalId,
+        })
+        return { ok: false, acked: true }
+      }
+      // Any other failure → throw → 500 → Xsolla retries. The idempotency gate
+      // (unique payment_events key) keeps those retries safe.
+      throw new Error(`${fn} failed [${rpcError.code ?? 'unknown'}]: ${rpcError.message}`)
     }
     return normalizeRpcResult(data)
   }
@@ -86,10 +120,32 @@ function buildDeps(service: SupabaseClient): WebhookDeps {
       if (error) return false
       return Boolean(data?.user)
     },
-    fulfillOrder: callFulfill,
-    // Refund reuses the same RPC entry point; event_type='refund' selects the
-    // reversal branch inside the SECURITY DEFINER function.
-    reverseOrder: callFulfill,
+    fulfillOrder: (args: FulfillArgs) =>
+      callOrderRpc(
+        'fulfill_payment_order',
+        {
+          p_external_id: args.externalId,
+          p_xsolla_transaction_id: args.xsollaTransactionId,
+          p_event_type: args.eventType,
+          p_dry_run: args.dryRun,
+          p_raw_event: args.rawEvent,
+        },
+        args,
+      ),
+    // Refunds/chargebacks go through the dedicated reversal boundary, which
+    // locates the fulfilled order by transaction id (NO external_id param) and
+    // accepts event_type 'refund' | 'chargeback'.
+    reverseOrder: (args: FulfillArgs) =>
+      callOrderRpc(
+        'refund_payment_order',
+        {
+          p_xsolla_transaction_id: args.xsollaTransactionId,
+          p_event_type: args.eventType,
+          p_dry_run: args.dryRun,
+          p_raw_event: args.rawEvent,
+        },
+        args,
+      ),
   }
 }
 
