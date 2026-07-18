@@ -37,6 +37,16 @@ function simulation(version: number, slug: string) {
   })}\n`
 }
 
+function productionEdition(version: number, slug: string, migration: string) {
+  return `${JSON.stringify({
+    edition: version,
+    editionId: `${slug}@${version}`,
+    slug,
+    purpose: 'production',
+    migration,
+  })}\n`
+}
+
 function repository() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dicesuki-economy-history-'))
   temporaryDirectories.push(root)
@@ -131,6 +141,34 @@ describe('immutable economy history guard', () => {
     ])
   })
 
+  it('anchors each published production edition together with its migration', () => {
+    const { root } = repository()
+    write(
+      root,
+      'economy/production/editions/0001-earned-collection.json',
+      productionEdition(1, 'earned-collection', '0009_earned_economy_ledger.sql'),
+    )
+    write(root, 'supabase/migrations/0009_earned_economy_ledger.sql', 'select 1;\n')
+    git(root, 'add', '.')
+    git(root, 'commit', '-qm', 'production economy baseline')
+
+    expect(economyHistoryPathsAtRef('HEAD', root)).toEqual([
+      'economy/contracts/editions/0001-broad-rarity-showcase.json',
+      'economy/disclosures/0001-broad-rarity-showcase.json',
+      'economy/production/editions/0001-earned-collection.json',
+      'supabase/migrations/0009_earned_economy_ledger.sql',
+    ])
+
+    git(root, 'checkout', '-qb', 'feature')
+    write(root, 'unrelated.txt', 'ok\n')
+    expect(changedImmutableEconomyPaths('main', root).changed).toEqual([])
+
+    write(root, 'supabase/migrations/0009_earned_economy_ledger.sql', 'select 2;\n')
+    expect(changedImmutableEconomyPaths('main', root).changed).toEqual([
+      'supabase/migrations/0009_earned_economy_ledger.sql',
+    ])
+  })
+
   it('uses the branch merge base even when the target branch advances independently', () => {
     const { root, baseline } = repository()
     git(root, 'checkout', '-qb', 'feature')
@@ -172,5 +210,31 @@ describe('immutable economy history guard', () => {
     git(root, 'add', '.')
     git(root, 'commit', '-qm', 'remove disclosure')
     expect(() => economyHistoryPathsAtRef('HEAD', root)).toThrow(/references a missing disclosure/)
+  })
+
+  it('rejects a production edition whose migration anchor is missing or invalid', () => {
+    const { root } = repository()
+    write(
+      root,
+      'economy/production/editions/0001-earned-collection.json',
+      productionEdition(1, 'earned-collection', '0009_earned_economy_ledger.sql'),
+    )
+    git(root, 'add', '.')
+    git(root, 'commit', '-qm', 'missing production migration')
+    expect(() => economyHistoryPathsAtRef('HEAD', root)).toThrow(
+      /missing production migration/,
+    )
+
+    const bad = JSON.parse(productionEdition(1, 'earned-collection', 'mutable.sql'))
+    write(
+      root,
+      'economy/production/editions/0001-earned-collection.json',
+      `${JSON.stringify(bad)}\n`,
+    )
+    git(root, 'add', '.')
+    git(root, 'commit', '-qm', 'invalid production migration')
+    expect(() => economyHistoryPathsAtRef('HEAD', root)).toThrow(
+      /no valid immutable production migration anchor/,
+    )
   })
 })

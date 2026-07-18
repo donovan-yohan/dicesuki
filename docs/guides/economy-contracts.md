@@ -132,3 +132,52 @@ The same gate scans `src/`, `server/src/`, `server/core/src/`, and
 `economy/disclosures`, `economy/simulations`, or the simulator. No wallet,
 debit, RNG, pull, checkout, entitlement grant, or client runtime integration
 exists in this slice.
+
+## Production edition and earned-wallet foundation
+
+The selected Candidate B rules now have a separate production source at
+`economy/production/editions/0001-earned-collection.json`. It is not generated
+from, imported from, or evaluated by simulator runtime code. The production
+validator freezes the explicit catalog pools, 72/23/4/1 weights, pull-8 and
+pull-25 tier guarantees, pull-20 selected-unowned guarantee, 160/1600 Star
+cost, flexible ten-roll weekly earning cap, finite 12-week passport, four-week
+Community Die cadence, and deterministic Dust outcomes.
+
+Production files use the same append-only rule as the studies: add the next
+contiguous production edition and a new anchored migration; never rewrite an
+edition or migration that exists at the branch merge base. The validator
+dispatches shared semantics by `schemaVersion`, freezes edition 0001 to its
+exact Candidate B source hash, and derives each migration block marker from the
+edition number. A rate change therefore appends a tuned 0002 under the existing
+schema; a shape change must add an explicit schema-version validator. Verify
+with:
+
+```bash
+npm run check:production-economy
+npm run check:immutable-economy-history -- origin/main
+npm test -- --run scripts/validate-production-economy.test.ts
+```
+
+Migration `0009_earned_economy_ledger.sql` creates account-anchored balances
+and an immutable ledger. Authenticated clients receive own-row SELECT only.
+Only the explicitly granted service-role function may append a delta; it locks
+the stable account row, returns exact idempotent replays, rejects mismatched
+replays, and rejects negative or overflowing balances. Promotional Stars and
+earned Dust are separate buckets, and this phase has no paid bucket or balance
+credit path.
+
+Run the real Postgres proof with Docker:
+
+```bash
+npm run test:db:wallet-ledger
+```
+
+The harness applies the repository migrations to PostgreSQL 17, exercises
+actual RLS and grants, proves update/delete/truncate rejection, and races both
+identical retries and competing debits. The foundation follows the merged Dark
+Dungeon catalog migration `0008`, so the wallet migration remains the next
+contiguous migration at `0009`.
+
+This foundation does not grant collectibles. Currency provenance is not an
+entitlement source. Claims, pulls, results, RNG, guarantee state, entitlement
+grant-source/reversal history, checkout, and money remain downstream slices.
