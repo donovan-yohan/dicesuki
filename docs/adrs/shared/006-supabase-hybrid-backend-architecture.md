@@ -87,8 +87,10 @@ instead of migrating data from the retired project.
 
 - The Supabase **anon key is public-safe** and MAY live in client environment
   configuration (it is protected by RLS).
-- The **service-role key** and any **JWT signing secret** are **owner-provided secrets**
-  and MUST NEVER be committed to the repository. They are supplied via environment/secret
+- A dedicated Supabase **secret API key** is the preferred credential for trusted
+  server writes. The legacy JWT-format **service-role key** is a migration fallback
+  only. Both, along with any **JWT signing secret**, are **owner-provided secrets** and
+  MUST NEVER be committed to the repository. They are supplied via environment/secret
   storage on the systems that need them.
 - The **Supabase project id is public-safe** and may appear in client env and
   documentation (including this ADR).
