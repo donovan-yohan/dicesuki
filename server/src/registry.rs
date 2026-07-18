@@ -21,12 +21,13 @@
 //!   `https://rooms.example.com` (behind the TLS reverse proxy; see
 //!   `docs/guides/deployment.md`).
 //!
-//! When no registry key or public URL is configured, the feature is silently
-//! OFF and the server runs exactly as before. Partial or malformed registry
-//! configuration is a startup error so an intended heartbeat cannot fail open.
+//! `PUBLIC_URL` is the registry intent signal. Without it the registry is OFF,
+//! even when a privileged Supabase credential enables another native service
+//! such as authoritative-roll reporting. Once `PUBLIC_URL` is present, missing
+//! or malformed registry dependencies are a startup error so an intended
+//! heartbeat cannot fail open.
 
 use std::fmt;
-use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -34,6 +35,10 @@ use log::{debug, info, warn};
 use tokio::sync::RwLock;
 
 use crate::room_manager::RoomManager;
+use crate::supabase::{
+    normalize_env_value, SupabaseCredentialMode, SupabaseServiceConfig, SupabaseServiceConfigError,
+    SUPABASE_SECRET_KEY_ENV, SUPABASE_SERVICE_ROLE_KEY_ENV, SUPABASE_URL_ENV,
+};
 use crate::INSTANCE_ID;
 
 /// How often the server refreshes its registry row. Short enough that a dead
@@ -45,57 +50,11 @@ const HEARTBEAT_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 /// Maximum time allowed to establish the registry connection.
 const HEARTBEAT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
-const SUPABASE_URL_ENV: &str = "SUPABASE_URL";
-const SUPABASE_SECRET_KEY_ENV: &str = "SUPABASE_SECRET_KEY";
-const SUPABASE_SERVICE_ROLE_KEY_ENV: &str = "SUPABASE_SERVICE_ROLE_KEY";
 const PUBLIC_URL_ENV: &str = "PUBLIC_URL";
 
 /// Authentication mode used for registry writes. This intentionally exposes
 /// only the mode, never the credential value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RegistryCredentialMode {
-    /// Preferred opaque `sb_secret_...` API key, sent only as `apikey`.
-    SecretApiKey,
-    /// Deprecated JWT service-role key, sent as `apikey` and bearer auth.
-    LegacyServiceRoleJwt,
-}
-
-#[derive(Clone)]
-enum RegistryCredential {
-    SecretApiKey(String),
-    LegacyServiceRoleJwt(String),
-}
-
-impl RegistryCredential {
-    fn mode(&self) -> RegistryCredentialMode {
-        match self {
-            Self::SecretApiKey(_) => RegistryCredentialMode::SecretApiKey,
-            Self::LegacyServiceRoleJwt(_) => RegistryCredentialMode::LegacyServiceRoleJwt,
-        }
-    }
-
-    fn apply(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        match self {
-            // Opaque Supabase API keys are not JWTs and must never be sent as a
-            // bearer token. The gateway authorizes this service via `apikey`.
-            Self::SecretApiKey(key) => request.header("apikey", sensitive_header_value(key)),
-            // Migration-only compatibility for the legacy JWT service-role key.
-            Self::LegacyServiceRoleJwt(key) => request
-                .header("apikey", sensitive_header_value(key))
-                .bearer_auth(key),
-        }
-    }
-}
-
-fn sensitive_header_value(value: &str) -> reqwest::header::HeaderValue {
-    // Credential validators permit only header-safe characters before this
-    // point. Mark the value sensitive so Request/RequestBuilder Debug output
-    // redacts it and HTTP/2 encoders avoid indexing it.
-    let mut header = reqwest::header::HeaderValue::from_bytes(value.as_bytes())
-        .expect("validated registry credential must be a valid header value");
-    header.set_sensitive(true);
-    header
-}
+pub type RegistryCredentialMode = SupabaseCredentialMode;
 
 /// Invalid registry environment configuration. Variants deliberately retain
 /// env names and error categories only, never credential values.
@@ -144,7 +103,7 @@ pub struct RegistryConfig {
     /// Supabase REST endpoint for the `rooms` table
     /// (`{SUPABASE_URL}/rest/v1/rooms`).
     pub rest_url: String,
-    credential: RegistryCredential,
+    service: SupabaseServiceConfig,
     /// This server's public base URL, stored so the client room browser can
     /// connect. Trailing slash trimmed.
     pub public_url: String,
@@ -162,8 +121,9 @@ impl fmt::Debug for RegistryConfig {
 }
 
 impl RegistryConfig {
-    /// Resolve config from the environment. A fully unconfigured registry is
-    /// disabled; partial or malformed registry intent is an error.
+    /// Resolve config from the environment. `PUBLIC_URL` alone expresses
+    /// registry intent; without it this integration is disabled. Once present,
+    /// partial or malformed registry dependencies are an error.
     pub fn from_env() -> Result<Option<Self>, RegistryConfigError> {
         Self::resolve(|key| std::env::var(key).ok())
     }
@@ -171,7 +131,7 @@ impl RegistryConfig {
     /// Credential mode selected for this deployment, without exposing the key.
     #[must_use]
     pub fn credential_mode(&self) -> RegistryCredentialMode {
-        self.credential.mode()
+        self.service.credential_mode()
     }
 
     fn resolve(
@@ -182,9 +142,9 @@ impl RegistryConfig {
         let legacy_key = normalize_env_value(read(SUPABASE_SERVICE_ROLE_KEY_ENV));
         let public_url = normalize_env_value(read(PUBLIC_URL_ENV));
 
-        // SUPABASE_URL is shared with JWT verification and does not by itself
-        // opt the registry in. A registry credential or PUBLIC_URL does.
-        if secret_key.is_none() && legacy_key.is_none() && public_url.is_none() {
+        // SUPABASE_URL and backend credentials are shared by authentication and
+        // authoritative rewards. Only PUBLIC_URL opts the rooms registry in.
+        if public_url.is_none() {
             return Ok(None);
         }
 
@@ -195,47 +155,37 @@ impl RegistryConfig {
         if secret_key.is_none() && legacy_key.is_none() {
             missing.push("SUPABASE_SECRET_KEY (preferred) or SUPABASE_SERVICE_ROLE_KEY (legacy)");
         }
-        if public_url.is_none() {
-            missing.push(PUBLIC_URL_ENV);
-        }
         if !missing.is_empty() {
             return Err(RegistryConfigError::Incomplete { missing });
         }
 
-        let credential = if let Some(key) = secret_key {
-            // Never silently fall back when the preferred variable is present
-            // but malformed: the operator must know which credential is active.
-            if !is_secret_api_key(&key) {
-                return Err(RegistryConfigError::InvalidSecretKey);
-            }
-            RegistryCredential::SecretApiKey(key)
-        } else {
-            let key = legacy_key.expect("credential presence checked above");
-            if !is_legacy_jwt(&key) {
-                return Err(RegistryConfigError::InvalidLegacyServiceRoleKey);
-            }
-            RegistryCredential::LegacyServiceRoleJwt(key)
-        };
-
-        let supabase_url =
-            normalize_supabase_url(&supabase_url.expect("SUPABASE_URL presence checked above"))?;
+        let service = SupabaseServiceConfig::from_values(supabase_url, secret_key, legacy_key)
+            .map_err(map_service_error)?
+            .expect("registry credential presence checked above");
         let public_url = normalize_http_url(
-            &public_url.expect("PUBLIC_URL presence checked above"),
+            &public_url.expect("PUBLIC_URL is the registry intent signal"),
             RegistryConfigError::InvalidPublicUrl,
         )?;
 
         Ok(Some(Self {
-            rest_url: format!("{supabase_url}/rest/v1/rooms"),
-            credential,
+            rest_url: service.rest_table_url("rooms"),
+            service,
             public_url,
         }))
     }
 }
 
-fn normalize_env_value(value: Option<String>) -> Option<String> {
-    value
-        .map(|v| v.trim().to_string())
-        .filter(|v| !v.is_empty())
+fn map_service_error(error: SupabaseServiceConfigError) -> RegistryConfigError {
+    match error {
+        SupabaseServiceConfigError::Incomplete { missing } => {
+            RegistryConfigError::Incomplete { missing }
+        }
+        SupabaseServiceConfigError::InvalidSupabaseUrl => RegistryConfigError::InvalidSupabaseUrl,
+        SupabaseServiceConfigError::InvalidSecretKey => RegistryConfigError::InvalidSecretKey,
+        SupabaseServiceConfigError::InvalidLegacyServiceRoleKey => {
+            RegistryConfigError::InvalidLegacyServiceRoleKey
+        }
+    }
 }
 
 fn parse_http_url(
@@ -262,72 +212,6 @@ fn normalize_http_url(
 ) -> Result<String, RegistryConfigError> {
     parse_http_url(value, error)?;
     Ok(value.trim_end_matches('/').to_string())
-}
-
-fn normalize_supabase_url(value: &str) -> Result<String, RegistryConfigError> {
-    let error = RegistryConfigError::InvalidSupabaseUrl;
-    let parsed = parse_http_url(value, error.clone())?;
-    if parsed.scheme() != "https"
-        && !parsed.host_str().is_some_and(|host| {
-            let unbracketed = host
-                .strip_prefix('[')
-                .and_then(|value| value.strip_suffix(']'))
-                .unwrap_or(host);
-            unbracketed.eq_ignore_ascii_case("localhost")
-                || unbracketed
-                    .parse::<IpAddr>()
-                    .is_ok_and(|address| address.is_loopback())
-        })
-    {
-        return Err(error);
-    }
-    Ok(value.trim_end_matches('/').to_string())
-}
-
-fn is_secret_api_key(value: &str) -> bool {
-    value.strip_prefix("sb_secret_").is_some_and(|suffix| {
-        !suffix.is_empty()
-            && suffix
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-    })
-}
-
-#[derive(serde::Deserialize)]
-struct LegacyServiceRoleClaims {
-    role: String,
-}
-
-fn is_legacy_jwt(value: &str) -> bool {
-    let segments = value.split('.').collect::<Vec<_>>();
-    if segments.len() != 3
-        || !segments.iter().all(|segment| {
-            !segment.is_empty()
-                && segment
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'='))
-        })
-    {
-        return false;
-    }
-
-    let Ok(header) = jsonwebtoken::decode_header(value) else {
-        return false;
-    };
-    // This decode classifies an owner-provided legacy credential before it is
-    // sent to Supabase; it is not an authorization decision. Supabase verifies
-    // the actual signature. Disable signature/time checks only long enough to
-    // require a parseable payload whose role is exactly `service_role`.
-    let mut validation = jsonwebtoken::Validation::new(header.alg);
-    validation.insecure_disable_signature_validation();
-    validation.required_spec_claims.clear();
-    validation.validate_exp = false;
-    jsonwebtoken::decode::<LegacyServiceRoleClaims>(
-        value,
-        &jsonwebtoken::DecodingKey::from_secret(&[]),
-        &validation,
-    )
-    .is_ok_and(|token| token.claims.role == "service_role")
 }
 
 /// Aggregate room-server stats included in a heartbeat.
@@ -406,7 +290,7 @@ pub fn spawn_if_enabled(manager: Arc<RwLock<RoomManager>>) -> Result<bool, Regis
     );
 
     tokio::spawn(async move {
-        let client = registry_client();
+        let client = registry_client(&config);
         // Fire an immediate heartbeat so the room appears without waiting a full
         // interval, then settle into the periodic cadence.
         loop {
@@ -418,16 +302,10 @@ pub fn spawn_if_enabled(manager: Arc<RwLock<RoomManager>>) -> Result<bool, Regis
     Ok(true)
 }
 
-fn registry_client() -> reqwest::Client {
-    // Never forward the custom `apikey` credential across a redirect. Unlike
-    // standard Authorization, custom headers are not guaranteed to be stripped
-    // when the target origin changes.
-    reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(HEARTBEAT_REQUEST_TIMEOUT)
-        .connect_timeout(HEARTBEAT_CONNECT_TIMEOUT)
-        .build()
-        .expect("static rooms-registry HTTP client configuration must be valid")
+fn registry_client(config: &RegistryConfig) -> reqwest::Client {
+    config
+        .service
+        .http_client(HEARTBEAT_CONNECT_TIMEOUT, HEARTBEAT_REQUEST_TIMEOUT)
 }
 
 fn build_heartbeat_request(
@@ -445,7 +323,7 @@ fn build_heartbeat_request(
         .header("Content-Type", "application/json")
         .header("Prefer", "resolution=merge-duplicates,return=minimal")
         .json(&body);
-    config.credential.apply(request)
+    config.service.apply_auth(request)
 }
 
 /// Perform a single upsert. Errors are logged, not propagated: a failed
@@ -522,7 +400,7 @@ mod tests {
 
     fn request_for(config: &RegistryConfig) -> reqwest::Request {
         build_heartbeat_request(
-            &registry_client(),
+            &registry_client(config),
             config,
             "instance",
             RegistrySnapshot {
@@ -577,7 +455,12 @@ mod tests {
 
         // The same constants are consumed directly by `registry_client`, so
         // constructing it also proves reqwest accepts the bounded policy.
-        let _client = registry_client();
+        let config = enabled_config(&[
+            (SUPABASE_URL_ENV, SUPABASE_URL),
+            (SUPABASE_SECRET_KEY_ENV, SECRET_KEY),
+            (PUBLIC_URL_ENV, PUBLIC_URL),
+        ]);
+        let _client = registry_client(&config);
     }
 
     #[test]
@@ -689,24 +572,66 @@ mod tests {
     }
 
     #[test]
-    fn fully_missing_or_auth_url_only_config_keeps_registry_disabled() {
+    fn registry_is_disabled_without_public_url_even_for_reporter_credentials() {
         assert!(resolve(&[]).unwrap().is_none());
         assert!(resolve(&[(SUPABASE_URL_ENV, SUPABASE_URL)])
             .unwrap()
             .is_none());
+        assert!(resolve(&[
+            (SUPABASE_URL_ENV, SUPABASE_URL),
+            (SUPABASE_SECRET_KEY_ENV, SECRET_KEY),
+        ])
+        .unwrap()
+        .is_none());
+        assert!(resolve(&[(SUPABASE_SECRET_KEY_ENV, SECRET_KEY)])
+            .unwrap()
+            .is_none());
+
+        // The reporter's config resolver owns validation when the registry is
+        // not intended. Registry must not couple another service's credential
+        // to PUBLIC_URL.
+        assert!(resolve(&[
+            (SUPABASE_URL_ENV, SUPABASE_URL),
+            (SUPABASE_SECRET_KEY_ENV, "malformed-reporter-key"),
+        ])
+        .unwrap()
+        .is_none());
     }
 
     #[test]
-    fn partial_registry_config_fails_with_only_missing_env_names() {
-        let result = resolve(&[
-            (SUPABASE_URL_ENV, SUPABASE_URL),
-            (SUPABASE_SECRET_KEY_ENV, SECRET_KEY),
-        ]);
-
+    fn public_url_intent_fails_closed_with_only_missing_env_names() {
+        let result = resolve(&[(PUBLIC_URL_ENV, PUBLIC_URL)]);
         assert_eq!(
             result.unwrap_err(),
             RegistryConfigError::Incomplete {
-                missing: vec![PUBLIC_URL_ENV]
+                missing: vec![
+                    SUPABASE_URL_ENV,
+                    "SUPABASE_SECRET_KEY (preferred) or SUPABASE_SERVICE_ROLE_KEY (legacy)",
+                ]
+            }
+        );
+
+        let result = resolve(&[
+            (SUPABASE_URL_ENV, SUPABASE_URL),
+            (PUBLIC_URL_ENV, PUBLIC_URL),
+        ]);
+        assert_eq!(
+            result.unwrap_err(),
+            RegistryConfigError::Incomplete {
+                missing: vec![
+                    "SUPABASE_SECRET_KEY (preferred) or SUPABASE_SERVICE_ROLE_KEY (legacy)"
+                ]
+            }
+        );
+
+        let result = resolve(&[
+            (SUPABASE_SECRET_KEY_ENV, SECRET_KEY),
+            (PUBLIC_URL_ENV, PUBLIC_URL),
+        ]);
+        assert_eq!(
+            result.unwrap_err(),
+            RegistryConfigError::Incomplete {
+                missing: vec![SUPABASE_URL_ENV]
             }
         );
     }

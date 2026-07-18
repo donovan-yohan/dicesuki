@@ -14,6 +14,7 @@ fn connection_is_silent(elapsed: std::time::Duration) -> bool {
 }
 
 use crate::messages::{ClientMessage, PlayerInfo, ServerMessage};
+use crate::roll_reporting::RollReporter;
 use crate::room::RoomError;
 use crate::room_manager::SharedRoom;
 use crate::sink::MessageSink;
@@ -37,9 +38,20 @@ fn is_valid_hex_color(color: &str) -> bool {
         && color[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
+/// Privacy-safe authentication context for connection lifecycle logs. The raw
+/// Supabase subject remains in room state for authorization/reward reporting,
+/// but must never be interpolated into logs.
+fn auth_log_marker(user_id: Option<&str>) -> &'static str {
+    if user_id.is_some() {
+        "[authenticated]"
+    } else {
+        "[guest]"
+    }
+}
+
 /// Handle a single WebSocket connection for a room
 #[allow(clippy::too_many_lines)]
-pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
+pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter: RollReporter) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
     // Channel for sending messages to this client
@@ -169,21 +181,19 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                         player_id = result.player_id.clone();
                         if result.reconnected {
                             info!(
-                                "Player '{}' ({}) rejoined room {} within grace window{}",
-                                display_name, player_id, room_guard.id,
-                                match &user_id {
-                                    Some(uid) => format!(" [auth user {uid}]"),
-                                    None => " [guest]".to_string(),
-                                }
+                                "Player '{}' ({}) rejoined room {} within grace window {}",
+                                display_name,
+                                player_id,
+                                room_guard.id,
+                                auth_log_marker(user_id.as_deref())
                             );
                         } else {
                             info!(
-                                "Player '{}' ({}) joined room {}{}",
-                                display_name, player_id, room_guard.id,
-                                match &user_id {
-                                    Some(uid) => format!(" [auth user {uid}]"),
-                                    None => " [guest]".to_string(),
-                                }
+                                "Player '{}' ({}) joined room {} {}",
+                                display_name,
+                                player_id,
+                                room_guard.id,
+                                auth_log_marker(user_id.as_deref())
                             );
                         }
 
@@ -242,10 +252,12 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                     }
                     Err(err) => {
                         let message = match err {
-                            RoomError::DiceLimit => format!(
-                                "Table is full ({}/30 dice)",
-                                room_guard.dice_count()
-                            ),
+                            RoomError::DiceLimit => {
+                                format!("Table is full ({}/30 dice)", room_guard.dice_count())
+                            }
+                            RoomError::InvalidDiceId => {
+                                "Dice ID is invalid".to_string()
+                            }
                             RoomError::DuplicateDiceId => {
                                 "Duplicate dice ID in spawn request".to_string()
                             }
@@ -266,23 +278,23 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 let mut room_guard = room.write().await;
                 let removed = room_guard.remove_dice(&player_id, &dice_ids);
                 if !removed.is_empty() {
-                    room_guard.broadcast(&ServerMessage::DiceRemoved {
-                        dice_ids: removed,
-                    });
+                    room_guard.broadcast(&ServerMessage::DiceRemoved { dice_ids: removed });
                 }
             }
 
             ClientMessage::Roll if is_joined => {
                 let mut room_guard = room.write().await;
-                let dice_ids = room_guard.roll_player_dice(&player_id);
-
-                if !dice_ids.is_empty() {
+                if let Some(started) = room_guard.roll_player_dice(&player_id) {
                     room_guard.broadcast(&ServerMessage::RollStarted {
                         player_id: player_id.clone(),
-                        dice_ids,
+                        dice_ids: started.dice_ids,
                     });
 
-                    crate::simulation::maybe_start_simulation(&mut room_guard, room.clone());
+                    crate::simulation::maybe_start_simulation(
+                        &mut room_guard,
+                        room.clone(),
+                        reporter.clone(),
+                    );
                 }
             }
 
@@ -301,18 +313,24 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
-            ClientMessage::DragStart { die_id, grab_offset, world_position } if is_joined => {
+            ClientMessage::DragStart {
+                die_id,
+                grab_offset,
+                world_position,
+            } if is_joined => {
                 let mut room_guard = room.write().await;
                 match room_guard.start_drag(&player_id, &die_id, grab_offset, world_position) {
                     Ok(()) => {
-                        crate::simulation::maybe_start_simulation(&mut room_guard, room.clone());
+                        crate::simulation::maybe_start_simulation(
+                            &mut room_guard,
+                            room.clone(),
+                            reporter.clone(),
+                        );
                     }
                     Err(err) => {
                         let message = match err {
                             RoomError::NotOwner => "Can only drag your own dice".to_string(),
-                            RoomError::AlreadyDragged => {
-                                "Die is already being dragged".to_string()
-                            }
+                            RoomError::AlreadyDragged => "Die is already being dragged".to_string(),
                             RoomError::DieNotFound => "Die not found".to_string(),
                             _ => format!("Drag failed: {}", err.code()),
                         };
@@ -324,7 +342,10 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
-            ClientMessage::DragMove { die_id, world_position } if is_joined => {
+            ClientMessage::DragMove {
+                die_id,
+                world_position,
+            } if is_joined => {
                 let mut room_guard = room.write().await;
                 if let Err(err) = room_guard.update_drag(&player_id, &die_id, world_position) {
                     let message = match err {
@@ -340,7 +361,10 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
-            ClientMessage::DragEnd { die_id, velocity_history } if is_joined => {
+            ClientMessage::DragEnd {
+                die_id,
+                velocity_history,
+            } if is_joined => {
                 let mut room_guard = room.write().await;
                 if let Err(err) = room_guard.end_drag(&player_id, &die_id, &velocity_history) {
                     let message = match err {
@@ -386,13 +410,15 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                         room_guard.broadcast(&ServerMessage::ArenaChanged { config });
                         // Moved dice (if any) re-settle via the sim loop; start it if
                         // the resize woke the room.
-                        crate::simulation::maybe_start_simulation(&mut room_guard, room.clone());
+                        crate::simulation::maybe_start_simulation(
+                            &mut room_guard,
+                            room.clone(),
+                            reporter.clone(),
+                        );
                     }
                     Err(err) => {
                         let message = match err {
-                            RoomError::NotHost => {
-                                "Only the host can resize the arena".to_string()
-                            }
+                            RoomError::NotHost => "Only the host can resize the arena".to_string(),
                             _ => format!("Failed to resize arena: {}", err.code()),
                         };
                         let _ = tx.send(ServerMessage::Error {
@@ -403,7 +429,10 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
-            ClientMessage::MotionField { field, angular_accel } if is_joined => {
+            ClientMessage::MotionField {
+                field,
+                angular_accel,
+            } if is_joined => {
                 let mut room_guard = room.write().await;
                 match room_guard.set_motion_field_with_angular(&player_id, field, angular_accel) {
                     Ok(()) => {
@@ -411,7 +440,11 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                         // running so the movement (and eventual re-settle) broadcasts.
                         // `set_motion_field` only sets `is_simulating` for a non-zero
                         // field, so a closing zero won't needlessly restart the loop.
-                        crate::simulation::maybe_start_simulation(&mut room_guard, room.clone());
+                        crate::simulation::maybe_start_simulation(
+                            &mut room_guard,
+                            room.clone(),
+                            reporter.clone(),
+                        );
                     }
                     // Motion disabled for this room, or unknown player: silently
                     // ignore. Motion is high-frequency; surfacing an error per dropped
@@ -426,7 +459,9 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 break;
             }
 
-            ClientMessage::RemovePlayer { player_id: target_id } if is_joined => {
+            ClientMessage::RemovePlayer {
+                player_id: target_id,
+            } if is_joined => {
                 let mut room_guard = room.write().await;
                 let previous_host = room_guard.host_id.clone();
                 if room_guard.is_host(&player_id) && player_id != target_id {
@@ -520,7 +555,9 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
             let outcome = room_guard.mark_disconnected(&player_id);
             info!(
                 "Player {} disconnected from room {} (seat held for {}s grace)",
-                player_id, room_guard.id, crate::room::RECONNECT_GRACE_SECS
+                player_id,
+                room_guard.id,
+                crate::room::RECONNECT_GRACE_SECS
             );
             if let Some(host_id) = outcome.new_host {
                 info!("Host of room {} transferred to {}", room_guard.id, host_id);
@@ -541,7 +578,16 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
 
 #[cfg(test)]
 mod tests {
-    use super::{connection_is_silent, is_valid_hex_color};
+    use super::{auth_log_marker, connection_is_silent, is_valid_hex_color};
+
+    #[test]
+    fn auth_log_marker_never_contains_supabase_user_id() {
+        let user_id = "51111111-1111-4111-8111-111111111111";
+        let marker = auth_log_marker(Some(user_id));
+        assert_eq!(marker, "[authenticated]");
+        assert!(!marker.contains(user_id));
+        assert_eq!(auth_log_marker(None), "[guest]");
+    }
 
     #[test]
     fn test_valid_hex_color_rrggbb() {

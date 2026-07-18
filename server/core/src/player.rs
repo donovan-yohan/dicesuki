@@ -4,6 +4,18 @@ use web_time::Instant;
 use crate::messages::ServerMessage;
 use crate::sink::MessageSink;
 
+/// One accepted explicit `Roll` command that has not yet completed.
+///
+/// The initiating identity and exact dice set are frozen here so reconnects,
+/// later authentication, newly-spawned dice, and unrelated re-settles cannot
+/// change which authoritative action eventually completes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingRoll {
+    pub generation: u64,
+    pub user_id: Option<String>,
+    pub dice_ids: Vec<String>,
+}
+
 pub struct Player {
     pub id: String,
     pub display_name: String,
@@ -23,6 +35,12 @@ pub struct Player {
     /// joined with a valid auth token. `None` for guest players (auth is
     /// optional per ADR 006). Reserved for future ownership features.
     pub user_id: Option<String>,
+    /// Monotonic generation assigned to accepted explicit `Roll` commands.
+    /// Generation zero means this seat has never accepted a roll.
+    pub roll_generation: u64,
+    /// The latest unfinished explicit roll. A newer explicit `Roll` replaces
+    /// this value, intentionally superseding the older attempt.
+    pub pending_roll: Option<PendingRoll>,
     /// Whether this player currently has a live WebSocket connection.
     /// A `false` value means the seat is held during the reconnect grace window.
     pub connected: bool,
@@ -59,6 +77,8 @@ impl Player {
             join_order: 0,
             reconnect_token: String::new(),
             user_id: None,
+            roll_generation: 0,
+            pending_roll: None,
             connected: true,
             disconnected_at: None,
             motion_field: [0.0, 0.0, 0.0],

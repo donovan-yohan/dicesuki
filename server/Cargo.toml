@@ -34,7 +34,7 @@ tokio = { version = "1", features = ["full"] }
 rapier3d = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 nanoid = "0.4"
 rand = "0.8"
 futures-util = "0.3"
@@ -53,6 +53,12 @@ jsonwebtoken = "9"
 # heartbeat (REST upsert). Kept rustls-only (no OpenSSL) to match the static
 # musl-friendly build; previously a dev-only dependency (integration tests).
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# Canonical native authority-event hashing. The fixed-vector test locks the
+# exact schema/order; only the 32-byte digest leaves the process for the RPC.
+sha2 = "0.10"
+# UTC RFC3339 completion timestamps for authoritative event identity. This is
+# native-server-only; dicesuki-core remains web-time/WASM compatible.
+time = { version = "0.3", features = ["formatting", "parsing"] }
 
 
 [dev-dependencies]

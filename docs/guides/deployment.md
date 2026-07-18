@@ -23,12 +23,12 @@ Server reads these at runtime (`server/src/main.rs`, `server/src/routes.rs`):
 | `RUST_LOG` | `info` | `env_logger` filter, e.g. `debug`, `dicesuki_server=debug`. |
 | `CORS_ORIGIN` | unset → permissive (dev) | Set to the frontend origin in production to restrict CORS. |
 | `SUPABASE_URL` | unset → ADR 006 project | Supabase project base (`https://<proj>.supabase.co`). Selects the JWKS URL + expected issuer for JWT verification, and the REST base for the rooms registry. |
-| `SUPABASE_SECRET_KEY` | unset → registry OFF unless legacy fallback is set | **Preferred server secret.** Use a dedicated `sb_secret_...` key from Supabase Settings → API Keys. It is sent only as `apikey`; never commit it or expose it to the frontend. |
+| `SUPABASE_SECRET_KEY` | unset → privileged registry/reward writes OFF unless legacy fallback is set | **Preferred server secret.** Use a dedicated `sb_secret_...` key from Supabase Settings → API Keys. It is sent only as `apikey`; never commit it or expose it to the frontend. Enables native authoritative-roll reporting; the rooms registry additionally requires `PUBLIC_URL`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | unset → no legacy fallback | **Deprecated migration fallback only.** Must be the legacy JWT-format `service_role` key. Never place an `sb_secret_...` key in this variable. |
 | `PUBLIC_URL` | unset → registry OFF | This server's public base URL behind the TLS proxy (e.g. `https://rooms.example.com`). Stored in the registry so the client browser can connect. |
 | `INSTANCE_ID` | — | **Not** an env var. Auto-generated 8-char nanoid per process; appears in logs and `/health`. |
 
-**Supabase feature gating:** JWT verification is always available (guest play needs no token; a valid token binds the player to their Supabase user id, an invalid/expired one is rejected with `AUTH_INVALID`). `SUPABASE_URL` alone does not enable registry writes. The rooms registry remains **OFF** when no registry credential or `PUBLIC_URL` is configured. Once either is present, startup requires `SUPABASE_URL`, `PUBLIC_URL`, and one server credential; partial or malformed configuration exits clearly instead of silently disabling the intended heartbeat. When both credential variables are valid, `SUPABASE_SECRET_KEY` wins. See [Supabase integration](#supabase-integration-auth--rooms-registry) below.
+**Supabase feature gating:** JWT verification is always available (guest play needs no token; a valid token binds the player to their Supabase user id, an invalid/expired one is rejected with `AUTH_INVALID`). `SUPABASE_URL` alone enables no privileged write. Without a server credential, authoritative-roll reporting reports `disabled` and makes no request. `PUBLIC_URL` is the sole rooms-registry intent signal: without it the registry remains **OFF**, including a valid `SUPABASE_URL` + server-secret reporter-only deployment. Once `PUBLIC_URL` is present, startup requires `SUPABASE_URL` and one valid server credential; partial or malformed registry configuration exits clearly instead of silently disabling the intended heartbeat. When both credential variables are valid, `SUPABASE_SECRET_KEY` wins. See [Supabase integration](#supabase-integration-auth--rooms-registry--earned-rolls) below.
 
 Frontend build-time env vars (baked into the bundle, `src/lib/multiplayerServer.ts`):
 
@@ -41,7 +41,7 @@ Frontend build-time env vars (baked into the bundle, `src/lib/multiplayerServer.
 
 ## Frontend → server wiring
 
-Public multiplayer uses `VITE_MULTIPLAYER_SERVER_URL`, chosen at **build time** — build the frontend with this pointed at wherever the server is reachable. Health of the public server is polled via `GET {httpUrl}/health`, which must return `{"status":"ok","instanceId":"…"}`. Solo does not touch the network: it connects to the worker through the store's transport abstraction (`RoomSocket` / `WorkerRoomTransport`), speaking the identical JSON room protocol.
+Public multiplayer uses `VITE_MULTIPLAYER_SERVER_URL`, chosen at **build time** — build the frontend with this pointed at wherever the server is reachable. Health of the public server is polled via `GET {httpUrl}/health`, which returns `{"status":"ok","instanceId":"…","rollReporter":"disabled|healthy|unhealthy"}`. The reporter field makes privileged delivery failure visible without taking down multiplayer or exposing event data. Solo does not touch the network: it connects to the worker through the store's transport abstraction (`RoomSocket` / `WorkerRoomTransport`), speaking the identical JSON room protocol.
 
 ## Local bare-metal run
 
@@ -194,15 +194,16 @@ If you see `HTTP/2` in the request log or a `426`, the proxy is forcing HTTP/2 o
 
 ## Restart policy & monitoring
 
-The server is a single stateless binary; supervise it so it restarts on crash/reboot. Health is `GET /health` → `{"status":"ok","instanceId":"…"}` (already wired as Render's `healthCheckPath`).
+The server is a single binary; supervise it so it restarts on crash/reboot. Health is `GET /health` → `{"status":"ok","instanceId":"…","rollReporter":"…"}` (already wired as Render's `healthCheckPath`). Room state and the authoritative-roll delivery queue are process-local: a restart clears both. PostgreSQL makes an exact RPC replay idempotent, but restart-proof zero-loss reporting still requires the persistent outbox called out in ADR 015.
 
 - **systemd** (bare-metal / dedicated host): a unit with `Restart=always`, `RestartSec=2`, and the env vars above (`EnvironmentFile=` for the Supabase server key so it never lands in the unit). `systemctl enable` for boot start.
 - **Docker**: `docker run --restart=unless-stopped …` (or a Compose `restart: unless-stopped` + `healthcheck:` hitting `/health`).
 - **Registry as liveness signal**: when the rooms registry is enabled, the ~30s heartbeat doubles as a liveness beacon — a row whose `last_heartbeat` has gone stale means that server is down, and the client browser filters it out.
 
-## Supabase integration (auth + rooms registry)
+## Supabase integration (auth + rooms registry + earned rolls)
 
-Both features come from ADR 006 and are configured purely via env — no code changes per deployment.
+Auth and the rooms registry come from ADR 006; earned-roll authority is defined
+by ADRs 014–015. All are configured via env—no code changes per deployment.
 
 **JWT verification (always on).** On `join`, the client MAY include `authToken` (a Supabase access token). The server verifies it locally against Supabase's JWKS (`{SUPABASE_URL}/auth/v1/.well-known/jwks.json`), with the key set cached in-process (1-hour TTL, refreshed on `kid` miss) — **no per-request callout**. Outcomes:
 
@@ -213,6 +214,10 @@ Both features come from ADR 006 and are configured purely via env — no code ch
 `SUPABASE_URL` selects the project (defaults to the ADR 006 project id if unset). Nothing secret is needed for verification — JWKS is public.
 
 **Rooms registry heartbeat (opt-in).** With `SUPABASE_URL` + `SUPABASE_SECRET_KEY` + `PUBLIC_URL` set, the server upserts a row into the Supabase `rooms` table (migration `supabase/migrations/0003_rooms_registry.sql`) keyed by its `INSTANCE_ID`, every ~30s, carrying `public_url`, `player_count`, and `room_count`. `last_heartbeat` is DB-stamped by a trigger. The client room browser is a public-read query over that table; stale rows (dead servers) are filtered/pruned. RLS: public read, trusted-server-only write.
+
+**Authoritative earned-roll reporting (opt-in).** With `SUPABASE_URL` plus the server credential set, authenticated explicit rolls completed by the native room server are queued to migration `0010`'s service-only `record_authoritative_roll_completion` RPC. `PUBLIC_URL` is not required for reporter-only operation. Guests are skipped, and solo WASM has no reporter. Each event freezes the initiation identity, room/player/generation, microsecond UTC completion time, sorted concrete die results, and total into canonical v1 JSON; only its SHA-256 plus the exact event identity/time are sent. A bounded fixed-concurrency worker pool retries the exact bytes after network/408/429/5xx failures. Retry delay uses equal jitter over the upper half of the capped exponential window, retaining variance at the 30-second cap without permitting a zero-delay hot loop. Other HTTP failures leave `rollReporter: "unhealthy"` and do not retry in a hot loop. Logs contain status/categories only—not user ids, payloads, response bodies, or credentials.
+
+Delivery is in-process at-least-once and database exactly-once for an exact replay. It is **not restart-proof**: a crash between gameplay completion and the database commit can lose that event. Do not represent `RollComplete` as proof of reward credit. A persistent outbox/queue is required before promising zero-loss recovery across a room-server restart (ADR 015).
 
 The preferred opaque `sb_secret_...` key is carried only in the `apikey` header. It is not a JWT and must not be used as `Authorization: Bearer`. For a bounded migration period, `SUPABASE_SERVICE_ROLE_KEY` accepts only a legacy JWT whose payload identifies the `service_role`, then sends that value as both `apikey` and bearer auth. Registry writes require HTTPS except for explicit loopback development, and the HTTP client does not follow redirects with either elevated credential. Supabase recommends replacing legacy server keys with secret keys; see [Understanding API keys](https://supabase.com/docs/guides/getting-started/api-keys).
 
@@ -225,7 +230,7 @@ PUBLIC_URL=https://rooms.example.com \
 ./target/release/dicesuki-server
 ```
 
-> **Secrets:** `SUPABASE_SECRET_KEY` and the deprecated `SUPABASE_SERVICE_ROLE_KEY` fallback are owner-provided secrets and MUST NEVER be committed or baked into the Docker image (ADR 006). Supply one via `-e`, a systemd `EnvironmentFile`, or your host's secret store. The Supabase publishable key and project id are public-safe. Apply migration `0003` (`supabase db push`) before enabling the registry.
+> **Secrets:** `SUPABASE_SECRET_KEY` and the deprecated `SUPABASE_SERVICE_ROLE_KEY` fallback are owner-provided secrets and MUST NEVER be committed or baked into the Docker image (ADR 006). Supply one via `-e`, a systemd `EnvironmentFile`, or your host's secret store. The Supabase publishable key and project id are public-safe. Apply migrations through `0010` before enabling earned-roll reporting (`0003` remains the rooms-registry boundary).
 
 ### Render production setup
 
@@ -236,4 +241,5 @@ PUBLIC_URL=https://rooms.example.com \
 3. Confirm `SUPABASE_URL=https://nksxdfcjabgbxeefwkdc.supabase.co`.
 4. Confirm `PUBLIC_URL=https://dicesuki.onrender.com`.
 5. Confirm `CORS_ORIGIN=https://dicesuki.vercel.app`.
-6. Save and deploy, then verify `/health` remains `200` and a fresh `public.rooms` heartbeat appears within one interval. Logs name only the credential mode and never the key.
+6. Save and deploy, then verify `/health` remains `200`, `rollReporter` is `healthy`, and a fresh `public.rooms` heartbeat appears within one interval. Logs name only the credential mode and never the key.
+7. Complete one authenticated multiplayer roll and verify exactly one new `public.authoritative_roll_completion_events` row with the expected `authority_kind`, plus at most one linked promotional-Star ledger entry. Repeat/reconnect/knock testing must not create a second event for that generation. Use owner-side database tooling; never print the secret or raw user id into deployment logs or a PR.

@@ -9,7 +9,7 @@ Detailed operating notes live in the linked guides and ADRs.
 | Runtime GLB delivery | Release source lock, production sidecars, `runtime-assets.json` | Bounded `/public/dice/` GLBs and thumbnails; lazy local/remote table rendering | `scripts/runtime-dice-assets/`, `npm run check:runtime-dice-assets`, `docs/guides/runtime-dice-assets.md` |
 | Economy hypotheses and studies | `economy/contracts/editions/`, `economy/simulations/scenarios/` | Immutable disclosures and fixed-seed reports under `economy/disclosures/` and `economy/simulations/reports/`; no production consumer | `scripts/generate-economy-disclosures.js`, `scripts/economy-simulator.js`, `scripts/check-immutable-economy-history.js`, `docs/guides/economy-contracts.md` |
 | Production earned economy and wallet | `economy/production/editions/`, `supabase/migrations/0009_earned_economy_ledger.sql` | Public immutable edition reads; authenticated own-wallet reads; service-role-only ledger appends | `scripts/validate-production-economy.js`, `scripts/test-supabase-postgres.mjs`, `supabase/tests/0009_earned_economy_ledger.test.*`, `docs/adrs/shared/014-earned-economy-ledger-foundation.md` |
-| Authoritative earned rewards | `supabase/migrations/0010_earned_reward_claims.sql`, normalized from `earned-collection@1` | Service-only authoritative-roll ingest; authenticated non-anonymous status/passport/community RPCs; immutable enrollment and exact claim outcomes | `supabase/migrations/0010_earned_reward_claims.test.ts`, `supabase/tests/0010_earned_reward_claims.test.*`, `src/lib/earnedEconomy.ts`, ADR 014 |
+| Authoritative earned rewards | `supabase/migrations/0010_earned_reward_claims.sql`, `server/core/src/player.rs`, `server/core/src/room.rs`, `server/src/roll_reporting.rs` | Native authenticated explicit-roll generations feed a bounded privileged RPC reporter; local WASM/guests have no write path; authenticated non-anonymous status/passport/community RPCs retain immutable outcomes | Core/reporter Rust tests, `supabase/migrations/0010_earned_reward_claims.test.ts`, `supabase/tests/0010_earned_reward_claims.test.*`, `src/lib/earnedEconomy.ts`, ADRs 014–015, `docs/guides/deployment.md` |
 | Entitlement authority | `supabase/migrations/0004_collectible_catalog.sql` | `src/lib/dataSync.ts`, local inventory projection | Migration/static tests and hosted role/RLS proof in `docs/guides/collectible-catalog.md` |
 | Local inventory and gameplay | `src/store/useInventoryStore.ts`, `src/lib/diceSpawner.ts` | React/R3F solo experience | Co-located Vitest tests, `npm test`, `npm run build` |
 | Multiplayer physics and protocol | `server/core/`, `server/src/` | Native Axum server and WASM room worker | Rust tests, WASM build, Playwright solo smoke; see multiplayer ADRs |
@@ -36,3 +36,11 @@ events can mint promotional Stars; local WASM solo has no callable path.
 Claim outcomes link to exactly one immutable wallet-ledger row or one
 `user_entitlements` row, while caller-controlled item, amount, user, and claim
 index inputs do not exist.
+
+The native room server is the first producer for the authoritative-roll RPC.
+One accepted explicit roll freezes its auth identity, dice set, and monotonic
+generation; completion is consumed once. `server/src/roll_reporting.rs` hashes
+presentation-free canonical v1 results and applies bounded in-process
+at-least-once delivery. PostgreSQL supplies exactly-once application for exact
+replays. Process-restart zero loss is not claimed; ADR 015 requires a persistent
+outbox before making that guarantee.
