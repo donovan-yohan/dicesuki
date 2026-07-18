@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { generateEconomyDisclosures } from './generate-economy-disclosures.js'
 import { generateEconomySimulationReports } from './economy-simulator.js'
+import { validateProductionEconomy } from './validate-production-economy.js'
 
 const __filename = fileURLToPath(import.meta.url)
 
@@ -85,6 +86,30 @@ export function economyHistoryPathsAtRef(ref, cwd = process.cwd()) {
     immutablePaths.add(scenarioPath)
     immutablePaths.add(scenario.reportArtifact)
   }
+
+  const productionEditionPaths = lines(git([
+    'ls-tree',
+    '-r',
+    '--name-only',
+    ref,
+    '--',
+    'economy/production/editions',
+  ], cwd)).filter(filePath => filePath.endsWith('.json'))
+  for (const editionPath of productionEditionPaths) {
+    const edition = JSON.parse(git(['show', `${ref}:${editionPath}`], cwd))
+    if (
+      typeof edition.migration !== 'string' ||
+      !/^\d{4}_earned_economy_[a-z0-9_]+\.sql$/.test(edition.migration)
+    ) {
+      throw new Error(`${editionPath} has no valid immutable production migration anchor at ${ref}`)
+    }
+    const migrationPath = `supabase/migrations/${edition.migration}`
+    if (!pathExistsAtRef(ref, migrationPath, cwd)) {
+      throw new Error(`${editionPath} references a missing production migration at ${ref}`)
+    }
+    immutablePaths.add(editionPath)
+    immutablePaths.add(migrationPath)
+  }
   return [...immutablePaths].sort()
 }
 
@@ -109,6 +134,7 @@ function main() {
 
   generateEconomyDisclosures()
   generateEconomySimulationReports()
+  validateProductionEconomy()
   const { mergeBase, changed } = changedImmutableEconomyPaths(ref)
   if (changed.length > 0) {
     throw new Error(
