@@ -101,7 +101,8 @@ describe('DiceIconWithNumber', () => {
     it('should render number with high contrast', () => {
       const { container } = render(<DiceIconWithNumber type="d6" number={5} />)
       const numberSpan = container.querySelector('span')
-      expect(numberSpan).toHaveClass('text-white')
+      // Brand cream token (var(--color-text-primary)) reads on the lavender die icon.
+      expect(numberSpan).toHaveClass('text-theme-text')
       expect(numberSpan).toHaveStyle({ textShadow: '0 1px 2px rgba(0,0,0,0.3)' })
     })
   })

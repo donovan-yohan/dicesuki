@@ -38,7 +38,7 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => onClose()} />
+          <div className="fixed inset-0 bg-theme-bg/60 z-40" onClick={() => onClose()} />
 
           {/* Panel Content */}
           <div
@@ -82,7 +82,7 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
                           ? 'var(--color-accent)'
                           : 'var(--color-secondary)',
                         backgroundColor: isCurrent
-                          ? 'rgba(251, 146, 60, 0.1)'
+                          ? 'rgba(249, 135, 151, 0.12)'
                           : 'var(--color-background)',
                         borderRadius: 'var(--border-radius-md)',
                       }}
