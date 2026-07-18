@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { SoloRoom } from './components/SoloRoom'
 import { checkDeviceCompatibility } from './lib/deviceDetection'
@@ -11,6 +11,14 @@ import DiceFaceTestHarness from './components/test/DiceFaceTestHarness'
 import { MultiplayerRoom } from './components/multiplayer/MultiplayerRoom'
 import { RoomBrowser } from './components/multiplayer/RoomBrowser'
 import { StartupSplash } from './components/brand/StartupSplash'
+import { isPaymentsEnabled } from './lib/paymentsConfig'
+
+// Payments (Xsolla sandbox checkout, issue #153) is flag-gated OFF by default.
+// Lazy so the checkout code — and, deeper, the Pay Station SDK — is NEVER part
+// of the main bundle; the routes below are only registered when the flag is on,
+// so with payments disabled these modules are never even imported.
+const CheckoutReturnRoute = lazy(() => import('./components/checkout/CheckoutReturnRoute'))
+const PendingPurchaseBanner = lazy(() => import('./components/checkout/PendingPurchaseBanner'))
 
 function MainApp() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
@@ -80,11 +88,33 @@ function App() {
     void useAuthStore.getState().initialize()
   }, [])
 
+  const paymentsEnabled = isPaymentsEnabled()
+
   return (
     <BrowserRouter>
+      {/* Cold-relaunch reconciliation: if a purchase was in flight when the app
+          was last closed, surface a "confirming purchase" affordance. Flag-gated
+          and null when there is no pending order, so it is inert by default. */}
+      {paymentsEnabled && (
+        <Suspense fallback={null}>
+          <PendingPurchaseBanner />
+        </Suspense>
+      )}
       <Routes>
         {/* Dev-only test harness — bypasses device check and providers */}
         <Route path="/test/dice-faces" element={<DiceFaceTestHarness />} />
+        {/* Payment checkout return — status-only (issue #153). Registered only
+            when payments are enabled; otherwise it falls through to the app. */}
+        {paymentsEnabled && (
+          <Route
+            path="/checkout/return"
+            element={
+              <Suspense fallback={<StartupSplash phase="device" />}>
+                <CheckoutReturnRoute />
+              </Suspense>
+            }
+          />
+        )}
         {/* Public room browser route (#79) */}
         <Route path="/rooms" element={
           <ThemeProvider>
