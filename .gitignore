@@ -45,3 +45,9 @@ docs/plans/
 # Desloppify local state
 .desloppify/
 scorecard.png
+
+# Local secrets — never commit
+.env
+.env.local
+supabase/functions/.env
+supabase/.temp/
