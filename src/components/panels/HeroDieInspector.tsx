@@ -68,7 +68,7 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-70 p-3"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-theme-bg/70 p-3"
       onClick={onClose}
       role="presentation"
     >
