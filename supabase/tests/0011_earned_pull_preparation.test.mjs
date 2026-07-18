@@ -1,8 +1,21 @@
-function prepareSql(userId, idempotencyKey, pullCount = 1) {
+function prepareSessionSql(userId, idempotencyKey, pullCount = 1) {
   return `
     set "request.jwt.claims" = '{"sub":"${userId}","is_anonymous":false}';
     set role authenticated;
     select receipt.session_id
+    from public.prepare_pull(
+      'earned-collection-001@1',
+      ${pullCount}::smallint,
+      '${idempotencyKey}'
+    ) as receipt;
+  `
+}
+
+function prepareReceiptSql(userId, idempotencyKey, pullCount = 1) {
+  return `
+    set "request.jwt.claims" = '{"sub":"${userId}","is_anonymous":false}';
+    set role authenticated;
+    select row_to_json(receipt)::text
     from public.prepare_pull(
       'earned-collection-001@1',
       ${pullCount}::smallint,
@@ -78,27 +91,32 @@ async function runInversion({
     select pg_sleep(30);
     rollback;
   `)
-
-  await waitForActivity(
-    psql,
-    blockerName,
-    state => state.includes('Timeout:PgSleep'),
-    `${label} blocker`,
-  )
-
-  const older = psqlAsync(`
-    set application_name = '${olderName}';
-    ${olderSql}
-  `)
-
+  let older
+  let blockerResult
+  let olderResult
+  let winnerOutput
+  let primaryError
+  let cleanupError
   try {
+    await waitForActivity(
+      psql,
+      blockerName,
+      state => state.includes('Timeout:PgSleep'),
+      `${label} blocker`,
+    )
+
+    older = psqlAsync(`
+      set application_name = '${olderName}';
+      ${olderSql}
+    `)
+
     await waitForActivity(
       psql,
       olderName,
       state => state.includes(':Lock:'),
       `${label} older statement`,
     )
-    const winnerOutput = psql(winnerSql, `${label} later winner`)
+    winnerOutput = psql(winnerSql, `${label} later winner`)
     if (!/^[0-9a-f-]{36}$/.test(winnerOutput)) {
       throw new Error(`${label} later winner did not return one session id: ${winnerOutput}`)
     }
@@ -114,30 +132,42 @@ async function runInversion({
         `${label} did not prove an older statement waiting behind a later-timestamp winner`,
       )
     }
-    await terminateBlocker(psql, blockerName, label)
-
-    const [blockerResult, olderResult] = await Promise.all([blocker, older])
-    if (blockerResult.status === 0) {
-      throw new Error(`${label} blocker exited normally instead of being released explicitly`)
-    }
-    if (olderResult.status === 0 || !olderResult.stderr.includes(expectedOlderError)) {
-      throw new Error(
-        `${label} older statement did not lose to the later committed hold: ${JSON.stringify(olderResult)}`,
-      )
-    }
-    return winnerOutput
   } catch (error) {
-    const blockerStillRunning = psql(`
-      select exists (
-        select 1 from pg_stat_activity where application_name = '${blockerName}'
-      );
-    `, `${label} blocker cleanup probe`)
-    if (blockerStillRunning === 't') {
-      await terminateBlocker(psql, blockerName, `${label} cleanup`)
+    primaryError = error
+  } finally {
+    try {
+      const blockerStillRunning = psql(`
+        select exists (
+          select 1 from pg_stat_activity where application_name = '${blockerName}'
+        );
+      `, `${label} blocker cleanup probe`)
+      if (blockerStillRunning === 't') {
+        await terminateBlocker(psql, blockerName, `${label} cleanup`)
+      }
+    } catch (error) {
+      cleanupError = error
     }
-    await Promise.all([blocker, older])
-    throw error
+    blockerResult = await blocker
+    if (older) olderResult = await older
   }
+
+  if (primaryError && cleanupError) {
+    throw new AggregateError(
+      [primaryError, cleanupError],
+      `${label} failed and its blocker cleanup also failed`,
+    )
+  }
+  if (primaryError) throw primaryError
+  if (cleanupError) throw cleanupError
+  if (blockerResult.status === 0) {
+    throw new Error(`${label} blocker exited normally instead of being released explicitly`)
+  }
+  if (!olderResult || olderResult.status === 0 || !olderResult.stderr.includes(expectedOlderError)) {
+    throw new Error(
+      `${label} older statement did not lose to the later committed hold: ${JSON.stringify(olderResult)}`,
+    )
+  }
+  return winnerOutput
 }
 
 export async function run({ psql, psqlAsync }) {
@@ -188,7 +218,7 @@ export async function run({ psql, psqlAsync }) {
         (select payload from private.pull_race_gates where id = 1 for update)
       ) as receipt;
     `,
-    winnerSql: prepareSql(prepareInversionUser, 'prepare:inversion:winner'),
+    winnerSql: prepareSessionSql(prepareInversionUser, 'prepare:inversion:winner'),
     expectedOlderError: 'unexpired prepared pull',
   })
   if (!/^[0-9a-f-]{36}$/.test(prepareWinner)) {
@@ -212,7 +242,7 @@ export async function run({ psql, psqlAsync }) {
         '{}'::jsonb
       );
     `,
-    winnerSql: prepareSql(debitInversionUser, 'prepare:debit-inversion:winner'),
+    winnerSql: prepareSessionSql(debitInversionUser, 'prepare:debit-inversion:winner'),
     expectedOlderError: 'Insufficient available stars/promotional balance after active holds',
   })
 
@@ -231,7 +261,7 @@ export async function run({ psql, psqlAsync }) {
         'test:inversion-grant'
       );
     `,
-    winnerSql: prepareSql(entitlementInversionUser, 'prepare:entitlement-inversion:winner'),
+    winnerSql: prepareSessionSql(entitlementInversionUser, 'prepare:entitlement-inversion:winner'),
     expectedOlderError: 'Collectible grants are paused while a prepared pull hold is active',
   })
 
@@ -256,14 +286,45 @@ export async function run({ psql, psqlAsync }) {
   }
 
   const exactReplay = await Promise.all([
-    psqlAsync(prepareSql(exactReplayUser, 'prepare:race:exact-key')),
-    psqlAsync(prepareSql(exactReplayUser, 'prepare:race:exact-key')),
+    psqlAsync(prepareReceiptSql(exactReplayUser, 'prepare:race:exact-key')),
+    psqlAsync(prepareReceiptSql(exactReplayUser, 'prepare:race:exact-key')),
   ])
   if (exactReplay.some(result => result.status !== 0)) {
     throw new Error(`Concurrent exact prepare replay failed: ${JSON.stringify(exactReplay)}`)
   }
   if (new Set(exactReplay.map(result => result.stdout)).size !== 1) {
     throw new Error(`Concurrent exact replay returned different receipts: ${JSON.stringify(exactReplay)}`)
+  }
+  let replayReceipt
+  try {
+    replayReceipt = JSON.parse(exactReplay[0].stdout)
+  } catch (error) {
+    throw new Error(`Concurrent exact replay did not return JSON: ${exactReplay[0].stdout}`, {
+      cause: error,
+    })
+  }
+  const expectedReceiptKeys = [
+    'session_id',
+    'banner_version_id',
+    'pull_count',
+    'held_amount',
+    'prepared_at',
+    'expires_at',
+    'commitment_scheme',
+    'commitment_root',
+    'rng_scheme',
+  ]
+  if (JSON.stringify(Object.keys(replayReceipt)) !== JSON.stringify(expectedReceiptKeys) ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(replayReceipt.session_id) ||
+      replayReceipt.banner_version_id !== 'earned-collection-001@1' ||
+      replayReceipt.pull_count !== 1 ||
+      replayReceipt.held_amount !== 160 ||
+      !Number.isFinite(Date.parse(replayReceipt.prepared_at)) ||
+      Date.parse(replayReceipt.expires_at) - Date.parse(replayReceipt.prepared_at) !== 120_000 ||
+      replayReceipt.commitment_scheme !== 'sha256-result-v1+sha256-root-v1' ||
+      !/^[0-9a-f]{64}$/.test(replayReceipt.commitment_root) ||
+      replayReceipt.rng_scheme !== 'hmac-sha256-seed-v1') {
+    throw new Error(`Concurrent exact replay returned an invalid complete receipt: ${exactReplay[0].stdout}`)
   }
 
   const exactReplayState = psql(`

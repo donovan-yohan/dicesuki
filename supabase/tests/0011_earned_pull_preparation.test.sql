@@ -90,6 +90,12 @@ begin
     raise exception 'Normalized banner version drifted from earned-collection@1';
   end if;
 
+  if (select config #>> '{acquisition,banner,guarantees,selectedFeaturedUnowned,selection}'
+      from public.economy_editions where id = 'earned-collection@1') <>
+     'lowest-canonical-id-unowned' then
+    raise exception 'Selected guarantee selection contract drifted from lowest canonical unowned';
+  end if;
+
   if (select count(*) from public.pull_banner_offers where banner_version_id = 'earned-collection-001@1') <> 2 or
      not exists (
        select 1 from public.pull_banner_offers
@@ -255,6 +261,123 @@ begin
   end if;
 end;
 $$;
+
+-- Hard-coded known-answer vectors computed independently with Node's
+-- node:crypto HMAC-SHA-256/SHA-256 implementation. These do not derive their
+-- expected values from any migration helper.
+do $known_answers$
+declare
+  seed constant bytea := decode(
+    '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f',
+    'hex'
+  );
+  session_id constant uuid := '12345678-1234-4234-8234-1234567890ab';
+  position constant smallint := 2;
+  upper_bound constant integer := 1073741825;
+  acceptance_limit constant bigint := 3221225475;
+  attempt_zero bytea;
+  attempt_one bytea;
+  attempt_zero_word bigint;
+  attempt_one_word bigint;
+  expected_nonce constant bytea := decode(
+    'dc7ad54478f8a7c25e18472d7537d54f35f0f188a3e29d509c204ab1a3590f06',
+    'hex'
+  );
+  expected_result constant text :=
+    '993ec29e70339a3112b9185d3248f3595d2ef153092541aa83c3f2f67a1a0d93';
+begin
+  attempt_zero := extensions.hmac(
+    convert_to(
+      'dicesuki.pull.rng.v1' || E'\n' ||
+      'session=' || session_id::text || E'\n' ||
+      'position=' || position::text || E'\n' ||
+      'draw=tier' || E'\n' ||
+      'attempt=0',
+      'UTF8'
+    ),
+    seed,
+    'sha256'
+  );
+  attempt_one := extensions.hmac(
+    convert_to(
+      'dicesuki.pull.rng.v1' || E'\n' ||
+      'session=' || session_id::text || E'\n' ||
+      'position=' || position::text || E'\n' ||
+      'draw=tier' || E'\n' ||
+      'attempt=1',
+      'UTF8'
+    ),
+    seed,
+    'sha256'
+  );
+  attempt_zero_word :=
+    get_byte(attempt_zero, 0)::bigint * 16777216::bigint +
+    get_byte(attempt_zero, 1)::bigint * 65536::bigint +
+    get_byte(attempt_zero, 2)::bigint * 256::bigint +
+    get_byte(attempt_zero, 3)::bigint;
+  attempt_one_word :=
+    get_byte(attempt_one, 0)::bigint * 16777216::bigint +
+    get_byte(attempt_one, 1)::bigint * 65536::bigint +
+    get_byte(attempt_one, 2)::bigint * 256::bigint +
+    get_byte(attempt_one, 3)::bigint;
+
+  if encode(attempt_zero, 'hex') <>
+       'e38c47a833a3b7604253cbcf89e44e8c5534ed7bb859703807e62f2b98fb0c98' or
+     attempt_zero_word <> 3817621416 or
+     attempt_zero_word < acceptance_limit or
+     encode(attempt_one, 'hex') <>
+       '7815248cff057857f25afb21d6df44a2dcd2a2a4607de88ea8ebcf585538f483' or
+     attempt_one_word <> 2014651532 or
+     attempt_one_word >= acceptance_limit or
+     private.pull_seeded_uint32_below(
+       seed, session_id, position, 'tier', upper_bound
+     ) <> 940909707 then
+    raise exception 'Seeded uint32 rejection-sampling known-answer vector drifted';
+  end if;
+
+  if private.pull_result_nonce(seed, session_id, position) <> expected_nonce then
+    raise exception 'Result nonce known-answer vector drifted';
+  end if;
+
+  if private.pull_selected_misses_after(19, true, false) <> 0 or
+     private.pull_selected_misses_after(19, true, true) <> 20 or
+     private.pull_selected_misses_after(19, false, false) <> 20 then
+    raise exception 'Selected counter known-answer vectors drifted';
+  end if;
+
+  if private.pull_result_commitment(
+       session_id,
+       position,
+       'void-crystal/d12/legendary@1',
+       'signature',
+       3::smallint,
+       'void-crystal/d10/legendary@1',
+       'base',
+       7::bigint,
+       0::bigint,
+       24::bigint,
+       0::bigint,
+       19::bigint,
+       0::bigint,
+       false,
+       0::bigint,
+       expected_nonce
+     ) <> expected_result then
+    raise exception 'Result commitment known-answer vector drifted';
+  end if;
+
+  if private.pull_commitment_root(
+       session_id,
+       array[
+         expected_result,
+         repeat('0', 64),
+         repeat('f', 64)
+       ]::text[]
+     ) <> '09a9e73d3056b54bd33dec6ff33633242370bd40de59c5f80fb27bfeda4d2e7c' then
+    raise exception 'Ordered commitment-root known-answer vector drifted';
+  end if;
+end;
+$known_answers$;
 
 -- The SECURITY DEFINER trigger may take the private account lock without
 -- breaking the existing trusted SECURITY DEFINER starter writer through its
@@ -726,6 +849,12 @@ begin
       and resolution_reason = 'selected-guarantee'
       and catalog_item_id = 'void-crystal/d10/legendary@1'
       and selected_target_catalog_item_id = 'void-crystal/d10/legendary@1'
+      and catalog_item_id = (
+        select min(items.catalog_item_id)
+        from public.pull_banner_items as items
+        where items.banner_version_id = 'earned-collection-001@1'
+          and items.selected_featured
+      )
       and tier_rank = 3
       and rare_misses_after = 0
       and epic_misses_after = 0
@@ -766,15 +895,32 @@ begin
   end if;
 
   if exists (
-    select 1
-    from public.pull_guarantee_states
-    where user_id in (
-      '84444444-4444-4444-8444-444444444444',
-      '85555555-5555-4555-8555-555555555555',
-      '86666666-6666-4666-8666-666666666666',
-      '87777777-7777-4777-8777-777777777777',
-      '88888888-8888-4888-8888-888888888888'
-    ) and total_pulls <> 100
+    with expected(
+      user_id, total_pulls, rare_misses, epic_misses, selected_misses
+    ) as (
+      values
+        ('84444444-4444-4444-8444-444444444444'::uuid, 100::bigint, 7::bigint, 24::bigint, 19::bigint),
+        ('85555555-5555-4555-8555-555555555555'::uuid, 100::bigint, 7::bigint, 24::bigint, 0::bigint),
+        ('86666666-6666-4666-8666-666666666666'::uuid, 100::bigint, 7::bigint, 0::bigint, 0::bigint),
+        ('87777777-7777-4777-8777-777777777777'::uuid, 100::bigint, 6::bigint, 23::bigint, 18::bigint),
+        ('88888888-8888-4888-8888-888888888888'::uuid, 100::bigint, 7::bigint, 24::bigint, 19::bigint)
+    ),
+    actual as (
+      select
+        states.user_id,
+        states.total_pulls,
+        states.rare_misses,
+        states.epic_misses,
+        states.selected_misses
+      from public.pull_guarantee_states as states
+      where states.user_id in (select expected.user_id from expected)
+    ),
+    drift as (
+      (select * from expected except all select * from actual)
+      union all
+      (select * from actual except all select * from expected)
+    )
+    select 1 from drift
   ) then
     raise exception 'prepare_pull advanced durable guarantee state';
   end if;

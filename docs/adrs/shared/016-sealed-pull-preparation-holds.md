@@ -46,8 +46,10 @@ version, pull count, and idempotency key. One account-first transaction:
 - ensures starter entitlements before taking the ownership snapshot;
 - computes availability as wallet balance minus every live pull hold;
 - snapshots guarantee counters without creating or advancing durable state;
-- derives every tier, item, nonce, and commitment from a fresh 32-byte CSPRNG
-  seed using domain-separated HMAC-SHA-256 words and uint32 rejection sampling;
+- derives normal weighted tier/item choices and every nonce from a fresh
+  32-byte CSPRNG seed using domain-separated HMAC-SHA-256 words and uint32
+  rejection sampling, while a due selected guarantee deterministically awards
+  the frozen lowest-canonical-id unowned selected item;
 - applies guarantee precedence as selected, epic, rare, then base odds;
 - seals exactly the requested number of result rows and one root commitment;
   and

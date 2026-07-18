@@ -407,6 +407,8 @@ begin
      (source_guarantees #>> '{rareOrBetter,hardGuaranteePull}')::integer <> 8 or
      (source_guarantees #>> '{epicOrBetter,hardGuaranteePull}')::integer <> 25 or
      (source_guarantees #>> '{selectedFeaturedUnowned,hardGuaranteePull}')::integer <> 20 or
+     source_guarantees #>> '{selectedFeaturedUnowned,selection}' <>
+       'lowest-canonical-id-unowned' or
      source_guarantees -> 'resolutionOrder' <> jsonb_build_array(
        'selected-featured-unowned', 'epic-or-better', 'rare-or-better', 'base'
      ) then
