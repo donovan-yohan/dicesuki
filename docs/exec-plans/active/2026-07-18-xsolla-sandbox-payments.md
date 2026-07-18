@@ -16,13 +16,15 @@
 
 ## Work packets (one PR each, in order)
 
-### Packet A — schema: paid bucket + payment orders (migration 0011)
+### Packet A — schema: paid bucket + payment orders (migration 0013)
 
-- Extend `wallet_balances.balance_bucket` CHECK to include `'paid'` (currently `('promotional','earned')`).
+> Note 2026-07-18 evening: PRs #168/#169 landed migrations 0011 (earned pull preparation holds, ADR shared/016) and 0012 (FK indexes). Packet A is now migration 0013. Study 0011's conventions (sealed holds, idempotent RPC patterns) before writing 0013 — reuse its style. Live DB has only 0001–0010 applied; 0011/0012 must be applied before 0013.
+
+- Migration file: follow the existing `NNNN_name.sql` convention (next: `0013_`). Extend `wallet_balances.balance_bucket` CHECK to include `'paid'` (currently `('promotional','earned')`).
 - New `payment_orders` table (immutable-ish state machine): `id`, `external_id` (uuid, unique — ours, sent to Xsolla), `user_id`, `catalog_item_id` / bundle ref, `amount_minor` + `currency`, `status` (`pending`→`paid`→`fulfilled` | `canceled` | `refunded`), `xsolla_transaction_id` (bigint, **unique**, null until webhook), `dry_run` bool, `raw_event` jsonb (bounded), timestamps. Own-row SELECT RLS for the buyer; writes only via service role / SECURITY DEFINER path.
 - New `payment_events` append-only table keyed by `(xsolla_transaction_id, event_type)` unique — the webhook idempotency lock (INSERT ... ON CONFLICT DO NOTHING).
 - RPC `fulfill_payment_order(...)` — SECURITY DEFINER, **service-role only**, single transaction: insert payment_event (idempotency gate) → grant `user_entitlements` row (`provenance = 'purchase'`, `grant_ref = external_id`) → append wallet ledger entry if applicable → flip order status. Replay returns prior result without re-granting (mirror `append_wallet_ledger_entry` pattern from migration 0009).
-- Follow existing conventions: immutability triggers, `(select auth.uid())` RLS style, SQL tests in `supabase/tests/0011_*` like 0009/0010.
+- Follow existing conventions: immutability triggers, `(select auth.uid())` RLS style, SQL tests in `supabase/tests/0013_*` like 0009/0010/0011.
 
 ### Packet B — edge functions (first in repo; `supabase/functions/`)
 
