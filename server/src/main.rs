@@ -3,7 +3,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use dicesuki_server::{build_app, RoomManager, SharedRoomManager, INSTANCE_ID};
+use dicesuki_server::{
+    build_app_with_reporter, RollReporter, RoomManager, SharedRoomManager, INSTANCE_ID,
+};
 
 #[tokio::main]
 async fn main() {
@@ -11,7 +13,11 @@ async fn main() {
     info!("Instance ID: {}", *INSTANCE_ID);
 
     let room_manager: SharedRoomManager = Arc::new(RwLock::new(RoomManager::new()));
-    let app = build_app(room_manager.clone());
+    let roll_reporter = RollReporter::from_env((*INSTANCE_ID).clone()).unwrap_or_else(|failure| {
+        error!("Authoritative roll reporter configuration error: {failure}");
+        std::process::exit(78);
+    });
+    let app = build_app_with_reporter(room_manager.clone(), roll_reporter);
 
     // Rooms registry heartbeat (ADR 006): upsert this server's row into the
     // Supabase `rooms` table every N seconds so it appears in the public room

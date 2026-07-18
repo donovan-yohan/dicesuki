@@ -7,21 +7,22 @@
 //! is the equivalent host for the same `Room`, driven by a `postMessage` timer.
 
 use crate::messages::ServerMessage;
+use crate::roll_reporting::RollReporter;
 use crate::room::Room;
 use crate::room_manager::SharedRoom;
 
 /// Check if the simulation loop needs to start, and start it if so.
 /// Must be called while holding the room lock.
-pub fn maybe_start_simulation(room_guard: &mut Room, room: SharedRoom) {
+pub fn maybe_start_simulation(room_guard: &mut Room, room: SharedRoom, reporter: RollReporter) {
     if room_guard.is_simulating && !room_guard.is_sim_running {
         room_guard.is_sim_running = true;
-        start_simulation_loop(room);
+        start_simulation_loop(room, reporter);
     }
 }
 
 /// Start the physics simulation loop for a room.
 /// Runs at 60Hz, broadcasts snapshots at 60Hz, detects settlements.
-pub fn start_simulation_loop(room: SharedRoom) {
+pub fn start_simulation_loop(room: SharedRoom, reporter: RollReporter) {
     tokio::spawn(async move {
         let tick_duration = std::time::Duration::from_micros(16_667); // ~60Hz
 
@@ -66,27 +67,28 @@ pub fn start_simulation_loop(room: SharedRoom) {
                 }
             }
 
-            // Check if any player's full roll is complete
-            if !newly_settled.is_empty() {
-                let player_ids: Vec<String> = room_guard.players.keys().cloned().collect();
-                for pid in player_ids {
-                    let player_has_dice = room_guard.dice.values().any(|d| d.owner_id == pid);
-                    if player_has_dice && room_guard.is_player_roll_complete(&pid) {
-                        let (results, total) = room_guard.get_player_results(&pid);
-                        if !results.is_empty() {
-                            let has_new = results
-                                .iter()
-                                .any(|r| newly_settled.iter().any(|(id, _)| *id == r.dice_id));
-                            if has_new {
-                                room_guard.broadcast(&ServerMessage::RollComplete {
-                                    player_id: pid,
-                                    results,
-                                    total,
-                                });
-                            }
-                        }
-                    }
-                }
+            // Consume only explicit `Roll` lifecycles. Core removes each pending
+            // generation as it completes, so later knocks/re-settles cannot
+            // rebroadcast the same result and spawn/drag/motion-only activity has
+            // no completion to consume.
+            let completed_rolls = room_guard.take_completed_rolls();
+            for completed in &completed_rolls {
+                room_guard.broadcast(&ServerMessage::RollComplete {
+                    player_id: completed.player_id.clone(),
+                    results: completed.results.clone(),
+                    total: completed.total,
+                });
+            }
+
+            // Queueing may apply backpressure, so it must happen after releasing
+            // the room lock. The immutable completion owns the initiation user,
+            // generation, and results needed for stable retries.
+            let room_id = room_guard.id.clone();
+            drop(room_guard);
+            for completed in completed_rolls {
+                reporter
+                    .enqueue_completion(room_id.clone(), completed)
+                    .await;
             }
         }
     });

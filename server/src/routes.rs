@@ -11,7 +11,7 @@ use tower_http::cors::CorsLayer;
 use log::info;
 
 use crate::room::RoomListing;
-use crate::{SharedRoomManager, INSTANCE_ID};
+use crate::{AppState, SharedRoomManager, INSTANCE_ID};
 
 /// Default page size for the public room listing when the client omits one.
 const DEFAULT_PAGE_SIZE: usize = 20;
@@ -92,10 +92,11 @@ pub fn build_cors_layer() -> CorsLayer {
     }
 }
 
-pub async fn health() -> impl IntoResponse {
+pub async fn health(State(state): State<AppState>) -> impl IntoResponse {
     Json(serde_json::json!({
         "status": "ok",
         "instanceId": *INSTANCE_ID,
+        "rollReporter": state.roll_reporter.status().as_str(),
     }))
 }
 
@@ -192,10 +193,11 @@ pub async fn fallback(req: Request) -> impl IntoResponse {
 }
 
 pub async fn ws_upgrade(
-    State(mgr): State<SharedRoomManager>,
+    State(state): State<AppState>,
     Path(room_id): Path<String>,
     ws: Option<axum::extract::ws::WebSocketUpgrade>,
 ) -> impl IntoResponse {
+    let mgr = &state.room_manager;
     info!(
         "[{}] WS handler entered for room: {} (extractor: {})",
         *INSTANCE_ID,
@@ -208,7 +210,10 @@ pub async fn ws_upgrade(
         if let Some(room) = mgr_read.get_room(&room_id) {
             info!("[{}] Room {} found, upgrading WebSocket", *INSTANCE_ID, room_id);
             drop(mgr_read);
-            ws.on_upgrade(move |socket| crate::ws_handler::handle_ws_connection(socket, room))
+            let reporter = state.roll_reporter.clone();
+            ws.on_upgrade(move |socket| {
+                crate::ws_handler::handle_ws_connection(socket, room, reporter)
+            })
         } else {
             info!(
                 "[{}] WS upgrade failed: room {} not found (total: {})",

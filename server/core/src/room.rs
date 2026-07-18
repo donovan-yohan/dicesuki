@@ -8,7 +8,7 @@ use crate::messages::{
     DicePresentationMetadata, DiceSnapshot, DiceState, DiceType, DieResult, RoomSettings,
     ServerMessage, SpawnDiceEntry, VelocityHistoryEntry,
 };
-use crate::player::Player;
+use crate::player::{PendingRoll, Player};
 use crate::sink::MessageSink;
 use crate::physics::{
     ArenaBounds, PhysicsWorld, REST_DURATION_MS, MAX_DICE_VELOCITY,
@@ -43,6 +43,9 @@ pub enum RoomError {
     AlreadyDragged,
     NotDragger,
     NotDragging,
+    /// A client-supplied dice id violates the shared server-safe identifier
+    /// contract enforced before any room or physics mutation.
+    InvalidDiceId,
     DuplicateDiceId,
     DuplicateInventoryDie,
     NotHost,
@@ -71,6 +74,7 @@ impl RoomError {
             RoomError::AlreadyDragged => "ALREADY_DRAGGED",
             RoomError::NotDragger => "NOT_DRAGGER",
             RoomError::NotDragging => "NOT_DRAGGING",
+            RoomError::InvalidDiceId => "INVALID_DICE_ID",
             RoomError::DuplicateDiceId => "DUPLICATE_DICE_ID",
             RoomError::DuplicateInventoryDie => "DUPLICATE_INVENTORY_DIE",
             RoomError::NotHost => "NOT_HOST",
@@ -93,6 +97,7 @@ impl std::fmt::Display for RoomError {
             RoomError::AlreadyDragged => "Die is already being dragged",
             RoomError::NotDragger => "You are not the one dragging this die",
             RoomError::NotDragging => "Die is not being dragged",
+            RoomError::InvalidDiceId => "Dice ID must be 1-160 bytes, start with an ASCII letter or digit, and contain only letters, digits, '.', '_', ':', '/', '@', or '-'",
             RoomError::DuplicateDiceId => "Duplicate dice ID in spawn request",
             RoomError::DuplicateInventoryDie => "That inventory die is already on the table",
             RoomError::NotHost => "Only the host can change room settings",
@@ -108,6 +113,8 @@ impl std::error::Error for RoomError {}
 
 pub const MAX_PLAYERS: usize = 8;
 pub const MAX_DICE: usize = 30;
+/// Maximum UTF-8 byte length for a client-supplied dice identifier.
+pub const MAX_DICE_ID_BYTES: usize = 160;
 pub const IDLE_TIMEOUT_SECS: u64 = 1800; // 30 minutes
 pub const SNAPSHOT_DIVISOR: u64 = 1; // 1 = every tick (60Hz), 2 = 30Hz, 3 = 20Hz
 /// How long a disconnected player's seat (identity, dice, host status) is held
@@ -146,6 +153,27 @@ pub const ROOM_NAME_SETTING: &str = "roomName";
 /// names are truncated on read so the listing can never be spammed with an
 /// oversized string.
 pub const ROOM_NAME_MAX_LEN: usize = 40;
+
+/// Validate the shared dice identifier contract before any physics allocation
+/// or room mutation. UUID/client ids and versioned catalog-derived ids are both
+/// supported; control characters, whitespace, Unicode, and shell/JSON-hostile
+/// punctuation are rejected.
+#[must_use]
+pub fn is_valid_dice_id(id: &str) -> bool {
+    if id.is_empty() || id.len() > MAX_DICE_ID_BYTES {
+        return false;
+    }
+
+    let mut bytes = id.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    first.is_ascii_alphanumeric()
+        && bytes.all(|byte| {
+            byte.is_ascii_alphanumeric()
+                || matches!(byte, b'.' | b'_' | b':' | b'/' | b'@' | b'-')
+        })
+}
 
 /// A single entry in the public room browser listing (`GET /api/rooms`, #79).
 /// Serialized with camelCase field names per the JSON protocol convention.
@@ -246,6 +274,26 @@ pub struct GraceExpiry {
     pub removed_players: Vec<String>,
     pub removed_dice: Vec<String>,
     pub new_host: Option<String>,
+}
+
+/// An accepted explicit `Roll` command. This is host-internal state and does
+/// not alter the public WebSocket message shape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StartedRoll {
+    pub generation: u64,
+    pub dice_ids: Vec<String>,
+}
+
+/// A completed explicit roll consumed from the room exactly once.
+#[derive(Debug, Clone)]
+pub struct CompletedRoll {
+    pub player_id: String,
+    /// Supabase user id captured when the explicit roll started. `None` stays
+    /// guest even if the seat authenticates later during reconnect.
+    pub user_id: Option<String>,
+    pub generation: u64,
+    pub results: Vec<DieResult>,
+    pub total: u32,
 }
 
 pub struct DragState {
@@ -993,8 +1041,18 @@ impl Room {
                 }
             }
         }
-        // Clean up player's dice_ids list
+        // Removing any die captured by an unfinished explicit roll invalidates
+        // that generation. Dice ids are client-supplied and reusable after
+        // removal, so retaining the pending set would let a replacement entity
+        // with the same id satisfy a roll it never participated in.
         if let Some(player) = self.players.get_mut(player_id) {
+            let invalidates_pending = player.pending_roll.as_ref().is_some_and(|pending| {
+                pending.dice_ids.iter().any(|id| removed.contains(id))
+            });
+            if invalidates_pending {
+                player.pending_roll = None;
+            }
+            // Clean up the seat's live dice index after invalidating the roll.
             player.dice_ids.retain(|id| !removed.contains(id));
         }
         self.touch();
@@ -1104,6 +1162,10 @@ impl Room {
     }
 
     fn validate_spawn_entries(&self, owner_id: &str, entries: &[DiceSpawnRequest]) -> Result<(), RoomError> {
+        if entries.iter().any(|entry| !is_valid_dice_id(&entry.id)) {
+            return Err(RoomError::InvalidDiceId);
+        }
+
         let mut request_ids = HashSet::new();
         let mut request_inventory_die_ids = HashSet::new();
 
@@ -1133,12 +1195,18 @@ impl Room {
         Ok(())
     }
 
-    /// Apply roll impulse to all of a player's dice
-    pub fn roll_player_dice(&mut self, player_id: &str) -> Vec<String> {
-        let dice_ids: Vec<String> = self.dice.iter()
+    /// Apply roll impulse to all of a player's dice and start one explicit-roll
+    /// lifecycle. A second accepted command supersedes any unfinished attempt.
+    pub fn roll_player_dice(&mut self, player_id: &str) -> Option<StartedRoll> {
+        let mut dice_ids: Vec<String> = self.dice.iter()
             .filter(|(_, d)| d.owner_id == player_id)
             .map(|(id, _)| id.clone())
             .collect();
+        dice_ids.sort();
+
+        if dice_ids.is_empty() {
+            return None;
+        }
 
         for dice_id in &dice_ids {
             if let Some(die) = self.dice.get_mut(dice_id) {
@@ -1160,7 +1228,23 @@ impl Room {
 
         self.is_simulating = true;
         self.touch();
-        dice_ids
+
+        let player = self.players.get_mut(player_id)?;
+        player.roll_generation = player
+            .roll_generation
+            .checked_add(1)
+            .expect("explicit roll generation cannot overflow in one room seat");
+        let generation = player.roll_generation;
+        player.pending_roll = Some(PendingRoll {
+            generation,
+            user_id: player.user_id.clone(),
+            dice_ids: dice_ids.clone(),
+        });
+
+        Some(StartedRoll {
+            generation,
+            dice_ids,
+        })
     }
 
     /// Step physics and check for settled dice.
@@ -1498,6 +1582,58 @@ impl Room {
             .collect();
         let total: u32 = results.iter().map(|r| r.face_value).sum();
         (results, total)
+    }
+
+    /// Consume every explicit roll whose originally tracked dice have settled.
+    ///
+    /// Completion is represented by removing `Player::pending_roll`, so later
+    /// knocks/re-settles cannot emit another `RollComplete`. Spawn settling and
+    /// drag/motion-only activity have no pending explicit command and therefore
+    /// cannot manufacture a completion.
+    pub fn take_completed_rolls(&mut self) -> Vec<CompletedRoll> {
+        let ready: Vec<(String, PendingRoll)> = self.players.iter()
+            .filter_map(|(player_id, player)| {
+                let pending = player.pending_roll.as_ref()?;
+                let complete = pending.dice_ids.iter().all(|dice_id| {
+                    self.dice.get(dice_id).is_some_and(|die| {
+                        die.owner_id == *player_id
+                            && !die.is_rolling
+                            && die.drag_state.is_none()
+                            && die.face_value.is_some()
+                    })
+                });
+                complete.then(|| (player_id.clone(), pending.clone()))
+            })
+            .collect();
+
+        ready.into_iter()
+            .filter_map(|(player_id, pending)| {
+                let player = self.players.get_mut(&player_id)?;
+                let consumed = player.pending_roll.take()?;
+                debug_assert_eq!(consumed, pending);
+
+                let mut results = pending.dice_ids.iter()
+                    .filter_map(|dice_id| self.dice.get(dice_id))
+                    .map(|die| DieResult {
+                        dice_id: die.id.clone(),
+                        dice_type: die.dice_type,
+                        face_value: die.face_value
+                            .expect("ready roll requires every tracked die to have a face"),
+                        presentation: die.presentation.clone(),
+                    })
+                    .collect::<Vec<_>>();
+                results.sort_by(|left, right| left.dice_id.cmp(&right.dice_id));
+                let total = results.iter().map(|result| result.face_value).sum();
+
+                Some(CompletedRoll {
+                    player_id,
+                    user_id: pending.user_id,
+                    generation: pending.generation,
+                    results,
+                    total,
+                })
+            })
+            .collect()
     }
 
     /// Start dragging a die. Only the die's owner — or the delegated roller
@@ -1882,6 +2018,71 @@ mod tests {
     }
 
     #[test]
+    fn dice_id_contract_accepts_runtime_uuid_and_catalog_forms() {
+        let valid_ids = [
+            "11111111-2222-4333-8444-555555555555",
+            "die_11111111-2222-4333-8444-555555555555",
+            "die.v1:room-1_player-2",
+            "adventurer-starter/d6/common@1-1784343681-abc123",
+        ];
+        for valid in valid_ids {
+            assert!(is_valid_dice_id(valid), "expected valid dice id: {valid}");
+        }
+
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics(
+            "p1",
+            valid_ids.map(|id| (id.to_string(), DiceType::D6)),
+        ).expect("all supported runtime forms pass the production spawn boundary");
+        assert_eq!(room.dice_count(), valid_ids.len());
+    }
+
+    #[test]
+    fn dice_id_contract_rejects_empty_oversized_and_unsafe_characters() {
+        let invalid_ids = [
+            String::new(),
+            "a".repeat(MAX_DICE_ID_BYTES + 1),
+            "-leading-hyphen".to_string(),
+            "die with spaces".to_string(),
+            "die#fragment".to_string(),
+            "die\nforged-log".to_string(),
+            "dé".to_string(),
+        ];
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        for invalid in invalid_ids {
+            assert!(!is_valid_dice_id(&invalid), "expected invalid dice id: {invalid:?}");
+            let result = room.spawn_dice_with_physics(
+                "p1",
+                vec![(invalid, DiceType::D6)],
+            );
+            assert_eq!(result.unwrap_err(), RoomError::InvalidDiceId);
+        }
+        assert_eq!(room.dice_count(), 0);
+        assert!(!room.is_simulating);
+    }
+
+    #[test]
+    fn invalid_dice_id_batch_fails_before_any_room_or_physics_mutation() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+
+        let result = room.spawn_dice_with_physics(
+            "p1",
+            vec![
+                ("valid-first".to_string(), DiceType::D6),
+                ("invalid second".to_string(), DiceType::D20),
+            ],
+        );
+
+        assert_eq!(result.unwrap_err(), RoomError::InvalidDiceId);
+        assert_eq!(room.dice_count(), 0, "batch must be all-or-none");
+        assert!(room.players["p1"].dice_ids.is_empty());
+        assert!(!room.is_simulating, "invalid batch must not wake physics");
+    }
+
+    #[test]
     fn test_dice_limit() {
         let mut room = Room::new("test".to_string(), ArenaBounds::default());
         let player = make_player("p1", "Gandalf");
@@ -2064,10 +2265,154 @@ mod tests {
         room.add_player(player).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
 
-        let rolled = room.roll_player_dice("p1");
-        assert_eq!(rolled.len(), 1);
+        let rolled = room.roll_player_dice("p1").expect("roll accepted");
+        assert_eq!(rolled.dice_ids.len(), 1);
+        assert_eq!(rolled.generation, 1);
         assert!(room.dice.get("d1").unwrap().is_rolling);
         assert!(room.is_simulating);
+    }
+
+    #[test]
+    fn explicit_roll_completion_is_consumed_once_and_resettle_does_not_repeat() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        let mut player = make_player("p1", "Gandalf");
+        player.user_id = Some("51111111-1111-4111-8111-111111111111".to_string());
+        room.add_player(player).unwrap();
+        room.spawn_dice_with_physics(
+            "p1",
+            vec![("d2".to_string(), DiceType::D20), ("d1".to_string(), DiceType::D6)],
+        ).unwrap();
+
+        let started = room.roll_player_dice("p1").expect("roll accepted");
+        assert_eq!(started.dice_ids, ["d1", "d2"]);
+        for (dice_id, face) in [("d1", 4), ("d2", 17)] {
+            let die = room.dice.get_mut(dice_id).unwrap();
+            die.is_rolling = false;
+            die.face_value = Some(face);
+        }
+
+        let completed = room.take_completed_rolls();
+        assert_eq!(completed.len(), 1);
+        assert_eq!(completed[0].generation, 1);
+        assert_eq!(completed[0].user_id.as_deref(), Some("51111111-1111-4111-8111-111111111111"));
+        assert_eq!(
+            completed[0].results.iter()
+                .map(|result| result.dice_id.as_str())
+                .collect::<Vec<_>>(),
+            ["d1", "d2"]
+        );
+        assert_eq!(completed[0].total, 21);
+        assert!(room.take_completed_rolls().is_empty());
+
+        let die = room.dice.get_mut("d1").unwrap();
+        die.is_rolling = true;
+        die.face_value = None;
+        die.is_rolling = false;
+        die.face_value = Some(5);
+        assert!(room.take_completed_rolls().is_empty());
+    }
+
+    #[test]
+    fn newer_explicit_roll_supersedes_unfinished_generation_and_freezes_identity_and_dice() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+
+        let first = room.roll_player_dice("p1").expect("first roll");
+        assert_eq!(first.generation, 1);
+        room.players.get_mut("p1").unwrap().user_id =
+            Some("52222222-2222-4222-8222-222222222222".to_string());
+        room.spawn_dice_with_physics("p1", vec![("d2".to_string(), DiceType::D8)]).unwrap();
+        let second = room.roll_player_dice("p1").expect("second roll");
+        assert_eq!(second.generation, 2);
+        assert_eq!(second.dice_ids, ["d1", "d2"]);
+
+        for (dice_id, face) in [("d1", 2), ("d2", 7)] {
+            let die = room.dice.get_mut(dice_id).unwrap();
+            die.is_rolling = false;
+            die.face_value = Some(face);
+        }
+        let completed = room.take_completed_rolls();
+        assert_eq!(completed.len(), 1);
+        assert_eq!(completed[0].generation, 2);
+        assert_eq!(completed[0].user_id.as_deref(), Some("52222222-2222-4222-8222-222222222222"));
+    }
+
+    #[test]
+    fn guest_roll_never_retroactively_captures_later_authentication() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Guest")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.roll_player_dice("p1").expect("guest roll");
+        room.players.get_mut("p1").unwrap().user_id =
+            Some("53333333-3333-4333-8333-333333333333".to_string());
+        let die = room.dice.get_mut("d1").unwrap();
+        die.is_rolling = false;
+        die.face_value = Some(6);
+
+        let completed = room.take_completed_rolls();
+        assert_eq!(completed.len(), 1);
+        assert!(completed[0].user_id.is_none());
+    }
+
+    #[test]
+    fn explicit_roll_completion_uses_only_the_initially_rolled_dice_set() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        let started = room.roll_player_dice("p1").expect("roll accepted");
+        assert_eq!(started.dice_ids, ["d1"]);
+
+        room.spawn_dice_with_physics("p1", vec![("later".to_string(), DiceType::D20)]).unwrap();
+        let first = room.dice.get_mut("d1").unwrap();
+        first.is_rolling = false;
+        first.face_value = Some(4);
+
+        let completed = room.take_completed_rolls();
+        assert_eq!(completed.len(), 1);
+        assert_eq!(completed[0].results.len(), 1);
+        assert_eq!(completed[0].results[0].dice_id, "d1");
+        assert_eq!(completed[0].total, 4);
+        assert!(room.dice.get("later").unwrap().is_rolling);
+    }
+
+    #[test]
+    fn removing_tracked_die_cancels_generation_before_same_id_can_be_reused() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        assert_eq!(
+            room.roll_player_dice("p1").expect("first roll").generation,
+            1
+        );
+
+        assert_eq!(room.remove_dice("p1", &["d1".to_string()]), ["d1"]);
+        assert!(room.players["p1"].pending_roll.is_none());
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D20)]).unwrap();
+        let replacement = room.dice.get_mut("d1").unwrap();
+        replacement.is_rolling = false;
+        replacement.face_value = Some(17);
+        assert!(
+            room.take_completed_rolls().is_empty(),
+            "a replacement entity must not complete the removed die's generation"
+        );
+
+        assert_eq!(
+            room.roll_player_dice("p1").expect("replacement roll").generation,
+            2,
+            "cancellation must not reuse the monotonic generation"
+        );
+    }
+
+    #[test]
+    fn spawn_settling_without_explicit_roll_never_completes() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        let die = room.dice.get_mut("d1").unwrap();
+        die.is_rolling = false;
+        die.face_value = Some(3);
+        assert!(room.take_completed_rolls().is_empty());
     }
 
     #[test]

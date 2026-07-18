@@ -144,11 +144,10 @@ impl RoomHost {
             }
 
             ClientMessage::Roll if self.joined => {
-                let dice_ids = self.room.roll_player_dice(SOLO_PLAYER_ID);
-                if !dice_ids.is_empty() {
+                if let Some(started) = self.room.roll_player_dice(SOLO_PLAYER_ID) {
                     self.room.broadcast(&ServerMessage::RollStarted {
                         player_id: SOLO_PLAYER_ID.to_string(),
-                        dice_ids,
+                        dice_ids: started.dice_ids,
                     });
                 }
             }
@@ -321,28 +320,19 @@ impl RoomHost {
             }
         }
 
-        // A player's full roll completing fires exactly once (only when a die
-        // settled this tick), same guard as the server loop.
-        if !newly_settled.is_empty() {
-            let player_ids: Vec<String> = self.room.players.keys().cloned().collect();
-            for pid in player_ids {
-                let player_has_dice = self.room.dice.values().any(|d| d.owner_id == pid);
-                if player_has_dice && self.room.is_player_roll_complete(&pid) {
-                    let (results, total) = self.room.get_player_results(&pid);
-                    if !results.is_empty() {
-                        let has_new = results
-                            .iter()
-                            .any(|r| newly_settled.iter().any(|(id, _)| *id == r.dice_id));
-                        if has_new {
-                            self.room.broadcast(&ServerMessage::RollComplete {
-                                player_id: pid,
-                                results,
-                                total,
-                            });
-                        }
-                    }
-                }
-            }
+        self.broadcast_completed_rolls();
+    }
+
+    /// Consume the shared-core explicit-roll lifecycle and preserve the existing
+    /// public wire message. Solo is always a guest, so this seam broadcasts but
+    /// is never connected to the native reward reporter.
+    fn broadcast_completed_rolls(&mut self) {
+        for completed in self.room.take_completed_rolls() {
+            self.room.broadcast(&ServerMessage::RollComplete {
+                player_id: completed.player_id,
+                results: completed.results,
+                total: completed.total,
+            });
         }
     }
 
@@ -415,6 +405,21 @@ mod tests {
     }
 
     #[test]
+    fn invalid_dice_id_batch_is_rejected_atomically_through_wasm_host() {
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
+        let _ = join(&mut host);
+        host.handle_message(
+            r#"{"type":"spawn_dice","dice":[{"id":"valid-first","diceType":"d6"},{"id":"invalid second","diceType":"d20"}]}"#,
+        );
+
+        let out = host.drain_json();
+        assert_eq!(out.len(), 1);
+        assert!(out[0].contains("INVALID_DICE_ID"));
+        assert_eq!(host.room.dice_count(), 0);
+        assert!(host.room.players[SOLO_PLAYER_ID].dice_ids.is_empty());
+    }
+
+    #[test]
     fn idle_tick_is_a_noop() {
         let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
         let _ = join(&mut host);
@@ -474,6 +479,37 @@ mod tests {
         assert!(settled, "die must emit die_settled with an authoritative face");
         assert!(roll_complete, "a completed solo roll must emit roll_complete");
         assert!(!host.is_simulating(), "simulation stops once dice are at rest");
+    }
+
+    #[test]
+    fn solo_roll_complete_is_consumed_once_and_resettle_does_not_repeat() {
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
+        let _ = join(&mut host);
+        host.handle_message(r#"{"type":"spawn_dice","dice":[{"id":"d1","diceType":"d6"}]}"#);
+        let _ = host.drain_json();
+        host.handle_message(r#"{"type":"roll"}"#);
+        let _ = host.drain_json();
+
+        let die = host.room.dice.get_mut("d1").unwrap();
+        die.is_rolling = false;
+        die.face_value = Some(4);
+        host.broadcast_completed_rolls();
+        let first = host.drain_json();
+        assert_eq!(
+            first.iter()
+                .filter(|message| message.contains("\"type\":\"roll_complete\""))
+                .count(),
+            1
+        );
+
+        let die = host.room.dice.get_mut("d1").unwrap();
+        die.is_rolling = true;
+        die.face_value = None;
+        die.is_rolling = false;
+        die.face_value = Some(5);
+        host.broadcast_completed_rolls();
+        assert!(host.drain_json().iter()
+            .all(|message| !message.contains("\"type\":\"roll_complete\"")));
     }
 
     #[test]
