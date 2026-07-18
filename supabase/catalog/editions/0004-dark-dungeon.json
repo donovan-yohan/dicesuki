@@ -72,11 +72,11 @@
         "name": "Cinder Spike D4",
         "description": "Cinder Spike D4 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
         "appearance": {
-          "baseColor": "#8b5cf6",
-          "accentColor": "#ffffff",
-          "material": "plastic",
-          "roughness": 0.7,
-          "metalness": 0
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
         },
         "vfx": {},
         "diceMetadata": {
@@ -155,7 +155,7 @@
           "canonicalReferenceVersion": 2
         }
       },
-      "metadataSha256": "9d84b52cb34d6c7c36b7259d2aa828097cc4b245e2f1b72c27bb3be2072c6b1a"
+      "metadataSha256": "1f85cbd6fffcbc48f859b3e7a8fb8644e2319c1cf15575c3969958eec3896e1d"
     },
     {
       "id": "dark-dungeon-imagegen-set/crypt-seal-d12@1/asset@1",
@@ -169,11 +169,11 @@
         "name": "Crypt Seal D12",
         "description": "Crypt Seal D12 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
         "appearance": {
-          "baseColor": "#8b5cf6",
-          "accentColor": "#ffffff",
-          "material": "plastic",
-          "roughness": 0.7,
-          "metalness": 0
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
         },
         "vfx": {},
         "diceMetadata": {
@@ -316,7 +316,7 @@
           "canonicalReferenceVersion": 2
         }
       },
-      "metadataSha256": "b7f5ebe6c1221897d1844cafd3db36d229bf63beaff21e635a953bb780028fff"
+      "metadataSha256": "80055020a37af1c10803500d3bd46efdf46ce7ae74c2ade44bcb770fa0b78e50"
     },
     {
       "id": "dark-dungeon-imagegen-set/dread-gate-d20@1/asset@1",
@@ -330,11 +330,11 @@
         "name": "Dread Gate D20",
         "description": "Dread Gate D20 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
         "appearance": {
-          "baseColor": "#8b5cf6",
-          "accentColor": "#ffffff",
-          "material": "plastic",
-          "roughness": 0.7,
-          "metalness": 0
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
         },
         "vfx": {},
         "diceMetadata": {
@@ -541,7 +541,7 @@
           "canonicalReferenceVersion": 2
         }
       },
-      "metadataSha256": "d230a3eaf011823b6b1f82b0c9febf535713565881cd731ee01d7247efc47ffc"
+      "metadataSha256": "93d49685528040c08131b765583c9f614a0de2be2457512875247eb95962c3a6"
     },
     {
       "id": "dark-dungeon-imagegen-set/gaoler-key-d10@1/asset@1",
@@ -555,11 +555,11 @@
         "name": "Gaoler Key D10",
         "description": "Gaoler Key D10 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
         "appearance": {
-          "baseColor": "#8b5cf6",
-          "accentColor": "#ffffff",
-          "material": "plastic",
-          "roughness": 0.7,
-          "metalness": 0
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
         },
         "vfx": {},
         "diceMetadata": {
@@ -688,7 +688,7 @@
           "canonicalReferenceVersion": 2
         }
       },
-      "metadataSha256": "d17b7646f8dfcf26760128b8219f4f2e60e2d66c6819105d898a04fef9fc3026"
+      "metadataSha256": "ae16ccb7307ff54fee98d134600513e386f624064a6d3874f2a7596ea37d4303"
     },
     {
       "id": "dark-dungeon-imagegen-set/iron-vault-d6@1/asset@1",
@@ -702,11 +702,11 @@
         "name": "Iron Vault D6",
         "description": "Iron Vault D6 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
         "appearance": {
-          "baseColor": "#8b5cf6",
-          "accentColor": "#ffffff",
-          "material": "plastic",
-          "roughness": 0.7,
-          "metalness": 0
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
         },
         "vfx": {},
         "diceMetadata": {
@@ -808,7 +808,7 @@
           "canonicalReferenceVersion": 2
         }
       },
-      "metadataSha256": "2c9ec61a497137152dbb3f457069005c1ce445a9e412247675e0c8c47caff53f"
+      "metadataSha256": "3ded68d59c37d5924b665d1376862f854e34c870af0c36ba0e02f3b47797b495"
     },
     {
       "id": "dark-dungeon-imagegen-set/obsidian-fang-d8@1/asset@1",
@@ -822,11 +822,11 @@
         "name": "Obsidian Fang D8",
         "description": "Obsidian Fang D8 belongs to Dark Dungeon Armory, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
         "appearance": {
-          "baseColor": "#8b5cf6",
-          "accentColor": "#ffffff",
-          "material": "plastic",
-          "roughness": 0.7,
-          "metalness": 0
+          "baseColor": "#1a1a1a",
+          "accentColor": "#b91c1c",
+          "material": "stone",
+          "roughness": 0.6,
+          "metalness": 0.1
         },
         "vfx": {},
         "diceMetadata": {
@@ -937,7 +937,7 @@
           "canonicalReferenceVersion": 2
         }
       },
-      "metadataSha256": "2f3461ad98ffe84552219223528d8675d3b0e2d73b4dc7add2a34a0ea90ac1f8"
+      "metadataSha256": "b43a243d81fa678096565769e9c80752ec3e6b6e44a4fc7f452bbc8ed5a12b54"
     }
   ]
 }

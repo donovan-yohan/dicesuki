@@ -11,5 +11,12 @@
     "gothic",
     "codex-imagegen"
   ],
-  "availability": "always"
+  "availability": "always",
+  "appearance": {
+    "baseColor": "#1a1a1a",
+    "accentColor": "#b91c1c",
+    "material": "stone",
+    "roughness": 0.6,
+    "metalness": 0.1
+  }
 }

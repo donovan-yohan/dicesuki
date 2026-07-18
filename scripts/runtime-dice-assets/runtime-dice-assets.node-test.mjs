@@ -106,6 +106,20 @@ test('runtime metadata uses density and canonical v2 scale references', () => {
   }
 })
 
+test('runtime set metadata applies only explicit profile appearance overrides', () => {
+  for (const [profileId, profile] of Object.entries(RUNTIME_ASSET_PROFILES)) {
+    const setMetadata = JSON.parse(fs.readFileSync(
+      path.join(REPO_ROOT, 'public', 'dice', profile.setId, 'set.json'),
+      'utf8',
+    ))
+    if (profile.appearance) {
+      assert.deepEqual(setMetadata.appearance, profile.appearance, profileId)
+    } else {
+      assert.equal(Object.hasOwn(setMetadata, 'appearance'), false, profileId)
+    }
+  }
+})
+
 test('runtime profiles and manifests anchor complete source locks', () => {
   for (const [profileId, profile] of Object.entries(RUNTIME_ASSET_PROFILES)) {
     const sourceLockFiles = [profile.sourceLockFile, ...profile.sourceLockSupplementFiles]

@@ -42,10 +42,13 @@ export async function optimizeRuntimeAssetSet({
 
   try {
     fs.mkdirSync(outputSetRoot, { recursive: true })
-    atomicCopy(
-      path.join(sourceRoot, 'public', 'dice', profile.setId, 'set.json'),
-      path.join(outputSetRoot, 'set.json'),
-    )
+    const sourceSetPath = path.join(sourceRoot, 'public', 'dice', profile.setId, 'set.json')
+    const outputSetPath = path.join(outputSetRoot, 'set.json')
+    if (profile.appearance) {
+      atomicWrite(normalizeSetMetadata(sourceSetPath, profile.appearance), outputSetPath)
+    } else {
+      atomicCopy(sourceSetPath, outputSetPath)
+    }
 
     for (const { diceId, diceType, proofFace, scale } of profile.dice) {
       const sourceDieRoot = path.join(sourceRoot, 'public', 'dice', profile.setId, diceId)
@@ -209,6 +212,11 @@ function normalizeMetadata(sourcePath, die) {
   }
   if (!canonicalInserted) normalized.canonicalReferenceVersion = 2
   return Buffer.from(`${JSON.stringify(normalized, null, 2)}\n`)
+}
+
+function normalizeSetMetadata(sourcePath, appearance) {
+  const source = JSON.parse(fs.readFileSync(sourcePath, 'utf8'))
+  return Buffer.from(`${JSON.stringify({ ...source, appearance }, null, 2)}\n`)
 }
 
 function pick(source, keys) {

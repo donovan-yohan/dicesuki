@@ -18,6 +18,13 @@ const ROOT_DIR = path.join(__dirname, '..')
 const CHECK_ONLY = process.argv.includes('--check')
 const PREPARE_EDITION_INDEX = process.argv.indexOf('--prepare-edition')
 const POSTGRES_INTEGER_MAX = 2_147_483_647
+const DEFAULT_PRODUCTION_APPEARANCE = Object.freeze({
+  baseColor: '#8b5cf6',
+  accentColor: '#ffffff',
+  material: 'plastic',
+  roughness: 0.7,
+  metalness: 0,
+})
 
 export function catalogPaths(rootDir = ROOT_DIR) {
   const migrationsDir = path.join(rootDir, 'supabase', 'migrations')
@@ -357,13 +364,7 @@ function productionEntries(source, paths) {
         source: 'production',
         name: diceMetadata.name,
         description: diceMetadata.description ?? setMetadata.description,
-        appearance: {
-          baseColor: '#8b5cf6',
-          accentColor: '#ffffff',
-          material: 'plastic',
-          roughness: 0.7,
-          metalness: 0,
-        },
+        appearance: setMetadata.appearance ?? DEFAULT_PRODUCTION_APPEARANCE,
         vfx: {},
         diceMetadata,
         ...(delivery ? { delivery } : {}),

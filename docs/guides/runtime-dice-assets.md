@@ -35,9 +35,10 @@ textures to at most 1024 px, encodes base color as quality-80 WebP, encodes the
 normal map as lossless WebP, preserves directly inspectable canonical geometry,
 and creates deterministic 320 px PNG catalog thumbnails from the locked proof
 captures. It copies the locked set metadata, replaces authoring-only UV links
-with canonical-reference version 2, applies the canonical per-shape scale, writes
-files atomically, and emits `runtime-assets.json` with exact hashes and byte
-counts. Omitting `--profile` preserves the `cozy-forest-v1` default.
+with canonical-reference version 2, applies any profile-owned fallback appearance
+and the canonical per-shape scale, writes files atomically, and emits
+`runtime-assets.json` with exact hashes and byte counts. Omitting `--profile`
+preserves the `cozy-forest-v1` default.
 
 ## Enforced budgets
 

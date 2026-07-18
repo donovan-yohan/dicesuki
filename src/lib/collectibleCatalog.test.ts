@@ -52,6 +52,36 @@ describe('collectible catalog', () => {
     expect(COLLECTIBLE_CATALOG.items.some(item => item.setId === 'custom-artist')).toBe(false)
   })
 
+  it('uses the Dark Dungeon fallback appearance without rewriting prior runtime defaults', () => {
+    const appearancesFor = (setId: string) => COLLECTIBLE_CATALOG.assetVersions
+      .filter(asset => asset.catalogItemId.startsWith(`${setId}/`))
+      .map(asset => asset.metadata.appearance)
+
+    const darkDungeonAppearance = {
+      baseColor: '#1a1a1a',
+      accentColor: '#b91c1c',
+      material: 'stone',
+      roughness: 0.6,
+      metalness: 0.1,
+    }
+    expect(appearancesFor('dark-dungeon-imagegen-set')).toEqual(
+      Array.from({ length: 6 }, () => darkDungeonAppearance),
+    )
+
+    const publishedDefault = {
+      baseColor: '#8b5cf6',
+      accentColor: '#ffffff',
+      material: 'plastic',
+      roughness: 0.7,
+      metalness: 0,
+    }
+    for (const setId of ['cozy-forest-imagegen-set', 'cyberpunk-imagegen-set']) {
+      expect(appearancesFor(setId)).toEqual(
+        Array.from({ length: 6 }, () => publishedDefault),
+      )
+    }
+  })
+
   it('keeps Steel and Rubber as distinct catalog definitions', () => {
     const steel = getCatalogItemByKey('materials-lab/steel-d20')
     const rubber = getCatalogItemByKey('materials-lab/rubber-d20')
