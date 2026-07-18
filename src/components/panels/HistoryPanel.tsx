@@ -99,7 +99,7 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
       className="p-4 rounded-lg"
       style={{
         backgroundColor: 'rgba(0, 0, 0, 0.2)',
-        border: '1px solid rgba(251, 146, 60, 0.2)',
+        border: '1px solid rgba(249, 135, 151, 0.2)',
       }}
     >
       {/* Header */}
@@ -137,7 +137,7 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
         <div
           className="text-2xl font-bold px-3 py-1 rounded-lg"
           style={{
-            backgroundColor: 'rgba(251, 146, 60, 0.2)',
+            backgroundColor: 'rgba(249, 135, 151, 0.2)',
             color: 'var(--color-accent)',
           }}
         >

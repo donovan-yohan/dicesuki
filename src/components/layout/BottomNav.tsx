@@ -50,9 +50,9 @@ export function BottomNav({
         backgroundColor: 'rgba(31, 41, 55, 0.7)', // Semi-transparent surface
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(251, 146, 60, 0.3)',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(249, 135, 151, 0.3)',
         borderRadius: '28px', // Fully rounded pill shape
-        border: '1px solid rgba(251, 146, 60, 0.2)',
+        border: '1px solid rgba(249, 135, 151, 0.2)',
       }}
       // Animations
       variants={navBarVariants}
@@ -132,7 +132,7 @@ function NavButton({ onClick, label, icon, active = false }: NavButtonProps) {
         width: '44px',
         height: '44px',
         backgroundColor: active
-          ? 'rgba(251, 146, 60, 0.25)'
+          ? 'rgba(249, 135, 151, 0.25)'
           : 'rgba(255, 255, 255, 0.05)',
         color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
       }}
@@ -140,7 +140,7 @@ function NavButton({ onClick, label, icon, active = false }: NavButtonProps) {
         !reduceMotion
           ? {
               backgroundColor: active
-                ? 'rgba(251, 146, 60, 0.35)'
+                ? 'rgba(249, 135, 151, 0.35)'
                 : 'rgba(255, 255, 255, 0.15)',
               scale: 1.08,
             }

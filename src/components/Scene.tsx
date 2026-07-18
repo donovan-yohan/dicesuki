@@ -59,7 +59,7 @@ const TOP_RIGHT_BUTTON_STYLES = {
   backdropFilter: 'blur(10px)',
   WebkitBackdropFilter: 'blur(10px)',
   boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-  border: '1px solid rgba(251, 146, 60, 0.2)'
+  border: '1px solid rgba(249, 135, 151, 0.2)'
 } as const
 
 const LOD_DEBUG_NAMESPACE = 'RenderLOD'
@@ -112,10 +112,10 @@ function RenderLodDebugOverlay({
   return (
     <div
       data-testid="render-lod-debug"
-      className="fixed bottom-20 left-3 z-50 max-w-[min(92vw,360px)] rounded-xl border border-orange-400/30 bg-black/75 px-3 py-2 font-mono text-[10px] text-orange-100 shadow-xl backdrop-blur"
+      className="fixed bottom-20 left-3 z-50 max-w-[min(92vw,360px)] rounded-xl border border-[#f98797]/30 bg-black/75 px-3 py-2 font-mono text-[10px] text-white/90 shadow-xl backdrop-blur"
       style={{ pointerEvents: 'none' }}
     >
-      <div className="mb-1 text-xs font-bold uppercase tracking-wide text-orange-300">
+      <div className="mb-1 text-xs font-bold uppercase tracking-wide text-[#f98797]">
         render lod · {deviceTier} · {isMultiplayer ? 'multiplayer' : 'local'} · table {tableDiceCount}
       </div>
       <div className="grid grid-cols-[72px_1fr] gap-x-2 gap-y-0.5">
@@ -124,7 +124,7 @@ function RenderLodDebugOverlay({
 
           return (
             <div key={policy.context} className="contents">
-              <span className="text-orange-300">{policy.context}</span>
+              <span className="text-[#f98797]">{policy.context}</span>
               <span>{policy.fidelity} · {textureSizeLabel} · {policy.physicsMode}</span>
             </div>
           )
@@ -756,11 +756,11 @@ function Scene({ onReady }: SceneProps) {
 const CHIP_STYLES = {
   solid: {
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    border: '1px solid rgba(251, 146, 60, 0.3)',
+    border: '1px solid rgba(249, 135, 151, 0.3)',
   },
   muted: {
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    border: '1px solid rgba(251, 146, 60, 0.2)',
+    border: '1px solid rgba(249, 135, 151, 0.2)',
   },
 } as const
 
@@ -873,7 +873,7 @@ function ResultDisplay() {
       style={{
         maxHeight: '40vh',
         scrollbarWidth: 'thin',
-        scrollbarColor: 'rgba(251, 146, 60, 0.5) transparent'
+        scrollbarColor: 'rgba(249, 135, 151, 0.5) transparent'
       }}
     >
       <div className="flex flex-col items-center gap-2">
@@ -890,7 +890,7 @@ function ResultDisplay() {
         <div className={`flex flex-col items-center gap-1 transition-transform ${shouldAnimate ? 'animate-bounce' : ''}`}>
           <div className="text-5xl font-bold" style={{
             color: 'var(--color-accent)',
-            textShadow: '0 0 15px rgba(251, 146, 60, 0.5)'
+            textShadow: '0 0 15px rgba(249, 135, 151, 0.5)'
           }}>
             {isAnyRolling ? '?' : grandTotal}
           </div>

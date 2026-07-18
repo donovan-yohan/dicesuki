@@ -50,8 +50,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             onClick={() => setShowThemeSelector(true)}
             className="w-full flex items-center justify-between p-4 rounded-lg transition-all"
             style={{
-              backgroundColor: 'rgba(251, 146, 60, 0.1)',
-              border: '1px solid rgba(251, 146, 60, 0.3)',
+              backgroundColor: 'rgba(249, 135, 151, 0.1)',
+              border: '1px solid rgba(249, 135, 151, 0.3)',
             }}
           >
             <div className="flex items-center gap-3">

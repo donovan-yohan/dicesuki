@@ -181,7 +181,7 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
               onClick={() => toggleFavorite(die.id)}
               className="h-10 rounded-md px-4 text-sm font-semibold"
               style={{
-                backgroundColor: die.isFavorite ? 'rgba(251, 146, 60, 0.22)' : 'rgba(255, 255, 255, 0.08)',
+                backgroundColor: die.isFavorite ? 'rgba(249, 135, 151, 0.22)' : 'rgba(255, 255, 255, 0.08)',
                 color: die.isFavorite ? theme.tokens.colors.accent : theme.tokens.colors.text.primary,
                 border: `1px solid ${die.isFavorite ? theme.tokens.colors.accent : theme.tokens.colors.text.muted}`,
               }}

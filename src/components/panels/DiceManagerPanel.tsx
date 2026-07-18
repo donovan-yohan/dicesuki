@@ -142,8 +142,8 @@ export function DiceManagerPanel({
               onClick={() => handleAddDice(type)}
               className="flex flex-col items-center justify-center p-4 rounded-lg transition-all"
               style={{
-                backgroundColor: 'rgba(251, 146, 60, 0.1)',
-                border: '1px solid rgba(251, 146, 60, 0.3)',
+                backgroundColor: 'rgba(249, 135, 151, 0.1)',
+                border: '1px solid rgba(249, 135, 151, 0.3)',
                 color: 'var(--color-text-primary)',
               }}
               aria-label={`Add ${label}`}

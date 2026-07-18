@@ -34,7 +34,7 @@ export function SavedRollCard({
       className="rounded-lg p-4 mb-3"
       style={{
         backgroundColor: 'rgba(0, 0, 0, 0.2)',
-        border: '1px solid rgba(251, 146, 60, 0.2)',
+        border: '1px solid rgba(249, 135, 151, 0.2)',
       }}
     >
       {/* Header with name and favorite */}
@@ -88,7 +88,7 @@ export function SavedRollCard({
               key={idx}
               className="text-xs px-2 py-1 rounded"
               style={{
-                backgroundColor: 'rgba(251, 146, 60, 0.2)',
+                backgroundColor: 'rgba(249, 135, 151, 0.2)',
                 color: 'var(--color-accent)',
               }}
             >

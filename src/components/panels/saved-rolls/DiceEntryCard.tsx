@@ -76,11 +76,11 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
                   style={{
                     backgroundColor: source.isMissing
                       ? 'rgba(239, 68, 68, 0.18)'
-                      : 'rgba(251, 146, 60, 0.16)',
+                      : 'rgba(249, 135, 151, 0.16)',
                     color: source.isMissing ? '#fca5a5' : 'var(--color-accent)',
                     border: source.isMissing
                       ? '1px solid rgba(239, 68, 68, 0.35)'
-                      : '1px solid rgba(251, 146, 60, 0.25)',
+                      : '1px solid rgba(249, 135, 151, 0.25)',
                   }}
                 >
                   {source.label}
