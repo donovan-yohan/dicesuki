@@ -294,14 +294,14 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
     uploadState.metadataValidation?.isValid
 
   return (
-    <div className="artist-testing-panel bg-gray-900/95 text-white p-6 rounded-lg max-w-2xl">
+    <div className="artist-testing-panel bg-theme-bg/95 text-theme-text p-6 rounded-lg max-w-2xl">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Artist Testing Platform</h2>
         {onClose && (
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white"
+            className="text-theme-text-muted hover:text-theme-text"
             aria-label="Close panel"
           >
             ✕
@@ -314,7 +314,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         <h3 className="text-lg font-semibold mb-3">1. Upload Dice Model (.glb)</h3>
 
         <div
-          className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-gray-400 transition-colors"
+          className="border-2 border-dashed border-theme-secondary rounded-lg p-8 text-center hover:border-theme-secondary transition-colors"
           onDragOver={(e) => {
             e.preventDefault()
             e.stopPropagation()
@@ -345,22 +345,22 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
 
           {!uploadState.file ? (
             <div>
-              <p className="text-gray-400 mb-4">Drag & drop your .glb file here, or</p>
+              <p className="text-theme-text-muted mb-4">Drag & drop your .glb file here, or</p>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-md font-medium"
+                className="bg-theme-accent hover:brightness-110 px-6 py-2 rounded-md font-medium transition-all"
               >
                 Choose File
               </button>
-              <p className="text-sm text-gray-500 mt-4">
+              <p className="text-sm text-theme-text-muted mt-4">
                 Maximum file size: 20 MB (10 MB recommended)
               </p>
             </div>
           ) : (
             <div className="text-left">
               <p className="font-medium mb-2">✓ File uploaded</p>
-              <p className="text-sm text-gray-400">{uploadState.file.name}</p>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-theme-text-muted">{uploadState.file.name}</p>
+              <p className="text-sm text-theme-text-muted">
                 Size: {(uploadState.file.size / 1024 / 1024).toFixed(2)} MB
               </p>
               <button
@@ -381,7 +381,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
 
         {/* File validation results */}
         {uploadState.fileValidation && (
-          <div className="mt-3 p-3 bg-gray-800 rounded text-sm">
+          <div className="mt-3 p-3 bg-theme-surface rounded text-sm">
             <pre className="whitespace-pre-wrap font-mono text-xs">
               {formatValidationResults(uploadState.fileValidation)}
             </pre>
@@ -400,8 +400,8 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
               onClick={() => setSelectedDiceType(type)}
               className={`py-3 px-4 rounded font-bold transition-colors ${
                 selectedDiceType === type
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-theme-accent text-theme-primary'
+                  : 'bg-theme-primary text-theme-text-secondary hover:bg-theme-secondary'
               }`}
             >
               {type.toUpperCase()}
@@ -415,9 +415,9 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         <section className="mb-6">
           <h3 className="text-lg font-semibold mb-3">3. Adjust Scale</h3>
 
-          <div className="bg-gray-800 rounded-lg p-4 space-y-4">
+          <div className="bg-theme-surface rounded-lg p-4 space-y-4">
             {/* Scale analysis info */}
-            <div className="text-sm text-gray-400 space-y-1">
+            <div className="text-sm text-theme-text-muted space-y-1">
               <p>
                 Original size: {scaleAnalysis.originalSize[0].toFixed(2)} × {scaleAnalysis.originalSize[1].toFixed(2)} × {scaleAnalysis.originalSize[2].toFixed(2)} units
               </p>
@@ -446,11 +446,11 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                     step="0.01"
                     min="0.01"
                     max="10"
-                    className="w-20 px-2 py-1 bg-gray-700 rounded border border-gray-600 text-sm text-right"
+                    className="w-20 px-2 py-1 bg-theme-primary rounded border border-theme-secondary text-sm text-right"
                   />
                   <button
                     onClick={() => setUserScale(scaleAnalysis.recommendedScale)}
-                    className="text-xs text-blue-400 hover:text-blue-300 underline"
+                    className="text-xs text-theme-accent hover:text-theme-secondary underline"
                     title="Reset to recommended scale"
                   >
                     Reset
@@ -466,13 +466,13 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                 min="0.01"
                 max={Math.max(scaleAnalysis.recommendedScale * 3, 2)}
                 step="0.01"
-                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                className="w-full h-2 bg-theme-primary rounded-lg appearance-none cursor-pointer accent-theme-accent"
               />
 
               {/* Preview of final size */}
-              <div className="text-sm text-gray-400">
+              <div className="text-sm text-theme-text-muted">
                 Final size: {' '}
-                <span className="text-white font-medium">
+                <span className="text-theme-text font-medium">
                   {(scaleAnalysis.originalSize[0] * userScale).toFixed(2)} × {(scaleAnalysis.originalSize[1] * userScale).toFixed(2)} × {(scaleAnalysis.originalSize[2] * userScale).toFixed(2)}
                 </span>
                 {' '}units
@@ -494,7 +494,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         <section className="mb-6">
           <h3 className="text-lg font-semibold mb-3">{scaleAnalysis ? '4' : '3'}. Physics Properties</h3>
 
-          <div className="bg-gray-800 rounded-lg p-4 space-y-4">
+          <div className="bg-theme-surface rounded-lg p-4 space-y-4">
             {/* Density slider */}
             <div className="space-y-2">
               <div className="flex justify-between items-center">
@@ -514,11 +514,11 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                     step="0.01"
                     min="0.01"
                     max="2"
-                    className="w-20 px-2 py-1 bg-gray-700 rounded border border-gray-600 text-sm text-right"
+                    className="w-20 px-2 py-1 bg-theme-primary rounded border border-theme-secondary text-sm text-right"
                   />
                   <button
                     onClick={() => setUserDensity(0.3)}
-                    className="text-xs text-blue-400 hover:text-blue-300 underline"
+                    className="text-xs text-theme-accent hover:text-theme-secondary underline"
                     title="Reset to default density"
                   >
                     Reset
@@ -534,17 +534,17 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                 min="0.01"
                 max="2"
                 step="0.01"
-                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                className="w-full h-2 bg-theme-primary rounded-lg appearance-none cursor-pointer accent-theme-accent"
               />
 
               {/* Density behavior hints */}
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-xs text-theme-text-muted">
                 <span>Light (spins easily)</span>
                 <span>Heavy (stable)</span>
               </div>
 
               {/* Density explanation */}
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-theme-text-muted">
                 Lower density = more spin/tumble when dragging. Default: <span className="text-green-400">0.3</span> (matches standard dice)
               </p>
             </div>
@@ -558,18 +558,18 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-lg font-semibold">
               {scaleAnalysis ? '5' : '4'}. Face Number Mapping
-              <span className="text-sm font-normal text-gray-400 ml-2">(Optional)</span>
+              <span className="text-sm font-normal text-theme-text-muted ml-2">(Optional)</span>
             </h3>
             <button
               onClick={() => setShowFaceMapper(!showFaceMapper)}
-              className="text-sm text-blue-400 hover:text-blue-300"
+              className="text-sm text-theme-accent hover:text-theme-secondary"
             >
               {showFaceMapper ? 'Hide' : 'Customize Faces'}
             </button>
           </div>
 
           {!showFaceMapper ? (
-            <div className="bg-gray-800 rounded-lg p-4 text-sm text-gray-400">
+            <div className="bg-theme-surface rounded-lg p-4 text-sm text-theme-text-muted">
               <p>
                 By default, face normals use standard orientations for {selectedDiceType.toUpperCase()}.
                 Click "Customize Faces" if your model has non-standard face positions.
@@ -599,7 +599,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         <div className="space-y-4">
           {/* Option A: Upload metadata JSON */}
           <div>
-            <p className="text-sm text-gray-400 mb-2">Option A: Upload metadata.json file</p>
+            <p className="text-sm text-theme-text-muted mb-2">Option A: Upload metadata.json file</p>
             <input
               ref={metadataInputRef}
               type="file"
@@ -608,17 +608,17 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                 const file = e.target.files?.[0]
                 if (file) handleMetadataSelect(file)
               }}
-              className="block w-full text-sm text-gray-400
+              className="block w-full text-sm text-theme-text-muted
                 file:mr-4 file:py-2 file:px-4
                 file:rounded file:border-0
-                file:bg-gray-700 file:text-white
-                hover:file:bg-gray-600"
+                file:bg-theme-primary file:text-theme-text
+                hover:file:bg-theme-secondary"
             />
           </div>
 
           {/* Option B: Auto-generate */}
           <div>
-            <p className="text-sm text-gray-400 mb-2">Option B: Auto-generate metadata</p>
+            <p className="text-sm text-theme-text-muted mb-2">Option B: Auto-generate metadata</p>
 
             <div className="space-y-3">
               <input
@@ -626,7 +626,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                 placeholder="Dice name (optional)"
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                className="w-full px-4 py-2 bg-theme-primary rounded border border-theme-secondary focus:border-theme-accent focus:outline-none"
               />
 
               <input
@@ -634,13 +634,13 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
                 placeholder="Artist name (optional)"
                 value={customArtist}
                 onChange={(e) => setCustomArtist(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+                className="w-full px-4 py-2 bg-theme-primary rounded border border-theme-secondary focus:border-theme-accent focus:outline-none"
               />
 
               <button
                 onClick={handleAutoGenerateMetadata}
                 disabled={!uploadState.file}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-2 rounded font-medium transition-colors"
+                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-theme-secondary disabled:cursor-not-allowed px-4 py-2 rounded font-medium transition-colors"
               >
                 Generate Metadata
               </button>
@@ -650,7 +650,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
 
         {/* Metadata validation results */}
         {uploadState.metadataValidation && (
-          <div className="mt-3 p-3 bg-gray-800 rounded text-sm">
+          <div className="mt-3 p-3 bg-theme-surface rounded text-sm">
             <pre className="whitespace-pre-wrap font-mono text-xs">
               {formatValidationResults(uploadState.metadataValidation)}
             </pre>
@@ -661,7 +661,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         {uploadState.metadata && uploadState.metadataValidation?.isValid && (
           <button
             onClick={handleDownloadMetadata}
-            className="mt-3 text-sm text-blue-400 hover:text-blue-300 underline"
+            className="mt-3 text-sm text-theme-accent hover:text-theme-secondary underline"
           >
             Download generated metadata.json
           </button>
@@ -673,13 +673,13 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         {addedToInventory ? (
           <div className="p-6 bg-green-900/30 border border-green-500 rounded-lg text-center">
             <p className="text-xl font-bold text-green-400 mb-2">✓ Added to Inventory!</p>
-            <p className="text-sm text-gray-300 mb-4">
+            <p className="text-sm text-theme-text-secondary mb-4">
               Your custom dice has been added to your inventory.
               Check the Inventory panel to see it!
             </p>
             <button
               onClick={handleReset}
-              className="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg font-medium transition-colors"
+              className="bg-theme-secondary hover:brightness-110 px-6 py-2 rounded-lg font-medium transition-all"
             >
               Add Another Die
             </button>
@@ -689,14 +689,14 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
             <button
               onClick={handleAddToInventory}
               disabled={!canPreview}
-              className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-bold text-lg transition-colors"
+              className="flex-1 bg-theme-secondary hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-bold text-lg transition-all"
             >
               {canPreview ? '✨ Add to Inventory' : 'Complete steps above to add'}
             </button>
 
             <button
               onClick={handleReset}
-              className="bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg font-medium transition-colors"
+              className="bg-theme-primary hover:bg-theme-secondary px-6 py-3 rounded-lg font-medium transition-colors"
             >
               Reset
             </button>
@@ -705,8 +705,8 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
       </section>
 
       {/* Help Text */}
-      <div className="mt-6 p-4 bg-gray-800/50 rounded text-sm text-gray-400">
-        <p className="font-semibold text-white mb-2">Need help?</p>
+      <div className="mt-6 p-4 bg-theme-surface/50 rounded text-sm text-theme-text-muted">
+        <p className="font-semibold text-theme-text mb-2">Need help?</p>
         <ul className="space-y-1 list-disc list-inside">
           <li>See the Blender Export Guide for detailed instructions</li>
           <li>Download example dice models and metadata templates</li>

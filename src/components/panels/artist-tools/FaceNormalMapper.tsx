@@ -207,9 +207,9 @@ export function FaceNormalMapper({
   const allMapped = faceNormals.length === expectedFaceCount
 
   return (
-    <div className="face-normal-mapper bg-gray-800 rounded-lg p-4">
+    <div className="face-normal-mapper bg-theme-surface rounded-lg p-4">
       <div className="flex justify-between items-center mb-4">
-        <h4 className="text-md font-semibold text-white">Face Number Mapping</h4>
+        <h4 className="text-md font-semibold text-theme-text">Face Number Mapping</h4>
         <button
           onClick={handleResetAll}
           className="text-xs text-red-400 hover:text-red-300 underline"
@@ -220,7 +220,7 @@ export function FaceNormalMapper({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* 3D Preview */}
-        <div className="bg-gray-900 rounded-lg overflow-hidden" style={{ height: '250px' }}>
+        <div className="bg-theme-bg rounded-lg overflow-hidden" style={{ height: '250px' }}>
           <Canvas camera={{ position: [2, 2, 2], fov: 45 }}>
             <Suspense fallback={null}>
               <ambientLight intensity={0.6} />
@@ -236,7 +236,7 @@ export function FaceNormalMapper({
           </Canvas>
 
           {mappingMode === 'click' && selectedValue !== null && (
-            <div className="absolute bottom-2 left-2 right-2 text-center text-xs text-yellow-400 bg-black/50 py-1 px-2 rounded">
+            <div className="absolute bottom-2 left-2 right-2 text-center text-xs text-yellow-400 bg-theme-bg/60 py-1 px-2 rounded">
               Click on the face that shows "{selectedValue}" on your model
             </div>
           )}
@@ -250,8 +250,8 @@ export function FaceNormalMapper({
               onClick={() => setMappingMode('preset')}
               className={`flex-1 py-1.5 px-2 rounded transition-colors ${
                 mappingMode === 'preset'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-theme-accent text-theme-primary'
+                  : 'bg-theme-primary text-theme-text-secondary hover:bg-theme-secondary'
               }`}
             >
               Use Presets
@@ -260,8 +260,8 @@ export function FaceNormalMapper({
               onClick={() => setMappingMode('click')}
               className={`flex-1 py-1.5 px-2 rounded transition-colors ${
                 mappingMode === 'click'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-theme-accent text-theme-primary'
+                  : 'bg-theme-primary text-theme-text-secondary hover:bg-theme-secondary'
               }`}
             >
               Click Model
@@ -270,7 +270,7 @@ export function FaceNormalMapper({
 
           {/* Face Value Selector */}
           <div>
-            <label className="text-xs text-gray-400 block mb-1">
+            <label className="text-xs text-theme-text-muted block mb-1">
               Select face value to map:
             </label>
             <div className="flex flex-wrap gap-1">
@@ -287,8 +287,8 @@ export function FaceNormalMapper({
                       isSelected
                         ? 'bg-yellow-500 text-black ring-2 ring-yellow-300'
                         : isMapped
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        ? 'bg-green-600 text-theme-text'
+                        : 'bg-theme-primary text-theme-text-secondary hover:bg-theme-secondary'
                     }`}
                     title={
                       isMapped
@@ -306,7 +306,7 @@ export function FaceNormalMapper({
           {/* Preset Direction Buttons (when in preset mode) */}
           {mappingMode === 'preset' && selectedValue !== null && (
             <div>
-              <label className="text-xs text-gray-400 block mb-1">
+              <label className="text-xs text-theme-text-muted block mb-1">
                 Assign direction for "{selectedValue}":
               </label>
               <div className="grid grid-cols-3 gap-1">
@@ -314,10 +314,10 @@ export function FaceNormalMapper({
                   <button
                     key={preset.name}
                     onClick={() => handleAssignNormal(preset.normal)}
-                    className="py-2 px-2 bg-gray-700 hover:bg-gray-600 rounded text-xs transition-colors"
+                    className="py-2 px-2 bg-theme-primary hover:bg-theme-secondary rounded text-xs transition-colors"
                   >
                     <span className="block text-lg">{preset.icon}</span>
-                    <span className="text-gray-300">{preset.name}</span>
+                    <span className="text-theme-text-secondary">{preset.name}</span>
                   </button>
                 ))}
               </div>
@@ -326,20 +326,20 @@ export function FaceNormalMapper({
 
           {/* Current Mappings List */}
           <div>
-            <label className="text-xs text-gray-400 block mb-1">
+            <label className="text-xs text-theme-text-muted block mb-1">
               Current mappings ({faceNormals.length}/{expectedFaceCount}):
             </label>
             <div className="max-h-32 overflow-y-auto space-y-1 text-xs">
               {faceNormals.length === 0 ? (
-                <p className="text-gray-500 italic">No mappings yet</p>
+                <p className="text-theme-text-muted italic">No mappings yet</p>
               ) : (
                 faceNormals.map((fn) => (
                   <div
                     key={fn.value}
-                    className="flex items-center justify-between bg-gray-700 px-2 py-1 rounded"
+                    className="flex items-center justify-between bg-theme-primary px-2 py-1 rounded"
                   >
-                    <span className="font-bold text-white">{fn.value}</span>
-                    <span className="text-gray-400">
+                    <span className="font-bold text-theme-text">{fn.value}</span>
+                    <span className="text-theme-text-muted">
                       {getDirectionName(fn.normal)} {formatNormal(fn.normal)}
                     </span>
                     <button
@@ -365,7 +365,7 @@ export function FaceNormalMapper({
       </div>
 
       {/* Help Text */}
-      <div className="mt-3 text-xs text-gray-500">
+      <div className="mt-3 text-xs text-theme-text-muted">
         <p>
           <strong>Tip:</strong> Use "Presets" for standard orientations, or "Click Model" to click
           directly on faces. Rotate the 3D preview to see all sides.

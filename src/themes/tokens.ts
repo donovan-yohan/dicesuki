@@ -286,25 +286,27 @@ export interface UserCustomization {
 export const defaultTheme: Theme = {
   id: 'default',
   name: 'Classic Dice',
-  description: 'Clean, modern interface with timeless design',
+  description: 'The signature Dicesuki look — warm cream on deep dark plum',
   price: 0,
   category: 'modern',
 
   tokens: {
     colors: {
-      primary: '#1f2937', // gray-800
-      secondary: '#374151', // gray-700
-      accent: '#fb923c', // orange-400
-      background: '#000000',
-      surface: '#1f2937',
+      // Brand palette (2026-07-18 dark-plum default). Contrast (WCAG) vs
+      // surface #2a1a2e and background #1a101d verified AA — see below.
+      primary: '#3F1D3E', // Plum ink — primary surfaces / nav
+      secondary: '#9C89C4', // Lavender — secondary accents (5.98:1 on bg)
+      accent: '#F98797', // Brand pink — CTAs / highlights (7.87:1 on bg)
+      background: '#1a101d', // Plum-black canvas
+      surface: '#2a1a2e', // Elevated plum (cream text 13.84:1)
       text: {
-        primary: '#ffffff',
-        secondary: '#d1d5db', // gray-300
-        muted: '#9ca3af', // gray-400
+        primary: '#f3ebe2', // Cream (15.67:1 on bg, 13.84:1 on surface)
+        secondary: '#d8c8d6', // Soft lavender-cream (10.23:1 on surface)
+        muted: '#a892ad', // Muted lavender-gray (5.74:1 on surface)
       },
       dice: {
-        highlight: '#fb923c',
-        shadow: '#000000',
+        highlight: '#F98797',
+        shadow: '#0d0710',
       },
     },
 
@@ -347,8 +349,9 @@ export const defaultTheme: Theme = {
         lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
       },
       gradients: {
-        primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        secondary: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+        // Signature brand gradient (matches splash CSS + public/brand/*).
+        primary: 'linear-gradient(90deg, #f98797 0%, #9c89c4 100%)',
+        secondary: 'linear-gradient(135deg, #3F1D3E 0%, #9C89C4 100%)',
       },
     },
   },
@@ -379,20 +382,23 @@ export const defaultTheme: Theme = {
   },
 
   dice: {
+    // Brand-family set — six visually distinct tones spanning the pink→lavender
+    // signature gradient plus cream, all readable on the dark-plum tray
+    // (contrast vs #1a101d: 3.85–15.67).
     defaultColors: {
-      d4: '#ef4444', // red-500
-      d6: '#3b82f6', // blue-500
-      d8: '#10b981', // green-500
-      d10: '#f59e0b', // amber-500
-      d12: '#8b5cf6', // violet-500
-      d20: '#ec4899', // pink-500
+      d4: '#F98797', // Brand pink
+      d6: '#9C89C4', // Lavender
+      d8: '#FDB9B7', // Blush
+      d10: '#C4A7DC', // Periwinkle
+      d12: '#B0537B', // Berry
+      d20: '#f3ebe2', // Cream
     },
     materials: {
       roughness: 0.3,
       metalness: 0.1,
     },
     numbering: {
-      color: '#ffffff',
+      color: '#2a1120', // Deep plum — reads on the light brand dice faces
       style: 'engraved',
       depth: 0.05,
     },
@@ -400,7 +406,7 @@ export const defaultTheme: Theme = {
 
   environment: {
     floor: {
-      color: '#444444',
+      color: '#241528', // Deep plum floor, lifted off the canvas for shadows
       material: {
         roughness: 0.8,
         metalness: 0.0,
@@ -408,7 +414,7 @@ export const defaultTheme: Theme = {
       receiveShadow: true,
     },
     walls: {
-      color: '#ffffff',
+      color: '#3a2440', // Lighter plum walls frame the tray and bounce light
       material: {
         roughness: 0.9,
         metalness: 0.0,
@@ -421,17 +427,18 @@ export const defaultTheme: Theme = {
     },
     lighting: {
       ambient: {
-        color: '#ffffff',
-        intensity: 0.6,
+        // Soft warm white lifts the dark-plum room so dice read clearly.
+        color: '#fff4f7',
+        intensity: 0.8,
       },
       directional: {
         color: '#ffffff',
-        intensity: 0.8,
+        intensity: 1.0,
         position: [5, 10, 5],
       },
     },
     background: {
-      color: '#000000',
+      color: '#1a101d',
     },
   },
 }

@@ -16,10 +16,10 @@ const DiceIconWithNumberImpl = ({
 }: DiceIconWithNumberProps) => {
   return (
     <div className={`relative inline-flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
-      <DiceIcon type={type} size={size} className="text-gray-700" />
+      <DiceIcon type={type} size={size} className="text-theme-secondary" />
       {number !== undefined && (
         <span
-          className="absolute inset-0 flex items-center justify-center font-bold text-white pointer-events-none"
+          className="absolute inset-0 flex items-center justify-center font-bold text-theme-text pointer-events-none"
           style={{
             fontSize: `${size * 0.4}px`,
             textShadow: '0 1px 2px rgba(0,0,0,0.3)'
