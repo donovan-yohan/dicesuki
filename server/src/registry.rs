@@ -40,6 +40,10 @@ use crate::INSTANCE_ID;
 /// server is detectable within a minute, long enough that write volume is
 /// negligible at hobby scale.
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
+/// Maximum wall-clock time for one registry heartbeat request.
+const HEARTBEAT_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+/// Maximum time allowed to establish the registry connection.
+const HEARTBEAT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
 const SUPABASE_URL_ENV: &str = "SUPABASE_URL";
 const SUPABASE_SECRET_KEY_ENV: &str = "SUPABASE_SECRET_KEY";
@@ -419,6 +423,8 @@ fn registry_client() -> reqwest::Client {
     // when the target origin changes.
     reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
+        .timeout(HEARTBEAT_REQUEST_TIMEOUT)
+        .connect_timeout(HEARTBEAT_CONNECT_TIMEOUT)
         .build()
         .expect("static rooms-registry HTTP client configuration must be valid")
 }
@@ -559,6 +565,18 @@ mod tests {
         );
         assert_eq!(payload["player_count"], 0);
         assert_eq!(payload["room_count"], 0);
+    }
+
+    #[test]
+    fn heartbeat_timeouts_are_bounded_before_the_next_interval() {
+        assert_eq!(HEARTBEAT_CONNECT_TIMEOUT, Duration::from_secs(5));
+        assert_eq!(HEARTBEAT_REQUEST_TIMEOUT, Duration::from_secs(15));
+        assert!(HEARTBEAT_CONNECT_TIMEOUT < HEARTBEAT_REQUEST_TIMEOUT);
+        assert!(HEARTBEAT_REQUEST_TIMEOUT < HEARTBEAT_INTERVAL);
+
+        // The same constants are consumed directly by `registry_client`, so
+        // constructing it also proves reqwest accepts the bounded policy.
+        let _client = registry_client();
     }
 
     #[test]
