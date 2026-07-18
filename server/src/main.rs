@@ -1,7 +1,7 @@
+use log::{error, info};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use log::info;
 
 use dicesuki_server::{build_app, RoomManager, SharedRoomManager, INSTANCE_ID};
 
@@ -15,9 +15,13 @@ async fn main() {
 
     // Rooms registry heartbeat (ADR 006): upsert this server's row into the
     // Supabase `rooms` table every N seconds so it appears in the public room
-    // browser. No-op unless SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY + PUBLIC_URL
-    // are set — the server otherwise runs exactly as before.
-    dicesuki_server::registry::spawn_if_enabled(room_manager.clone());
+    // browser. No-op unless registry configuration is intentionally present;
+    // partial or malformed configuration fails startup instead of silently
+    // disabling an expected heartbeat.
+    dicesuki_server::registry::spawn_if_enabled(room_manager.clone()).unwrap_or_else(|failure| {
+        error!("Rooms registry configuration error: {failure}");
+        std::process::exit(78);
+    });
 
     // Discord room-advertisement bot (issue #84): posts/updates a room-status
     // embed with a Join link (issue #85) per public room in a configured channel.

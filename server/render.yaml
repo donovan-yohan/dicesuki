@@ -11,3 +11,13 @@ services:
     envVars:
       - key: RUST_LOG
         value: info
+      - key: SUPABASE_URL
+        value: https://nksxdfcjabgbxeefwkdc.supabase.co
+      - key: SUPABASE_SECRET_KEY
+        # Dedicated backend key from Supabase Settings -> API Keys.
+        # Render prompts for this value; it is never stored in the Blueprint.
+        sync: false
+      - key: PUBLIC_URL
+        value: https://dicesuki.onrender.com
+      - key: CORS_ORIGIN
+        value: https://dicesuki.vercel.app

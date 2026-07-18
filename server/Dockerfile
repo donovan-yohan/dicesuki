@@ -59,10 +59,13 @@ USER daisu
 #                                 (also selects the JWKS URL + expected issuer).
 #                                 Defaults to the ADR 006 project if unset.
 #
-#   Rooms registry heartbeat (ADR 006, OFF unless ALL three are set):
+#   Rooms registry heartbeat (ADR 006, OFF unless intentionally configured):
 #     SUPABASE_URL                as above
-#     SUPABASE_SERVICE_ROLE_KEY   *** SECRET — never bake into the image or
+#     SUPABASE_SECRET_KEY         *** SECRET — preferred dedicated sb_secret_
+#                                 backend key. Never bake into the image or
 #                                 commit; pass at run time via -e / secret store.
+#     SUPABASE_SERVICE_ROLE_KEY   deprecated legacy JWT fallback only; never set
+#                                 it to an sb_secret_ key.
 #     PUBLIC_URL                  this server's public base behind the TLS proxy,
 #                                 e.g. https://rooms.example.com
 ENV RUST_LOG=info \
