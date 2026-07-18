@@ -40,5 +40,21 @@ as $$
   )::uuid;
 $$;
 
+create or replace function auth.jwt()
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb,
+    jsonb_build_object(
+      'sub', nullif(current_setting('request.jwt.claim.sub', true), ''),
+      'is_anonymous', false
+    )
+  );
+$$;
+
 grant usage on schema auth, public to anon, authenticated, service_role;
 grant execute on function auth.uid() to anon, authenticated, service_role;
+grant execute on function auth.jwt() to anon, authenticated, service_role;

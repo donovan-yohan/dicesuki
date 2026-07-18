@@ -178,6 +178,43 @@ identical retries and competing debits. The foundation follows the merged Dark
 Dungeon catalog migration `0008`, so the wallet migration remains the next
 contiguous migration at `0009`.
 
-This foundation does not grant collectibles. Currency provenance is not an
-entitlement source. Claims, pulls, results, RNG, guarantee state, entitlement
-grant-source/reversal history, checkout, and money remain downstream slices.
+Migration `0010_earned_reward_claims.sql` is the next contiguous append. It
+normalizes the `earned-collection@1` reward rules/items instead of embedding a
+second configuration snapshot, and adds:
+
+- service-only exact-replay room-roll ingest with a hard first-10-per-UTC-
+  Monday-period cap (160 Stars each, 1600 maximum);
+- immutable passport enrollment and accumulated weekly catch-up, capped at 12
+  claims with an explicit complete state;
+- Community Die claims every four completed weeks from enrollment;
+- deterministic lowest-canonical never-granted selection, with exact 2-Dust
+  passport and 50-Dust Community exhausted-pool outcomes;
+- immutable outcomes linked exactly to their entitlement or wallet ledger;
+- authenticated, non-anonymous status and claim RPCs with no caller user, item,
+  amount, time, or claim-index arguments.
+
+Local WASM solo rolls do not earn: browser roles cannot execute authoritative
+roll ingest or write its tables. `src/lib/earnedEconomy.ts` exposes only the
+status/passport/community client RPCs and throws typed errors instead of
+converting backend failure into a false success.
+
+Run every numbered SQL and concurrency suite in deterministic order with:
+
+```bash
+npm run test:db:supabase
+```
+
+Before database tests, CI runs the global migration-history guard:
+
+```bash
+npm run check:immutable-migration-history -- origin/main
+```
+
+Every migration at the merge base is frozen. New migrations must use the next
+unique contiguous four-digit prefix; edits, deletion, renumbering, gaps, and
+duplicate prefixes fail. Catalog, ImageGen, and economy guards still run for
+their deeper domain invariants.
+
+Currency provenance is not commerce entitlement provenance. Pulls, RNG,
+guarantee state, source-specific paid grant/reversal history, checkout, and
+money remain downstream slices.

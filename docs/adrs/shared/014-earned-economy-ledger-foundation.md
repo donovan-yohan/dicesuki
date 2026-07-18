@@ -1,4 +1,4 @@
-# ADR 014: Immutable earned-economy edition and wallet ledger
+# ADR 014: Immutable earned-economy edition, wallet ledger, and reward claims
 
 **Status:** Accepted
 
@@ -48,6 +48,35 @@ Use `ON DELETE RESTRICT` between `auth.users` and wallet accounts. An auth-user
 cascade must never silently erase currency history. A future erasure policy
 requires an explicit reviewed tombstone or anonymization design.
 
+Migration `0010` adds the first production reward consumer without copying the
+edition JSON. It normalizes one immutable reward-program version and its
+passport/community item membership directly from `earned-collection@1` during
+migration. Program changes therefore require a new economy edition, reward
+version, and migration; runtime never reads a mutable rules document.
+
+Use UTC Monday as the fixed seven-day period boundary. A service-role-only RPC
+records immutable authoritative room-server roll completions. It takes a
+server event id, payload hash, user id, and completion time, returns exact
+replays, rejects mismatches, and credits only the first ten account-serialized
+events in a period. Later events remain auditable without a wallet link. Local
+WASM solo and browser clients have neither table DML nor RPC execution
+capability, so they cannot produce earned currency.
+
+The first New Collector Passport claim creates an immutable enrollment anchor.
+Passport availability is derived from elapsed UTC-Monday periods plus immutable
+claim outcomes: missed weeks accumulate, there is no streak loss, and claim 12
+is terminal. Community claims become available once per four completed weeks
+from that enrollment. Both claim RPCs accept only an idempotency key and derive
+the signed-in non-anonymous user, time, claim index, item, and amount.
+
+Every reward mutation locks the wallet account first. Claims choose the lowest
+canonical never-granted program item. Exhausted passport/community pools append
+exactly 2/50 earned Dust. Each immutable outcome has a composite foreign key to
+exactly one entitlement grant or wallet-ledger row for the same
+user/account/item. Direct service-role entitlement DML is revoked now that
+reviewed claim and starter RPCs provide the required grant boundaries. A failed
+final claim insert rolls back its entitlement or ledger append atomically.
+
 ## Consequences
 
 - A rate or cadence change is visible as a new source edition and migration.
@@ -63,15 +92,35 @@ requires an explicit reviewed tombstone or anonymization design.
 - Currency entries are not collectible acquisition truth. Future paid refunds
   and chargebacks need source-specific entitlement-grant/reversal history so an
   independent starter or earned grant is never revoked accidentally.
+- Reward status is derived, not a mutable progress row. Passport state is
+  `not_enrolled`, `active`, or `complete`; Community state is `not_enrolled`,
+  `waiting`, or `claimable`.
+- Reward writes serialize per account. This prevents double credit/grant at the
+  cost of parallel writes for one user; different users remain independent.
+- Revoked entitlement rows are not recycled into another grant because catalog
+  ownership is historically unique. The next never-granted item or configured
+  exhausted-pool Dust is used instead.
 
 ## Proof
 
-`scripts/test-wallet-ledger-postgres.mjs` applies all migrations to a disposable,
-digest-pinned PostgreSQL 17.6 container. The SQL harness proves real RLS, least grants,
+`scripts/test-supabase-postgres.mjs` applies every migration and every numbered
+SQL/JavaScript database suite in deterministic order to a disposable,
+digest-pinned PostgreSQL 17.6 container. The wallet command remains as a
+compatibility wrapper. The original suites prove real RLS, least grants,
 immutability including TRUNCATE, edition provenance, idempotent replay, negative
-balance rejection, and ledger/snapshot reconciliation. Two-session races prove
-one-row replay under concurrent retries and exactly one successful debit when
-two debits would jointly overspend.
+balance rejection, ledger reconciliation, and concurrent overspend safety.
+
+The `0010` suites additionally prove exact/mismatched concurrent roll replay,
+the slot-10 race never exceeding 1600 Stars, concurrent duplicate claims,
+lowest-canonical selection, 12-claim catch-up/completion, 2/50-Dust all-owned
+outcomes without fake entitlements, atomic rollback, cross-user RLS, direct
+DML/function denial, and exact composite links.
+
+The global `scripts/check-immutable-migration-history.js` CI gate runs before
+database tests. It freezes every SQL migration at the branch merge base and
+rejects edits, deletion, renumbering, duplicate prefixes, and non-contiguous
+appends. Domain-specific catalog, ImageGen, and economy guards remain as deeper
+semantic checks.
 
 `scripts/validate-production-economy.test.ts` also constructs an appended,
 retuned edition 0002 with its own dynamic migration marker. That fixture must
@@ -80,5 +129,8 @@ validate while any rewrite of the exact edition-0001 source remains rejected.
 The pinned battle-tested-pattern catalog's MVCC entry was used only as a design
 hypothesis; PostgreSQL already supplies the primitive. Its WAL entry is a
 no-fit for application code because PostgreSQL transaction durability already
-provides write-ahead logging. The repository concurrency test remains the
-authoritative invariant proof.
+provides write-ahead logging. Token-bucket rate limiting is also a no-fit: it is
+approximate while the weekly reward requires an exact durable count. The finite
+passport uses the state-machine invariant—only enrolled active history advances
+and 12 is terminal—but constraints and derived history replace a custom state
+machine library. Repository Postgres concurrency tests remain authoritative.

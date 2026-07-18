@@ -251,7 +251,7 @@ begin
   end;
 
   begin
-    truncate table public.wallet_ledger_entries;
+    truncate table public.wallet_ledger_entries cascade;
     raise exception 'Ledger truncate unexpectedly succeeded';
   exception when sqlstate '55000' then
     null;
