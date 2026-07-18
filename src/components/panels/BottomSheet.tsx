@@ -116,7 +116,7 @@ export function BottomSheet({
             <div
               className="flex items-center justify-between px-6 py-4 border-b"
               style={{
-                borderColor: 'rgba(251, 146, 60, 0.2)',
+                borderColor: 'rgba(249, 135, 151, 0.2)',
                 backgroundColor: 'rgba(0, 0, 0, 0.2)',
               }}
             >

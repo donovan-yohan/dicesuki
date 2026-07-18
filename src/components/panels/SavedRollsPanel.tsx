@@ -170,7 +170,7 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
               className="w-full px-4 py-2 rounded-lg"
               style={{
                 backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                border: '1px solid rgba(251, 146, 60, 0.3)',
+                border: '1px solid rgba(249, 135, 151, 0.3)',
                 color: 'var(--color-text-primary)',
               }}
             />
