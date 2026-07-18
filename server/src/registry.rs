@@ -118,11 +118,11 @@ impl fmt::Display for RegistryConfigError {
             ),
             Self::InvalidSupabaseUrl => write!(
                 formatter,
-                "SUPABASE_URL must use https (http is allowed only for loopback development) and contain no credentials, query, or fragment"
+                "SUPABASE_URL must be a root base URL using https (http is allowed only for loopback development) with no path, credentials, query, or fragment"
             ),
             Self::InvalidPublicUrl => write!(
                 formatter,
-                "PUBLIC_URL must be an http(s) base URL without credentials, query, or fragment"
+                "PUBLIC_URL must be a root http(s) base URL with no path, credentials, query, or fragment"
             ),
             Self::InvalidSecretKey => write!(
                 formatter,
@@ -245,6 +245,7 @@ fn parse_http_url(
     let parsed = reqwest::Url::parse(value).map_err(|_| error.clone())?;
     if !matches!(parsed.scheme(), "http" | "https")
         || parsed.host_str().is_none()
+        || parsed.path() != "/"
         || !parsed.username().is_empty()
         || parsed.password().is_some()
         || parsed.query().is_some()
@@ -723,6 +724,37 @@ mod tests {
         assert_eq!(error, RegistryConfigError::InvalidSupabaseUrl);
         assert!(!error.to_string().contains("top-secret"));
         assert!(!format!("{error:?}").contains("top-secret"));
+    }
+
+    #[test]
+    fn configured_urls_accept_root_bases_and_reject_paths() {
+        let config = enabled_config(&[
+            (SUPABASE_URL_ENV, "https://example.supabase.co/"),
+            (SUPABASE_SECRET_KEY_ENV, SECRET_KEY),
+            (PUBLIC_URL_ENV, "https://rooms.example.com/"),
+        ]);
+        assert_eq!(config.rest_url, "https://example.supabase.co/rest/v1/rooms");
+        assert_eq!(config.public_url, "https://rooms.example.com");
+
+        let supabase_path = resolve(&[
+            (SUPABASE_URL_ENV, "https://example.supabase.co/project-path"),
+            (SUPABASE_SECRET_KEY_ENV, SECRET_KEY),
+            (PUBLIC_URL_ENV, PUBLIC_URL),
+        ]);
+        assert!(matches!(
+            supabase_path,
+            Err(RegistryConfigError::InvalidSupabaseUrl)
+        ));
+
+        let public_path = resolve(&[
+            (SUPABASE_URL_ENV, SUPABASE_URL),
+            (SUPABASE_SECRET_KEY_ENV, SECRET_KEY),
+            (PUBLIC_URL_ENV, "https://rooms.example.com/room-path"),
+        ]);
+        assert!(matches!(
+            public_path,
+            Err(RegistryConfigError::InvalidPublicUrl)
+        ));
     }
 
     #[test]
