@@ -90,7 +90,7 @@ function ThemeCard({
       className="flex flex-col overflow-hidden rounded-lg text-left transition-all"
       style={{
         border: selected
-          ? '2px solid var(--color-accent, #fb923c)'
+          ? '2px solid var(--color-accent, #f98797)'
           : '1px solid rgba(255,255,255,0.12)',
         backgroundColor: 'rgba(255,255,255,0.04)',
         cursor: disabled ? 'default' : 'pointer',
@@ -124,7 +124,7 @@ function ThemeCard({
             style={{
               width: '16px',
               height: '16px',
-              backgroundColor: 'var(--color-accent, #fb923c)',
+              backgroundColor: 'var(--color-accent, #f98797)',
               color: '#fff',
             }}
             aria-hidden="true"

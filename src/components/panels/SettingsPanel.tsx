@@ -109,7 +109,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                     <div
                       className="w-10 h-6 rounded-full transition-all"
                       style={{
-                        backgroundColor: isEnabled ? '#fb923c' : 'rgba(255, 255, 255, 0.3)'
+                        backgroundColor: isEnabled ? 'var(--color-accent)' : 'rgba(255, 255, 255, 0.3)'
                       }}
                     >
                       <div
@@ -146,8 +146,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             onClick={() => setShowArtistPanel(true)}
             className="w-full flex items-center justify-between p-4 rounded-lg transition-all"
             style={{
-              backgroundColor: 'rgba(147, 51, 234, 0.1)',
-              border: '1px solid rgba(147, 51, 234, 0.3)',
+              backgroundColor: 'rgba(156, 137, 196, 0.12)',
+              border: '1px solid rgba(156, 137, 196, 0.35)',
             }}
           >
             <div className="flex items-center gap-3">
@@ -181,7 +181,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       {/* Artist Testing Panel - Fullscreen Modal */}
       {showArtistPanel && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-theme-bg/80"
           onClick={() => setShowArtistPanel(false)}
         >
           <div

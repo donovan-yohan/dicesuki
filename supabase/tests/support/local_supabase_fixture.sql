@@ -28,6 +28,17 @@ create table auth.users (
   id uuid primary key
 );
 
+-- Supabase provisions an empty `supabase_realtime` publication by default;
+-- migrations add tables to it to stream row changes to subscribed clients. The
+-- bare Postgres test image has none, so model the default here for parity.
+do $$
+begin
+  create publication supabase_realtime;
+exception when duplicate_object then
+  null;
+end;
+$$;
+
 create or replace function auth.uid()
 returns uuid
 language sql

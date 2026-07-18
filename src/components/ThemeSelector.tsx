@@ -38,11 +38,11 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => onClose()} />
+          <div className="fixed inset-0 bg-theme-bg/60 z-40" onClick={() => onClose()} />
 
           {/* Panel Content */}
           <div
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 max-h-[80vh] bg-gray-900 rounded-lg shadow-2xl z-50 overflow-y-auto"
+            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 max-h-[80vh] bg-theme-surface rounded-lg shadow-2xl z-50 overflow-y-auto"
             style={{
               backgroundColor: 'var(--color-surface)',
               borderRadius: 'var(--border-radius-lg)',
@@ -52,15 +52,14 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2
-                  className="text-white text-xl font-bold"
+                  className="text-theme-text text-xl font-bold"
                   style={{ color: 'var(--color-text-primary)' }}
                 >
                   Select Theme
                 </h2>
                 <button
                   onClick={() => onClose()}
-                  className="text-gray-400 hover:text-white text-2xl leading-none"
-                  style={{ color: 'var(--color-text-muted)' }}
+                  className="text-theme-text-muted hover:text-theme-text text-2xl leading-none"
                 >
                   ×
                 </button>
@@ -82,7 +81,7 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
                           ? 'var(--color-accent)'
                           : 'var(--color-secondary)',
                         backgroundColor: isCurrent
-                          ? 'rgba(251, 146, 60, 0.1)'
+                          ? 'rgba(249, 135, 151, 0.12)'
                           : 'var(--color-background)',
                         borderRadius: 'var(--border-radius-md)',
                       }}
@@ -90,7 +89,7 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <h3
-                            className="text-white font-semibold"
+                            className="text-theme-text font-semibold"
                             style={{ color: 'var(--color-text-primary)' }}
                           >
                             {theme.name}
