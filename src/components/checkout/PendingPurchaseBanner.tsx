@@ -9,16 +9,23 @@
  *
  * STATUS-ONLY: it reconciles by reading the server-authoritative status
  * (realtime + polling) and links to the full return screen. It never grants.
- * Renders null when disabled, when there is no pending order, or once the order
- * settles to a terminal state (the return screen owns the terminal UX).
+ * Renders null when disabled, when there is no pending order, once the order
+ * settles to a terminal state (the return screen owns the terminal UX), on the
+ * `/checkout/return` route (where {@link CheckoutReturn} owns the single
+ * watcher — no duplicate realtime topic / double polling), or once the order's
+ * TTL has elapsed (an abandoned checkout auto-dismisses instead of leaving a
+ * permanent banner; the pending record is kept but quiescent).
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { isPaymentsEnabled } from '../../lib/paymentsConfig'
 import { usePaymentsStore } from '../../store/usePaymentsStore'
 import { isTerminalStatus } from '../../lib/paymentsOrders'
 import { useCheckoutStatus } from './useCheckoutStatus'
+
+/** The return screen owns the watcher on its own route; suppress the banner there. */
+const CHECKOUT_RETURN_PATH = '/checkout/return'
 
 export interface PendingPurchaseBannerProps {
   /** Injected client (tests); defaults to the memoized app client. */
@@ -27,11 +34,21 @@ export interface PendingPurchaseBannerProps {
 
 export function PendingPurchaseBanner({ client }: PendingPurchaseBannerProps) {
   const pendingOrder = usePaymentsStore((state) => state.pendingOrder)
-  const externalId = pendingOrder?.externalId ?? null
-  const { status } = useCheckoutStatus(externalId, { client })
+  const location = useLocation()
+  // On the return route the dedicated screen owns the watcher; pass a null id so
+  // this hook does not open a second subscription / poll loop for the same order.
+  const onReturnRoute = location.pathname === CHECKOUT_RETURN_PATH
+  const externalId = onReturnRoute ? null : (pendingOrder?.externalId ?? null)
+  const { status, expired } = useCheckoutStatus(externalId, {
+    client,
+    createdAt: pendingOrder?.createdAt ?? null,
+  })
 
-  // Nothing to reconcile, feature off, or already settled → render nothing.
+  // Nothing to reconcile, feature off, suppressed on the return route, past its
+  // TTL, or already settled → render nothing.
   if (!isPaymentsEnabled() || !pendingOrder) return null
+  if (onReturnRoute) return null
+  if (expired) return null
   if (isTerminalStatus(status)) return null
 
   const label =

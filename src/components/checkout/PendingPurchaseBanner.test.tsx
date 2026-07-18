@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { PendingPurchaseBanner } from './PendingPurchaseBanner'
+import { DEFAULT_TTL_MS } from './useCheckoutStatus'
 import { usePaymentsStore } from '../../store/usePaymentsStore'
 
 function makeControllableClient(initialDbStatus: string | null) {
@@ -31,17 +32,17 @@ function makeControllableClient(initialDbStatus: string | null) {
   return { client, push: (s: string) => act(() => realtimeCb?.({ new: { status: s } })) }
 }
 
-function renderBanner(client: SupabaseClient | null) {
+function renderBanner(client: SupabaseClient | null, initialPath = '/') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <PendingPurchaseBanner client={client} />
     </MemoryRouter>,
   )
 }
 
-function setPendingOrder() {
+function setPendingOrder(createdAt = Date.now() - 5000) {
   usePaymentsStore.setState({
-    pendingOrder: { externalId: 'ext-relaunch', createdAt: Date.now() - 5000 },
+    pendingOrder: { externalId: 'ext-relaunch', createdAt },
     status: 'pending',
     error: null,
   })
@@ -102,5 +103,39 @@ describe('PendingPurchaseBanner cold-relaunch reconciliation', () => {
 
     push('fulfilled')
     expect(screen.queryByTestId('pending-purchase-banner')).not.toBeInTheDocument()
+  })
+
+  it('is suppressed on /checkout/return and opens no watcher there', () => {
+    vi.stubEnv('VITE_PAYMENTS_ENABLED', 'true')
+    setPendingOrder()
+
+    // Spy client: on the return route the banner must not read or subscribe, so
+    // CheckoutReturn stays the single watcher (no duplicate realtime/polling).
+    const from = vi.fn()
+    const channel = vi.fn()
+    const client = { from, channel, removeChannel: vi.fn() } as unknown as SupabaseClient
+
+    renderBanner(client, '/checkout/return')
+
+    expect(screen.queryByTestId('pending-purchase-banner')).not.toBeInTheDocument()
+    expect(from).not.toHaveBeenCalled()
+    expect(channel).not.toHaveBeenCalled()
+  })
+
+  it('auto-dismisses (and keeps the pending record) once the order is past its TTL', async () => {
+    vi.stubEnv('VITE_PAYMENTS_ENABLED', 'true')
+    // Order created longer ago than the TTL: the watch window is closed.
+    setPendingOrder(Date.now() - (DEFAULT_TTL_MS + 60_000))
+    const { client } = makeControllableClient('pending')
+
+    renderBanner(client)
+
+    // Banner auto-dismissed (the expired transition settles in a passive effect)…
+    await waitFor(() =>
+      expect(screen.queryByTestId('pending-purchase-banner')).not.toBeInTheDocument(),
+    )
+    // …but the durable pending record is retained (kept, just quiescent).
+    expect(usePaymentsStore.getState().pendingOrder).not.toBeNull()
+    expect(usePaymentsStore.getState().pendingOrder?.externalId).toBe('ext-relaunch')
   })
 })
