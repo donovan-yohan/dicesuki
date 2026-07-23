@@ -205,6 +205,116 @@ describe('production economy contract', () => {
     })
   })
 
+  it('leaves a none soft-pity config unaffected on later schema-v1 editions', () => {
+    const { nextEdition } = createVersionBumpFixture()
+    expect(() => validateProductionEdition(
+      nextEdition,
+      catalog,
+      '0002-earned-collection.json',
+    )).not.toThrow()
+  })
+
+  it('accepts a linear soft-pity base matching the signature tier weight fraction', () => {
+    const { nextEdition } = createVersionBumpFixture()
+    nextEdition.acquisition.banner.guarantees.selectedFeaturedUnowned.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 0.01,
+    }
+    expect(() => validateProductionEdition(
+      nextEdition,
+      catalog,
+      '0002-earned-collection.json',
+    )).not.toThrow()
+  })
+
+  it('rejects a linear soft-pity base disagreeing with the signature tier weight fraction', () => {
+    const { nextEdition } = createVersionBumpFixture()
+    nextEdition.acquisition.banner.guarantees.selectedFeaturedUnowned.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 0.006,
+    }
+    expect(() => validateProductionEdition(
+      nextEdition,
+      catalog,
+      '0002-earned-collection.json',
+    )).toThrow(/configured=0\.006.*derived=0\.01/)
+  })
+
+  it('rejects malformed linear soft-pity ramps on later schema-v1 editions', () => {
+    const { nextEdition } = createVersionBumpFixture()
+    const selected = nextEdition.acquisition.banner.guarantees.selectedFeaturedUnowned
+    selected.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0.005,
+    }
+    expect(() => validateProductionEdition(nextEdition, catalog, '0002-earned-collection.json'))
+      .toThrow(/must contain exactly/)
+
+    selected.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: selected.hardGuaranteePull,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 0.006,
+    }
+    expect(() => validateProductionEdition(nextEdition, catalog, '0002-earned-collection.json'))
+      .toThrow(/below the selected hard guarantee/)
+
+    selected.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0,
+      baseFeaturedRate: 0.006,
+    }
+    expect(() => validateProductionEdition(nextEdition, catalog, '0002-earned-collection.json'))
+      .toThrow(/positive finite number/)
+
+    selected.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 1,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 0.006,
+    }
+    expect(() => validateProductionEdition(nextEdition, catalog, '0002-earned-collection.json'))
+      .toThrow(/greater than 1/)
+
+    selected.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 1,
+    }
+    expect(() => validateProductionEdition(nextEdition, catalog, '0002-earned-collection.json'))
+      .toThrow(/probability between 0 and 1/)
+  })
+
+  it('routes both guarantee validators through soft-pity validation before the frozen SHA guard', () => {
+    const rampedEdition0001 = clone(edition)
+    rampedEdition0001.acquisition.banner.guarantees.selectedFeaturedUnowned.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 0.01,
+    }
+    expect(() => validateProductionEdition(rampedEdition0001, catalog, 'fixture.json'))
+      .toThrow(/frozen Candidate B source/)
+
+    rampedEdition0001.acquisition.banner.guarantees.selectedFeaturedUnowned.softPity.perPullIncrement = 0
+    expect(() => validateProductionEdition(rampedEdition0001, catalog, 'fixture.json'))
+      .toThrow(/positive finite number/)
+
+    const validator = fs.readFileSync(
+      path.join(root, 'scripts/validate-production-economy.js'),
+      'utf8',
+    )
+    expect(validator.match(/validateSoftPity\(/g)).toHaveLength(3)
+    expect(validator).not.toMatch(/selected\.softPity !== 'none'/)
+  })
+
   it('does not consume simulator implementation as a production dependency', () => {
     const validator = fs.readFileSync(
       path.join(root, 'scripts/validate-production-economy.js'),

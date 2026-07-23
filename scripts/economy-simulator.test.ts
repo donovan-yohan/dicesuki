@@ -169,4 +169,79 @@ describe('economy simulator', () => {
     ambiguousBalance.candidateB.currency.balanceClasses = ['stars']
     expect(() => validateSimulationScenario(ambiguousBalance, catalog, contract)).toThrow(/paid\/promotional/)
   })
+
+  it('leaves a none soft-pity config unaffected', () => {
+    expect(() => validateSimulationScenario(clone(scenario), catalog, contract)).not.toThrow()
+  })
+
+  it('accepts a linear soft-pity base matching the signature tier weight fraction', () => {
+    const ramp = clone(scenario)
+    ramp.candidateB.guarantees.selectedFeaturedUnowned.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 0.01,
+    }
+    expect(() => validateSimulationScenario(ramp, catalog, contract)).not.toThrow()
+  })
+
+  it('rejects a linear soft-pity base disagreeing with the signature tier weight fraction', () => {
+    const ramp = clone(scenario)
+    ramp.candidateB.guarantees.selectedFeaturedUnowned.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 0.006,
+    }
+    expect(() => validateSimulationScenario(ramp, catalog, contract))
+      .toThrow(/configured=0\.006.*derived=0\.01/)
+  })
+
+  it('rejects malformed linear soft-pity ramps', () => {
+    const malformed = clone(scenario)
+    const selected = malformed.candidateB.guarantees.selectedFeaturedUnowned
+    selected.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0.005,
+    }
+    expect(() => validateSimulationScenario(malformed, catalog, contract))
+      .toThrow(/must contain exactly/)
+
+    selected.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: selected.hardGuaranteePull,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 0.006,
+    }
+    expect(() => validateSimulationScenario(malformed, catalog, contract))
+      .toThrow(/below the selected hard guarantee/)
+
+    selected.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0,
+      baseFeaturedRate: 0.006,
+    }
+    expect(() => validateSimulationScenario(malformed, catalog, contract))
+      .toThrow(/positive finite number/)
+
+    selected.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 1,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 0.006,
+    }
+    expect(() => validateSimulationScenario(malformed, catalog, contract))
+      .toThrow(/greater than 1/)
+
+    selected.softPity = {
+      model: 'linear-rate-ramp',
+      startPull: 12,
+      perPullIncrement: 0.005,
+      baseFeaturedRate: 1,
+    }
+    expect(() => validateSimulationScenario(malformed, catalog, contract))
+      .toThrow(/probability between 0 and 1/)
+  })
 })

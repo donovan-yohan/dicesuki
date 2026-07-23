@@ -11,6 +11,7 @@ const ROOT_DIR = path.resolve(path.dirname(__filename), '..')
 const EDITION_FILE_PATTERN = /^(\d{4})-([a-z0-9]+(?:-[a-z0-9]+)*)\.json$/
 const MIGRATION_FILE_PATTERN = /^\d{4}_earned_economy_[a-z0-9_]+\.sql$/
 const EDITION_0001_SHA256 = '6e198c0f3a3a96975ada45b27334583b5c17d84549db9eefe4e3671b296aba09'
+const BASE_FEATURED_RATE_RELATIVE_EPSILON = 1e-9
 
 function compareStrings(left, right) {
   return left < right ? -1 : left > right ? 1 : 0
@@ -34,6 +35,47 @@ function assertExactKeys(value, expectedKeys, label) {
 function assertPositiveInteger(value, label) {
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${label} must be a positive safe integer`)
+  }
+}
+
+function validateSoftPity(value, hardGuaranteePull, derivedBaseFeaturedRate, label) {
+  if (value === 'none') return
+  assertExactKeys(
+    value,
+    ['model', 'startPull', 'perPullIncrement', 'baseFeaturedRate'],
+    label,
+  )
+  if (value.model !== 'linear-rate-ramp') {
+    throw new Error(`${label}.model must be linear-rate-ramp`)
+  }
+  if (!Number.isSafeInteger(value.startPull) || value.startPull <= 1) {
+    throw new Error(`${label}.startPull must be a safe integer greater than 1`)
+  }
+  if (value.startPull >= hardGuaranteePull) {
+    throw new Error(`${label}.startPull must be below the selected hard guarantee pull`)
+  }
+  if (!Number.isFinite(value.perPullIncrement) || value.perPullIncrement <= 0) {
+    throw new Error(`${label}.perPullIncrement must be a positive finite number`)
+  }
+  if (
+    !Number.isFinite(value.baseFeaturedRate) ||
+    value.baseFeaturedRate <= 0 ||
+    value.baseFeaturedRate >= 1
+  ) {
+    throw new Error(`${label}.baseFeaturedRate must be a finite probability between 0 and 1`)
+  }
+  const relativeScale = Math.max(
+    Math.abs(value.baseFeaturedRate),
+    Math.abs(derivedBaseFeaturedRate),
+  )
+  if (
+    Math.abs(value.baseFeaturedRate - derivedBaseFeaturedRate) >
+    BASE_FEATURED_RATE_RELATIVE_EPSILON * relativeScale
+  ) {
+    throw new Error(
+      `${label}.baseFeaturedRate configured=${value.baseFeaturedRate} must equal ` +
+      `derived=${derivedBaseFeaturedRate} from the signature tier weight fraction`,
+    )
   }
 }
 
@@ -179,11 +221,17 @@ function validateSchemaV1Guarantees(edition, tierItems) {
     'selectedFeaturedUnowned',
   )
   assertPositiveInteger(selected.hardGuaranteePull, 'selectedFeaturedUnowned.hardGuaranteePull')
+  validateSoftPity(
+    selected.softPity,
+    selected.hardGuaranteePull,
+    edition.acquisition.banner.tiers.find(tier => tier.tierId === 'signature').weightUnits /
+      edition.acquisition.banner.tiers.reduce((sum, tier) => sum + tier.weightUnits, 0),
+    'selectedFeaturedUnowned.softPity',
+  )
   if (
     selected.minimumRank !== 3 ||
     selected.selection !== 'lowest-canonical-id-unowned' ||
     selected.lossPath !== 'none' ||
-    selected.softPity !== 'none' ||
     selected.counterScope !== 'banner-family' ||
     selected.reset !== 'selected-featured-awarded'
   ) {
@@ -421,12 +469,18 @@ function validateGuarantees(edition, tierItems) {
     ],
     'selectedFeaturedUnowned',
   )
+  validateSoftPity(
+    selected.softPity,
+    selected.hardGuaranteePull,
+    edition.acquisition.banner.tiers.find(tier => tier.tierId === 'signature').weightUnits /
+      edition.acquisition.banner.tiers.reduce((sum, tier) => sum + tier.weightUnits, 0),
+    'selectedFeaturedUnowned.softPity',
+  )
   if (
     selected.minimumRank !== 3 ||
     selected.hardGuaranteePull !== 20 ||
     selected.selection !== 'lowest-canonical-id-unowned' ||
     selected.lossPath !== 'none' ||
-    selected.softPity !== 'none' ||
     selected.counterScope !== 'banner-family' ||
     selected.reset !== 'selected-featured-awarded'
   ) {
