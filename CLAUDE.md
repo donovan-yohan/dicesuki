@@ -56,7 +56,10 @@ docs/exec-plans/ → Execution plans (active + completed)
 
 ## Workflow
 
-- Do NOT commit or push unless explicitly asked
+- Claude MAY commit, push, open PRs, and merge them autonomously for work slices
+  that have passed adversarial review and CI — one reviewable slice per PR, no
+  massive batch deploys. Destructive git operations (force-push to main, branch
+  deletion outside PR merge, history rewrites) still require explicit approval.
 - Use `/adr` skills for architectural decisions, NOT docs in CLAUDE.md
 - Use `/harness:plan` for new features (routes through brainstorming + planning)
 - Use `/harness:prune` if CLAUDE.md exceeds 120 lines or docs feel stale
