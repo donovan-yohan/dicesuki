@@ -1,0 +1,115 @@
+{
+  "$draft": "DRAFT / SIMULATION-ONLY. NOT an immutable economy edition. Not consumed by any runtime, migration, disclosure, or the economy-simulator CLI. Mirrors the shape of economy/production/editions/0001-earned-collection.json acquisition.banner so the pity/rate-up numbers can be driven through the repo's exported pity engine (see simulate-premium-pity.mjs). Catalog ids prefixed 'draft-premium/' are PLACEHOLDERS for a to-be-produced rotating featured/collab die; a real edition MUST reference real src/generated/collectibleCatalog.json ids and go through /adr + a real migration.",
+  "schemaVersion": 1,
+  "editionId": "premium-featured-rate-up@draft",
+  "slug": "premium-featured-rate-up",
+  "purpose": "draft-simulation-only",
+  "bannerClass": "premium",
+  "rollType": "premium_roll",
+  "acquisition": {
+    "phase": "154-gated-paid-random",
+    "realMoneyEnabled": true,
+    "gate": "issue-154-legal",
+    "currency": {
+      "currencyId": "stars",
+      "balanceBuckets": ["paid", "promotional"],
+      "debitPolicy": "promotional-before-paid",
+      "singlePullCost": 160,
+      "tenPullCost": 1600,
+      "note": "1 premium_roll = 160 Stars-equivalent; premium banner consumes premium_roll, not standard_roll."
+    },
+    "banner": {
+      "bannerId": "premium-featured-rate-up-001",
+      "familyId": "premium-featured-rate-up",
+      "weightScale": 1000,
+      "tiers": [
+        {
+          "tierId": "standard",
+          "rank": 0,
+          "weightUnits": 800,
+          "catalogItemIds": [
+            "draft-premium/std-a@1",
+            "draft-premium/std-b@1",
+            "draft-premium/std-c@1"
+          ]
+        },
+        {
+          "tierId": "rare",
+          "rank": 1,
+          "weightUnits": 154,
+          "catalogItemIds": [
+            "draft-premium/rare-a@1",
+            "draft-premium/rare-b@1"
+          ]
+        },
+        {
+          "tierId": "epic",
+          "rank": 2,
+          "weightUnits": 40,
+          "catalogItemIds": [
+            "draft-premium/epic-a@1",
+            "draft-premium/epic-b@1"
+          ]
+        },
+        {
+          "tierId": "signature",
+          "rank": 3,
+          "weightUnits": 6,
+          "note": "0.60% base rate-up on the single featured die. Sole signature-tier item, so every signature hit is the featured die.",
+          "catalogItemIds": [
+            "draft-premium/featured-signature-die@1"
+          ]
+        }
+      ],
+      "guarantees": {
+        "resolutionOrder": [
+          "selected-featured-unowned",
+          "epic-or-better",
+          "rare-or-better",
+          "base"
+        ],
+        "rareOrBetter": {
+          "minimumRank": 1,
+          "hardGuaranteePull": 10,
+          "counterScope": "banner-family",
+          "reset": "qualifying-result-awarded"
+        },
+        "epicOrBetter": {
+          "minimumRank": 2,
+          "hardGuaranteePull": 30,
+          "counterScope": "banner-family",
+          "reset": "qualifying-result-awarded"
+        },
+        "selectedFeaturedUnowned": {
+          "minimumRank": 3,
+          "hardGuaranteePull": 75,
+          "catalogItemIds": [
+            "draft-premium/featured-signature-die@1"
+          ],
+          "selection": "lowest-canonical-id-unowned",
+          "lossPath": "none",
+          "softPity": {
+            "model": "linear-rate-ramp",
+            "startPull": 41,
+            "perPullIncrement": 0.005,
+            "baseFeaturedRate": 0.006,
+            "note": "DESIGN TARGET, NOT CURRENT ENGINE. PO-accepted engine change (2026-07-22): add a soft-pity ramp to dicesuki-core / the 0011 pull policy + contracts. The engine TODAY still has none — the sim models this ramp externally via an injected draw wrapper (see simulate-premium-pity.mjs). Model: featured rate holds at base 0.006 through pull 40, then rises min(1, 0.006 + 0.005*(n-40)) from pull 41. Recommended +0.5%/pull slope (perPullIncrement 0.005): p50 ~51 pulls, ~2.2% still reach the hard-75 ceiling, mean ~46.6 pulls. Slope stays PO-tunable."
+          },
+          "counterScope": "banner-family",
+          "reset": "selected-featured-awarded",
+          "note": "Premium hard pity 75 is LOCKED (PO, 2026-07-22). Soft pity is a PO-ACCEPTED engine change (dicesuki-core / 0011 pull policy) but the CURRENT engine still has none; the structured softPity object above is the design target, not runtime behavior. Under the recommended +0.5%/pull ramp from pull 41, p50 drops to ~51 pulls and only ~2.2% of players reach the hard-75 ceiling (vs ~55% under the old no-soft-pity design). Standard banners keep a shallow/generous pity; premium is the revenue dial."
+        }
+      }
+    }
+  },
+  "duplicateConversion": {
+    "currencyId": "dust",
+    "balanceBucket": "earned",
+    "amountByTier": {
+      "standard": 2,
+      "rare": 8,
+      "epic": 20,
+      "signature": 50
+    }
+  }
+}
