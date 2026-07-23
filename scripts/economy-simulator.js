@@ -12,6 +12,7 @@ const ROOT_DIR = path.join(path.dirname(__filename), '..')
 const SCENARIO_PATTERN = /^(\d{4})-([a-z0-9]+(?:-[a-z0-9]+)*)\.json$/
 const MILLION = 1_000_000
 const UINT32_RANGE = 0x1_0000_0000
+const BASE_FEATURED_RATE_RELATIVE_EPSILON = 1e-9
 const RARITY_RANK = new Map([
   ['common', 0],
   ['uncommon', 0],
@@ -42,6 +43,15 @@ function assertRecord(value, label) {
   }
 }
 
+function assertExactKeys(value, expectedKeys, label) {
+  assertRecord(value, label)
+  const actual = Object.keys(value).sort(compareStrings)
+  const expected = [...expectedKeys].sort(compareStrings)
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw new Error(`${label} must contain exactly: ${expected.join(', ')}`)
+  }
+}
+
 function assertString(value, label) {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`${label} must be a non-empty string`)
@@ -58,6 +68,13 @@ function integer(value, label, minimum = 0) {
 
 function assertIntegerNumbers(value, label = 'Simulation scenario') {
   if (typeof value === 'number') {
+    if (
+      (label.endsWith('.softPity.perPullIncrement') ||
+        label.endsWith('.softPity.baseFeaturedRate')) &&
+      Number.isFinite(value)
+    ) {
+      return
+    }
     if (!Number.isSafeInteger(value)) throw new Error(`${label} may only use safe integers`)
     return
   }
@@ -67,6 +84,47 @@ function assertIntegerNumbers(value, label = 'Simulation scenario') {
   }
   if (value && typeof value === 'object') {
     Object.entries(value).forEach(([key, entry]) => assertIntegerNumbers(entry, `${label}.${key}`))
+  }
+}
+
+function validateSoftPity(value, hardGuaranteePull, derivedBaseFeaturedRate, label) {
+  if (value === 'none') return
+  assertExactKeys(
+    value,
+    ['model', 'startPull', 'perPullIncrement', 'baseFeaturedRate'],
+    label,
+  )
+  if (value.model !== 'linear-rate-ramp') {
+    throw new Error(`${label}.model must be linear-rate-ramp`)
+  }
+  if (!Number.isSafeInteger(value.startPull) || value.startPull <= 1) {
+    throw new Error(`${label}.startPull must be a safe integer greater than 1`)
+  }
+  if (value.startPull >= hardGuaranteePull) {
+    throw new Error(`${label}.startPull must be below the selected hard guarantee pull`)
+  }
+  if (!Number.isFinite(value.perPullIncrement) || value.perPullIncrement <= 0) {
+    throw new Error(`${label}.perPullIncrement must be a positive finite number`)
+  }
+  if (
+    !Number.isFinite(value.baseFeaturedRate) ||
+    value.baseFeaturedRate <= 0 ||
+    value.baseFeaturedRate >= 1
+  ) {
+    throw new Error(`${label}.baseFeaturedRate must be a finite probability between 0 and 1`)
+  }
+  const relativeScale = Math.max(
+    Math.abs(value.baseFeaturedRate),
+    Math.abs(derivedBaseFeaturedRate),
+  )
+  if (
+    Math.abs(value.baseFeaturedRate - derivedBaseFeaturedRate) >
+    BASE_FEATURED_RATE_RELATIVE_EPSILON * relativeScale
+  ) {
+    throw new Error(
+      `${label}.baseFeaturedRate configured=${value.baseFeaturedRate} must equal ` +
+      `derived=${derivedBaseFeaturedRate} from the signature tier weight fraction`,
+    )
   }
 }
 
@@ -178,12 +236,18 @@ function validateCandidateB(scenario, catalog) {
       throw new Error(`Selected featured item ${itemId} cannot satisfy its minimum rank`)
     }
   }
+  validateSoftPity(
+    selected.softPity,
+    selected.hardGuaranteePull,
+    candidate.tiers.find(tier => tier.tierId === 'signature').weightUnits / totalWeight,
+    'selectedFeaturedUnowned.softPity',
+  )
   if (
     selected.selection !== 'lowest-canonical-id-unowned' ||
-    selected.lossPath !== 'none' || selected.softPity !== 'none' ||
+    selected.lossPath !== 'none' ||
     selected.reset !== 'selected-featured-awarded'
   ) {
-    throw new Error('Selected featured guarantee must be deterministic, lossless, hard-only, and reset on award')
+    throw new Error('Selected featured guarantee must be deterministic, lossless, and reset on award')
   }
   for (const key of ['rareOrBetter', 'epicOrBetter']) {
     if (guarantees[key].reset !== 'qualifying-result-awarded') {

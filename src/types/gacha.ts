@@ -45,8 +45,15 @@ export interface PullCost {
 /**
  * Pity system configuration
  */
+export type SoftPityConfig = 'none' | {
+  model: 'linear-rate-ramp'
+  startPull: number
+  perPullIncrement: number
+  baseFeaturedRate: number
+}
+
 export interface PityConfig {
-  softPity: number            // Increased rates start here (e.g., 75)
+  softPity: SoftPityConfig
   hardPity: number            // Guaranteed rare+ (e.g., 90)
   featuredPity: number        // Guaranteed featured item (e.g., 180)
   carryOver: boolean          // Does pity carry to next banner?
