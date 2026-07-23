@@ -154,8 +154,9 @@ transitional.
   `dupe_dust + scrap_dust` from a single duplicate — roughly **double** the Dust
   the transitional `0017` Dust-only path yielded (the rate the pity/whale sims
   were implicitly calibrated against). The per-tier `dupe_dust` table (2/8/20/50)
-  therefore **cannot** be treated as settled independently of scrap; it MUST be
-  re-sized **jointly** with scrap and craft (a three-way validation — §7).
+  therefore **cannot** be treated as settled independently of scrap; §7 now
+  carries a jointly simulated **PROPOSED / PO-pending** duplicate + scrap +
+  craft set.
 - **Scrap any die → Dust.** **Every** die is scrappable: scrapping removes one
   live copy and credits per-tier Dust to the earned bucket. There is no
   unscrappable tier.
@@ -647,15 +648,14 @@ Dust-only duplicate path.
     first-copy flag (**ever-owned latch**, §1.6 — MUST NOT re-latch on a re-pull
     after scrap-all), and `is_duplicate` / selected-featured-**unowned** resolve
     against **live copy count** (unowned = zero copies) instead of
-    `user_entitlements`. The tier's `dupe_dust` is **not** settled here: because
-    the granted copy is immediately scrappable, the effective per-duplicate Dust
-    is `dupe_dust + scrap_dust`, so `dupe_dust` MUST be re-sized jointly with
-    scrap and craft (§7 three-way validation) before this freezes. Does **not**
-    mutate `0017` (append-only).
+    `user_entitlements`. The tier's `dupe_dust` is **PROPOSED / PO-pending** in
+    §7: because the granted copy is immediately scrappable, the effective
+    per-duplicate Dust is `dupe_dust + scrap_dust`, jointly sized with scrap and
+    craft before this freezes. Does **not** mutate `0017` (append-only).
 12. **[free] Scrap RPC.** `scrap_dice_copy` (SECURITY DEFINER, self-only,
     idempotent): removes one live copy and credits **per-tier Dust** through the
-    wallet ledger boundary. Any die scrappable. Per-tier scrap yields are a §7
-    open question (economy-sim sized).
+    wallet ledger boundary. Any die scrappable. Per-tier scrap yields are
+    economy-sim sized and **PROPOSED / PO-pending** in §7.
 13. **[free] Craft / duplicate RPC.** `craft_dice_copy` (SECURITY DEFINER,
     self-only, idempotent): debits **Dust** and grants **one additional copy** of
     a die. Working assumption: **restricted to already-owned dice** (§7). Craft
@@ -700,31 +700,78 @@ Dust-only duplicate path.
   (the money leaves regardless — it cannot simply "fail closed")? This is
   distinct from the STAR-bundle double-raw claw-back above (currency, not a
   granted copy). Needed before deltas #10–13 and the refund path freeze.
-- **Duplicate-Dust, scrap yields & craft costs (economy-sim validation required)
-  — NEW.** Per-tier **duplicate Dust** (`dupe_dust`, currently 2/8/20/50),
-  **scrap Dust values**, and **craft Dust costs** MUST be sized by the economy
-  simulator, not hand-picked, and validated **together** — a **three-way** joint
-  validation, not the two-way scrap+craft pair. A granted duplicate copy is
-  itself immediately scrappable, so the effective Dust from one duplicate is
-  `dupe_dust + scrap_dust` (roughly double the transitional `0017` Dust-only
-  yield the pity/whale sims were implicitly calibrated against); options include
-  `dupe_dust = 0` with Dust coming only from an explicit scrap, or a documented
-  reduction, so a dupe does not silently double the faucet vs the `0017`
-  baseline.
-- **Craft-cost anti-arbitrage bound (owned-only world) — NEW.** Because crafting
-  is **owned-only** (below), it structurally cannot mint a *first* copy of an
-  unowned die, so the old "farm cheap pulls → scrap junk → craft the wanted
-  (unowned) die" framing does **not** apply — that loop cannot occur, so drop it.
-  The real, unbounded loop is **cross-banner matched sets**: Dust is one fungible
-  earned-bucket currency, so cheap standard-banner-farmed Dust could craft
-  additional copies of an **expensive premium/signature die you already own**,
-  undercutting premium pulls. The bound MUST therefore be: the craft cost of a
-  die MUST **exceed the Dust-equivalent acquisition cost of a copy of THAT die on
-  its NATIVE banner** (a premium copy priced against premium-pull cost),
-  accounting for Dust fungibility across banners — **not** merely the Dust yield
-  of the cheapest pulls that could farm the Dust. Size `dupe_dust`-per-tier,
-  scrap-per-tier, and craft-per-die as one jointly-validated set before deltas
-  #10–13 freeze.
+- **Duplicate-Dust, scrap yields & craft costs — PROPOSED / PO-pending
+  (economy-sim rev 2, 2026-07-23).** The jointly validated proposal splits the
+  transitional `0017` effective duplicate faucet evenly between automatic Dust
+  and the immediately scrappable copy. This keeps
+  `dupe_dust + scrap_yield = 2/8/20/50` instead of silently doubling it.
+
+  | tier | `dupe_dust` | `scrap_yield` | `craft_cost` | status |
+  |---|---:|---:|---:|---|
+  | standard | 1 | 1 | 210 | **PROPOSED / PO-pending** |
+  | rare | 4 | 4 | 220 | **PROPOSED / PO-pending** |
+  | epic | 10 | 10 | 615 | **PROPOSED / PO-pending** |
+  | signature | 25 | 25 | 2500 | **PROPOSED / PO-pending** |
+  | mythic community direct-claim | n/a | 50 | n/a | **PROPOSED / PO-pending** |
+
+  The community reward is a direct mythic claim every four weeks, outside the
+  random pull pool. `mythic scrap_yield = 50` is the maximum recommendation:
+  claim→scrap→reclaim contributes `50 / 4 = 12.5 Dust/week`, no more than the
+  community accelerator already modeled. Mythic crafting is not proposed.
+
+  **Corrected simulation evidence.** `P_late` comes from a dedicated
+  24,000,000-pull all-owned equilibrium stream, not the pity-drained tail
+  immediately after collection completion. The audited dynamic trigger sweep
+  (19, 25, 20, 21, 30, 40, 60) selects trigger 19: stay fully owned until
+  `selectedMisses = 19`, scrap one signature, take and keep the guaranteed
+  replacement, and repeat. Its separate 10,000,000-pull validation supplies
+  the rate estimate, `D_FARM_MAX = 5.7383622 ± 0.0017571 SE Dust/pull`.
+
+  Trigger 19 forces a rank-3 signature every 20 pulls and resets
+  `epicMisses`, so epic pity is **suppressed**. Duplicate awards average about
+  `4.72 Dust/duplicate pull` (`4.49 Dust/total pull`); the strategy's uplift
+  comes from the scheduled 25-Dust signature scraps, not from preserving epic
+  duplicate Dust.
+
+  The strict owned-only same-copy inequality is:
+
+  `craft_cost[t] / D_FARM_MAX > n_t / P_late[t]`
+
+  equivalently:
+
+  `craft_cost[t] > (n_t / P_late[t]) × D_FARM_MAX`.
+
+  Batch-means SE is used for Dust rates; `P_late[t]` uses the larger of
+  batch-means and binomial SE. Independent `D_FARM_MAX` and `P_late[t]`
+  uncertainty is propagated into each floor:
+
+  | tier | native floor ± SE Dust | proposed cost | margin Dust | margin/SE |
+  |---|---:|---:|---:|---:|
+  | standard | 200.296 ± 0.067 | 210 | 9.704 | 144.3 |
+  | rare | 214.063 ± 0.101 | 220 | 5.937 | 58.5 |
+  | epic | 604.842 ± 0.536 | 615 | 10.158 | 19.0 |
+  | signature | 2419.896 ± 4.178 | 2500 | 80.104 | 19.2 |
+
+  All sampled native inequalities clear 3 SE. The exact craft→scrap bounds also
+  pass (`craft_cost > scrap_yield`, margins 209/216/605/2475 Dust). Signature
+  separately clears the premium hard-75 comparator:
+  `2500 / 5.738362 = 435.664 > 75` pulls, a 360.664-pull margin
+  (2703.6 SE). Epic's all-owned free pace is
+  `615 / (10 × 5.155151) = 11.930 weeks`; its 0.0024-week SE leaves the
+  12-week upper margin at 29.1 SE (and the 4-week lower margin at 3288.6 SE).
+
+  **PO DESIGN DECISION — ladder feel.** Rare craft at 220 is only **+4.8%**
+  above standard at 210 because these simulated floors track pull difficulty,
+  not tier prestige: standard's 24-item pool dilutes its per-die rate. These are
+  **MINIMUMS**, not a mandated price ladder. PO may raise rare and/or epic above
+  their floors for a stronger prestige progression before deltas #10–13 freeze;
+  any increase must retain the free-player pace decision explicitly.
+
+  Because crafting is **owned-only** (below), it cannot mint a first copy of an
+  unowned die. The remaining anti-arbitrage risk is fungible Dust crafting more
+  copies of an expensive die already owned; therefore each craft cost is
+  compared with that die's native same-copy acquisition cost, and signature is
+  additionally compared with the premium hard-75 chase.
 - **Crafting scope (working assumption: owned-only) — NEW.** The PO said players
   "craft or duplicate dice they already have," so **owned-only** is the working
   assumption (a player can duplicate a die they hold ≥1 live copy of, but Dust

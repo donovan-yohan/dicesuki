@@ -1,0 +1,401 @@
+DUST ECONOMY SIMULATION — discrete-copy inventory value sizing (ADR 017 / spec §1.6, §6.1, §7)
+DRAFT / SIMULATION-ONLY. Engine reused from scripts/economy-simulator.js (no re-implementation).
+
+STANDARD pool = production edition 0001-earned-collection.json
+  pool size (distinct pull items): 45
+  tier weights (scale 100): standard 72 (72.0%) | rare 23 (23.0%) | epic 4 (4.0%) | signature 1 (1.0%)
+  tier pool sizes: standard n=24 | rare n=9 | epic n=6 | signature n=6
+  pity: rareOrBetter hard 8 | epicOrBetter hard 25 | selectedFeaturedUnowned hard 20
+  Collector Monte Carlo: 4000 players through completion only; 1,174,502 total pull-resolutions; seed 20260723
+  Dedicated all-owned equilibrium: 24,000,000 pull-resolutions; 2400 batches × 10,000; seed 20260727
+  Scrap-only reference: 1,200,000 pull-resolutions; seed 20260724
+  One-signature-unowned adverse farm: 2,000,000 pull-resolutions; seed 20260725
+  Dynamic selected-pity trigger sweep: 19/25/20/21/30/40/60 × 2,000,000 pull-resolutions; seeds 20260730..20260736
+  Adopted-trigger validation: trigger 19 × 10,000,000 pull-resolutions; seed 20260740
+  pulls to complete all 45: mean 293.6 | p50 267 | p90 449 | max 1129 | incomplete players 0
+
+== PART 1 — Duplicate rate vs collection completion (standard pool) ==
+Duplicate probability rises toward 1.0 as the collection fills. Per-tier columns are
+P(pull is a duplicate of that tier | at this owned-count) = tierDupePulls / totalPulls in bucket.
+
+owned/45	complete%	pulls_seen	P(dupe)	dupe_std	dupe_rare	dupe_epic	dupe_sig
+0	0.0%	4,000	0.000	0.0000	0.0000	0.0000	0.0000
+5	11.1%	4,632	0.136	0.1025	0.0317	0.0022	0.0000
+10	22.2%	5,488	0.271	0.2030	0.0654	0.0026	0.0002
+15	33.3%	5,874	0.319	0.2450	0.0693	0.0039	0.0009
+20	44.4%	8,452	0.527	0.3901	0.1278	0.0069	0.0020
+25	55.6%	9,763	0.590	0.4401	0.1378	0.0083	0.0041
+30	66.7%	14,181	0.718	0.5255	0.1769	0.0113	0.0043
+35	77.8%	20,776	0.807	0.5888	0.1965	0.0150	0.0072
+40	88.9%	42,122	0.905	0.6458	0.2262	0.0221	0.0108
+43	95.6%	170,142	0.976	0.6819	0.2399	0.0402	0.0145
+44	97.8%	387,517	0.990	0.6855	0.2416	0.0482	0.0144
+45*	100.0%	24,000,000	1.000	0.6876	0.2413	0.0569	0.0142
+* owned=45 is the independent all-owned equilibrium stream, not a post-completion tail.
+Realized steady-state tier distribution P_late (pity-shifted, selected-guarantee OFF): standard 0.6876 | rare 0.2413 | epic 0.0569 | signature 0.0142
+  SE (max of batch-means and binomial): standard 0.0000946 | rare 0.0000873 | epic 0.0000473 | signature 0.0000242
+  Estimator fix: collection completion is conditioned on an epic-or-better award and resets epicMisses;
+  the old immediate 300-pull tails began pity-drained. This dedicated 24M stream removes that bias.
+  (vs base weights standard 0.7200 | rare 0.2300 | epic 0.0400 | signature 0.0100 — epic/sig lift from epic-or-better pity draws.)
+
+== PART 2 — Expected Dust/pull vs collection state (double-dip counted) ==
+eff[t] = dupe_dust[t] + scrap_yield[t] (a duplicate grants dupe_dust AND a copy scrappable for scrap_yield).
+Collector strategy: only duplicates yield Dust; new distinct dice are kept for the collection.
+
+-- V0 draft-dupe / no-scrap
+   dupe_dust 2/8/20/50 | scrap_yield 0/0/0/0 | eff(dupe+scrap) 2/8/20/50
+   E[dust/pull] @ owned 5=0.502 15=1.165 25=2.353 35=3.411 44=4.987 45*=5.155
+   D_ALL_DUPE (late-game, every pull a dupe) = 5.155 dust/pull | weekly free income (10 pulls) = 51.6 dust/wk (+community 12.5/wk = 64.1)
+
+-- V1 draft-dupe / full-scrap (max double-dip)
+   dupe_dust 2/8/20/50 | scrap_yield 2/8/20/50 | eff(dupe+scrap) 4/16/40/100
+   E[dust/pull] @ owned 5=1.004 15=2.330 25=4.706 35=6.821 44=9.973 45*=10.310
+   D_ALL_DUPE (late-game, every pull a dupe) = 10.310 dust/pull | weekly free income (10 pulls) = 103.1 dust/wk (+community 12.5/wk = 115.6)
+
+-- V2 draft-dupe / half-scrap
+   dupe_dust 2/8/20/50 | scrap_yield 1/4/10/25 | eff(dupe+scrap) 3/12/30/75
+   E[dust/pull] @ owned 5=0.753 15=1.748 25=3.530 35=5.116 44=7.480 45*=7.733
+   D_ALL_DUPE (late-game, every pull a dupe) = 7.733 dust/pull | weekly free income (10 pulls) = 77.3 dust/wk (+community 12.5/wk = 89.8)
+
+-- V3 split-baseline (RECOMMENDED)
+   dupe_dust 1/4/10/25 | scrap_yield 1/4/10/25 | eff(dupe+scrap) 2/8/20/50
+   E[dust/pull] @ owned 5=0.502 15=1.165 25=2.353 35=3.411 44=4.987 45*=5.155
+   D_ALL_DUPE (late-game, every pull a dupe) = 5.155 dust/pull | weekly free income (10 pulls) = 51.6 dust/wk (+community 12.5/wk = 64.1)
+
+-- V4 half-dupe / quarter-scrap
+   dupe_dust 1/4/10/25 | scrap_yield 1/2/5/13 | eff(dupe+scrap) 2/6/15/38
+   E[dust/pull] @ owned 5=0.428 15=0.997 25=1.987 35=2.856 44=4.090 45*=4.217
+   D_ALL_DUPE (late-game, every pull a dupe) = 4.217 dust/pull | weekly free income (10 pulls) = 42.2 dust/wk (+community 12.5/wk = 54.7)
+
+== PART 3 — Required all-owned/all-duplicate farming comparator (RECOMMENDED eff 2/8/20/50) ==
+D_ALL_DUPE = Σ P_late[t] × (dupe_dust[t] + scrap_yield[t]) = 5.155151 ± 0.001042 SE dust/pull
+  Condition: all 45 pull-pool items are owned, so every result grants dupe_dust plus a copy that is
+  immediately scrapped. selected-featured-unowned pity is therefore off; rare/epic pity remains live.
+Scrap-only reference (own nothing, exact engine/pity, scrap_yield only) = 3.475833 ± 0.002516 SE dust/pull
+  realized tiers: standard 0.6695 | rare 0.2313 | epic 0.0400 | signature 0.0592
+  This fixes the prior base-weight shortcut: an always-unowned player repeatedly re-arms selected pity.
+Adverse fixed-owned farm: own all items except one signature and scrap every award.
+  missing target: void-crystal/d10/legendary@1
+  realized tiers: standard 0.669385 | rare 0.230806 | epic 0.040539 | signature 0.059269
+  duplicate-by-tier probabilities: standard 0.669385 | rare 0.230806 | epic 0.040539 | signature 0.008434
+  D_ONE_SIGNATURE_UNOWNED = 5.688574 ± 0.003814 SE dust/pull
+Dynamic selected-pity trigger sweep: remain fully owned until selectedMisses reaches the trigger,
+  scrap one signature, take the guaranteed replacement, keep it, and resume surplus-duplicate scraps.
+trigger	pulls	Dust/pull	batch-means SE
+19	2,000,000	5.7399690	0.0043842
+25	2,000,000	5.7367205	0.0033239
+20	2,000,000	5.6961890	0.0043774
+21	2,000,000	5.6484605	0.0042250
+30	2,000,000	5.6141910	0.0038514
+40	2,000,000	5.4819620	0.0039583
+60	2,000,000	5.3766820	0.0036263
+  sweep maximum: trigger 19 at 5.7399690 Dust/pull.
+  adopted trigger 19 validation: 5.7383622 ± 0.0017571 SE Dust/pull; pre-pull signature scraps 500,000 | duplicate pulls 9,500,000 | replacement pulls 500,000
+  duplicate-award stream = 4.724592 Dust/duplicate pull (4.488362 per total pull)
+  signature-scrap contribution = 1.250000 Dust/total pull
+D_FARM_MAX = max(D_ALL_DUPE, D_ONE_SIGNATURE_UNOWNED, D_TRIGGER19_VALIDATION) = 5.7383622 ± 0.0017571 SE dust/pull
+  binding anti-arbitrage strategy: dynamic selected-pity trigger=19
+  Dominance rationale: the trigger-19 cycle forces a rank-3 signature every 20 pulls; that award resets
+  epicMisses, so epic pity is SUPPRESSED. The duplicate-award stream averages only about 4.72 Dust
+  per duplicate pull. The uplift over all-owned equilibrium comes from the 25-Dust signature scrap
+  every cycle, not from preserving epic duplicate Dust. Later triggers trade away that scrap cadence.
+Weekly free Dust @ 10 pulls = 51.552 dust/wk all-dupe / 57.384 dust/wk adverse max / 64.052 all-dupe incl. community faucet.
+
+== PART 4 — Craft-cost floors per tier + binding inequality ==
+Owned-only crafting duplicates a die the player ALREADY owns, so the economic comparator is the
+pull cost of hitting THAT SPECIFIC die AGAIN as a duplicate (selected-die targeting is impossible in
+the standard pool). Expected pulls to hit a specific tier-t die = n_t / P_late[t]. Each such pull, run
+as a farm, yields at most D_FARM_MAX Dust under the measured adverse strategy. Therefore:
+
+    craft_cost[t] / D_FARM_MAX  >  n_t / P_late[t]
+    equivalently: craft_cost[t] > (n_t / P_late[t]) * D_FARM_MAX
+
+D_ALL_DUPE remains the required steady-state pace metric; D_FARM_MAX is the conservative
+anti-arbitrage divisor used for all native acquisition and signature inequalities.
+
+tier	n_t	P_late±SE	native pulls	native floor±SE Dust	Dust margin	margin/SE	pass?
+standard	24	0.687586±0.000095	34.905	200.296±0.067	+9.704	144.3 SE	YES
+rare	9	0.241262±0.000087	37.304	214.063±0.101	+5.937	58.5 SE	YES
+epic	6	0.056924±0.000047	105.403	604.842±0.536	+10.158	19.0 SE	YES
+signature	6	0.014228±0.000024	421.705	2419.896±4.178	+80.104	19.2 SE	YES
+
+Anti-pump floor (hard, non-negotiable): craft_cost[t] > scrap_yield[t], else craft->scrap mints Dust.
+Signature cross-banner floor: craft_cost / D_FARM_MAX must also exceed the premium hard-75 chase.
+  2500 / 5.738362 = 435.664 standard-farm pulls > 75 premium pulls
+  margin = 360.664 pulls; SE = 0.133 pulls; margin/SE = 2703.6; ratio = 5.809x.
+  This is conservative: the recommended premium soft-pity mean is ~46.6 pulls, while 75 is the hard ceiling.
+
+== PART 5 — RECOMMENDED value set + verification ==
+tier	dupe_dust	scrap_yield	craft_cost	eff(d+s)	weeks all-dupe	weeks farm-max	native_floor	craft>floor?
+standard	1	1	210	2	4.07	3.66	200	YES
+rare	4	4	220	8	4.27	3.83	214	YES
+epic	10	10	615	20	11.93	10.72	605	YES
+signature	25	25	2500	50	48.50	43.57	2420	YES
+
+Effective per-duplicate Dust 2/8/20/50 == 0017 baseline 2/8/20/50 -> faucet NOT silently doubled.
+Crafted-copy scrap inequalities (all strict, with Dust margin and cost/scrap ratio):
+  standard: scrap 1 < craft 210; margin 209 Dust; ratio 210.00x
+  rare: scrap 4 < craft 220; margin 216 Dust; ratio 55.00x
+  epic: scrap 10 < craft 615; margin 605 Dust; ratio 61.50x
+  signature: scrap 25 < craft 2500; margin 2475 Dust; ratio 100.00x
+Native same-copy inequalities (strict; farm pulls to craft > expected pulls to pull that specific die):
+  standard: 210 / 5.738362 = 36.596 > 24 / 0.6876 = 34.905 pulls; margin 1.691 pulls (9.704 Dust); floor SE 0.067 Dust; margin/SE 144.3
+  rare: 220 / 5.738362 = 38.338 > 9 / 0.2413 = 37.304 pulls; margin 1.035 pulls (5.937 Dust); floor SE 0.101 Dust; margin/SE 58.5
+  epic: 615 / 5.738362 = 107.173 > 6 / 0.0569 = 105.403 pulls; margin 1.770 pulls (10.158 Dust); floor SE 0.536 Dust; margin/SE 19.0
+  signature: 2500 / 5.738362 = 435.664 > 6 / 0.0142 = 421.705 pulls; margin 13.959 pulls (80.104 Dust); floor SE 4.178 Dust; margin/SE 19.2
+Mythic community direct-claim scrap: 50 Dust every 4 weeks = 12.5 Dust/wk.
+  This is the maximum allowed recommendation: claim→scrap→reclaim does not exceed the
+  already-modeled 12.5 Dust/wk community faucet. Mythic crafting is not proposed.
+WEEKS-TO-CRAFT-ONE-EPIC (all-dupe steady state, 10 pulls/wk) = 11.930 weeks (9.602 wk incl. community faucet) -> target 4-12: PASS
+  batch-means SE 0.0024 weeks; lower-bound margin 7.930 (3288.6 SE); upper-bound margin 0.070 (29.1 SE)
+WEEKS-TO-CRAFT-ONE-EPIC (adverse D_FARM_MAX) = 10.717 weeks
+  epic craft 615 is strictly above adverse native parity 604.842 Dust: farming takes
+  107.173 pulls vs 105.403 expected pulls to re-pull a specific epic.
+
+SIGNATURE is PRICED, not excluded: 2500 Dust is above the adverse standard-pool same-copy floor and requires
+  435.664 standard-farm pulls, exceeding the premium hard-75 chase by 360.664 pulls (5.809x total).
+
+-- BINDING INEQUALITIES (stated) --
+[H1 anti-pump]        craft_cost[t]  >  scrap_yield[t]            (hard; else craft->scrap Dust pump)
+  deterministic integer margins 209/216/605/2475 Dust; estimator SE=0; margin/SE=∞.
+[H2 native-parity]    craft_cost[t] / D_FARM_MAX > n_t / P_late[t]  (strict same-copy comparator)
+  margin/SE by tier standard 144.3 | rare 58.5 | epic 19.0 | signature 19.2; all >=3.
+[H3 signature]        craft_cost[signature] / D_FARM_MAX > 75 premium hard-pity pulls.
+  margin/SE 2703.6; >=3.
+[G1 no-double-faucet] dupe_dust[t] + scrap_yield[t] <= 0017 baseline (2/8/20/50); scrap_yield<=dupe_dust.
+  exact integer equality; estimator SE=0; equality is allowed by the guardrail.
+[G2 faucet-progress]  4 <= craft_cost[epic] / (freePulls/wk * D_ALL_DUPE) <= 12 weeks;
+  lower margin/SE 3288.6; upper margin/SE 29.1; both >=3. Adverse D_FARM_MAX pace is also reported.
+
+RECOMMENDED  dupe_dust 1/4/10/25  scrap_yield 1/4/10/25  craft_cost 210/220/615/2500  (standard/rare/epic/signature)
+
+<<<SUMMARY_JSON>>>
+{
+  "poolSize": 45,
+  "tierSizes": [
+    24,
+    9,
+    6,
+    6
+  ],
+  "pLate": [
+    0.6875855833333333,
+    0.24126225,
+    0.05692420833333333,
+    0.014227958333333334
+  ],
+  "pLateSe": [
+    0.00009460700487752239,
+    0.00008733431378066162,
+    0.00004729510318158239,
+    0.00002417430069222812
+  ],
+  "equilibriumPulls": 24000000,
+  "equilibriumBatchSize": 10000,
+  "dAllDupe": 5.155151250000024,
+  "dAllDupeSe": 0.0010419711642972508,
+  "dOneSignatureUnowned": 5.6885745,
+  "dOneSignatureUnownedSe": 0.00381369523631971,
+  "dynamicSweep": [
+    {
+      "pulls": 2000000,
+      "trigger": 19,
+      "prePullSignatureScraps": 100000,
+      "duplicatePulls": 1900000,
+      "replacementPulls": 100000,
+      "duplicateDustPerDuplicatePull": 4.726283157894737,
+      "duplicateDustPerTotalPull": 4.489969,
+      "signatureScrapDustPerPull": 1.25,
+      "dustPerPull": 5.739969,
+      "dustSe": 0.004384220471270066
+    },
+    {
+      "pulls": 2000000,
+      "trigger": 25,
+      "prePullSignatureScraps": 76923,
+      "duplicatePulls": 1923077,
+      "replacementPulls": 76923,
+      "duplicateDustPerDuplicatePull": 4.966190121352395,
+      "duplicateDustPerTotalPull": 4.775183,
+      "signatureScrapDustPerPull": 0.9615375,
+      "dustPerPull": 5.7367205,
+      "dustSe": 0.00332386106972058
+    },
+    {
+      "pulls": 2000000,
+      "trigger": 20,
+      "prePullSignatureScraps": 95238,
+      "duplicatePulls": 1904762,
+      "replacementPulls": 95238,
+      "duplicateDustPerDuplicatePull": 4.7309994634500265,
+      "duplicateDustPerTotalPull": 4.505714,
+      "signatureScrapDustPerPull": 1.190475,
+      "dustPerPull": 5.696189,
+      "dustSe": 0.004377372022586224
+    },
+    {
+      "pulls": 2000000,
+      "trigger": 21,
+      "prePullSignatureScraps": 90909,
+      "duplicatePulls": 1909091,
+      "replacementPulls": 90909,
+      "duplicateDustPerDuplicatePull": 4.726959584430496,
+      "duplicateDustPerTotalPull": 4.512098,
+      "signatureScrapDustPerPull": 1.1363625,
+      "dustPerPull": 5.6484605,
+      "dustSe": 0.00422504520492602
+    },
+    {
+      "pulls": 2000000,
+      "trigger": 30,
+      "prePullSignatureScraps": 64516,
+      "duplicatePulls": 1935484,
+      "replacementPulls": 64516,
+      "duplicateDustPerDuplicatePull": 4.9679987021334195,
+      "duplicateDustPerTotalPull": 4.807741,
+      "signatureScrapDustPerPull": 0.80645,
+      "dustPerPull": 5.614191,
+      "dustSe": 0.0038514104438549758
+    },
+    {
+      "pulls": 2000000,
+      "trigger": 40,
+      "prePullSignatureScraps": 48780,
+      "duplicatePulls": 1951220,
+      "replacementPulls": 48780,
+      "duplicateDustPerDuplicatePull": 4.994016051495987,
+      "duplicateDustPerTotalPull": 4.872212,
+      "signatureScrapDustPerPull": 0.60975,
+      "dustPerPull": 5.481962,
+      "dustSe": 0.003958268336167412
+    },
+    {
+      "pulls": 2000000,
+      "trigger": 60,
+      "prePullSignatureScraps": 32786,
+      "duplicatePulls": 1967214,
+      "replacementPulls": 32786,
+      "duplicateDustPerDuplicatePull": 5.049635677663945,
+      "duplicateDustPerTotalPull": 4.966857,
+      "signatureScrapDustPerPull": 0.409825,
+      "dustPerPull": 5.376682,
+      "dustSe": 0.0036263445442716634
+    }
+  ],
+  "sweepWinner": {
+    "pulls": 2000000,
+    "trigger": 19,
+    "prePullSignatureScraps": 100000,
+    "duplicatePulls": 1900000,
+    "replacementPulls": 100000,
+    "duplicateDustPerDuplicatePull": 4.726283157894737,
+    "duplicateDustPerTotalPull": 4.489969,
+    "signatureScrapDustPerPull": 1.25,
+    "dustPerPull": 5.739969,
+    "dustSe": 0.004384220471270066
+  },
+  "dFarmMax": 5.7383622,
+  "dFarmMaxSe": 0.001757121010461547,
+  "farmMaxStrategy": "dynamic selected-pity trigger=19",
+  "farmMaxEvidence": {
+    "pulls": 10000000,
+    "trigger": 19,
+    "prePullSignatureScraps": 500000,
+    "duplicatePulls": 9500000,
+    "replacementPulls": 500000,
+    "duplicateDustPerDuplicatePull": 4.724591789473684,
+    "duplicateDustPerTotalPull": 4.4883622,
+    "signatureScrapDustPerPull": 1.25,
+    "dustPerPull": 5.7383622,
+    "dustSe": 0.001757121010461547
+  },
+  "dynamicSelectedPity": {
+    "pulls": 10000000,
+    "trigger": 19,
+    "prePullSignatureScraps": 500000,
+    "duplicatePulls": 9500000,
+    "replacementPulls": 500000,
+    "duplicateDustPerDuplicatePull": 4.724591789473684,
+    "duplicateDustPerTotalPull": 4.4883622,
+    "signatureScrapDustPerPull": 1.25,
+    "dustPerPull": 5.7383622,
+    "dustSe": 0.001757121010461547
+  },
+  "comparator": "max of required all-dupe, fixed one-signature-unowned, and independent trigger-19 validation",
+  "scrapOnlyDustPerPull": 3.4758325000000014,
+  "scrapOnlyDustSe": 0.002515582017874881,
+  "scrapOnlyTierProbs": [
+    0.6694783333333333,
+    0.23125833333333334,
+    0.0400175,
+    0.05924583333333333
+  ],
+  "weeklyFreeDustAllDupe": 51.55151250000024,
+  "weeklyFreeDustFarmMax": 57.383622,
+  "weeklyFreeDustAllDupeWithCommunity": 64.05151250000024,
+  "nativeFloor": [
+    200.2960738826815,
+    214.0627462439731,
+    604.8423721307793,
+    2419.8955600914865
+  ],
+  "nativeFloorSe": [
+    0.06723923769157801,
+    0.10149334439247815,
+    0.5355717452832989,
+    4.177809225616991
+  ],
+  "nativeMargin": [
+    9.703926117318503,
+    5.937253756026905,
+    10.157627869220732,
+    80.10443990851354
+  ],
+  "nativeMarginSigma": [
+    144.31939519941878,
+    58.49894681829921,
+    18.965951730421665,
+    19.173790755532522
+  ],
+  "farmPullsToCraft": [
+    36.595807772468596,
+    38.33846528544329,
+    107.17343704794375,
+    435.66437824367375
+  ],
+  "weeksFloor": [
+    3.490474579709896,
+    3.730380529900554,
+    10.540331039591388,
+    42.17049178407537
+  ],
+  "recommended": {
+    "standard": {
+      "dupeDust": 1,
+      "scrapYield": 1,
+      "craftCost": 210
+    },
+    "rare": {
+      "dupeDust": 4,
+      "scrapYield": 4,
+      "craftCost": 220
+    },
+    "epic": {
+      "dupeDust": 10,
+      "scrapYield": 10,
+      "craftCost": 615
+    },
+    "signature": {
+      "dupeDust": 25,
+      "scrapYield": 25,
+      "craftCost": 2500
+    },
+    "mythic": {
+      "scrapYield": 50,
+      "craftCost": null
+    }
+  },
+  "freePlayerWeeksToEpicCraftAllDupe": 11.92981486236698,
+  "freePlayerWeeksToEpicCraftFarmMax": 10.717343704794374,
+  "freePlayerWeeksToEpicCraftAllDupeWithCommunity": 9.601646799519335
+}
