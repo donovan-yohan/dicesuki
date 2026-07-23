@@ -53,6 +53,7 @@ docs/exec-plans/ → Execution plans (active + completed)
 - Zustand Map/Set updates require new instances (shallow equality) — never mutate in place
 - Selective git commits: verify committed files don't import uncommitted code (local build passes, CI fails)
 - All dice spawning goes through `src/lib/diceSpawner.ts` (single source of truth)
+- CHECK constraints on nullable columns need explicit `is not null` guards — three-valued logic makes `NULL = 'x'` arms pass silently (caught live by the `supabase/tests` harness)
 
 ## Workflow
 
