@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { isPaymentsEnabled } from '../../lib/paymentsConfig'
+import { WalletConversionError } from '../../lib/walletBalances'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useWalletStore } from '../../store/useWalletStore'
 import {
@@ -10,6 +11,7 @@ import {
 } from '../economy/shopCatalog'
 import { WalletBalanceSummary } from '../economy/WalletHud'
 import { BottomSheet } from './BottomSheet'
+import { LunarPassCard } from './LunarPassCard'
 
 interface ShopPanelProps {
   isOpen: boolean
@@ -33,6 +35,8 @@ export const ShopPanel = memo(function ShopPanel({
   const standardTickets = useWalletStore(state => state.tickets.standard_roll)
   const premiumTickets = useWalletStore(state => state.tickets.premium_roll)
   const stale = useWalletStore(state => state.stale)
+  const subscription = useWalletStore(state => state.subscription)
+  const refreshBalances = useWalletStore(state => state.refresh)
   const convertStars = useWalletStore(state => state.convertStarsToStandardRoll)
   const [quantity, setQuantity] = useState(1)
   const [pending, setPending] = useState(false)
@@ -80,9 +84,7 @@ export const ShopPanel = memo(function ShopPanel({
     } catch (error) {
       setNotice({
         kind: 'error',
-        message: error instanceof Error
-          ? error.message
-          : 'Conversion failed. Please try again.',
+        message: conversionErrorCopy(error),
       })
     } finally {
       pendingRef.current = false
@@ -250,7 +252,7 @@ export const ShopPanel = memo(function ShopPanel({
           {notice && (
             <p
               role={notice.kind === 'error' ? 'alert' : 'status'}
-              aria-live="polite"
+              aria-live={notice.kind === 'success' ? 'polite' : undefined}
               style={{
                 color: notice.kind === 'error' ? colors.accent : colors.text.secondary,
                 fontSize: typography.fontSize.sm,
@@ -261,6 +263,14 @@ export const ShopPanel = memo(function ShopPanel({
             </p>
           )}
         </section>
+
+        <LunarPassCard
+          key={`${walletUserId ?? 'none'}:${subscription?.subscriptionId ?? 'none'}`}
+          userId={walletUserId}
+          subscription={subscription}
+          paymentsEnabled={paymentsEnabled}
+          refreshBalances={refreshBalances}
+        />
 
         {!paymentsEnabled && (
           <section
@@ -342,6 +352,23 @@ export const ShopPanel = memo(function ShopPanel({
     </BottomSheet>
   )
 })
+
+function conversionErrorCopy(error: unknown): string {
+  if (!(error instanceof WalletConversionError)) {
+    return 'Conversion failed. Please try again.'
+  }
+
+  switch (error.kind) {
+    case 'invalid_request':
+      return 'Choose a valid number of rolls and try again.'
+    case 'insufficient_funds':
+      return "You don't have enough Stars for that conversion."
+    case 'rpc_failure':
+      return 'Conversion failed. Please try again.'
+    default:
+      return 'Conversion failed. Please try again.'
+  }
+}
 
 function stepperButtonStyle(
   theme: ReturnType<typeof useTheme>['currentTheme'],
