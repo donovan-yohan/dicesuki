@@ -8,6 +8,7 @@
 //        - user_validation → 200 if the Supabase user exists, else 400
 //        - payment / order_paid → fulfill_payment_order (idempotent grant)
 //        - refund / chargeback → refund_payment_order (idempotent reversal)
+//        - subscription lifecycle → record_subscription_event (204)
 //        - unknown → 200 ack
 //   4. Respond fast. 5xx makes Xsolla retry (~20 times / 12h); the DB
 //      idempotency gate inside the RPC makes replays safe (invariants #1, #2).
@@ -47,7 +48,8 @@
 import { createServiceRoleClient } from '../_shared/supabaseClient.ts'
 import { verifyXsollaSignature } from '../_shared/xsollaSignature.ts'
 import {
-  dispatchWebhook,
+  createRecordSubscriptionEventDep,
+  dispatchWebhookResponse,
   isDeliberateNoGrantError,
   type FulfillArgs,
   type OrderRpcResult,
@@ -76,6 +78,13 @@ function normalizeRpcResult(data: unknown): OrderRpcResult {
     return { ok: true, status: typeof status === 'string' ? status : undefined }
   }
   return { ok: true }
+}
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 /** Shape of a Supabase RPC error we branch on (subset of PostgrestError). */
@@ -146,6 +155,13 @@ function buildDeps(service: SupabaseClient): WebhookDeps {
         },
         args,
       ),
+    recordSubscriptionEvent: createRecordSubscriptionEventDep(
+      async (fn, params) => {
+        const { error } = await service.rpc(fn, params)
+        return { error }
+      },
+      (message, context) => console.error(message, context),
+    ),
   }
 }
 
@@ -182,8 +198,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // 3. Dispatch. Exceptions (e.g. RPC failure) → 500 so Xsolla retries.
   try {
     const service = createServiceRoleClient()
-    const result = await dispatchWebhook(notification, buildDeps(service))
-    return jsonResponse(result.body, result.status)
+    // Compute the receipt hash only here, while the exact signed bytes exist.
+    const bodySha256 = await sha256Hex(rawBody)
+    return await dispatchWebhookResponse(
+      notification,
+      buildDeps(service),
+      bodySha256,
+      (error) => console.error('xsolla-webhook dispatch error', error),
+    )
   } catch (err) {
     console.error('xsolla-webhook dispatch error', err)
     return jsonResponse(
