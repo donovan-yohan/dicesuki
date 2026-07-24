@@ -9,6 +9,7 @@ import type { DragEvent, ReactNode } from 'react'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload } from '../../lib/inventoryDrag'
+import { getRarityColor } from '../../lib/rarityColor'
 import type { DiceShape } from '../../types/diceShape'
 import type { DieRarity, InventoryDie } from '../../types/inventory'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -800,18 +801,6 @@ function handleInventoryDieDragStart(event: DragEvent<HTMLElement>, die: Invento
     name: die.name,
   }))
   event.dataTransfer.setData('text/plain', die.id)
-}
-
-function getRarityColor(rarity: DieRarity, theme: Theme): string {
-  const rarityColors: Record<DieRarity, string> = {
-    common: theme.tokens.colors.text.secondary,
-    uncommon: '#1eff00',
-    rare: '#0070dd',
-    epic: '#a335ee',
-    legendary: '#ff8000',
-    mythic: '#e6cc80',
-  }
-  return rarityColors[rarity]
 }
 
 function capitalize(value: string) {

@@ -18,7 +18,6 @@ import {
 import { STANDARD_ROLL_CONVERSION_AVAILABLE } from '../economy/shopCatalog'
 import { useTheme } from '../../contexts/ThemeContext'
 import { isPaymentsEnabled } from '../../lib/paymentsConfig'
-import { useAuthStore } from '../../store/useAuthStore'
 
 interface BottomNavProps {
   isVisible: boolean
@@ -46,10 +45,11 @@ export function BottomNav({
   shopOpen = false,
 }: BottomNavProps) {
   const { currentTheme } = useTheme()
-  const authStatus = useAuthStore(state => state.status)
   const getIcon = (name: keyof typeof currentTheme.assets.icons) => currentTheme.assets.icons[name]
   const reduceMotion = shouldReduceMotion()
-  const showShop = authStatus === 'authenticated' &&
+  // The Banners destination is intentionally browseable by guests. Conversion
+  // and paid surfaces remain gated inside the Shop hub.
+  const showShop = Boolean(onOpenShop) &&
     (isPaymentsEnabled() || STANDARD_ROLL_CONVERSION_AVAILABLE)
 
   return (

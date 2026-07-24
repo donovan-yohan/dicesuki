@@ -16,6 +16,7 @@ describe('fetchMyDiceCopies', () => {
       {
         id: 'copy-first',
         catalog_item_id: 'item-a',
+        grant_idempotency_key: 'reward:copy-first',
         source_kind: 'pull',
         acquired_at: '2026-07-01T00:00:00Z',
         is_first_copy: true,
@@ -24,6 +25,7 @@ describe('fetchMyDiceCopies', () => {
       {
         id: 'copy-live',
         catalog_item_id: 'item-a',
+        grant_idempotency_key: 'reward:copy-live',
         source_kind: 'reward',
         acquired_at: '2026-07-03T00:00:00Z',
         is_first_copy: false,
@@ -32,6 +34,7 @@ describe('fetchMyDiceCopies', () => {
       {
         id: 'scrapped-only',
         catalog_item_id: 'item-b',
+        grant_idempotency_key: 'reward:scrapped-only',
         source_kind: 'craft',
         acquired_at: '2026-07-04T00:00:00Z',
         is_first_copy: true,
@@ -40,6 +43,7 @@ describe('fetchMyDiceCopies', () => {
       {
         id: 'live-first',
         catalog_item_id: 'item-c',
+        grant_idempotency_key: 'reward:live-first',
         source_kind: 'pull',
         acquired_at: '2026-07-06T00:00:00Z',
         is_first_copy: true,
@@ -54,6 +58,7 @@ describe('fetchMyDiceCopies', () => {
       firstCopyAcquiredAt: '2026-07-01T00:00:00Z',
       copies: [{
         id: 'copy-live',
+        grantIdempotencyKey: 'reward:copy-live',
         sourceKind: 'reward',
         acquiredAt: '2026-07-03T00:00:00Z',
         isFirstCopy: false,
@@ -70,6 +75,7 @@ describe('fetchMyDiceCopies', () => {
       firstCopyAcquiredAt: '2026-07-06T00:00:00Z',
       copies: [{
         id: 'live-first',
+        grantIdempotencyKey: 'reward:live-first',
         isFirstCopy: true,
       }],
     })
@@ -79,6 +85,7 @@ describe('fetchMyDiceCopies', () => {
     await expect(fetchMyDiceCopies(clientWith([{
       id: 'copy',
       catalog_item_id: 'item',
+      grant_idempotency_key: 'reward:copy',
       source_kind: 'mystery',
       acquired_at: 'not-a-date',
       is_first_copy: false,

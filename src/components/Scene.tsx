@@ -723,6 +723,10 @@ function SceneContent({ onReady }: SceneProps) {
       <ShopPanel
         isOpen={isShopOpen}
         onClose={() => setIsShopOpen(false)}
+        initialTab="banners"
+        onAddDie={(type, inventoryDieId) => activeBackend.addDie(type, inventoryDieId)}
+        tableDiceCount={multiplayerDice.size}
+        deviceTier={renderDeviceTier}
       />
 
       {inspectedInventoryDie && (
