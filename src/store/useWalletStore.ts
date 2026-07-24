@@ -46,6 +46,31 @@ interface WalletStore {
 }
 
 /**
+ * Client projection of the 0023 Lunar Pass entitlement predicate.
+ *
+ * Active subscriptions remain entitled regardless of their dates. Bounded
+ * terminal states require a valid boundary strictly after the supplied time;
+ * equality is expired, matching `public.is_lunar_pass_active`.
+ */
+export function selectIsLunarPassEntitled(
+  state: { subscription: LunarSubscriptionSnapshot | null },
+  at: number | Date,
+): boolean {
+  const { subscription } = state
+  if (!subscription) return false
+  if (subscription.status === 'active') return true
+
+  const atMs = typeof at === 'number' ? at : at.getTime()
+  const boundaryValue = subscription.status === 'non_renewing'
+    ? subscription.dateNextCharge
+    : subscription.dateEnd
+  if (!boundaryValue || !Number.isFinite(atMs)) return false
+
+  const boundaryMs = Date.parse(boundaryValue)
+  return Number.isFinite(boundaryMs) && atMs < boundaryMs
+}
+
+/**
  * Server-authoritative economy state is intentionally not persisted. Persisting
  * it would turn a stale client cache into apparent wallet truth; refresh and
  * Realtime repopulate this dedicated Frontend-ADR-002 domain after sign-in.

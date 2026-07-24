@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { LunarSubscriptionSnapshot } from '../lib/walletBalances'
 
 const mocks = vi.hoisted(() => ({
   fetchWalletBalances: vi.fn(),
@@ -14,7 +15,68 @@ vi.mock('../lib/walletBalances', async (importOriginal) => ({
   ...mocks,
 }))
 
-import { useWalletStore } from './useWalletStore'
+import {
+  selectIsLunarPassEntitled,
+  useWalletStore,
+} from './useWalletStore'
+
+const entitlementBoundary = Date.parse('2026-08-01T00:00:00Z')
+
+function subscription(
+  status: LunarSubscriptionSnapshot['status'],
+  dates: Pick<LunarSubscriptionSnapshot, 'dateNextCharge' | 'dateEnd'>,
+): LunarSubscriptionSnapshot {
+  return {
+    subscriptionId: 'sub-1',
+    status,
+    planId: 'plan-1',
+    productId: 'lunar-pass',
+    ...dates,
+  }
+}
+
+describe('selectIsLunarPassEntitled', () => {
+  it('returns false without a subscription and keeps active status entitled', () => {
+    expect(selectIsLunarPassEntitled({ subscription: null }, entitlementBoundary)).toBe(false)
+    expect(selectIsLunarPassEntitled({
+      subscription: subscription('active', {
+        dateNextCharge: 'not-a-date',
+        dateEnd: '2020-01-01T00:00:00Z',
+      }),
+    }, entitlementBoundary)).toBe(true)
+  })
+
+  it.each([
+    ['non-renewing before boundary', 'non_renewing', '2026-08-01T00:00:00Z', entitlementBoundary - 1, true],
+    ['non-renewing at boundary', 'non_renewing', '2026-08-01T00:00:00Z', entitlementBoundary, false],
+    ['non-renewing after boundary', 'non_renewing', '2026-08-01T00:00:00Z', entitlementBoundary + 1, false],
+    ['non-renewing null boundary', 'non_renewing', null, entitlementBoundary - 1, false],
+    ['non-renewing invalid boundary', 'non_renewing', 'not-a-date', entitlementBoundary - 1, false],
+    ['canceled before boundary', 'canceled', '2026-08-01T00:00:00Z', entitlementBoundary - 1, true],
+    ['canceled at boundary', 'canceled', '2026-08-01T00:00:00Z', entitlementBoundary, false],
+    ['canceled after boundary', 'canceled', '2026-08-01T00:00:00Z', entitlementBoundary + 1, false],
+    ['canceled null boundary', 'canceled', null, entitlementBoundary - 1, false],
+    ['canceled invalid boundary', 'canceled', 'not-a-date', entitlementBoundary - 1, false],
+  ] as const)('%s', (_label, status, boundary, at, expected) => {
+    const value = subscription(status, {
+      dateNextCharge: status === 'non_renewing' ? boundary : null,
+      dateEnd: status === 'canceled' ? boundary : null,
+    })
+
+    expect(selectIsLunarPassEntitled({ subscription: value }, at)).toBe(expected)
+  })
+
+  it.each([Number.NaN, new Date('invalid')])(
+    'fails a bounded status closed for invalid evaluation time %s',
+    at => {
+      const value = subscription('non_renewing', {
+        dateNextCharge: '2026-08-01T00:00:00Z',
+        dateEnd: null,
+      })
+      expect(selectIsLunarPassEntitled({ subscription: value }, at)).toBe(false)
+    },
+  )
+})
 
 describe('useWalletStore', () => {
   beforeEach(() => {
