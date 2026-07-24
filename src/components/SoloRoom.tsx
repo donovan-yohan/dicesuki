@@ -4,7 +4,6 @@ import { DiceBackendProvider } from '../contexts/DiceBackendProvider'
 import { useMultiplayerDiceBackend } from '../hooks/useMultiplayerDiceBackend'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useDiceStore } from '../store/useDiceStore'
-import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { usePlayerIdentityStore } from '../store/usePlayerIdentityStore'
 import { StartupGate, type StartupPhase } from './brand/StartupSplash'
 
@@ -36,6 +35,8 @@ export function SoloRoom() {
   const connectionError = useMultiplayerStore((s) => s.connectionError)
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
   const engineConfig = useMultiplayerStore((s) => s.engineConfig)
+  const roomDice = useMultiplayerStore((s) => s.dice)
+  const rollStartedSequence = useMultiplayerStore((s) => s.rollStartedSequence)
   const connect = useMultiplayerStore((s) => s.connect)
   const disconnect = useMultiplayerStore((s) => s.disconnect)
   const rememberedName = usePlayerIdentityStore((s) => s.displayName)
@@ -74,7 +75,6 @@ export function SoloRoom() {
   // identity via `getState()` so it does not re-run when name/color change.
   useEffect(() => {
     useDiceStore.getState().reset()
-    useDiceManagerStore.getState().removeAllDice()
     if (useMultiplayerStore.getState().connectionStatus === 'disconnected') {
       const { displayName, color } = usePlayerIdentityStore.getState()
       connect(SOLO_ROOM_ID, displayName || 'You', color, undefined, 'worker')
@@ -82,7 +82,6 @@ export function SoloRoom() {
     return () => {
       disconnect()
       useDiceStore.getState().reset()
-      useDiceManagerStore.getState().removeAllDice()
     }
   }, [connect, disconnect])
 
@@ -93,7 +92,6 @@ export function SoloRoom() {
   if (startupFailed) {
     const retry = () => {
       useDiceStore.getState().reset()
-      useDiceManagerStore.getState().removeAllDice()
       const { displayName, color } = usePlayerIdentityStore.getState()
       connect(SOLO_ROOM_ID, displayName || 'You', color, undefined, 'worker')
     }
@@ -133,6 +131,9 @@ export function SoloRoom() {
       data-engine-ready={engineConfig ? 'true' : 'false'}
       data-player-color={rememberedColor}
       data-remembered-name={rememberedName}
+      data-room-dice-count={roomDice.size}
+      data-room-dice-types={Array.from(roomDice.values()).map((die) => die.diceType).sort().join(',')}
+      data-roll-started-sequence={rollStartedSequence}
       style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden' }}
     >
       <StartupGate ready={roomIsReady} phase={startupPhase}>

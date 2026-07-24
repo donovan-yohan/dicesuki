@@ -247,7 +247,7 @@ function acquisitionSource(source: DiceCopySourceKind): InventoryDie['source'] {
 /**
  * Join live immutable copy identities to the fetched catalog definitions. The
  * result exactly matches the long-standing InventoryDie consumer contract used
- * by diceSpawner and dicePresentation.
+ * by the room backend and dicePresentation.
  */
 export function mapServerCopiesToInventoryDice(
   copies: DiceCopiesByCatalogItem,

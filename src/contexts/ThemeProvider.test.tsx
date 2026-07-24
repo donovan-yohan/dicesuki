@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useTheme } from './ThemeContext'
 import { ThemeProvider } from './ThemeProvider'
 
@@ -18,38 +17,28 @@ function ThemeControls() {
 }
 
 describe('ThemeProvider', () => {
-  let updateDiceColors: ReturnType<typeof vi.spyOn>
-
   beforeEach(() => {
     localStorage.clear()
-    useDiceManagerStore.getState().removeAllDice()
-    updateDiceColors = vi
-      .spyOn(useDiceManagerStore.getState(), 'updateDiceColors')
-      .mockImplementation(() => undefined)
   })
 
   afterEach(() => {
-    updateDiceColors.mockRestore()
     localStorage.clear()
-    useDiceManagerStore.getState().removeAllDice()
   })
 
-  it('synchronizes dice colors immediately for each selected theme', () => {
+  it('applies each selected theme immediately', () => {
     render(
       <ThemeProvider>
         <ThemeControls />
       </ThemeProvider>
     )
 
-    updateDiceColors.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'Dungeon' }))
 
     expect(screen.getByTestId('active-theme')).toHaveTextContent('dungeon-castle')
-    expect(updateDiceColors).toHaveBeenCalledExactlyOnceWith('dungeon-castle')
+    expect(document.documentElement.style.getPropertyValue('--color-background')).not.toBe('')
 
     fireEvent.click(screen.getByRole('button', { name: 'Cyberpunk' }))
 
     expect(screen.getByTestId('active-theme')).toHaveTextContent('neon-cyber-city')
-    expect(updateDiceColors).toHaveBeenLastCalledWith('neon-cyber-city')
   })
 })

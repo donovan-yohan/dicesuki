@@ -8,7 +8,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { defaultTheme, type Theme } from '../themes/tokens'
 import { THEME_REGISTRY, getThemeById } from '../themes/registry'
-import { useDiceManagerStore } from '../store/useDiceManagerStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { ThemeContext, type ThemeContextValue } from './ThemeContext'
 
@@ -59,9 +58,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   useEffect(() => {
     applyCSSVariables(currentTheme)
     preloadThemeAssets(currentTheme)
-    // Keep dice synchronized in this effect. Deferring this update can let a
-    // previous theme's async callback overwrite the newly selected theme.
-    useDiceManagerStore.getState().updateDiceColors(currentTheme.id)
   }, [currentTheme])
 
   useEffect(() => {

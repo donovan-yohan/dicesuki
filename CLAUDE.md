@@ -52,7 +52,7 @@ docs/exec-plans/ → Execution plans (active + completed)
 - axum 0.7.x uses `:param` path syntax (NOT `{param}` which is 0.8+) — wrong syntax silently never matches
 - Zustand Map/Set updates require new instances (shallow equality) — never mutate in place
 - Selective git commits: verify committed files don't import uncommitted code (local build passes, CI fails)
-- All dice spawning goes through `src/lib/diceSpawner.ts` (single source of truth)
+- All table dice actions go through `DiceBackendContext` → `useMultiplayerDiceBackend` → the room `spawn_dice` / `remove_dice` / `roll` protocol path (single source of truth)
 - CHECK constraints on nullable columns need explicit `is not null` guards — three-valued logic makes `NULL = 'x'` arms pass silently (caught live by the `supabase/tests` harness)
 
 ## Workflow

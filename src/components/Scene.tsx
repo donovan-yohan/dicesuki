@@ -30,13 +30,12 @@ import {
 } from '../lib/renderLod'
 
 // Stores
-import { useDiceManagerStore, type DiceInstance } from '../store/useDiceManagerStore'
 import { useDiceStore, type DieSettledState } from '../store/useDiceStore'
 import { useDragStore } from '../store/useDragStore'
 import { useInventoryStore } from '../store/useInventoryStore'
 import type { DiceShape } from '../types/diceShape'
 import type { InventoryDie } from '../types/inventory'
-import { useMultiplayerStore } from '../store/useMultiplayerStore'
+import { useMultiplayerStore, type MultiplayerDie as MultiplayerDieState } from '../store/useMultiplayerStore'
 import { useUIStore } from '../store/useUIStore'
 import { swapsAxes } from '../lib/viewRotation'
 
@@ -808,7 +807,6 @@ function ResultDisplay() {
   const settledDice = useDiceStore((s) => s.settledDice)
   const rollingDice = useDiceStore((s) => s.rollingDice)
   const activeSavedRoll = useDiceStore((s) => s.activeSavedRoll)
-  const dice = useDiceManagerStore((s) => s.dice)
   const inventoryDice = useInventoryStore((s) => s.dice)
   const inventoryDiceById = useMemo(() => {
     const map = new Map<string, InventoryDie>()
@@ -877,7 +875,8 @@ function ResultDisplay() {
 
   if (!hasSettled && !isAnyRolling) return null
 
-  const rollingDiceOnTable = dice.filter(d => filteredRollingDice.has(d.id))
+  const rollingDiceOnTable = Array.from(multiplayerDice.values())
+    .filter((die) => filteredRollingDice.has(die.id))
 
   return (
     <div
@@ -948,9 +947,11 @@ function getResultDieLabel(die: DieSettledState) {
   return die.presentation?.displayName ?? die.type.toUpperCase()
 }
 
-function getRollingDieLabel(die: DiceInstance, inventoryDiceById: Map<string, InventoryDie>) {
-  if (!die.inventoryDieId) return die.type.toUpperCase()
-  return inventoryDiceById.get(die.inventoryDieId)?.name ?? die.type.toUpperCase()
+function getRollingDieLabel(die: MultiplayerDieState, inventoryDiceById: Map<string, InventoryDie>) {
+  const inventoryDieId = die.presentation?.inventoryDieId
+  return die.presentation?.displayName
+    ?? (inventoryDieId ? inventoryDiceById.get(inventoryDieId)?.name : undefined)
+    ?? die.diceType.toUpperCase()
 }
 
 export default Scene
