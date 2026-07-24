@@ -6,7 +6,8 @@
  */
 
 import { motion, AnimatePresence, PanInfo } from 'framer-motion'
-import { ReactNode, useRef } from 'react'
+import { ReactNode, useEffect, useId, useRef } from 'react'
+import { shouldReduceMotion } from '../../animations/ui-transitions'
 
 interface BottomSheetProps {
   isOpen: boolean
@@ -26,6 +27,69 @@ export function BottomSheet({
   showHandle = true,
 }: BottomSheetProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  const reduceMotion = shouldReduceMotion()
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const sheet = containerRef.current
+    const focusableSelector = [
+      'button:not([disabled])',
+      '[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',')
+    const focusFirst = () => {
+      const first = sheet?.querySelector<HTMLElement>(focusableSelector)
+      ;(first ?? sheet)?.focus()
+    }
+    const animationFrame = window.requestAnimationFrame(focusFirst)
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || !sheet) return
+
+      const focusable = Array.from(
+        sheet.querySelectorAll<HTMLElement>(focusableSelector),
+      )
+      if (focusable.length === 0) {
+        event.preventDefault()
+        sheet.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocusedRef.current?.focus()
+      previouslyFocusedRef.current = null
+    }
+  }, [isOpen])
 
   const sheetVariants = {
     hidden: {
@@ -36,7 +100,7 @@ export function BottomSheet({
       y: 0,
       opacity: 1,
       transition: {
-        duration: 0.3,
+        duration: reduceMotion ? 0 : 0.3,
         ease: [0.4, 0, 0.2, 1] as const, // easeOut cubic bezier
       },
     },
@@ -44,7 +108,7 @@ export function BottomSheet({
       y: '100%',
       opacity: 0,
       transition: {
-        duration: 0.2,
+        duration: reduceMotion ? 0 : 0.2,
         ease: [0.4, 0, 1, 1] as const, // easeIn cubic bezier
       },
     },
@@ -87,6 +151,10 @@ export function BottomSheet({
           <motion.div
             ref={containerRef}
             className="fixed bottom-0 left-0 right-0 z-50 flex flex-col overflow-hidden rounded-t-3xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
             style={{
               height,
               maxHeight: '90vh',
@@ -97,7 +165,7 @@ export function BottomSheet({
             initial="hidden"
             animate="visible"
             exit="exit"
-            drag="y"
+            drag={reduceMotion ? false : 'y'}
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.5 }}
             onDragEnd={handleDragEnd}
@@ -121,14 +189,16 @@ export function BottomSheet({
               }}
             >
               <h2
+                id={titleId}
                 className="text-xl font-bold"
                 style={{ color: 'var(--color-text-primary)' }}
               >
                 {title}
               </h2>
               <button
+                type="button"
                 onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full transition-all"
+                className="w-11 h-11 flex items-center justify-center rounded-full transition-all"
                 style={{
                   backgroundColor: 'rgba(255, 255, 255, 0.1)',
                   color: 'var(--color-text-secondary)',

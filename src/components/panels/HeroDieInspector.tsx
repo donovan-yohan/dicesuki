@@ -6,6 +6,7 @@ import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { getFaceRendererForShape } from '../../lib/faceRenderers'
 import { createDiceGeometry } from '../../lib/geometries'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
+import { getRarityColor } from '../../lib/rarityColor'
 import {
   resolveDiceRenderLod,
   resolveRenderDeviceTier,
@@ -363,22 +364,4 @@ function parseTags(value: string) {
     .split(',')
     .map(tag => tag.trim().toLowerCase())
     .filter(Boolean)))
-}
-
-function getRarityColor(rarity: InventoryDie['rarity'], theme: Theme) {
-  switch (rarity) {
-    case 'mythic':
-      return '#f0abfc'
-    case 'legendary':
-      return '#facc15'
-    case 'epic':
-      return '#c084fc'
-    case 'rare':
-      return '#60a5fa'
-    case 'uncommon':
-      return '#34d399'
-    case 'common':
-    default:
-      return theme.tokens.colors.text.muted
-  }
 }

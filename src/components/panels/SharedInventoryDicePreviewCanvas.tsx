@@ -8,16 +8,21 @@ import { resolveDiceMaterial, buildDiceFaceMaterial } from '../../lib/diceMateri
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 import type { DiceShape } from '../../types/diceShape'
 import type { InventoryDie } from '../../types/inventory'
+import type {
+  DiceGeometryDetail,
+  DiceRenderLodPolicy,
+} from '../../lib/renderLod'
 
 interface SharedInventoryDicePreviewCanvasProps {
   dice: InventoryDie[]
   hostRef: RefObject<HTMLElement | null>
   slotRefs: MutableRefObject<Map<string, HTMLElement>>
+  lodPolicy?: DiceRenderLodPolicy
 }
 
 interface PreviewEntry {
   group: THREE.Group
-  geometryKey: DiceShape
+  geometryKey: string
   materialKey: string
   spinSeed: number
 }
@@ -44,13 +49,26 @@ export function SharedInventoryDicePreviewCanvas({
   dice,
   hostRef,
   slotRefs,
+  lodPolicy,
 }: SharedInventoryDicePreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const entriesRef = useRef<Map<string, PreviewEntry>>(new Map())
-  const geometryCacheRef = useRef<Map<DiceShape, GeometryCacheEntry>>(new Map())
+  const geometryCacheRef = useRef<Map<string, GeometryCacheEntry>>(new Map())
   const materialCacheRef = useRef<Map<string, MaterialCacheEntry>>(new Map())
 
   useEffect(() => {
+    if (
+      lodPolicy?.geometryDetail === 'billboard' ||
+      lodPolicy?.materialMode === 'hidden'
+    ) {
+      entriesRef.current.forEach(entry => disposePreviewEntry(
+        entry,
+        geometryCacheRef.current,
+        materialCacheRef.current,
+      ))
+      entriesRef.current.clear()
+      return
+    }
     let isCancelled = false
     let scheduleHandle: ReturnType<typeof globalThis.setTimeout> | number | null = null
     let scheduleKind: 'idle' | 'timeout' | null = null
@@ -59,7 +77,14 @@ export function SharedInventoryDicePreviewCanvas({
 
     for (const [dieId, entry] of entries) {
       const die = requestedDice.get(dieId)
-      if (!die || getMaterialCacheKey(die) !== entry.materialKey) {
+      const expectedGeometryKey = die
+        ? getGeometryCacheKey(die.type, lodPolicy?.geometryDetail ?? 'full')
+        : null
+      if (
+        !die ||
+        getMaterialCacheKey(die, lodPolicy?.textureSize) !== entry.materialKey ||
+        expectedGeometryKey !== entry.geometryKey
+      ) {
         disposePreviewEntry(entry, geometryCacheRef.current, materialCacheRef.current)
         entries.delete(dieId)
       }
@@ -89,6 +114,7 @@ export function SharedInventoryDicePreviewCanvas({
           die,
           geometryCacheRef.current,
           materialCacheRef.current,
+          lodPolicy,
         ))
       }
 
@@ -106,7 +132,7 @@ export function SharedInventoryDicePreviewCanvas({
         globalThis.clearTimeout(scheduleHandle)
       }
     }
-  }, [dice])
+  }, [dice, lodPolicy])
 
   useEffect(() => {
     const entries = entriesRef.current
@@ -144,7 +170,8 @@ export function SharedInventoryDicePreviewCanvas({
 
     renderer.setClearColor(0x000000, 0)
     renderer.setScissorTest(true)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
+    const pixelRatioCap = (lodPolicy?.textureSize ?? PREVIEW_TEXTURE_SIZE) <= 128 ? 1 : 1.5
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, pixelRatioCap))
 
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100)
@@ -203,10 +230,15 @@ export function SharedInventoryDicePreviewCanvas({
         }
 
         entry.group.visible = true
+        const animationScale = reducedMotion || lodPolicy?.animationQuality === 'none'
+          ? 0
+          : lodPolicy?.animationQuality === 'reduced'
+            ? 0.5
+            : 1
         entry.group.rotation.set(
-          -0.58 + Math.sin(entry.spinSeed) * 0.2 + (reducedMotion ? 0 : elapsed * 0.28),
-          entry.spinSeed + (reducedMotion ? 0 : elapsed * 0.72),
-          0.18 + Math.cos(entry.spinSeed) * 0.18 + (reducedMotion ? 0 : elapsed * 0.12),
+          -0.58 + Math.sin(entry.spinSeed) * 0.2 + elapsed * 0.28 * animationScale,
+          entry.spinSeed + elapsed * 0.72 * animationScale,
+          0.18 + Math.cos(entry.spinSeed) * 0.18 + elapsed * 0.12 * animationScale,
         )
         scene.add(entry.group)
 
@@ -228,7 +260,12 @@ export function SharedInventoryDicePreviewCanvas({
       window.cancelAnimationFrame(frameId)
       renderer.dispose()
     }
-  }, [hostRef, slotRefs])
+  }, [hostRef, lodPolicy, slotRefs])
+
+  if (
+    lodPolicy?.geometryDetail === 'billboard' ||
+    lodPolicy?.materialMode === 'hidden'
+  ) return null
 
   return (
     <canvas
@@ -236,6 +273,9 @@ export function SharedInventoryDicePreviewCanvas({
       data-testid="inventory-preview-canvas"
       data-preview-batch-size={PREVIEW_LOAD_BATCH_SIZE}
       data-preview-mode="engine-textured-batched"
+      data-texture-size={lodPolicy?.textureSize ?? PREVIEW_TEXTURE_SIZE}
+      data-geometry-detail={lodPolicy?.geometryDetail ?? 'full'}
+      data-animation-quality={lodPolicy?.animationQuality ?? 'full'}
       className="pointer-events-none absolute inset-0 z-10 h-full w-full"
       aria-hidden="true"
     />
@@ -244,25 +284,28 @@ export function SharedInventoryDicePreviewCanvas({
 
 function createPreviewEntry(
   die: InventoryDie,
-  geometryCache: Map<DiceShape, GeometryCacheEntry>,
+  geometryCache: Map<string, GeometryCacheEntry>,
   materialCache: Map<string, MaterialCacheEntry>,
+  lodPolicy?: DiceRenderLodPolicy,
 ): PreviewEntry {
-  const geometryEntry = acquirePreviewGeometry(die.type, geometryCache)
-  const materialKey = getMaterialCacheKey(die)
-  const materialEntry = acquirePreviewMaterials(die, materialKey, materialCache)
+  const geometryDetail = lodPolicy?.geometryDetail ?? 'full'
+  const geometryEntry = acquirePreviewGeometry(die.type, geometryDetail, geometryCache)
+  const textureSize = lodPolicy?.textureSize || PREVIEW_TEXTURE_SIZE
+  const materialKey = getMaterialCacheKey(die, textureSize)
+  const materialEntry = acquirePreviewMaterials(die, materialKey, materialCache, textureSize)
   const mesh = new THREE.Mesh(geometryEntry.geometry, materialEntry.materials)
   const group = new THREE.Group()
   const radius = geometryEntry.geometry.boundingSphere?.radius ?? 1
   const scale = 1.18 / Math.max(radius, 0.001)
 
-  mesh.castShadow = false
-  mesh.receiveShadow = false
+  mesh.castShadow = lodPolicy?.castShadow ?? false
+  mesh.receiveShadow = lodPolicy?.receiveShadow ?? false
   group.scale.setScalar(scale)
   group.add(mesh)
 
   return {
     group,
-    geometryKey: die.type,
+    geometryKey: getGeometryCacheKey(die.type, geometryDetail),
     materialKey,
     spinSeed: hashStringToUnit(die.id) * Math.PI * 2,
   }
@@ -270,19 +313,30 @@ function createPreviewEntry(
 
 function acquirePreviewGeometry(
   shape: DiceShape,
-  cache: Map<DiceShape, GeometryCacheEntry>,
+  detail: DiceGeometryDetail,
+  cache: Map<string, GeometryCacheEntry>,
 ): GeometryCacheEntry {
-  const cached = cache.get(shape)
+  const key = getGeometryCacheKey(shape, detail)
+  const cached = cache.get(key)
   if (cached) {
     cached.refCount += 1
     return cached
   }
 
   const geometry = prepareGeometryForTexturing(createDiceGeometry(shape, 1), shape)
+  if (detail === 'reduced') {
+    // Retain only attributes consumed by the preview shader. Catalog assets may
+    // carry tangents/colors/morph data that a small pooled cell cannot display.
+    for (const attribute of Object.keys(geometry.attributes)) {
+      if (!['position', 'normal', 'uv'].includes(attribute)) {
+        geometry.deleteAttribute(attribute)
+      }
+    }
+  }
   geometry.center()
   geometry.computeBoundingSphere()
   const entry = { geometry, refCount: 1 }
-  cache.set(shape, entry)
+  cache.set(key, entry)
   return entry
 }
 
@@ -290,6 +344,7 @@ function acquirePreviewMaterials(
   die: InventoryDie,
   materialKey: string,
   cache: Map<string, MaterialCacheEntry>,
+  textureSize: number,
 ): MaterialCacheEntry {
   const cached = cache.get(materialKey)
   if (cached) {
@@ -319,7 +374,7 @@ function acquirePreviewMaterials(
       faceValue,
       color,
       resolution,
-      textureSize: PREVIEW_TEXTURE_SIZE,
+      textureSize,
       extras,
     }),
   )
@@ -330,7 +385,7 @@ function acquirePreviewMaterials(
 
 function disposePreviewEntry(
   entry: PreviewEntry,
-  geometryCache: Map<DiceShape, GeometryCacheEntry>,
+  geometryCache: Map<string, GeometryCacheEntry>,
   materialCache: Map<string, MaterialCacheEntry>,
 ) {
   const geometryEntry = geometryCache.get(entry.geometryKey)
@@ -365,7 +420,7 @@ function disposePreviewMaterials(materials: THREE.Material[]) {
   })
 }
 
-function getMaterialCacheKey(die: InventoryDie) {
+function getMaterialCacheKey(die: InventoryDie, textureSize = PREVIEW_TEXTURE_SIZE) {
   // PBR + face renderer + mask are derived from `die.appearance.material` by the
   // shared resolver, so the material string (already keyed) covers them.
   return [
@@ -375,8 +430,12 @@ function getMaterialCacheKey(die: InventoryDie) {
     die.appearance.emissiveIntensity ?? (die.appearance.material === 'celestial' ? 0.18 : 0),
     die.appearance.material,
     die.appearance.material === 'glass' ? 0.66 : 1,
-    PREVIEW_TEXTURE_SIZE,
+    textureSize,
   ].join('|')
+}
+
+function getGeometryCacheKey(shape: DiceShape, detail: DiceGeometryDetail) {
+  return `${shape}:${detail}`
 }
 
 function normalizeHexColor(value: string | undefined, fallback: string) {

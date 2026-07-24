@@ -1,5 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTheme } from '../../contexts/ThemeContext'
+import type { DiceShape } from '../../types/diceShape'
+import type { RenderDeviceTier } from '../../lib/renderLod'
 import { isPaymentsEnabled } from '../../lib/paymentsConfig'
 import { WalletConversionError } from '../../lib/walletBalances'
 import { useAuthStore } from '../../store/useAuthStore'
@@ -12,10 +14,15 @@ import {
 import { WalletBalanceSummary } from '../economy/WalletHud'
 import { BottomSheet } from './BottomSheet'
 import { LunarPassCard } from './LunarPassCard'
+import { PullBannerScreen } from './PullBannerScreen'
 
 interface ShopPanelProps {
   isOpen: boolean
   onClose: () => void
+  initialTab?: 'shop' | 'banners'
+  onAddDie?: (type: DiceShape, inventoryDieId: string) => string | null
+  tableDiceCount?: number
+  deviceTier?: RenderDeviceTier
 }
 
 type ConversionNotice =
@@ -26,6 +33,10 @@ type ConversionNotice =
 export const ShopPanel = memo(function ShopPanel({
   isOpen,
   onClose,
+  initialTab = 'shop',
+  onAddDie = () => null,
+  tableDiceCount = 0,
+  deviceTier = 'high',
 }: ShopPanelProps) {
   const authStatus = useAuthStore(state => state.status)
   const walletUserId = useWalletStore(state => state.userId)
@@ -41,6 +52,7 @@ export const ShopPanel = memo(function ShopPanel({
   const [quantity, setQuantity] = useState(1)
   const [pending, setPending] = useState(false)
   const [notice, setNotice] = useState<ConversionNotice>(null)
+  const [activeTab, setActiveTab] = useState<'shop' | 'banners'>(initialTab)
   const pendingRef = useRef(false)
   const { currentTheme } = useTheme()
   const { colors, effects, spacing, typography } = currentTheme.tokens
@@ -55,6 +67,10 @@ export const ShopPanel = memo(function ShopPanel({
   useEffect(() => {
     setQuantity(current => Math.min(Math.max(current, 1), quantityCeiling))
   }, [quantityCeiling])
+
+  useEffect(() => {
+    if (isOpen) setActiveTab(initialTab)
+  }, [initialTab, isOpen])
 
   const changeQuantity = useCallback((delta: number) => {
     setNotice(null)
@@ -92,7 +108,19 @@ export const ShopPanel = memo(function ShopPanel({
     }
   }, [convertStars, maximumConvertible, quantity, walletUserId])
 
-  if (authStatus !== 'authenticated') return null
+  if (!isOpen) return null
+
+  if (activeTab === 'banners' || authStatus !== 'authenticated') {
+    return (
+      <PullBannerScreen
+        onClose={onClose}
+        onOpenShop={() => setActiveTab('shop')}
+        onAddDie={onAddDie}
+        tableDiceCount={tableDiceCount}
+        deviceTier={deviceTier}
+      />
+    )
+  }
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Shop">
@@ -105,6 +133,18 @@ export const ShopPanel = memo(function ShopPanel({
           color: colors.text.primary,
         }}
       >
+        <nav aria-label="Shop sections" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.unit }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('banners')}
+            style={{ minHeight: 44 }}
+          >
+            Banners
+          </button>
+          <button type="button" aria-current="page" style={{ minHeight: 44 }}>
+            Wallet &amp; bundles
+          </button>
+        </nav>
         <section
           aria-labelledby="shop-wallet-heading"
           style={{

@@ -5,6 +5,7 @@ export type DiceCopySourceKind = 'pull' | 'craft' | 'purchase' | 'reward'
 
 export interface DiceCopy {
   id: string
+  grantIdempotencyKey: string
   sourceKind: DiceCopySourceKind
   acquiredAt: string
   isFirstCopy: boolean
@@ -63,7 +64,9 @@ export async function fetchMyDiceCopies(
   try {
     const result = await resolved
       .from('dice_copies')
-      .select('id, catalog_item_id, source_kind, acquired_at, is_first_copy, scrapped_at')
+      .select(
+        'id, catalog_item_id, grant_idempotency_key, source_kind, acquired_at, is_first_copy, scrapped_at',
+      )
     if (result.error) {
       throw new DiceCopiesReadError(result.error.message, result.error.code)
     }
@@ -83,6 +86,7 @@ export async function fetchMyDiceCopies(
     const row = object(value)
     const id = string(row.id)
     const catalogItemId = string(row.catalog_item_id)
+    const grantIdempotencyKey = string(row.grant_idempotency_key)
     const sourceKind = string(row.source_kind)
     if (!['pull', 'craft', 'purchase', 'reward'].includes(sourceKind)) {
       throw new DiceCopiesReadError('backend returned an unsupported source kind')
@@ -110,6 +114,7 @@ export async function fetchMyDiceCopies(
     if (row.scrapped_at === null) {
       group.copies.push({
         id,
+        grantIdempotencyKey,
         sourceKind: sourceKind as DiceCopySourceKind,
         acquiredAt,
         isFirstCopy: row.is_first_copy,

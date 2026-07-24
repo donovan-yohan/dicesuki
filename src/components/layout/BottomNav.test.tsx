@@ -41,11 +41,12 @@ describe('BottomNav shop entry', () => {
   })
 
   it.each([false, true])(
-    'keeps the shop hidden for guests when payments enabled is %s',
+    'opens the guest-browseable Banners destination when payments enabled is %s',
     (paymentsEnabled) => {
       vi.mocked(isPaymentsEnabled).mockReturnValue(paymentsEnabled)
-      renderNav()
-      expect(screen.queryByRole('button', { name: 'Shop' })).not.toBeInTheDocument()
+      const onOpenShop = renderNav()
+      fireEvent.click(screen.getByRole('button', { name: 'Shop' }))
+      expect(onOpenShop).toHaveBeenCalledOnce()
     },
   )
 

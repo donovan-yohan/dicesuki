@@ -33,6 +33,7 @@ function liveGroup(itemId: string, copyId = 'server-copy-id') {
       firstCopyAcquiredAt: '2026-07-20T00:00:00Z',
       copies: [{
         id: copyId,
+        grantIdempotencyKey: `reward:${copyId}`,
         sourceKind: 'reward' as const,
         acquiredAt: '2026-07-20T00:00:00Z',
         isFirstCopy: true,

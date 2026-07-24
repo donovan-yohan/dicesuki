@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import * as THREE from 'three'
 
 import type { InventoryDie, NewInventoryDie } from '../../types/inventory'
+import { resolveDiceRenderLod, type DiceRenderLodPolicy } from '../../lib/renderLod'
 import { SharedInventoryDicePreviewCanvas } from './SharedInventoryDicePreviewCanvas'
 
 const renderDiceFaceToTextureMock = vi.hoisted(() => vi.fn(() => new THREE.Texture()))
@@ -83,13 +84,24 @@ const makeDie = (overrides: Partial<NewInventoryDie> = {}): InventoryDie => ({
   customAsset: overrides.customAsset,
 })
 
-function PreviewHarness({ dice }: { dice: InventoryDie[] }) {
+function PreviewHarness({
+  dice,
+  lodPolicy,
+}: {
+  dice: InventoryDie[]
+  lodPolicy?: DiceRenderLodPolicy
+}) {
   const hostRef = useRef<HTMLDivElement>(null)
   const slotRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   return (
     <div ref={hostRef} data-testid="preview-host">
-      <SharedInventoryDicePreviewCanvas dice={dice} hostRef={hostRef} slotRefs={slotRefs} />
+      <SharedInventoryDicePreviewCanvas
+        dice={dice}
+        hostRef={hostRef}
+        slotRefs={slotRefs}
+        lodPolicy={lodPolicy}
+      />
       {dice.map(die => (
         <span
           key={die.id}
@@ -129,6 +141,34 @@ describe('SharedInventoryDicePreviewCanvas', () => {
       'engine-textured-batched'
     )
     expect(screen.getByTestId('inventory-preview-canvas')).toHaveAttribute('data-preview-batch-size', '6')
+  })
+
+  it('applies the supplied texture, geometry, and animation LOD policy', () => {
+    const lodPolicy = resolveDiceRenderLod({
+      context: 'grid',
+      deviceTier: 'mid',
+      isVisible: true,
+    })
+    render(<PreviewHarness dice={[makeDie({ id: 'd1' })]} lodPolicy={lodPolicy} />)
+
+    const canvas = screen.getByTestId('inventory-preview-canvas')
+    expect(canvas).toHaveAttribute('data-texture-size', '128')
+    expect(canvas).toHaveAttribute('data-geometry-detail', 'reduced')
+    expect(canvas).toHaveAttribute('data-animation-quality', 'reduced')
+    expect(threeMocks.rendererInstances[0]?.setPixelRatio).toHaveBeenCalledWith(1)
+  })
+
+  it('does not initialize WebGL for billboard/hidden policies', () => {
+    const lodPolicy = resolveDiceRenderLod({
+      context: 'offscreen',
+      deviceTier: 'low',
+      isVisible: false,
+    })
+    render(<PreviewHarness dice={[makeDie({ id: 'd1' })]} lodPolicy={lodPolicy} />)
+
+    expect(screen.queryByTestId('inventory-preview-canvas')).not.toBeInTheDocument()
+    expect(threeMocks.WebGLRenderer).not.toHaveBeenCalled()
+    expect(renderDiceFaceToTextureMock).not.toHaveBeenCalled()
   })
 
   it('reuses one material texture set for identical stock dice', async () => {
