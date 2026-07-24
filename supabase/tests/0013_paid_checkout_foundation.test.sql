@@ -19,9 +19,9 @@ create temporary table order_ctx (
 );
 
 -- ---------------------------------------------------------------------------
--- Foundation: the paid bucket is a legal domain value but still inert. No paid
--- balance row can exist because the immutable currency/bucket pair rule and the
--- ledger append boundary admit no paid currency in this slice.
+-- Historical foundation under the latest schema: the paid bucket remains a
+-- legal domain value, and migration 0027 now admits exactly the stars/paid pair.
+-- Direct table DML remains unavailable to authenticated callers.
 -- ---------------------------------------------------------------------------
 do $$
 begin
@@ -36,14 +36,18 @@ begin
 end;
 $$;
 
--- Seed a wallet account through the one existing append boundary, then prove a
--- paid balance row is still rejected by the untouched pair constraint.
+-- Seed a wallet account through the canonical append boundary.
 select public.append_wallet_ledger_entry(
   'c0130000-0000-4000-8000-000000000005',
   'stars', 'promotional', 160,
   'test.paid-foundation', 'paid-foundation:seed',
   'earned-collection@1', '{}'::jsonb
 );
+
+-- The widened pair CHECK does not weaken table privileges or RLS.
+set local "request.jwt.claims" =
+  '{"sub":"c0130000-0000-4000-8000-000000000005","is_anonymous":false}';
+set local role authenticated;
 
 do $$
 begin
@@ -52,10 +56,49 @@ begin
     select id, user_id, 'stars', 'paid'
     from public.wallet_accounts
     where user_id = 'c0130000-0000-4000-8000-000000000005';
-    raise exception 'A paid wallet balance row was unexpectedly accepted';
+    raise exception 'Authenticated caller directly inserted a paid wallet balance';
+  exception when insufficient_privilege then
+    null;
+  end;
+end;
+$$;
+
+reset role;
+
+-- Trusted direct DML now crosses the widened stars/paid pair CHECK, while the
+-- adjacent dust/paid pair remains invalid.
+insert into public.wallet_balances (account_id, user_id, currency_id, balance_bucket)
+select id, user_id, 'stars', 'paid'
+from public.wallet_accounts
+where user_id = 'c0130000-0000-4000-8000-000000000005';
+
+do $$
+begin
+  begin
+    insert into public.wallet_balances (account_id, user_id, currency_id, balance_bucket)
+    select id, user_id, 'dust', 'paid'
+    from public.wallet_accounts
+    where user_id = 'c0130000-0000-4000-8000-000000000005';
+    raise exception 'The invalid dust/paid balance pair was unexpectedly accepted';
   exception when check_violation then
     null;
   end;
+
+  if (select count(*)
+      from public.wallet_balances
+      where user_id = 'c0130000-0000-4000-8000-000000000005'
+        and currency_id = 'stars'
+        and balance_bucket = 'paid'
+        and current_balance = 0) <> 1 or
+     exists (
+       select 1
+       from public.wallet_balances
+       where user_id = 'c0130000-0000-4000-8000-000000000005'
+         and currency_id = 'dust'
+         and balance_bucket = 'paid'
+     ) then
+    raise exception 'Latest wallet pair boundary did not admit only stars/paid';
+  end if;
 end;
 $$;
 

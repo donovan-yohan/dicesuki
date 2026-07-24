@@ -121,23 +121,36 @@ begin
     null;
   end;
 
+  perform public.append_wallet_ledger_entry(
+    '11111111-1111-4111-8111-111111111111',
+    'stars',
+    'paid',
+    1,
+    'test.paid-credit',
+    'test:paid:0001',
+    'earned-collection@1',
+    '{"source":"historical-suite"}'::jsonb
+  );
+
   begin
     perform public.append_wallet_ledger_entry(
       '11111111-1111-4111-8111-111111111111',
-      'stars',
+      'dust',
       'paid',
       1,
-      'test.paid-credit',
-      'test:paid:0001',
+      'test.invalid-paid',
+      'test:invalid-paid:0001',
       'earned-collection@1',
       '{}'::jsonb
     );
-    raise exception 'Paid wallet bucket unexpectedly exists';
+    raise exception 'Invalid dust/paid wallet bucket unexpectedly exists';
   exception when sqlstate '22023' then
     null;
   end;
 
-  if (select count(*) from public.wallet_ledger_entries where user_id = '11111111-1111-4111-8111-111111111111') <> 1 then
+  if (select count(*) from public.wallet_accounts where user_id = '11111111-1111-4111-8111-111111111111') <> 1 or
+     (select count(*) from public.wallet_balances where user_id = '11111111-1111-4111-8111-111111111111') <> 2 or
+     (select count(*) from public.wallet_ledger_entries where user_id = '11111111-1111-4111-8111-111111111111') <> 2 then
     raise exception 'Replay or rejected writes changed ledger cardinality';
   end if;
   if not exists (
@@ -156,7 +169,38 @@ begin
   ) then
     raise exception 'Ledger entry lost reason, idempotency, edition, or provenance';
   end if;
-  if (select current_balance from public.wallet_balances where user_id = '11111111-1111-4111-8111-111111111111') <> 160 then
+  if not exists (
+    select 1
+    from public.wallet_ledger_entries
+    where user_id = '11111111-1111-4111-8111-111111111111'
+      and currency_id = 'stars'
+      and balance_bucket = 'paid'
+      and delta_amount = 1
+      and balance_before = 0
+      and balance_after = 1
+      and reason_code = 'test.paid-credit'
+      and idempotency_key = 'test:paid:0001'
+      and economy_edition_id = 'earned-collection@1'
+      and provenance = '{"source":"historical-suite"}'::jsonb
+  ) then
+    raise exception 'Paid Star ledger entry did not materialize exactly';
+  end if;
+  if not exists (
+       select 1
+       from public.wallet_balances
+       where user_id = '11111111-1111-4111-8111-111111111111'
+         and currency_id = 'stars'
+         and balance_bucket = 'promotional'
+         and current_balance = 160
+     ) or
+     not exists (
+       select 1
+       from public.wallet_balances
+       where user_id = '11111111-1111-4111-8111-111111111111'
+         and currency_id = 'stars'
+         and balance_bucket = 'paid'
+         and current_balance = 1
+     ) then
     raise exception 'Replay or rejected writes changed materialized balance';
   end if;
 end;
@@ -169,8 +213,8 @@ set local role authenticated;
 do $$
 begin
   if (select count(*) from public.wallet_accounts) <> 1 or
-     (select count(*) from public.wallet_balances) <> 1 or
-     (select count(*) from public.wallet_ledger_entries) <> 1 then
+     (select count(*) from public.wallet_balances) <> 2 or
+     (select count(*) from public.wallet_ledger_entries) <> 2 then
     raise exception 'Authenticated owner cannot read their own wallet';
   end if;
 
