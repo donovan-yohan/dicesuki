@@ -12,8 +12,10 @@ export interface DiceBackendState {
 
   /** Roll actions */
   roll: () => void
-  addDie: (type: DiceShape, inventoryDieId?: string) => void
-  addGenericDie: (type: DiceShape) => void
+  /** Returns the client request id when the spawn was sent, otherwise null. */
+  addDie: (type: DiceShape, inventoryDieId?: string) => string | null
+  /** Returns the client request id when the spawn was sent, otherwise null. */
+  addGenericDie: (type: DiceShape) => string | null
   removeDie: (id: string) => void
   clearAll: () => void
 

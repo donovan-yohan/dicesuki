@@ -117,6 +117,7 @@ interface MultiplayerState {
   socket: RoomSocket | null
   serverUrl: string
   connectionError: string | null
+  roomActionError: { code: string; message: string } | null
 
   // Room
   roomId: string | null
@@ -157,6 +158,8 @@ interface MultiplayerState {
 
   // Parse error tracking
   parseErrorCount: number
+  rollStartedSequence: number
+  lastRollStartedDiceIds: string[]
 
   // Actions
   connect: (roomId: string, displayName: string, color: string, serverUrl?: string, transport?: RoomTransportKind) => void
@@ -169,7 +172,7 @@ interface MultiplayerState {
   handleServerMessage: (msg: ServerMessage) => void
 
   // Game actions
-  spawnDice: (diceType: DiceShape, presentation?: DicePresentationMetadata) => void
+  spawnDice: (diceType: DiceShape, presentation?: DicePresentationMetadata) => string | null
   /**
    * Recreate a batch of carried dice (Shared-ADR-005) in one spawn message, each
    * at its explicit resting position/rotation. Used by the "Go Online" flow to
@@ -178,6 +181,7 @@ interface MultiplayerState {
   spawnCarriedDice: (dice: CarriedDie[]) => void
   removeDice: (diceIds: string[]) => void
   roll: () => void
+  clearRoomActionError: () => void
   updateColor: (color: string) => void
   updateSettings: (settings: RoomSettings) => void
   /** Host-only: set the room's device-motion policy. No-op for non-hosts. */
@@ -237,6 +241,7 @@ const createInitialState = () => ({
   socket: null as RoomSocket | null,
   serverUrl: getWsServerUrl(),
   connectionError: null as string | null,
+  roomActionError: null as { code: string; message: string } | null,
   roomId: null as string | null,
   players: new Map<string, PlayerInfo>(),
   localPlayerId: null as string | null,
@@ -256,6 +261,8 @@ const createInitialState = () => ({
   snapshotInterval: 1000 / 60, // ~16.67ms — must match server SNAPSHOT_DIVISOR=1 (60Hz)
   selectedPlayerId: null as string | null,
   parseErrorCount: 0,
+  rollStartedSequence: 0,
+  lastRollStartedDiceIds: [] as string[],
 })
 
 type StoreSet = (partial: Partial<MultiplayerState>) => void
@@ -512,7 +519,23 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   sendMessage: (msg: ClientMessage) => {
     const { socket, connectionStatus } = get()
     if (socket && connectionStatus === 'connected') {
-      socket.send(JSON.stringify(msg))
+      try {
+        socket.send(JSON.stringify(msg))
+      } catch (error) {
+        set({
+          roomActionError: {
+            code: 'SEND_FAILED',
+            message: error instanceof Error ? error.message : 'Could not send the room action.',
+          },
+        })
+      }
+    } else {
+      set({
+        roomActionError: {
+          code: 'ROOM_DISCONNECTED',
+          message: 'The room is not connected. Reconnect and try again.',
+        },
+      })
     }
   },
 
@@ -668,7 +691,11 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             newDice.set(id, { ...die, isRolling: true, faceValue: null })
           }
         }
-        set({ dice: newDice })
+        set((state) => ({
+          dice: newDice,
+          rollStartedSequence: state.rollStartedSequence + 1,
+          lastRollStartedDiceIds: [...msg.diceIds],
+        }))
 
         // Also mark in unified dice store
         useDiceStore.getState().markDiceRolling(msg.diceIds)
@@ -771,6 +798,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
       case 'error': {
         console.error(`[Multiplayer] Server error: ${msg.code} - ${msg.message}`)
+        set({ roomActionError: { code: msg.code, message: msg.message } })
         if (get().pendingInventoryDieIds.size > 0) {
           set({ pendingInventoryDieIds: new Set<string>() })
         }
@@ -802,7 +830,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   spawnDice: (diceType: DiceShape, presentation?: DicePresentationMetadata) => {
     const { connectionStatus, dice, localPlayerId, pendingInventoryDieIds, socket } = get()
     if (!socket || connectionStatus !== 'connected') {
-      return
+      set({
+        roomActionError: {
+          code: 'ROOM_DISCONNECTED',
+          message: 'The room is not connected. Reconnect and try again.',
+        },
+      })
+      return null
     }
 
     const inventoryDieId = presentation?.inventoryDieId
@@ -813,16 +847,38 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       ))
       if (pendingInventoryDieIds.has(inventoryDieId) || inventoryDieAlreadyOwned) {
         console.warn(`[Multiplayer] Inventory die ${inventoryDieId} is already pending or on the table`)
-        return
+        set({
+          roomActionError: {
+            code: 'DIE_ALREADY_IN_USE',
+            message: 'That inventory die is already on the table.',
+          },
+        })
+        return null
       }
       set({ pendingInventoryDieIds: new Set(pendingInventoryDieIds).add(inventoryDieId) })
     }
 
     const id = createDiceSpawnId(inventoryDieId ?? diceType)
-    socket.send(JSON.stringify({
-      type: 'spawn_dice',
-      dice: [{ id, diceType, presentation }],
-    }))
+    try {
+      socket.send(JSON.stringify({
+        type: 'spawn_dice',
+        dice: [{ id, diceType, presentation }],
+      }))
+      return id
+    } catch (error) {
+      if (inventoryDieId) {
+        const nextPending = new Set(get().pendingInventoryDieIds)
+        nextPending.delete(inventoryDieId)
+        set({ pendingInventoryDieIds: nextPending })
+      }
+      set({
+        roomActionError: {
+          code: 'SPAWN_SEND_FAILED',
+          message: error instanceof Error ? error.message : 'Could not spawn the die.',
+        },
+      })
+      return null
+    }
   },
 
   spawnCarriedDice: (dice: CarriedDie[]) => {
@@ -859,6 +915,10 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   roll: () => {
     get().sendMessage({ type: 'roll' })
+  },
+
+  clearRoomActionError: () => {
+    set({ roomActionError: null })
   },
 
   updateColor: (color: string) => {

@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useMultiplayerDiceBackend } from '../../hooks/useMultiplayerDiceBackend'
 import { DiceBackendProvider } from '../../contexts/DiceBackendProvider'
-import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore } from '../../store/useDiceStore'
 import { usePlayerIdentityStore } from '../../store/usePlayerIdentityStore'
 import { getRoomServerConfig, READINESS_MAX_RETRIES } from '../../lib/multiplayerServer'
@@ -62,11 +61,9 @@ export function MultiplayerRoom() {
   // and browser page lifecycle commonly remount this route).
   useEffect(() => {
     useDiceStore.getState().reset()
-    useDiceManagerStore.getState().removeAllDice()
     return () => {
       detach()
       useDiceStore.getState().reset()
-      useDiceManagerStore.getState().removeAllDice()
     }
   }, [detach])
 

@@ -19,7 +19,6 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
   const roomId = useMultiplayerStore((s) => s.roomId)
   const connectionStatus = useMultiplayerStore((s) => s.connectionStatus)
-  const dice = useMultiplayerStore((s) => s.dice)
 
   const rollHistory = useDiceStore((s) => s.rollHistory)
 
@@ -43,25 +42,25 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
 
     if (inventoryDieId && !inventoryDie) {
       console.warn(`[useMultiplayerDiceBackend] Inventory die ${inventoryDieId} not found; not spawning`)
-      return
+      return null
     }
 
     if (inventoryDie && inUseInventoryIds.has(inventoryDie.id)) {
       console.warn(`[useMultiplayerDiceBackend] Die "${inventoryDie.name}" is already on the table`)
-      return
+      return null
     }
 
     if (!inventoryDieId && inventoryCandidates.length > 0 && !inventoryDie) {
       console.warn(`[useMultiplayerDiceBackend] All ${type.toUpperCase()} dice are already on the table`)
-      return
+      return null
     }
 
-    spawnDice(inventoryDie?.type ?? type, inventoryDie ? createDicePresentationMetadata(inventoryDie) : undefined)
+    return spawnDice(inventoryDie?.type ?? type, inventoryDie ? createDicePresentationMetadata(inventoryDie) : undefined)
   }, [spawnDice])
 
   const addGenericDie = useCallback((type: DiceShape) => {
     useDiceStore.getState().clearActiveSavedRoll()
-    spawnDice(type)
+    return spawnDice(type)
   }, [spawnDice])
 
   const removeDie = useCallback((id: string) => {
@@ -69,13 +68,19 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
   }, [mpRemoveDice])
 
   const clearAll = useCallback(() => {
-    const myDiceIds = Array.from(dice.values())
-      .filter((d) => d.ownerId === localPlayerId)
+    // Read the live store, not the hook-closure snapshot: callers (saved-roll
+    // execution) capture their wait-predicates from getState(), and a die
+    // spawned between render commit and this call would otherwise diverge the
+    // remove set from the awaited clear condition.
+    const { dice: liveDice, localPlayerId: livePlayerId } =
+      useMultiplayerStore.getState()
+    const myDiceIds = Array.from(liveDice.values())
+      .filter((d) => d.ownerId === livePlayerId)
       .map((d) => d.id)
     if (myDiceIds.length > 0) {
       mpRemoveDice(myDiceIds)
     }
-  }, [dice, localPlayerId, mpRemoveDice])
+  }, [mpRemoveDice])
 
   const clearHistory = useCallback(() => {
     useDiceStore.getState().clearHistory()

@@ -90,6 +90,33 @@ test('loads a connected solo room on / with no native server and no network room
   expect(roomSockets.urls).toEqual([])
 })
 
+test('executes a saved roll through the wasm room backend', async ({ page }) => {
+  test.setTimeout(60_000)
+
+  await page.goto('/')
+  const room = page.getByTestId('solo-room')
+  await expect(room).toHaveAttribute('data-connection-status', 'connected', { timeout: 30_000 })
+  await expect(room).toHaveAttribute('data-room-dice-count', '1')
+  await expect(room).toHaveAttribute('data-room-dice-types', 'd20')
+
+  await page.getByRole('button', { name: 'My Dice Rolls' }).click()
+  await page.getByRole('button', { name: /create new roll/i }).click()
+  await page.getByPlaceholder(/roll name/i).fill('WASM saved roll')
+  await page.getByRole('button', { name: 'Add 4 D6 dice' }).click()
+  await page.getByText('Bonus per die:').locator('..').getByRole('spinbutton').fill('2')
+  await page.getByRole('button', { name: 'Save Roll' }).click()
+  await page.getByRole('button', { name: 'Roll WASM saved roll' }).click()
+
+  // The seeded d20 is gone, the requested anonymous dice are the only table
+  // entries, and roll_started advanced — proving clear → spawn ×4 → roll all
+  // traversed the real worker/WASM room protocol.
+  await expect(room).toHaveAttribute('data-room-dice-count', '4')
+  await expect(room).toHaveAttribute('data-room-dice-types', 'd6,d6,d6,d6')
+  await expect(room).toHaveAttribute('data-roll-started-sequence', '1')
+  await expect(page.getByText('WASM saved roll', { exact: true })).toBeVisible()
+  await expect(page.getByText('+2', { exact: true })).toHaveCount(4)
+})
+
 function observeRoomWebSockets(page: Page) {
   const state = { urls: [] as string[] }
   page.on('websocket', (webSocket) => {

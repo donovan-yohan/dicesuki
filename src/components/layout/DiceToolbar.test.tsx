@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ThemeContext } from '../../contexts/ThemeContext'
-import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDragStore } from '../../store/useDragStore'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { useMultiplayerStore, type MultiplayerDie } from '../../store/useMultiplayerStore'
@@ -100,7 +99,6 @@ describe('DiceToolbar', () => {
   beforeEach(() => {
     window.localStorage.clear()
     useInventoryStore.getState().reset()
-    useDiceManagerStore.getState().removeAllDice()
     useDragStore.setState({ draggedDiceId: null })
     useMultiplayerStore.getState().reset()
   })
@@ -118,7 +116,16 @@ describe('DiceToolbar', () => {
 
   it('disables a dice type when all owned dice of that type are already on the table', () => {
     const ownedDie = addNamedDie('Only D6', 'd6', 'common')
-    useDiceManagerStore.getState().addDice('d6', 'default', 'table-d6', ownedDie.id)
+    useMultiplayerStore.setState({
+      localPlayerId: 'p1',
+      dice: new Map([[
+        'table-d6',
+        makeMultiplayerDie({
+          id: 'table-d6',
+          presentation: { inventoryDieId: ownedDie.id },
+        }),
+      ]]),
+    })
     const onAddDice = vi.fn()
 
     renderToolbar({ onAddDice })

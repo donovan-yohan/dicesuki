@@ -10,7 +10,6 @@ import { useMemo, useRef, useState } from 'react'
 
 import { buttonPressScale, shouldReduceMotion } from '../../animations/ui-transitions'
 import { useTheme } from '../../contexts/ThemeContext'
-import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDragStore } from '../../store/useDragStore'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
@@ -38,7 +37,6 @@ const ALL_DICE_TYPES: Array<{ type: DiceShape; label: string }> = [
 export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory }: DiceToolbarProps) {
   const reduceMotion = shouldReduceMotion()
   const { dice: inventoryDice } = useInventoryStore()
-  const localDiceOnTable = useDiceManagerStore(state => state.dice)
   const multiplayerDiceOnTable = useMultiplayerStore(state => state.dice)
   const localPlayerId = useMultiplayerStore(state => state.localPlayerId)
   const pendingInventoryDieIds = useMultiplayerStore(state => state.pendingInventoryDieIds)
@@ -46,10 +44,6 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory
 
   const unavailableInventoryIds = useMemo(() => {
     const ids = new Set<string>()
-
-    localDiceOnTable.forEach(die => {
-      if (die.inventoryDieId) ids.add(die.inventoryDieId)
-    })
 
     multiplayerDiceOnTable.forEach(die => {
       if (localPlayerId && die.ownerId !== localPlayerId) return
@@ -59,7 +53,7 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory
     pendingInventoryDieIds.forEach(id => ids.add(id))
 
     return ids
-  }, [localDiceOnTable, localPlayerId, multiplayerDiceOnTable, pendingInventoryDieIds])
+  }, [localPlayerId, multiplayerDiceOnTable, pendingInventoryDieIds])
 
   const availableDiceTypes = useMemo(() => {
     const ownedDiceByType = new Map<DiceShape, InventoryDie[]>()

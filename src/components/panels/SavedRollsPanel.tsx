@@ -5,19 +5,72 @@
  * Shows list of saved rolls with search/filter and creation UI.
  */
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { BottomSheet } from './BottomSheet'
 import { SavedRollCard } from './saved-rolls/SavedRollCard'
 import { RollBuilder } from './saved-rolls/RollBuilder'
+import { useDiceBackend } from '../../contexts/DiceBackendContext'
 import type { TableDieSummary } from '../../types/tableDice'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
-import { useDiceManagerStore } from '../../store/useDiceManagerStore'
 import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
+import { useMultiplayerStore, type MultiplayerDie } from '../../store/useMultiplayerStore'
 import { createClientId } from '../../lib/clientId'
-import { spawnSpecificDie } from '../../lib/diceSpawner'
 import { expandDiceEntrySources } from '../../lib/rollSources'
 import { SavedRoll } from '../../types/savedRolls'
-import { useTheme } from '../../contexts/ThemeContext'
+
+const ROOM_ACK_TIMEOUT_MS = 5_000
+
+function sameIdSet(actual: string[], expected: string[]): boolean {
+  return actual.length === expected.length && expected.every((id) => actual.includes(id))
+}
+
+function waitForRoomState(
+  description: string,
+  predicate: (state: ReturnType<typeof useMultiplayerStore.getState>) => boolean,
+  timeoutMs = ROOM_ACK_TIMEOUT_MS,
+): Promise<void> {
+  const evaluate = (state: ReturnType<typeof useMultiplayerStore.getState>) => {
+    if (state.roomActionError) throw new Error(state.roomActionError.message)
+    return predicate(state)
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let unsubscribe = () => {}
+    const finish = (error?: Error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      unsubscribe()
+      if (error) reject(error)
+      else resolve()
+    }
+    const check = (state: ReturnType<typeof useMultiplayerStore.getState>) => {
+      try {
+        if (evaluate(state)) finish()
+      } catch (error) {
+        finish(error instanceof Error ? error : new Error(String(error)))
+      }
+    }
+    const timeout = setTimeout(
+      () => finish(new Error(`Timed out waiting for the room to ${description}.`)),
+      timeoutMs,
+    )
+    unsubscribe = useMultiplayerStore.subscribe(check)
+    check(useMultiplayerStore.getState())
+  })
+}
+
+function waitForSavedRollSpawns(
+  requestedIds: string[],
+  ownerId: string,
+  timeoutMs = ROOM_ACK_TIMEOUT_MS,
+): Promise<void> {
+  return waitForRoomState('spawn every saved-roll die', (state) => requestedIds.every((id) => {
+    const die = state.dice.get(id)
+    return die !== undefined && die.ownerId === ownerId
+  }), timeoutMs)
+}
 
 interface SavedRollsPanelProps {
   isOpen: boolean
@@ -30,8 +83,12 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [view, setView] = useState<'list' | 'builder'>('list')
   const [editingRoll, setEditingRoll] = useState<SavedRoll | null>(null)
-
-  const { currentTheme } = useTheme()
+  const [executionError, setExecutionError] = useState<string | null>(null)
+  const [isExecuting, setIsExecuting] = useState(false)
+  // Hard reentrancy latch: state updates commit asynchronously, so a rapid
+  // pre-commit double-tap could re-enter before isExecuting renders true.
+  const executingRef = useRef(false)
+  const backend = useDiceBackend()
 
   const {
     savedRolls,
@@ -63,59 +120,81 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
   const allTags = getAllTags()
 
   // Execute a saved roll
-  function handleRoll(roll: SavedRoll) {
-    markRollAsUsed(roll.id)
+  async function handleRoll(roll: SavedRoll) {
+    if (executingRef.current) return
+    executingRef.current = true
+    setExecutionError(null)
+    setIsExecuting(true)
 
-    // Clear existing dice and their states
-    useDiceStore.getState().clearAllDieStates()
-    useDiceManagerStore.getState().removeAllDice()
+    const room = useMultiplayerStore.getState()
+    const ownerId = backend.multiplayer?.localPlayerId ?? room.localPlayerId
+    if (!ownerId || room.connectionStatus !== 'connected') {
+      setExecutionError('The room is not connected. Reconnect and try again.')
+      executingRef.current = false
+      setIsExecuting(false)
+      return
+    }
 
-    // Spawn dice for each entry via inventory spawner
-    const perDieBonuses = new Map<string, number>()
+    const existingOwnedIds = Array.from(room.dice.values())
+      .filter((die: MultiplayerDie) => die.ownerId === ownerId)
+      .map((die) => die.id)
+    const requested: Array<{ id: string; bonus: number }> = []
 
-    let spawnFailures = 0
+    try {
+      room.clearRoomActionError()
+      useDiceStore.getState().clearAllDieStates()
+      backend.clearAll()
+      await waitForRoomState('clear the current table', (state) => (
+        existingOwnedIds.every((id) => !state.dice.has(id))
+      ))
 
-    roll.dice.forEach((entry) => {
-      expandDiceEntrySources(entry).forEach((source) => {
-        let result = source.kind === 'specific'
-          ? spawnSpecificDie(source.dieId, entry.type, currentTheme.id)
-          : {
-              success: true,
-              diceInstanceId: useDiceManagerStore.getState().addDice(entry.type, currentTheme.id),
-            }
-
-        if (!result.success && source.kind === 'specific') {
-          result = {
-            success: true,
-            diceInstanceId: useDiceManagerStore.getState().addDice(entry.type, currentTheme.id),
+      for (const entry of roll.dice) {
+        for (const source of expandDiceEntrySources(entry)) {
+          const id = source.kind === 'specific'
+            ? backend.addDie(entry.type, source.dieId)
+            : backend.addGenericDie(entry.type)
+          if (!id) {
+            const actionError = useMultiplayerStore.getState().roomActionError
+            throw new Error(actionError?.message ?? `Could not spawn ${entry.type.toUpperCase()}.`)
           }
-          console.warn(`[SavedRolls] Missing specific die ${source.dieId}; rolling a generic ${entry.type} instead`)
+          requested.push({ id, bonus: entry.perDieBonus })
         }
+      }
 
-        if (result.success && result.diceInstanceId) {
-          if (entry.perDieBonus !== 0) {
-            perDieBonuses.set(result.diceInstanceId, entry.perDieBonus)
-          }
-        } else {
-          spawnFailures++
-          console.warn(`[SavedRolls] Failed to spawn ${source.kind} ${entry.type}: ${result.error}`)
-        }
+      if (requested.length === 0) {
+        throw new Error('This saved roll has no dice to roll.')
+      }
+
+      const requestedIds = requested.map(({ id }) => id)
+      await waitForSavedRollSpawns(requestedIds, ownerId)
+
+      const perDieBonuses = new Map<string, number>()
+      requested.forEach(({ id, bonus }) => {
+        if (bonus !== 0) perDieBonuses.set(id, bonus)
       })
-    })
+      const activeSavedRoll: ActiveSavedRoll = {
+        name: roll.name,
+        flatBonus: roll.flatBonus,
+        perDieBonuses,
+      }
+      useDiceStore.getState().setActiveSavedRoll(activeSavedRoll)
 
-    if (spawnFailures > 0) {
-      console.warn(`[SavedRolls] ${spawnFailures} dice failed to spawn — check inventory`)
+      const rollSequence = useMultiplayerStore.getState().rollStartedSequence
+      backend.roll()
+      await waitForRoomState('start the saved roll', (state) => (
+        state.rollStartedSequence > rollSequence
+        && sameIdSet(state.lastRollStartedDiceIds, requestedIds)
+      ))
+
+      markRollAsUsed(roll.id)
+      onClose()
+    } catch (error) {
+      useDiceStore.getState().clearActiveSavedRoll()
+      setExecutionError(error instanceof Error ? error.message : 'Could not execute the saved roll.')
+    } finally {
+      executingRef.current = false
+      setIsExecuting(false)
     }
-
-    // Set active saved roll for bonus display
-    const activeSavedRoll: ActiveSavedRoll = {
-      name: roll.name,
-      flatBonus: roll.flatBonus,
-      perDieBonuses,
-    }
-    useDiceStore.getState().setActiveSavedRoll(activeSavedRoll)
-
-    onClose()
   }
 
   function handleEdit(roll: SavedRoll) {
@@ -160,6 +239,19 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
       {view === 'list' ? (
         // List View
         <>
+          {executionError && (
+            <div
+              role="alert"
+              className="mb-4 rounded-lg px-4 py-3 text-sm"
+              style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.14)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                color: '#fecaca',
+              }}
+            >
+              {executionError}
+            </div>
+          )}
           {/* Search */}
           <div className="mb-4">
             <input
@@ -242,6 +334,7 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onToggleFavorite={() => toggleFavorite(roll.id)}
+                  disabled={isExecuting}
                 />
               ))}
             </>
@@ -266,6 +359,7 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onToggleFavorite={() => toggleFavorite(roll.id)}
+                  disabled={isExecuting}
                 />
               ))}
             </>

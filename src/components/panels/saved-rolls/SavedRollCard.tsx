@@ -14,6 +14,7 @@ interface SavedRollCardProps {
   onEdit: (roll: SavedRoll) => void
   onDelete: (roll: SavedRoll) => void
   onToggleFavorite: (roll: SavedRoll) => void
+  disabled?: boolean
 }
 
 export function SavedRollCard({
@@ -22,6 +23,7 @@ export function SavedRollCard({
   onEdit,
   onDelete,
   onToggleFavorite,
+  disabled = false,
 }: SavedRollCardProps) {
   const formula = formatSavedRoll(roll)
   const range = calculateSavedRollRange(roll)
@@ -121,6 +123,8 @@ export function SavedRollCard({
         {/* Roll button - primary action */}
         <button
           onClick={() => onRoll(roll)}
+          disabled={disabled}
+          aria-label={`Roll ${roll.name}`}
           className="flex-1 py-2 px-4 rounded-lg font-semibold transition-all"
           style={{
             backgroundColor: 'var(--color-accent)',
