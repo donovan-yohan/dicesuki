@@ -5,7 +5,7 @@ First edge functions in the repo (exec plan: `docs/exec-plans/active/2026-07-18-
 | Function | Auth | Purpose |
 |----------|------|---------|
 | `create-checkout` | JWT (verify on) | Authenticated buy flow: validate SKU → server-side price → open a `pending` order via the `create_payment_order` RPC → mint an Xsolla payment token. Returns `{ token, external_id }` (the RPC-generated external_id). |
-| `xsolla-webhook` | **public** (`--no-verify-jwt`) | Server-to-server Xsolla notifications: SHA-1 signature check → dispatch `user_validation` / `payment` / `order_paid` → `fulfill_payment_order`, and `refund` / `chargeback` → `refund_payment_order` (both idempotent RPCs). |
+| `xsolla-webhook` | **public** (`--no-verify-jwt`) | Server-to-server Xsolla notifications: SHA-1 signature check → dispatch one-shot purchase/refund events to the payment RPCs and subscription lifecycle events to `record_subscription_event` (all idempotent). |
 
 ## Layout
 
@@ -86,6 +86,38 @@ https://nksxdfcjabgbxeefwkdc.supabase.co/functions/v1/xsolla-webhook
 ```
 
 Use the same value for `XSOLLA_WEBHOOK_SECRET` here and in the Xsolla webhook settings. Xsolla signs each request `Authorization: Signature <sha1(raw_request_body + secret)>`; a mismatch returns `400` and the notification is rejected (fail closed).
+
+### Subscription lifecycle events
+
+The same signed endpoint handles all four documented subscription notifications:
+
+| Notification | Required lifecycle fields | Webhook result |
+|---|---|---|
+| [`create_subscription`](https://developers.xsolla.com/webhooks/subscriptions/created-subscription/) | `user.id`, `subscription_id`, `plan_id`, `date_create`, `date_next_charge` | `204 No Content` after the receipt is recorded |
+| [`update_subscription`](https://developers.xsolla.com/webhooks/subscriptions/updated-subscription/) | `user.id`, `subscription_id`, `plan_id`, `date_next_charge` | `204 No Content` after the receipt is recorded |
+| [`non_renewal_subscription`](https://developers.xsolla.com/webhooks/subscriptions/nonrenewing-subscription/) | `user.id`, `subscription_id`, `date_next_charge` | `204 No Content` after the receipt is recorded |
+| [`cancel_subscription`](https://developers.xsolla.com/webhooks/subscriptions/canceled-subscription/) | `user.id`, `subscription_id`, `date_end` | `204 No Content` after the receipt is recorded |
+
+Non-renewal and cancellation envelopes may include
+`subscription.date_create`. It is accepted when present and retained only in
+the immutable raw payload; the parsed `date_create` RPC argument is normalized
+to `null` to satisfy migration 0023's per-event storage contract.
+
+Xsolla delivers subscription notifications sequentially: it waits for a
+successful response to the current event before sending the next lifecycle
+event. A transient RPC failure therefore returns `500` so Xsolla retries.
+Deterministic PostgreSQL input/datetime rejections (`22023`, `22007`, `22008`)
+are logged as `drained-invalid` and acknowledged with `204`, because retrying a
+permanently doomed event would stall the entire subscription queue. An exact
+duplicate returns the prior RPC row and is acknowledged with the same `204`.
+Existing one-shot and unknown-notification response conventions remain
+unchanged.
+
+The Publisher Account webhook test button cannot emit subscription lifecycle
+notifications. Exercise these events through an actual sandbox subscription
+lifecycle instead. For faster renewal testing, configure the sandbox plan with
+`trial=0`; this avoids waiting through a trial period but does not remove the
+need to create and advance a real sandbox subscription.
 
 ## Tests
 
