@@ -9,7 +9,8 @@ insert into auth.users (id) values
   ('c1700000-0000-4170-8170-000000000006');
 
 -- One featured item makes the two-result lifecycle deterministic: the first
--- result grants it, and the second result is necessarily a 17-Dust duplicate.
+-- result grants its first-ever copy, and the second grants another copy plus
+-- 17 duplicate Dust.
 insert into public.catalog_items (
   id,
   catalog_key,
@@ -259,8 +260,18 @@ begin
       where (revealed.result ->> 'is_duplicate')::boolean) is distinct from 1 or
      (select count(*)
       from jsonb_array_elements(commit_receipt -> 'results')
-        as revealed(result)
+      as revealed(result)
       where not (revealed.result ->> 'is_duplicate')::boolean)
+        is distinct from 1 or
+     (select count(*)
+      from jsonb_array_elements(commit_receipt -> 'results')
+        as revealed(result)
+      where (revealed.result ->> 'is_first_copy')::boolean)
+        is distinct from 1 or
+     (select count(*)
+      from jsonb_array_elements(commit_receipt -> 'results')
+        as revealed(result)
+      where not (revealed.result ->> 'is_first_copy')::boolean)
         is distinct from 1 or
      (select coalesce(
         sum((revealed.result ->> 'duplicate_dust_amount')::bigint),
@@ -364,6 +375,8 @@ begin
          is distinct from 'boolean' or
        jsonb_typeof(revealed_result.result -> 'duplicate_dust_amount')
          is distinct from 'number' or
+       jsonb_typeof(revealed_result.result -> 'is_first_copy')
+         is distinct from 'boolean' or
        jsonb_typeof(revealed_result.result -> 'nonce')
          is distinct from 'string' or
        jsonb_typeof(revealed_result.result -> 'commitment')
@@ -551,7 +564,7 @@ $$;
 reset role;
 
 -- Exact cardinalities prove that commit replay did not append another
--- transition, debit, Dust credit, entitlement, or guarantee effect.
+-- transition, debit, Dust credit, dice copy, or guarantee effect.
 do $$
 begin
   if (select current_balance
@@ -579,10 +592,23 @@ begin
       where user_id = 'c1700000-0000-4170-8170-000000000001'
         and kind = 'committed') <> 1 or
      (select count(*)
-      from public.user_entitlements
+      from public.dice_copies
       where user_id = 'c1700000-0000-4170-8170-000000000001'
         and catalog_item_id = 'slice6-commit/d20/legendary@1'
-        and grant_reason = 'pull') <> 1 or
+        and source_kind = 'pull'
+        and scrapped_at is null) <> 2 or
+     (select count(*)
+      from public.dice_copies
+      where user_id = 'c1700000-0000-4170-8170-000000000001'
+        and catalog_item_id = 'slice6-commit/d20/legendary@1'
+        and is_first_copy) <> 1 or
+     exists (
+       select 1
+       from public.user_entitlements
+       where user_id = 'c1700000-0000-4170-8170-000000000001'
+         and catalog_item_id = 'slice6-commit/d20/legendary@1'
+         and grant_reason = 'pull'
+     ) or
      not exists (
        select 1
        from public.pull_guarantee_states as guarantee
@@ -705,9 +731,9 @@ begin
       where user_id = 'c1700000-0000-4170-8170-000000000003') <> 1 or
      exists (
        select 1
-       from public.user_entitlements
+       from public.dice_copies
        where user_id = 'c1700000-0000-4170-8170-000000000003'
-         and grant_reason = 'pull'
+         and source_kind = 'pull'
      ) or
      exists (
        select 1
@@ -883,7 +909,12 @@ begin
      (select count(*)
       from public.pull_session_transitions
       where user_id = 'c1700000-0000-4170-8170-000000000006'
-        and kind = 'committed') <> 1 then
+        and kind = 'committed') <> 1 or
+     (select count(*)
+      from public.dice_copies
+      where user_id = 'c1700000-0000-4170-8170-000000000006'
+        and source_kind = 'pull'
+        and scrapped_at is null) <> 1 then
     raise exception 'Ticket commit did not debit held quantity exactly once';
   end if;
 end;
