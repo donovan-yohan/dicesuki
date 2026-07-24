@@ -362,15 +362,28 @@ begin
     raise exception 'Re-grant after scrap-all re-fired or lost the ever-owned latch';
   end if;
 
-  if exists (
-    select 1
-    from public.wallet_ledger_entries
-    where user_id in (
-      'd2000000-0000-4200-8200-000000000001',
-      'd2000000-0000-4200-8200-000000000002'
-    )
-  ) then
-    raise exception 'Marker-only inventory foundation unexpectedly changed wallet history';
+  if (select count(*)
+      from public.wallet_ledger_entries
+      where user_id = 'd2000000-0000-4200-8200-000000000001'
+        and currency_id = 'dust'
+        and balance_bucket = 'earned'
+        and delta_amount = 4
+        and reason_code = 'dice.scrap.dust.credit'
+        and provenance ->> 'catalog_rarity' = 'rare') <> 2 or
+     (select count(*)
+      from public.wallet_ledger_entries
+      where user_id = 'd2000000-0000-4200-8200-000000000001') <> 2 or
+     (select current_balance
+      from public.wallet_balances
+      where user_id = 'd2000000-0000-4200-8200-000000000001'
+        and currency_id = 'dust'
+        and balance_bucket = 'earned') is distinct from 8 or
+     exists (
+       select 1
+       from public.wallet_ledger_entries
+       where user_id = 'd2000000-0000-4200-8200-000000000002'
+     ) then
+    raise exception 'Valued inventory Scrap did not credit exact rare-tier Dust';
   end if;
 end;
 $$;
