@@ -1,7 +1,8 @@
 // Xsolla Pay Station payment-token request builder.
 //
-// Endpoint (store API v3, project-scoped admin):
-//   POST https://store.xsolla.com/api/v3/project/{project_id}/admin/payment/token
+// Endpoints:
+//   one-time → Store API v3 project-scoped admin token
+//   subscription → Subscriptions API merchant-v2 token
 //
 // This module produces the { url, method, headers, body } for that request as a
 // pure value so the exact wire shape is unit-testable without a live API. The
@@ -65,6 +66,11 @@ export interface XsollaTokenRequestInput {
   sandbox: boolean
   /** Optional URL Xsolla returns the buyer to after checkout. */
   returnUrl?: string
+  /** Provider-owned recurring binding; omitted for one-time products. */
+  subscription?: {
+    planId: string
+    productId: string
+  }
 }
 
 export interface BuiltRequest {
@@ -75,10 +81,9 @@ export interface BuiltRequest {
 }
 
 /**
- * Build the payment-token request. `body` is returned as an object; the caller
- * JSON-stringifies it for the fetch. Shape follows the store API v3 create-token
- * contract: `user.id.value`, `purchase.checkout.{amount,currency}`, and
- * `settings.{project_id, external_id, sandbox}`.
+ * Build the payment-token request. One-time inputs preserve Store API v3's
+ * description + boolean sandbox body. Subscription inputs use merchant-v2's
+ * purchase.subscription and settings.mode='sandbox' contract.
  */
 export function buildXsollaTokenRequest(input: XsollaTokenRequestInput): BuiltRequest {
   const projectIdNum = Number(input.projectId)
@@ -88,41 +93,57 @@ export function buildXsollaTokenRequest(input: XsollaTokenRequestInput): BuiltRe
     // external_id ties the Xsolla order back to OUR payment_orders row so the
     // webhook can locate the pending order (invariant #2 correlation key).
     external_id: input.externalId,
-    // Sandbox toggle: a single env-driven switch, per the scope guard
-    // ("Sandbox flag = single env switch so go-live is config, not code").
-    sandbox: input.sandbox,
+  }
+  if (input.subscription) {
+    // Subscriptions API merchant-v2 uses mode='sandbox'; production omits mode.
+    if (input.sandbox) settings.mode = 'sandbox'
+  } else {
+    // Legacy Store API v3 keeps its existing boolean sandbox contract.
+    settings.sandbox = input.sandbox
   }
   if (input.returnUrl) {
     settings.return_url = input.returnUrl
+  }
+
+  const purchase: Record<string, unknown> = {
+    checkout: {
+      currency: input.currency,
+      amount: input.amount,
+    },
+  }
+  if (input.subscription) {
+    purchase.subscription = {
+      plan_id: input.subscription.planId,
+      product_id: input.subscription.productId,
+    }
+  } else {
+    // Store API v3 one-time checkout line item; unchanged for legacy dice.
+    purchase.description = {
+      items: [
+        {
+          name: input.itemName,
+          price: {
+            amount: input.amount,
+            currency: input.currency,
+          },
+          quantity: 1,
+        },
+      ],
+    }
   }
 
   const body: Record<string, unknown> = {
     user: {
       id: { value: input.supabaseUserId },
     },
-    purchase: {
-      checkout: {
-        currency: input.currency,
-        amount: input.amount,
-      },
-      description: {
-        items: [
-          {
-            name: input.itemName,
-            price: {
-              amount: input.amount,
-              currency: input.currency,
-            },
-            quantity: 1,
-          },
-        ],
-      },
-    },
+    purchase,
     settings,
   }
 
   return {
-    url: `https://store.xsolla.com/api/v3/project/${input.projectId}/admin/payment/token`,
+    url: input.subscription
+      ? `https://api.xsolla.com/merchant/v2/merchants/${input.merchantAuth.merchantId}/token`
+      : `https://store.xsolla.com/api/v3/project/${input.projectId}/admin/payment/token`,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

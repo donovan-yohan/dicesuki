@@ -673,6 +673,11 @@ Dust-only duplicate path.
 ---
 
 ## 7. Open questions / decisions to lock before ADR
+- **Xsolla merchant-v2 subscription-token sandbox proof — launch blocker.**
+  `xsollaToken` currently sends `purchase.checkout` alongside
+  `purchase.subscription` on merchant-v2. That exact envelope is unverified
+  against the live Xsolla sandbox and may produce a checkout 502. Exercise it
+  end-to-end before enabling Lunar checkout.
 - **Disjoint pools (still open, recommended).** Premium featured value must
   exceed or be exclusive of the direct-purchase collab price (#153) to avoid a
   ~$74–82 gacha ceiling competing with a fixed-price collab. Recommend disjoint
@@ -684,12 +689,13 @@ Dust-only duplicate path.
   **dormant** (`0018`) and is **slope-agnostic** (nullable `soft_pity_*` columns,
   no baked-in slope), so the freeze happens when a specific slope is written into
   a live premium banner data row, not at the delta-9 engine work.
-- **First-time-bonus refund semantics under the double-raw model.** A refund of a
-  first purchase must reverse both the credited Stars **and** the
-  `star_bundle_first_purchase` flag — but define precisely what happens if the
-  player already **spent** the doubled Stars (claw back to negative? block refund?
-  net against balance?), and whether a re-purchase after refund re-grants
-  double-raw. Needed before the fulfill/refund branch (§6 delta 5/6) is written.
+- **First-time-bonus insolvent-refund semantics under the double-raw model.**
+  A covered refund reverses both the exact credited Stars and the first-purchase
+  event; a later purchase of that SKU is first-time-eligible again and re-grants
+  double-raw (§6 delta 6). Still open: when the player has already **spent** any
+  of that credit, should the refund claw back to negative, remain unresolved,
+  or net against another balance? The sandbox branch records an immutable
+  unresolved reversal without changing credit, eligibility, or order state.
 - **Scrap-then-refund / chargeback of a granted copy — NEW.** Copy-count
   ownership adds a player-controlled decrement (scrap) that the "reduces the
   asymmetry" note (§1.6) does not fully cover. Define what happens when a player

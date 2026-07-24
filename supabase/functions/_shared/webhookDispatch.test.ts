@@ -161,6 +161,30 @@ describe('payment / order_paid fulfillment', () => {
     )
   })
 
+  it('forwards the complete signed Lunar payment envelope unchanged for SQL parsing', async () => {
+    const deps = makeDeps()
+    const payload = {
+      notification_type: 'payment',
+      transaction: { id: 901, external_id: 'lunar-order', dry_run: 1 },
+      purchase: {
+        subscription: {
+          subscription_id: 'sub-901',
+          plan_id: 'provider-owned-plan',
+          product_id: 'lunar-pass',
+        },
+      },
+    }
+
+    await dispatchWebhook(payload, deps, bodySha256)
+
+    expect(deps.fulfillOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        xsollaTransactionId: 901,
+        rawEvent: payload,
+      }),
+    )
+  })
+
   it('maps a returned order row (grant OR idempotent replay) to a clean 200', async () => {
     // The RPC returns the order row on both a fresh grant and an idempotent
     // replay — they are indistinguishable and both a clean 200. The second

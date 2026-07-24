@@ -1,22 +1,15 @@
 // Server-side store price catalog (invariant #5 — "never trust client-sent
 // price/SKU mapping").
 //
-// The client sends only an opaque `sku`. THE SERVER decides the price. This map
-// is that authoritative price source: it lives in the edge function, is never
-// influenced by request bodies, and maps each purchasable SKU to a fixed price
-// and to the `catalog_items.id` it grants.
+// The client sends only an opaque `sku`. THE SERVER decides the price. Legacy
+// die SKUs remain in the reviewed code map below; non-die SKUs resolve from the
+// `store_skus` registry through an injected database lookup.
 //
-// Why a code constant (for now): `catalog_items` (migration 0004) carries
-// identity/rarity but no money column, and this sandbox slice deliberately adds
-// no store-pricing migration (Packet A / migration 0013 covers orders + ledger,
-// not a price book). When a durable `store_prices` table lands, replace
-// `lookupProduct` with a service-role SELECT — the call sites already treat this
-// as an async-shaped lookup boundary. Until then, prices are pinned in code and
-// reviewed here.
-//
-// Every `catalogItemId` below MUST exist in `catalog_items`; `create-checkout`
-// re-validates existence against the DB with the service-role client before
-// minting a token, so a typo here fails closed rather than selling a phantom.
+// Every legacy `catalogItemId` below MUST exist in `catalog_items`;
+// `create-checkout` re-validates existence before minting a token. Registry
+// prices are re-derived atomically by `create_sku_payment_order`; the edge mints
+// from the returned order amount so a concurrent registry retune cannot split
+// provider and database truth.
 //
 // Pure module: no Deno globals, no URL imports — importable by both the Deno
 // runtime and Vitest.
@@ -35,6 +28,40 @@ export interface StoreProduct {
   readonly amountMinor: number
   /** ISO-4217 currency, uppercase. */
   readonly currency: CurrencyCode
+}
+
+export interface RegistryStoreProduct {
+  readonly sku: string
+  readonly name: string
+  readonly amountMinor: number
+  readonly currency: CurrencyCode
+  readonly source: 'registry'
+  readonly skuClass: 'star_bundle' | 'subscription'
+  readonly productId: string | null
+}
+
+export type CheckoutProduct =
+  | (StoreProduct & { readonly source: 'legacy_catalog' })
+  | RegistryStoreProduct
+
+export interface RegistrySkuRow {
+  readonly sku_id: unknown
+  readonly sku_class: unknown
+  readonly price_usd_cents: unknown
+  readonly status: unknown
+  readonly product_id: unknown
+}
+
+export interface RegistryLookupResult {
+  readonly data: RegistrySkuRow | null
+  readonly error: unknown
+}
+
+export type RegistrySkuLookup = (sku: string) => Promise<RegistryLookupResult>
+
+export interface CheckoutProductResolution {
+  readonly product: CheckoutProduct | null
+  readonly lookupError: unknown
 }
 
 /**
@@ -74,6 +101,57 @@ export const PRODUCT_CATALOG: Readonly<Record<string, StoreProduct>> = Object.fr
 export function lookupProduct(sku: unknown): StoreProduct | null {
   if (typeof sku !== 'string' || sku.length === 0) return null
   return PRODUCT_CATALOG[sku] ?? null
+}
+
+/**
+ * Resolve the legacy die map first, then the database-backed non-die registry.
+ * The injected lookup must itself filter status to sandbox/live; the pure seam
+ * repeats that check so a mocked or accidentally broadened lookup fails closed.
+ */
+export async function resolveCheckoutProduct(
+  sku: unknown,
+  lookupRegistrySku: RegistrySkuLookup,
+): Promise<CheckoutProductResolution> {
+  const legacy = lookupProduct(sku)
+  if (legacy) {
+    return {
+      product: { ...legacy, source: 'legacy_catalog' },
+      lookupError: null,
+    }
+  }
+  if (typeof sku !== 'string' || sku.length === 0) {
+    return { product: null, lookupError: null }
+  }
+
+  const { data, error } = await lookupRegistrySku(sku)
+  if (error) return { product: null, lookupError: error }
+  if (
+    !data ||
+    data.sku_id !== sku ||
+    (data.sku_class !== 'star_bundle' && data.sku_class !== 'subscription') ||
+    (data.status !== 'sandbox' && data.status !== 'live') ||
+    typeof data.price_usd_cents !== 'number' ||
+    !Number.isSafeInteger(data.price_usd_cents) ||
+    data.price_usd_cents <= 0 ||
+    (data.sku_class === 'subscription' &&
+      (typeof data.product_id !== 'string' || data.product_id.length === 0)) ||
+    (data.sku_class === 'star_bundle' && data.product_id !== null)
+  ) {
+    return { product: null, lookupError: null }
+  }
+
+  return {
+    product: {
+      sku,
+      name: sku,
+      amountMinor: data.price_usd_cents,
+      currency: 'USD',
+      source: 'registry',
+      skuClass: data.sku_class,
+      productId: typeof data.product_id === 'string' ? data.product_id : null,
+    },
+    lookupError: null,
+  }
 }
 
 /** Convert minor units (cents) to the major-unit amount Xsolla expects. */
