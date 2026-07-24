@@ -64,9 +64,61 @@ describe('buildXsollaTokenRequest', () => {
 
   it('sets purchase.checkout amount + currency from server-side price', () => {
     const req = buildXsollaTokenRequest(base)
-    const purchase = req.body.purchase as { checkout: { amount: number; currency: string } }
+    const purchase = req.body.purchase as {
+      checkout: { amount: number; currency: string }
+      subscription?: unknown
+    }
     expect(purchase.checkout.amount).toBe(4.99)
     expect(purchase.checkout.currency).toBe('USD')
+    expect(purchase.subscription).toBeUndefined()
+  })
+
+  it('routes subscriptions to merchant-v2 with the exact subscription body', () => {
+    const req = buildXsollaTokenRequest({
+      ...base,
+      subscription: {
+        planId: 'provider-lunar-monthly',
+        productId: 'lunar-pass',
+      },
+    })
+    expect(req.url).toBe(
+      'https://api.xsolla.com/merchant/v2/merchants/896270/token',
+    )
+    expect(req.body).toEqual({
+      user: {
+        id: { value: 'user-uuid-123' },
+      },
+      purchase: {
+        checkout: {
+          currency: 'USD',
+          amount: 4.99,
+        },
+        subscription: {
+          plan_id: 'provider-lunar-monthly',
+          product_id: 'lunar-pass',
+        },
+      },
+      settings: {
+        project_id: 310909,
+        external_id: 'order-ext-abc',
+        mode: 'sandbox',
+      },
+    })
+    expect(req.body).not.toHaveProperty('purchase.description')
+    expect(req.body).not.toHaveProperty('settings.sandbox')
+  })
+
+  it('omits merchant-v2 mode for a production subscription token', () => {
+    const req = buildXsollaTokenRequest({
+      ...base,
+      sandbox: false,
+      subscription: {
+        planId: 'provider-lunar-monthly',
+        productId: 'lunar-pass',
+      },
+    })
+    expect(req.body).not.toHaveProperty('settings.mode')
+    expect(req.body).not.toHaveProperty('settings.sandbox')
   })
 
   it('carries external_id, numeric project_id, and sandbox flag in settings', () => {

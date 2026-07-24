@@ -343,13 +343,32 @@ begin
     raise exception 'Old-style catalog payment order was not preserved';
   end if;
 
+  -- This both-bindings rejection must remain a raw insert because neither
+  -- production order RPC can construct the intentionally invalid binding.
+  -- Supply the canonical stars_handful snapshot so the 0028 snapshot CHECK is
+  -- satisfied and this scenario continues to isolate the 0026 binding CHECK.
   begin
     insert into public.payment_orders (
-      user_id, catalog_item_id, sku_id, amount_minor, currency, dry_run
+      user_id,
+      catalog_item_id,
+      sku_id,
+      sku_value_version,
+      sku_price_usd_cents,
+      sku_star_total,
+      sku_first_time_total,
+      sku_product_id,
+      amount_minor,
+      currency,
+      dry_run
     ) values (
       'c0260000-0000-4026-8026-000000000001',
       'void-crystal/d20/legendary@1',
       'stars_handful',
+      1,
+      49,
+      60,
+      120,
+      null,
       49,
       'USD',
       true
@@ -359,6 +378,10 @@ begin
     null;
   end;
 
+  -- This neither-binding rejection also must remain raw because an RPC cannot
+  -- construct the invalid row. With sku_id NULL, omitting all snapshot columns
+  -- is the valid legacy-side 0028 snapshot shape, leaving only the binding
+  -- CHECK under test.
   begin
     insert into public.payment_orders (
       user_id, catalog_item_id, sku_id, amount_minor, currency, dry_run
@@ -374,19 +397,37 @@ begin
   exception when check_violation then
     null;
   end;
+end;
+$$;
 
-  insert into public.payment_orders (
-    user_id, catalog_item_id, sku_id, amount_minor, currency, dry_run
-  ) values (
+-- The valid SKU-bound scenario permits the production boundary, so use the
+-- service-only RPC instead of duplicating its raw insert. This proves the RPC
+-- derives the canonical price and complete immutable stars_handful snapshot.
+set local role service_role;
+do $$
+declare
+  created public.payment_orders%rowtype;
+begin
+  created := public.create_sku_payment_order(
     'c0260000-0000-4026-8026-000000000001',
-    null,
     'stars_handful',
-    49,
     'USD',
     true
   );
+
+  if created.catalog_item_id is not null or
+     created.sku_id is distinct from 'stars_handful' or
+     created.sku_value_version is distinct from 1 or
+     created.sku_price_usd_cents is distinct from 49 or
+     created.sku_star_total is distinct from 60 or
+     created.sku_first_time_total is distinct from 120 or
+     created.sku_product_id is not null or
+     created.amount_minor is distinct from 49 then
+    raise exception 'Production SKU order boundary returned a malformed snapshot';
+  end if;
 end;
 $$;
+reset role;
 
 -- Service inserts exercise all three visibility states without changing the
 -- seven canonical rows used by the exact seed assertion above.
