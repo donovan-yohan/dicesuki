@@ -117,6 +117,13 @@ export interface InventoryDie {
   source: AcquisitionSource
   /** Catalog definition only; never proof that this client owns the item. */
   catalogRef?: CatalogItemRef
+  /**
+   * Ephemeral metadata carried only by the authenticated server-copy view.
+   * Optional so guest/local dice and persisted inventory remain unchanged.
+   */
+  serverCopyMetadata?: {
+    isFirstCopy: boolean
+  }
   lastRolledAt?: number       // Optional local-only recency metadata
   recentRollValues?: number[] // Optional local-only roll history sample
 
@@ -204,7 +211,7 @@ export interface Currency {
  */
 export type NewInventoryDie = Omit<
   InventoryDie,
-  'id' | 'acquiredAt' | 'stats' | 'assignedToRolls'
+  'id' | 'acquiredAt' | 'stats' | 'assignedToRolls' | 'serverCopyMetadata'
 > & {
   id?: string                 // Optional - will be generated if not provided
   acquiredAt?: number         // Optional - will be set to Date.now()

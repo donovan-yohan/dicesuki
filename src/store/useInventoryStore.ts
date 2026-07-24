@@ -289,6 +289,9 @@ export function mapServerCopiesToInventoryDice(
           itemId: item.id,
           assetVersionId: asset.id,
         },
+        serverCopyMetadata: {
+          isFirstCopy: copy.isFirstCopy,
+        },
         stats: getDefaultStats(),
         assignedToRolls: [],
       }

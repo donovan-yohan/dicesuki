@@ -37,6 +37,14 @@ describe('fetchMyDiceCopies', () => {
         is_first_copy: true,
         scrapped_at: '2026-07-05T00:00:00Z',
       },
+      {
+        id: 'live-first',
+        catalog_item_id: 'item-c',
+        source_kind: 'pull',
+        acquired_at: '2026-07-06T00:00:00Z',
+        is_first_copy: true,
+        scrapped_at: null,
+      },
     ]))
 
     expect(result['item-a']).toEqual({
@@ -55,6 +63,15 @@ describe('fetchMyDiceCopies', () => {
       liveCount: 0,
       everOwned: true,
       copies: [],
+    })
+    expect(result['item-c']).toMatchObject({
+      liveCount: 1,
+      everOwned: true,
+      firstCopyAcquiredAt: '2026-07-06T00:00:00Z',
+      copies: [{
+        id: 'live-first',
+        isFirstCopy: true,
+      }],
     })
   })
 

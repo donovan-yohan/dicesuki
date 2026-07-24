@@ -70,11 +70,15 @@ describe('useInventoryStore server-copy slice', () => {
     expect(useInventoryStore.getState().dice.map(die => die.id)).toEqual([
       'server-copy-id',
     ])
+    expect(useInventoryStore.getState().dice[0].serverCopyMetadata).toEqual({
+      isFirstCopy: true,
+    })
 
     const persisted = JSON.parse(
       localStorage.getItem('dicesuki-player-inventory') ?? '{}',
     ) as { state?: { assignments?: Record<string, string> } }
     expect(persisted.state?.assignments).toEqual(localAssignments)
+    expect(JSON.stringify(persisted)).not.toContain('serverCopyMetadata')
 
     useInventoryStore.getState().clearServerCopies()
     expect(useInventoryStore.getState()).toMatchObject({

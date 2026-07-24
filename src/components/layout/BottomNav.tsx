@@ -15,17 +15,22 @@ import {
   navBarVariants,
   shouldReduceMotion,
 } from '../../animations/ui-transitions'
+import { STANDARD_ROLL_CONVERSION_AVAILABLE } from '../economy/shopCatalog'
 import { useTheme } from '../../contexts/ThemeContext'
+import { isPaymentsEnabled } from '../../lib/paymentsConfig'
+import { useAuthStore } from '../../store/useAuthStore'
 
 interface BottomNavProps {
   isVisible: boolean
   onToggleUI: () => void
   onOpenDiceManager: () => void
   onOpenHistory: () => void
+  onOpenShop?: () => void
   onToggleMotion?: () => void // Optional - mobile only
   isMobile: boolean
   motionModeActive?: boolean
   diceManagerOpen?: boolean
+  shopOpen?: boolean
 }
 
 export function BottomNav({
@@ -33,14 +38,19 @@ export function BottomNav({
   onToggleUI,
   onOpenDiceManager,
   onOpenHistory,
+  onOpenShop,
   onToggleMotion,
   isMobile,
   motionModeActive = false,
   diceManagerOpen = false,
+  shopOpen = false,
 }: BottomNavProps) {
   const { currentTheme } = useTheme()
+  const authStatus = useAuthStore(state => state.status)
   const getIcon = (name: keyof typeof currentTheme.assets.icons) => currentTheme.assets.icons[name]
   const reduceMotion = shouldReduceMotion()
+  const showShop = authStatus === 'authenticated' &&
+    (isPaymentsEnabled() || STANDARD_ROLL_CONVERSION_AVAILABLE)
 
   return (
     <motion.nav
@@ -85,6 +95,15 @@ export function BottomNav({
 
       {/* Right Section: History + Motion Toggle */}
       <div className="flex items-center gap-3 md:gap-4 flex-1 justify-between">
+        {showShop && onOpenShop && (
+          <NavButton
+            onClick={onOpenShop}
+            label="Shop"
+            icon="SHOP"
+            active={shopOpen}
+          />
+        )}
+
         {/* Button 4: History */}
         <NavButton
           onClick={onOpenHistory}
