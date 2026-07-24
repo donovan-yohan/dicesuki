@@ -4,7 +4,7 @@
  * Main panel for viewing and managing the player's dice collection.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent, ReactNode } from 'react'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
@@ -22,6 +22,7 @@ interface InventoryPanelProps {
   onClose: () => void
   onSpawnDie?: (dieType: string, inventoryDieId?: string) => void
   onInventoryDragStateChange?: (isDragging: boolean) => void
+  now?: () => number
 }
 
 type StatusFilter = 'all' | 'favorites' | 'recent'
@@ -31,6 +32,7 @@ const DICE_SHAPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
 const RARITY_DISPLAY: DieRarity[] = ['mythic', 'legendary', 'epic', 'rare', 'uncommon', 'common']
 const VISIBLE_DICE_BATCH_SIZE = 24
 const RECENT_ROLL_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
+const RECENT_FIRST_COPY_WINDOW_MS = 24 * 60 * 60 * 1000
 const rarityOrder: Record<DieRarity, number> = {
   common: 0,
   uncommon: 1,
@@ -40,7 +42,13 @@ const rarityOrder: Record<DieRarity, number> = {
   mythic: 5,
 }
 
-export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragStateChange }: InventoryPanelProps) {
+export function InventoryPanel({
+  isOpen,
+  onClose,
+  onSpawnDie,
+  onInventoryDragStateChange,
+  now = Date.now,
+}: InventoryPanelProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [shapeFilter, setShapeFilter] = useState<'all' | DiceShape>('all')
   const [rarityFilter, setRarityFilter] = useState<'all' | DieRarity>('all')
@@ -57,7 +65,9 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragSta
   const previewSlotRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   const { currentTheme } = useTheme()
-  const { dice, getDevDice, removeAllDevDice } = useInventoryStore()
+  const dice = useInventoryStore(state => state.dice)
+  const serverCopiesActive = useInventoryStore(state => state.serverCopiesActive)
+  const removeAllDevDice = useInventoryStore(state => state.removeAllDevDice)
 
   // Inventory dice currently on the local player's table (spawned or in-flight), so
   // a card can show "Added" + a disabled button instead of "Add". Selected as raw
@@ -73,8 +83,18 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragSta
     }
     return ids
   }, [tableDice, pendingInventoryDieIds, localPlayerId])
-  const devDice = getDevDice()
+  const devDice = useMemo(() => dice.filter(die => die.isDev), [dice])
   const hasDevDice = devDice.length > 0
+  const liveCopyCountsByCatalogItem = useMemo(() => {
+    const counts = new Map<string, number>()
+    if (!serverCopiesActive) return counts
+    for (const die of dice) {
+      const itemId = die.catalogRef?.itemId
+      if (itemId) counts.set(itemId, (counts.get(itemId) ?? 0) + 1)
+    }
+    return counts
+  }, [dice, serverCopiesActive])
+  const currentTime = now()
 
   const availableSets = useMemo(() => {
     return Array.from(new Set(dice.map(die => die.setId))).sort((a, b) => a.localeCompare(b))
@@ -394,6 +414,17 @@ export function InventoryPanel({ isOpen, onClose, onSpawnDie, onInventoryDragSta
                     isOnTable={onTableInventoryIds.has(die.id)}
                     onDragStateChange={onInventoryDragStateChange}
                     registerPreviewSlot={registerPreviewSlot}
+                    liveCopyCount={
+                      serverCopiesActive && die.catalogRef
+                        ? liveCopyCountsByCatalogItem.get(die.catalogRef.itemId) ?? 1
+                        : 1
+                    }
+                    showRecentFirstCopy={
+                      serverCopiesActive &&
+                      die.serverCopyMetadata?.isFirstCopy === true &&
+                      currentTime >= die.acquiredAt &&
+                      currentTime - die.acquiredAt <= RECENT_FIRST_COPY_WINDOW_MS
+                    }
                   />
                 ))}
               </div>
@@ -500,9 +531,11 @@ interface InventoryDieCardProps {
   isOnTable?: boolean
   onDragStateChange?: (isDragging: boolean) => void
   registerPreviewSlot: (dieId: string, element: HTMLElement | null) => void
+  liveCopyCount?: number
+  showRecentFirstCopy?: boolean
 }
 
-function InventoryDieCard({
+const InventoryDieCard = memo(function InventoryDieCard({
   die,
   theme,
   onSelect,
@@ -510,6 +543,8 @@ function InventoryDieCard({
   isOnTable = false,
   onDragStateChange,
   registerPreviewSlot,
+  liveCopyCount = 1,
+  showRecentFirstCopy = false,
 }: InventoryDieCardProps) {
   const rarityColor = getRarityColor(die.rarity, theme)
 
@@ -568,6 +603,32 @@ function InventoryDieCard({
               <Badge label="DEV" theme={theme} tone="danger" />
             </div>
           )}
+          {(liveCopyCount > 1 || showRecentFirstCopy) && (
+            <div
+              className="absolute z-20 flex flex-col items-end"
+              style={{
+                right: `calc(${theme.tokens.spacing.unit} * 2)`,
+                top: `calc(${theme.tokens.spacing.unit} * 2)`,
+                gap: theme.tokens.spacing.unit,
+              }}
+            >
+              {liveCopyCount > 1 && (
+                <ServerCopyBadge
+                  label={`×${liveCopyCount}`}
+                  ariaLabel={`${liveCopyCount} live copies`}
+                  theme={theme}
+                />
+              )}
+              {showRecentFirstCopy && (
+                <ServerCopyBadge
+                  label="New first"
+                  ariaLabel="New first copy"
+                  theme={theme}
+                  accent
+                />
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-3 min-h-[86px]">
@@ -622,7 +683,7 @@ function InventoryDieCard({
       )}
     </article>
   )
-}
+})
 
 function Badge({
   label,
@@ -639,6 +700,41 @@ function Badge({
       style={{
         backgroundColor: tone === 'danger' ? '#dc2626' : 'rgba(0, 0, 0, 0.62)',
         color: tone === 'danger' ? '#ffffff' : theme.tokens.colors.text.primary,
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function ServerCopyBadge({
+  label,
+  ariaLabel,
+  theme,
+  accent = false,
+}: {
+  label: string
+  ariaLabel: string
+  theme: Theme
+  accent?: boolean
+}) {
+  return (
+    <span
+      aria-label={ariaLabel}
+      style={{
+        padding: `${theme.tokens.spacing.unit} calc(${theme.tokens.spacing.unit} * 2)`,
+        borderRadius: theme.tokens.effects.borderRadius.sm,
+        backgroundColor: accent
+          ? theme.tokens.colors.accent
+          : theme.tokens.colors.background,
+        color: theme.tokens.colors.text.primary,
+        fontSize: theme.tokens.typography.fontSize.xs,
+        fontWeight: theme.tokens.typography.fontWeight.bold,
+        border: `1px solid ${
+          accent
+            ? theme.tokens.colors.accent
+            : theme.tokens.colors.text.muted
+        }`,
       }}
     >
       {label}

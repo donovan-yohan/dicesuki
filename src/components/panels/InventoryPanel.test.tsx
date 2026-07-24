@@ -176,4 +176,80 @@ describe('InventoryPanel', () => {
     expect(screen.queryByTestId('dice-preview')).not.toBeInTheDocument()
     expect(screen.queryByTestId('inventory-preview-canvas')).not.toBeInTheDocument()
   })
+
+  it('shows exact live copy counts and only a recent live first-copy marker in the server view', () => {
+    const now = Date.parse('2026-07-24T12:00:00Z')
+    const firstCopy = addNamedDie('First Copy D6', 'd6', 'rare', 'server-set', {
+      id: 'server-first',
+      acquiredAt: now - 60 * 60 * 1000,
+      catalogRef: { itemId: 'server-item', assetVersionId: 'asset-1' },
+    })
+    const secondCopy = addNamedDie('Second Copy D6', 'd6', 'rare', 'server-set', {
+      id: 'server-second',
+      acquiredAt: now - 30 * 60 * 1000,
+      catalogRef: { itemId: 'server-item', assetVersionId: 'asset-1' },
+    })
+    const oldFirst = addNamedDie('Old First D20', 'd20', 'epic', 'server-set', {
+      id: 'server-old-first',
+      acquiredAt: now - 25 * 60 * 60 * 1000,
+      catalogRef: { itemId: 'old-item', assetVersionId: 'asset-2' },
+    })
+    useInventoryStore.setState({
+      serverCopiesActive: true,
+      dice: [
+        { ...firstCopy, serverCopyMetadata: { isFirstCopy: true } },
+        { ...secondCopy, serverCopyMetadata: { isFirstCopy: false } },
+        { ...oldFirst, serverCopyMetadata: { isFirstCopy: true } },
+      ],
+    })
+
+    render(
+      <ThemeContext.Provider
+        value={{
+          currentTheme: defaultTheme,
+          setTheme: vi.fn(),
+          availableThemes: [defaultTheme],
+          ownedThemes: [defaultTheme.id],
+          purchaseTheme: vi.fn(async () => true),
+        }}
+      >
+        <InventoryPanel isOpen onClose={vi.fn()} now={() => now} />
+      </ThemeContext.Provider>,
+    )
+
+    expect(screen.getAllByLabelText('2 live copies')).toHaveLength(2)
+    expect(screen.queryByLabelText('1 live copies')).not.toBeInTheDocument()
+    expect(screen.getAllByLabelText('New first copy')).toHaveLength(1)
+  })
+
+  it('does not change guest/local cards even when optional server metadata is present', () => {
+    const now = Date.parse('2026-07-24T12:00:00Z')
+    const localDie = addNamedDie('Local D6', 'd6', 'rare', 'local-set', {
+      acquiredAt: now - 60 * 60 * 1000,
+      catalogRef: { itemId: 'local-item', assetVersionId: 'asset-1' },
+    })
+    useInventoryStore.setState({
+      dice: [{
+        ...localDie,
+        serverCopyMetadata: { isFirstCopy: true },
+      }],
+    })
+
+    render(
+      <ThemeContext.Provider
+        value={{
+          currentTheme: defaultTheme,
+          setTheme: vi.fn(),
+          availableThemes: [defaultTheme],
+          ownedThemes: [defaultTheme.id],
+          purchaseTheme: vi.fn(async () => true),
+        }}
+      >
+        <InventoryPanel isOpen onClose={vi.fn()} now={() => now} />
+      </ThemeContext.Provider>,
+    )
+
+    expect(screen.queryByLabelText(/live copies/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('New first copy')).not.toBeInTheDocument()
+  })
 })

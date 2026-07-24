@@ -48,7 +48,8 @@ import { PlayerPanel } from './multiplayer/PlayerPanel'
 import { RoomNotices } from './multiplayer/RoomNotices'
 import { MultiplayerMotionController } from './multiplayer/MultiplayerMotionController'
 import { RoomMotionHint } from './multiplayer/RoomMotionHint'
-import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
+import { WalletHud } from './economy/WalletHud'
+import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel, ShopPanel } from './panels'
 import type { TableDieSummary } from '../types/tableDice'
 
 /**
@@ -432,6 +433,7 @@ function SceneContent({ onReady }: SceneProps) {
   const [isSavedRollsOpen, setIsSavedRollsOpen] = useState(false)
   const [isInventoryOpen, setIsInventoryOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isShopOpen, setIsShopOpen] = useState(false)
   const [isPlayerPanelOpen, setIsPlayerPanelOpen] = useState(false)
   const [inspectedInventoryDieId, setInspectedInventoryDieId] = useState<string | null>(null)
   const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>('high')
@@ -572,16 +574,21 @@ function SceneContent({ onReady }: SceneProps) {
       />
 
       {/* NEW LAYOUT SYSTEM */}
+      {/* Authenticated economy status: bounded bottom-right, clear of result/notices and bottom controls. */}
+      <WalletHud isVisible={isUIVisible} />
+
       {/* Bottom Navigation Bar */}
       <BottomNav
         isVisible={isUIVisible}
         onToggleUI={toggleUIVisibility}
         onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
         onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenShop={() => setIsShopOpen(true)}
         onToggleMotion={handleToggleMotion} // Request permission when enabling
         isMobile={isMobile}
         motionModeActive={motionMode}
         diceManagerOpen={isDiceManagerOpen}
+        shopOpen={isShopOpen}
       />
 
       {/* Center Roll Button - elevated above nav */}
@@ -712,6 +719,11 @@ function SceneContent({ onReady }: SceneProps) {
       <SettingsPanel
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <ShopPanel
+        isOpen={isShopOpen}
+        onClose={() => setIsShopOpen(false)}
       />
 
       {inspectedInventoryDie && (
