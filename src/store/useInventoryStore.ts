@@ -22,7 +22,14 @@ import { getDieMax } from '../lib/diceHelpers'
 import { getDieSetById } from '../config/dieSets'
 import { STARTER_DICE } from '../config/starterDice'
 import { createBlobUrlFromStorage, deleteCustomDiceModel } from '../lib/customDiceDB'
-import { mapInventoryDieToCatalogRef } from '../lib/collectibleCatalog'
+import {
+  mapInventoryDieToCatalogRef,
+} from '../lib/collectibleCatalog'
+import type { CollectibleCatalog } from '../types/catalog'
+import type {
+  DiceCopiesByCatalogItem,
+  DiceCopySourceKind,
+} from '../lib/diceCopies'
 // CRAFTING_RECIPES imported for future use
 // import { CRAFTING_RECIPES } from '../config/craftingRecipes'
 
@@ -36,6 +43,10 @@ interface InventoryStore {
   // ============================================================================
 
   dice: InventoryDie[]
+  /** Guest/local inventory retained while the authenticated server view is active. */
+  localDice: InventoryDie[]
+  localAssignments: Record<string, string>
+  serverCopiesActive: boolean
   currency: Currency
 
   // Assignment tracking (savedRollId:entryId:slotIndex -> dieId)
@@ -128,6 +139,16 @@ interface InventoryStore {
   customDiceLoadErrors: string[]
   getDevDice: () => InventoryDie[]
   removeAllDevDice: () => Promise<void>
+
+  // ============================================================================
+  // Authenticated server inventory
+  // ============================================================================
+
+  syncServerCopies: (
+    copies: DiceCopiesByCatalogItem,
+    catalog?: CollectibleCatalog | null,
+  ) => boolean
+  clearServerCopies: () => void
 }
 
 // ============================================================================
@@ -197,6 +218,9 @@ function createInventoryDie(newDie: NewInventoryDie): InventoryDie {
 function emptyPersistedInventory() {
   return {
     dice: [] as InventoryDie[],
+    localDice: [] as InventoryDie[],
+    localAssignments: {} as Record<string, string>,
+    serverCopiesActive: false,
     currency: {
       coins: 0,
       gems: 0,
@@ -205,6 +229,82 @@ function emptyPersistedInventory() {
     },
     assignments: {} as Record<string, string>,
   }
+}
+
+function acquisitionSource(source: DiceCopySourceKind): InventoryDie['source'] {
+  switch (source) {
+    case 'pull':
+      return 'gacha_standard'
+    case 'craft':
+      return 'crafting'
+    case 'purchase':
+      return 'shop'
+    case 'reward':
+      return 'achievement'
+  }
+}
+
+/**
+ * Join live immutable copy identities to the fetched catalog definitions. The
+ * result exactly matches the long-standing InventoryDie consumer contract used
+ * by diceSpawner and dicePresentation.
+ */
+export function mapServerCopiesToInventoryDice(
+  copies: DiceCopiesByCatalogItem,
+  catalog: CollectibleCatalog,
+): InventoryDie[] | null {
+  const itemById = new Map(catalog.items.map(item => [item.id, item]))
+  const assetById = new Map(catalog.assetVersions.map(asset => [asset.id, asset]))
+  const result: InventoryDie[] = []
+
+  for (const group of Object.values(copies)) {
+    if (group.liveCount !== group.copies.length) return null
+    const item = itemById.get(group.catalogItemId)
+    if (!item) {
+      if (group.liveCount > 0) return null
+      continue
+    }
+    const asset = assetById.get(item.assetVersionId)
+    if (!asset || asset.catalogItemId !== item.id) {
+      if (group.liveCount > 0) return null
+      continue
+    }
+
+    for (const copy of group.copies) {
+      const die: InventoryDie = {
+        id: copy.id,
+        type: item.diceType,
+        setId: item.setId,
+        rarity: item.rarity,
+        appearance: asset.metadata.appearance,
+        vfx: asset.metadata.vfx,
+        name: asset.metadata.name,
+        description: asset.metadata.description,
+        isFavorite: false,
+        // Server copy mutation is RPC-owned; local delete/craft must not imply it.
+        isLocked: true,
+        acquiredAt: Date.parse(copy.acquiredAt),
+        source: acquisitionSource(copy.sourceKind),
+        catalogRef: {
+          itemId: item.id,
+          assetVersionId: asset.id,
+        },
+        stats: getDefaultStats(),
+        assignedToRolls: [],
+      }
+      if (asset.assetKind === 'gltf') {
+        die.customAsset = {
+          modelUrl: asset.modelPath,
+          thumbnailUrl: asset.metadata.delivery?.thumbnailPath,
+          assetId: item.catalogKey,
+          storage: 'bundled',
+          metadata: asset.metadata.diceMetadata,
+        }
+      }
+      result.push(die)
+    }
+  }
+  return result.sort((a, b) => a.acquiredAt - b.acquiredAt || a.id.localeCompare(b.id))
 }
 
 function isLegacyBundledDevilAsset(die: InventoryDie): boolean {
@@ -219,6 +319,9 @@ function isLegacyBundledDevilAsset(die: InventoryDie): boolean {
  * client-local instance. It also marks the one known production GLTF as a
  * bundled asset so legacy sessions never try to load it from IndexedDB. IDs,
  * order, assignments, stats and duplicate copies are otherwise preserved.
+ *
+ * v3 -> v4 establishes a separate persisted guest/local inventory. The live
+ * server-copy view is deliberately ephemeral and is rebuilt after sign-in.
  */
 export function migratePersistedInventoryState(
   persistedState: unknown,
@@ -227,12 +330,9 @@ export function migratePersistedInventoryState(
   if (!persistedState || typeof persistedState !== 'object') {
     return emptyPersistedInventory()
   }
-  if (version >= 3) return persistedState
-
   const state = persistedState as Record<string, unknown>
   if (!Array.isArray(state.dice)) return persistedState
-
-  const dice = state.dice.map(value => {
+  const dice = (version >= 3 ? state.dice : state.dice.map(value => {
     if (!value || typeof value !== 'object') return value
     const die = value as InventoryDie
     const migratedDie = isLegacyBundledDevilAsset(die) && die.customAsset
@@ -240,9 +340,20 @@ export function migratePersistedInventoryState(
       : die
     const catalogRef = mapInventoryDieToCatalogRef(migratedDie)
     return catalogRef ? { ...migratedDie, catalogRef } : migratedDie
-  })
+  })) as InventoryDie[]
 
-  return { ...state, dice }
+  if (version >= 4) return persistedState
+  return {
+    ...state,
+    dice,
+    localDice: [...dice],
+    localAssignments: {
+      ...(state.assignments && typeof state.assignments === 'object'
+        ? state.assignments as Record<string, string>
+        : {}),
+    },
+    serverCopiesActive: false,
+  }
 }
 
 // ============================================================================
@@ -257,6 +368,9 @@ export const useInventoryStore = create<InventoryStore>()(
       // ========================================================================
 
       dice: [],
+      localDice: [],
+      localAssignments: {},
+      serverCopiesActive: false,
       currency: {
         coins: 0,
         gems: 0,
@@ -754,6 +868,9 @@ export const useInventoryStore = create<InventoryStore>()(
       reset: () => {
         set({
           dice: [],
+          localDice: [],
+          localAssignments: {},
+          serverCopiesActive: false,
           currency: {
             coins: 0,
             gems: 0,
@@ -861,7 +978,40 @@ export const useInventoryStore = create<InventoryStore>()(
         }))
 
         console.log(`[InventoryStore] Removed all dev dice`)
-      }
+      },
+
+      // ======================================================================
+      // Authenticated server inventory
+      // ======================================================================
+
+      syncServerCopies: (copies, catalog) => {
+        if (!catalog) return false
+        const serverDice = mapServerCopiesToInventoryDice(copies, catalog)
+        if (!serverDice) return false
+        set(state => ({
+          // Merge rule: authenticated server copies replace the playable dice
+          // view. The prior guest/local list remains untouched for sign-out.
+          localDice: state.serverCopiesActive ? state.localDice : state.dice,
+          localAssignments: state.serverCopiesActive
+            ? state.localAssignments
+            : state.assignments,
+          dice: serverDice,
+          serverCopiesActive: true,
+          // Assignments cannot cross identity domains safely.
+          assignments: {},
+        }))
+        return true
+      },
+
+      clearServerCopies: () => {
+        set(state => ({
+          dice: state.serverCopiesActive ? state.localDice : state.dice,
+          assignments: state.serverCopiesActive
+            ? state.localAssignments
+            : state.assignments,
+          serverCopiesActive: false,
+        }))
+      },
     }),
 
     // ========================================================================
@@ -875,21 +1025,32 @@ export const useInventoryStore = create<InventoryStore>()(
       // SCHEMA VERSION
       // Increment this when starter dice or inventory structure changes
       // This will trigger the migrate function below
-      version: 3,
+      version: 4,
 
       // Migration function - runs when stored version doesn't match current version
       migrate: (persistedState, version) => {
         // Keep migration logs in production - they're useful for debugging user issues
-        console.log(`[InventoryStore] Migrating from version ${version} to 3`)
+        console.log(`[InventoryStore] Migrating from version ${version} to 4`)
         return migratePersistedInventoryState(persistedState, version) as InventoryStore
       },
 
       // Partial persistence (only save essential data)
-      partialize: state => ({
-        dice: state.dice,
-        currency: state.currency,
-        assignments: state.assignments
-      })
+      partialize: state => {
+        // Frontend-ADR-002: server truth is never persisted. While signed in,
+        // persist the retained guest/local view rather than ephemeral copies.
+        const localDice = state.serverCopiesActive ? state.localDice : state.dice
+        const localAssignments = state.serverCopiesActive
+          ? state.localAssignments
+          : state.assignments
+        return {
+          dice: localDice,
+          localDice,
+          assignments: localAssignments,
+          localAssignments,
+          serverCopiesActive: false,
+          currency: state.currency,
+        }
+      }
     }
   )
 )

@@ -36,7 +36,13 @@ import {
 import { useSavedRollsStore, normalizePersistedSavedRollsState } from '../store/useSavedRollsStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ensureStarterEntitlements } from './collectibleCatalog'
+import {
+  ensureStarterEntitlements,
+  fetchCatalogSnapshot,
+  fetchMyEntitlements,
+} from './collectibleCatalog'
+import { fetchMyDiceCopies } from './diceCopies'
+import { useWalletStore } from '../store/useWalletStore'
 
 // ---------------------------------------------------------------------------
 // Sync targets
@@ -66,7 +72,11 @@ export function createRealTargets(): SyncTarget[] {
       table: 'inventory',
       getPayload: () => {
         const s = useInventoryStore.getState()
-        return { v: 3, dice: s.dice, currency: s.currency, assignments: s.assignments }
+        const localDice = s.serverCopiesActive ? s.localDice : s.dice
+        const assignments = s.serverCopiesActive
+          ? s.localAssignments
+          : s.assignments
+        return { v: 4, dice: localDice, currency: s.currency, assignments }
       },
       applyPayload: (data) => {
         const d = asRecord(data)
@@ -293,6 +303,50 @@ async function startSyncGeneration(
     })
     unsubscribers.push(unsub)
   }
+
+  if (!isCurrent()) return
+
+  // Server-authoritative economy/catalog reads are best-effort so the existing
+  // local-first domains still hydrate offline. Entitlements are fetched here
+  // alongside the catalog as the ownership compatibility surface; dice_copies
+  // is the authoritative signed-in playable copy list.
+  useWalletStore.getState().setUserId(userId)
+  const [entitlementsResult, catalogResult, copiesResult, walletResult] =
+    await Promise.allSettled([
+      fetchMyEntitlements(client),
+      fetchCatalogSnapshot(client),
+      fetchMyDiceCopies(client),
+      useWalletStore.getState().refresh(client),
+    ])
+  if (!isCurrent()) return
+
+  // Keeping this result explicit proves the existing entitlement reader is now
+  // part of sign-in orchestration even though copy identity, not entitlement
+  // rows, drives the playable inventory view.
+  void entitlementsResult
+  if (
+    copiesResult.status === 'fulfilled' &&
+    catalogResult.status === 'fulfilled' &&
+    catalogResult.value !== null
+  ) {
+    useInventoryStore.getState().syncServerCopies(
+      copiesResult.value,
+      catalogResult.value,
+    )
+  }
+  if (walletResult.status === 'rejected') {
+    // refresh already marks the store stale; local play remains available.
+  }
+
+  // Realtime is an enhancement over the completed reads. Some injected/offline
+  // clients intentionally have no channel implementation.
+  if (typeof (client as unknown as { channel?: unknown }).channel === 'function') {
+    try {
+      unsubscribers.push(useWalletStore.getState().connectRealtime(userId, client))
+    } catch {
+      // Poll/read state remains usable when Realtime setup fails.
+    }
+  }
 }
 
 export function startSync(userId: string, options: StartOptions = {}): Promise<void> {
@@ -327,6 +381,8 @@ export function stopSync(): void {
   activeUserId = null
   startingUserId = null
   startPromise = null
+  useInventoryStore.getState().clearServerCopies()
+  useWalletStore.getState().resetOnSignOut()
 }
 
 // ---------------------------------------------------------------------------
