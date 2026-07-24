@@ -762,16 +762,28 @@ insert into public.pull_guarantee_states (
 select id, user_id, 'earned-collection', 100, 6, 23, 18
 from public.wallet_accounts where user_id = '87777777-7777-4777-8777-777777777777';
 
-insert into public.user_entitlements (
-  user_id, catalog_item_id, grant_reason, grant_ref
-)
-select
-  '88888888-8888-4888-8888-888888888888',
-  items.catalog_item_id,
-  'test.preowned',
-  'test:preowned:' || items.catalog_item_id
-from public.pull_banner_items as items
-where items.banner_version_id = 'earned-collection-001@1';
+set local role service_role;
+do $$
+declare
+  item record;
+begin
+  for item in
+    select catalog_item_id, tier_id, canonical_order
+    from public.pull_banner_items
+    where banner_version_id = 'earned-collection-001@1'
+    order by tier_rank, canonical_order
+  loop
+    perform public.record_dice_copy_grant(
+      '88888888-8888-4888-8888-888888888888',
+      item.catalog_item_id,
+      'reward',
+      'test:preowned:' || item.catalog_item_id,
+      'test:preowned:' || item.tier_id || ':' || item.canonical_order::text
+    );
+  end loop;
+end;
+$$;
+reset role;
 
 insert into public.pull_guarantee_states (
   account_id, user_id, banner_family_id,
@@ -804,9 +816,10 @@ begin
 
   if alternate_target = lowest_target or
      exists (
-       select 1 from public.user_entitlements
+       select 1 from public.dice_copies
        where user_id = '84444444-4444-4444-8444-444444444444'
          and catalog_item_id = alternate_target
+         and scrapped_at is null
      ) or
      private.pull_selected_misses_after(7, alternate_is_featured, false) <> 0 or
      private.pull_selected_misses_after(7, alternate_is_featured, true) <> 8 or
@@ -1076,9 +1089,10 @@ begin
      and tiers.tier_id = results.tier_id
     cross join lateral (
       select exists (
-        select 1 from public.user_entitlements as entitlements
-        where entitlements.user_id = results.user_id
-          and entitlements.catalog_item_id = results.catalog_item_id
+        select 1 from public.dice_copies as copies
+        where copies.user_id = results.user_id
+          and copies.catalog_item_id = results.catalog_item_id
+          and copies.scrapped_at is null
       ) or exists (
         select 1 from public.sealed_pull_results as earlier
         where earlier.session_id = results.session_id

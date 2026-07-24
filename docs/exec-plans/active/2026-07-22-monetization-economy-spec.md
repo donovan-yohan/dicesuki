@@ -778,6 +778,13 @@ Dust-only duplicate path.
   cannot mint a die they have never owned). Confirm whether that restriction
   holds — recommend keeping it, so the gacha/collab rails remain the only way to
   *first* obtain a die and Dust only multiplies what you own.
+- **Reward/direct-purchase grants under copy-count ownership — PO-pending.**
+  The reward rail (`0010` claims) and direct-purchase rail (`0013`) currently
+  write `user_entitlements`, not discrete dice copies. The pull rail therefore
+  treats those dice as unowned: they may be pulled again as non-duplicates,
+  granting a fresh copy without duplicate Dust. Working assumption: this rail
+  split is intentional per ADR 017; aligning the reward/faucet rail to grant
+  copies is a future delta. PO to confirm.
 
 > **Resolved since the prior draft (no longer open):** soft-pity ramp (PO
 > accepted, §5.5/§6 delta 9, now implemented dormant in `0018`);
