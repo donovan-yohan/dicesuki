@@ -100,7 +100,7 @@ function setState(status: 'guest' | 'authenticated', tickets: number, stars: num
   })
 }
 
-function BannerFixture() {
+function BannerFixture({ onClose = vi.fn() }: { onClose?: () => void }) {
   return (
     <ThemeContext.Provider
       value={{
@@ -112,7 +112,7 @@ function BannerFixture() {
       }}
     >
       <PullBannerScreen
-        onClose={vi.fn()}
+        onClose={onClose}
         onOpenShop={vi.fn()}
         onAddDie={vi.fn(() => 'request')}
         tableDiceCount={0}
@@ -149,11 +149,53 @@ describe('PullBannerScreen CTA matrix', () => {
     },
   )
 
-  it('uses the server pity counter without a client-side increment', async () => {
+  it('keeps odds, pity, pool, and fairness copy in the one-tap banner details modal', async () => {
     setState('authenticated', 10, 0)
     renderBanner()
-    expect(await screen.findByText('4/40')).toBeInTheDocument()
-    expect(screen.getByText('Rare+ guaranteed within 36 pulls')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /banner details/i }))
+
+    expect(screen.getByRole('dialog', { name: 'Banner details' })).toBeInTheDocument()
+    expect(await screen.findByText(/Rare\+ guaranteed within 36 pulls/i)).toBeInTheDocument()
+    expect(screen.getByText('Epic+ hard guarantee: pull 40')).toBeInTheDocument()
+    expect(screen.getByText('Selected-item hard guarantee: pull 40')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Pool' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Base odds' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Fair pulls' })).toBeInTheDocument()
+  })
+
+  it('opens premium banner details with its coming-soon status in one tap', async () => {
+    setState('authenticated', 10, 0)
+    renderBanner()
+    await waitFor(() => expect(fetchMyPullPity).toHaveBeenCalledOnce())
+
+    fireEvent.click(screen.getByRole('tab', { name: /premium/i }))
+    fireEvent.click(screen.getByRole('button', { name: /banner details/i }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Banner details' })
+    expect(within(dialog).getByText('Premium pool details are coming soon.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Premium banner odds are unavailable while it is coming soon.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Soft pity begins at pull 41; featured is guaranteed by 75.')).toBeInTheDocument()
+  })
+
+  it('keeps focus inside banner details and lets Escape close only that modal', async () => {
+    setState('authenticated', 10, 0)
+    const onClose = vi.fn()
+    render(<BannerFixture onClose={onClose} />)
+    const trigger = await screen.findByRole('button', { name: /banner details/i })
+    trigger.focus()
+    fireEvent.click(trigger)
+
+    const dialog = screen.getByRole('dialog', { name: 'Banner details' })
+    const close = within(dialog).getByRole('button', { name: 'Close banner details' })
+    await waitFor(() => expect(close).toHaveFocus())
+
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(close).toHaveFocus()
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Banner details' })).not.toBeInTheDocument())
+    expect(onClose).not.toHaveBeenCalled()
+    expect(trigger).toHaveFocus()
   })
 
   it('clamps ARIA pity progress to the server-owned maximum', async () => {
@@ -174,6 +216,7 @@ describe('PullBannerScreen CTA matrix', () => {
     })
     setState('authenticated', 10, 0)
     renderBanner()
+    fireEvent.click(await screen.findByRole('button', { name: /banner details/i }))
 
     expect(await screen.findByRole('progressbar', {
       name: 'Rare guarantee progress',
@@ -183,7 +226,7 @@ describe('PullBannerScreen CTA matrix', () => {
   it('refetches pity only when the flow enters a terminal transition', async () => {
     setState('authenticated', 10, 0)
     const view = renderBanner()
-    await screen.findByText('4/40')
+    await waitFor(() => expect(fetchMyPullPity).toHaveBeenCalledOnce())
     expect(fetchMyPullPity).toHaveBeenCalledOnce()
 
     vi.mocked(usePullFlow).mockReturnValue(flowResult({ status: 'preparing' } as never))
@@ -223,7 +266,7 @@ describe('PullBannerScreen CTA matrix', () => {
   it('opens explicit conversion and free-faucet sheets instead of silently spending', async () => {
     setState('authenticated', 0, 1600)
     const { unmount } = renderBanner()
-    await screen.findByText('4/40')
+    await waitFor(() => expect(fetchMyPullPity).toHaveBeenCalledOnce())
     fireEvent.click(await screen.findByRole('button', {
       name: /pull ×10 · convert 1600 stars/i,
     }))
@@ -234,7 +277,7 @@ describe('PullBannerScreen CTA matrix', () => {
     unmount()
     setState('authenticated', 0, 0)
     renderBanner()
-    await screen.findByText('4/40')
+    await waitFor(() => expect(fetchMyPullPity).toHaveBeenCalledTimes(2))
     fireEvent.click(await screen.findByRole('button', { name: /how to earn more rolls/i }))
     expect(screen.getByRole('dialog', { name: 'Not enough rolls yet' })).toBeInTheDocument()
     expect(screen.getByText(/daily login: \+1 roll tomorrow/i)).toBeInTheDocument()

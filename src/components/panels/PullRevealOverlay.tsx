@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
-import { copyToClipboard } from '../../lib/roomLinks'
 import type { PullRevealAssembly, PullRevealSummary } from '../../types/pull'
 import type { DiceShape } from '../../types/diceShape'
 import type { RenderDeviceTier } from '../../lib/renderLod'
@@ -37,7 +36,6 @@ export function PullRevealOverlay({
   const [newOnly, setNewOnly] = useState(false)
   const [inspectedId, setInspectedId] = useState<string | null>(null)
   const [claimStatus, setClaimStatus] = useState<string | null>(null)
-  const [copied, setCopied] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
   const { vibrateOnCollision } = useHapticFeedback()
   const roomActionError = useMultiplayerStore(state => state.roomActionError)
@@ -132,9 +130,6 @@ export function PullRevealOverlay({
     )
   }
 
-  const copy = async (label: string, value: string) => {
-    if (await copyToClipboard(value)) setCopied(label)
-  }
   const inspectedItem = inspectedId
     ? assembly.items.find(item => item.inventoryDie?.id === inspectedId) ?? null
     : null
@@ -243,12 +238,6 @@ export function PullRevealOverlay({
             </p>
           )}
         </section>
-
-        <VerificationDisclosure
-          assembly={assembly}
-          copied={copied}
-          onCopy={copy}
-        />
 
         <p className="sr-only" role="status" aria-live="polite">
           {announcement}
@@ -370,95 +359,6 @@ function ReceiptOnlyResult({
       </p>
       {item.dustLine && <p className="mt-1">{item.dustLine}</p>}
     </article>
-  )
-}
-
-function VerificationDisclosure({
-  assembly,
-  copied,
-  onCopy,
-}: {
-  assembly: PullRevealAssembly
-  copied: string | null
-  onCopy: (label: string, value: string) => void
-}) {
-  return (
-    <details className="my-6 border-t pt-4" style={{ borderColor: 'var(--color-text-muted)' }}>
-      <summary className="min-h-11 cursor-pointer py-3 font-semibold">
-        Provably fair <span aria-hidden="true">✓</span>
-      </summary>
-      <p className="mb-3 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-        The outcome was sealed before reveal. This disclosure publishes the
-        inputs; verification is not recomputed on this device.
-      </p>
-      <VerificationValue
-        label="Commitment root"
-        value={assembly.receipt.commitmentRoot}
-        copied={copied}
-        onCopy={onCopy}
-      />
-      <VerificationValue
-        label="Seed"
-        value={assembly.receipt.rngSeed}
-        copied={copied}
-        onCopy={onCopy}
-      />
-      {assembly.receipt.results.map(result => (
-        <div key={result.position} className="mt-3 border-t pt-3" style={{ borderColor: 'var(--color-text-muted)' }}>
-          <VerificationValue
-            label={`Result ${result.position} nonce`}
-            value={result.nonce}
-            copied={copied}
-            onCopy={onCopy}
-          />
-          <VerificationValue
-            label={`Result ${result.position} commitment`}
-            value={result.commitment}
-            copied={copied}
-            onCopy={onCopy}
-          />
-        </div>
-      ))}
-      <details className="mt-4">
-        <summary className="min-h-11 cursor-pointer py-3 underline">
-          How verification works
-        </summary>
-        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-          The server publishes a commitment root before reveal; afterward, the
-          disclosed seed and per-result nonces let an independent verifier
-          reproduce the named schemes and compare every result commitment.
-        </p>
-      </details>
-    </details>
-  )
-}
-
-function VerificationValue({
-  label,
-  value,
-  copied,
-  onCopy,
-}: {
-  label: string
-  value: string
-  copied: string | null
-  onCopy: (label: string, value: string) => void
-}) {
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-1">
-      <p className="min-w-0">
-        <span className="block text-xs" style={{ color: 'var(--color-text-muted)' }}>{label}</span>
-        <code className="block truncate text-xs">{value}</code>
-      </p>
-      <button
-        type="button"
-        className="min-h-11 px-3 text-sm"
-        onClick={() => onCopy(label, value)}
-        aria-label={`Copy ${label}`}
-      >
-        {copied === label ? 'Copied' : 'Copy'}
-      </button>
-    </div>
   )
 }
 

@@ -134,7 +134,7 @@ describe('PullRevealOverlay', () => {
     useMultiplayerStore.setState({ roomActionError: null })
   })
 
-  it('renders real first-copy/copy truth and the full verification disclosure', () => {
+  it('renders real first-copy/copy truth without a result verification disclosure', () => {
     const items = [item(1)]
     const onAddDie = vi.fn(() => 'request-1')
     renderReveal(
@@ -153,17 +153,13 @@ describe('PullRevealOverlay', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add to table' }))
     expect(onAddDie).toHaveBeenCalledWith('d20', 'copy-1')
 
-    fireEvent.click(screen.getByText(/provably fair/i))
-    expect(screen.getByText('a'.repeat(64))).toBeInTheDocument()
-    expect(screen.getByText('b'.repeat(64))).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /copy result 1 nonce/i })).toBeInTheDocument()
     expect(screen.getByText(
       'You won Ember d20 1, legendary, new, +1 copy (owned ×1)',
     )).toBeInTheDocument()
-    expect(document.querySelector('a[href="/docs/fair-pulls"]')).toBeNull()
-    expect(screen.getByText('How verification works')).toBeInTheDocument()
-    expect(screen.getByText(/independent verifier reproduce the named schemes/i))
-      .toBeInTheDocument()
+    expect(screen.queryByText(/provably fair/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('a'.repeat(64))).not.toBeInTheDocument()
+    expect(screen.queryByText('b'.repeat(64))).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /copy result 1 nonce/i })).not.toBeInTheDocument()
   })
 
   it('inserts an empty live region before the post-mount announcement effect', () => {

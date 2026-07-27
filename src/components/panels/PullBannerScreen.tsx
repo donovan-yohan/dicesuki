@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { DiceShape } from '../../types/diceShape'
 import type { PullCount, PullCtaState, StandardPullBanner } from '../../types/pull'
 import type { PullPitySnapshot } from '../../lib/pullPity'
@@ -10,7 +10,7 @@ import { fetchActiveStandardPullBanner } from '../../lib/pullRpc'
 import { derivePullCtaState } from '../../lib/pullFlow'
 import { fetchMyPullPity } from '../../lib/pullPity'
 import { getSupabaseClient } from '../../lib/supabaseClient'
-import { useAuthStore } from '../../store/useAuthStore'
+import { type AuthStatus, useAuthStore } from '../../store/useAuthStore'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { useWalletStore } from '../../store/useWalletStore'
 import { CurrencyText } from '../economy/CurrencyGlyph'
@@ -25,6 +25,8 @@ interface PullBannerScreenProps {
   onAddDie: (type: DiceShape, inventoryDieId: string) => string | null
   tableDiceCount: number
   deviceTier: RenderDeviceTier
+  /** Renders inside ShopPanel's shared full-screen surface. */
+  embedded?: boolean
 }
 
 interface PullTierRate {
@@ -39,6 +41,7 @@ export function PullBannerScreen({
   onAddDie,
   tableDiceCount,
   deviceTier,
+  embedded = false,
 }: PullBannerScreenProps) {
   const client = getSupabaseClient()
   const authStatus = useAuthStore(state => state.status)
@@ -69,10 +72,14 @@ export function PullBannerScreen({
   const [ratesLoading, setRatesLoading] = useState(false)
   const [ratesError, setRatesError] = useState<string | null>(null)
   const [activeClass, setActiveClass] = useState<'standard' | 'premium'>('standard')
-  const [ratesOpen, setRatesOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [convertCount, setConvertCount] = useState<PullCount | null>(null)
   const [insufficientCount, setInsufficientCount] = useState<PullCount | null>(null)
   const [converting, setConverting] = useState(false)
+  const standardBannerTabId = useId()
+  const premiumBannerTabId = useId()
+  const standardBannerPanelId = useId()
+  const premiumBannerPanelId = useId()
   const [conversionError, setConversionError] = useState<string | null>(null)
   const [pityRefreshGeneration, setPityRefreshGeneration] = useState(0)
   const previousFlowStatusRef = useRef(flow.state.status)
@@ -386,30 +393,25 @@ export function PullBannerScreen({
     )
   }
 
-  const hardGuarantee = pity?.rareHardGuaranteePull
-  const misses = pity?.rareMisses
-  const remaining = pity
-    ? Math.max(0, pity.rareHardGuaranteePull - pity.rareMisses)
-    : null
-
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto"
+      className={embedded
+        ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+        : 'fixed inset-0 z-50 flex h-[100dvh] flex-col overflow-hidden'}
       style={{
         color: 'var(--color-text-primary)',
         backgroundColor: 'var(--color-background)',
       }}
     >
-      <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 pb-52">
-        <header className="sticky top-0 z-10 -mx-4 border-b px-4 py-2 backdrop-blur">
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col overflow-y-auto px-4 pb-5">
+        {!embedded && (
+          <header className="sticky top-0 z-10 -mx-4 border-b px-4 py-2 backdrop-blur">
           <div className="flex min-h-11 items-center justify-between">
             <button type="button" className="min-h-11 min-w-11" onClick={onClose} aria-label="Close Banners">
               Back
             </button>
             <h1 className="text-xl font-bold">Shop</h1>
-            <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-              Fair pulls <span aria-hidden="true">✓</span>
-            </span>
+            <span className="min-w-11" aria-hidden="true" />
           </div>
           <nav aria-label="Shop sections" className="grid grid-cols-2 gap-2">
             <button
@@ -424,22 +426,27 @@ export function PullBannerScreen({
               Wallet &amp; bundles
             </button>
           </nav>
-        </header>
+          </header>
+        )}
 
         <div role="tablist" aria-label="Banner class" className="mt-4 grid grid-cols-2 gap-2">
           <button
+            id={standardBannerTabId}
             type="button"
             role="tab"
             aria-selected={activeClass === 'standard'}
+            aria-controls={standardBannerPanelId}
             className="min-h-11 rounded-md border"
             onClick={() => setActiveClass('standard')}
           >
             Standard
           </button>
           <button
+            id={premiumBannerTabId}
             type="button"
             role="tab"
             aria-selected={activeClass === 'premium'}
+            aria-controls={premiumBannerPanelId}
             className="min-h-11 rounded-md border"
             onClick={() => setActiveClass('premium')}
           >
@@ -448,9 +455,26 @@ export function PullBannerScreen({
         </div>
 
         {activeClass === 'premium' ? (
-          <PremiumDormant />
+          <div
+            id={premiumBannerPanelId}
+            role="tabpanel"
+            aria-labelledby={premiumBannerTabId}
+          >
+            <PremiumDormant />
+            <button
+              type="button"
+              className="mt-4 min-h-11 self-start underline"
+              onClick={() => setDetailsOpen(true)}
+            >
+              Banner details: odds, pity &amp; pool
+            </button>
+          </div>
         ) : (
-          <>
+          <div
+            id={standardBannerPanelId}
+            role="tabpanel"
+            aria-labelledby={standardBannerTabId}
+          >
             <section className="mt-4" aria-labelledby="standard-banner-heading">
               <div
                 className="h-[min(42vh,360px)] overflow-hidden border-y"
@@ -474,49 +498,13 @@ export function PullBannerScreen({
               </p>
             </section>
 
-            <section className="mt-5 border-y py-4" aria-labelledby="pity-heading">
-              <div className="flex items-center justify-between">
-                <h2 id="pity-heading" className="font-bold">Pity</h2>
-                {pity && <span>{pity.rareMisses}/{pity.rareHardGuaranteePull}</span>}
-              </div>
-              {authStatus !== 'authenticated' ? (
-                <p className="mt-2 text-sm">Sign in to view your server-owned pity.</p>
-              ) : !banner ? (
-                <p className="mt-2 text-sm">Pity is unavailable until a ticket-bound banner is active.</p>
-              ) : pityLoading ? (
-                <p className="mt-2 text-sm" aria-label="Loading pity">Loading pity…</p>
-              ) : pityError ? (
-                <p className="mt-2 text-sm" role="status">Pity unavailable: {pityError}</p>
-              ) : pity && hardGuarantee !== undefined && misses !== undefined && remaining !== null ? (
-                <>
-                  <div
-                    className="mt-2 h-2 overflow-hidden"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={hardGuarantee}
-                    aria-valuenow={Math.min(misses, hardGuarantee)}
-                    aria-label="Rare guarantee progress"
-                    style={{ backgroundColor: 'var(--color-surface)' }}
-                  >
-                    <div
-                      className="h-full"
-                      style={{
-                        width: `${Math.min(100, misses / hardGuarantee * 100)}%`,
-                        backgroundColor: 'var(--color-accent)',
-                      }}
-                    />
-                  </div>
-                  <p className="mt-2 text-sm">
-                    Rare+ guaranteed within {remaining} {remaining === 1 ? 'pull' : 'pulls'}
-                  </p>
-                </>
-              ) : (
-                <p className="mt-2 text-sm">Pity is unavailable.</p>
-              )}
-              <button type="button" className="mt-2 min-h-11 underline" onClick={() => setRatesOpen(true)}>
-                Rates and pity rules
-              </button>
-            </section>
+            <button
+              type="button"
+              className="mt-4 min-h-11 self-start underline"
+              onClick={() => setDetailsOpen(true)}
+            >
+              Banner details: odds, pity &amp; pool
+            </button>
 
             {!online && (
               <p role="status" className="mt-4">You&apos;re offline. Pulls will resume when you reconnect.</p>
@@ -546,12 +534,12 @@ export function PullBannerScreen({
             {(flow.state.status === 'cancelled' || flow.state.status === 'expired') && (
               <p role="status" className="mt-4">{flow.state.message}</p>
             )}
-          </>
+          </div>
         )}
       </div>
 
       <footer
-        className="fixed inset-x-0 bottom-0 z-20 border-t p-4"
+        className="shrink-0 border-t p-4"
         style={{
           backgroundColor: 'var(--color-surface)',
           borderColor: 'var(--color-text-muted)',
@@ -611,20 +599,22 @@ export function PullBannerScreen({
               How to earn more rolls
             </button>
           )}
-          <button type="button" className="mt-2 min-h-11 text-sm" onClick={() => setRatesOpen(true)}>
-            Provably fair <span aria-hidden="true">✓</span>
-          </button>
         </div>
       </footer>
 
-      <BottomSheet isOpen={ratesOpen} onClose={() => setRatesOpen(false)} title="Rates and pity">
-        <RatesDisclosure
-          rates={rates}
-          loading={ratesLoading}
-          error={ratesError}
-          bannerVersionId={banner?.bannerVersionId ?? null}
-        />
-      </BottomSheet>
+      <BannerDetailsModal
+        isOpen={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        bannerClass={activeClass}
+        banner={banner}
+        authStatus={authStatus}
+        pity={pity}
+        pityLoading={pityLoading}
+        pityError={pityError}
+        rates={rates}
+        ratesLoading={ratesLoading}
+        ratesError={ratesError}
+      />
 
       <BottomSheet
         isOpen={convertCount !== null}
@@ -685,45 +675,226 @@ export function PullBannerScreen({
   )
 }
 
-function RatesDisclosure({
+function BannerDetailsModal({
+  isOpen,
+  onClose,
+  bannerClass,
+  banner,
+  authStatus,
+  pity,
+  pityLoading,
+  pityError,
   rates,
-  loading,
-  error,
-  bannerVersionId,
+  ratesLoading,
+  ratesError,
 }: {
+  isOpen: boolean
+  onClose: () => void
+  bannerClass: 'standard' | 'premium'
+  banner: StandardPullBanner | null
+  authStatus: AuthStatus
+  pity: PullPitySnapshot | null
+  pityLoading: boolean
+  pityError: string | null
   rates: PullTierRate[] | null
-  loading: boolean
-  error: string | null
-  bannerVersionId: string | null
+  ratesLoading: boolean
+  ratesError: string | null
 }) {
+  const dialogRef = useRef<HTMLElement>(null)
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const dialog = dialogRef.current
+    const focusableSelector = [
+      'button:not([disabled])',
+      '[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',')
+    const focusFirst = () => {
+      const first = dialog?.querySelector<HTMLElement>(focusableSelector)
+      ;(first ?? dialog)?.focus()
+    }
+    const animationFrame = window.requestAnimationFrame(focusFirst)
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || !dialog) return
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(focusableSelector),
+      )
+      if (focusable.length === 0) {
+        event.preventDefault()
+        dialog.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocusedRef.current?.focus()
+      previouslyFocusedRef.current = null
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
+
+  const remaining = pity
+    ? Math.max(0, pity.rareHardGuaranteePull - pity.rareMisses)
+    : null
+
   return (
-    <div className="space-y-4">
-      <p>Standard pulls use a shallow, server-owned pity counter.</p>
-      {loading ? (
-        <p aria-label="Loading exact rates">Loading exact rates…</p>
-      ) : rates && bannerVersionId ? (
-        <>
-          <table className="w-full text-left">
-            <caption className="sr-only">Standard banner base rarity rates</caption>
-            <tbody>
-              {rates.map(rate => (
-                <tr key={rate.tierId}>
-                  <th className="py-2 capitalize">{rate.tierId}</th>
-                  <td>{rate.percent.toFixed(2)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            Exact base weights for {bannerVersionId}. Guarantees can increase the
-            effective chance shown by the server-owned pity rules.
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.72)' }}
+      onMouseDown={onClose}
+    >
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="banner-details-title"
+        tabIndex={-1}
+        className="max-h-full w-full max-w-lg overflow-y-auto rounded-lg border p-5"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-text-muted)',
+        }}
+        onMouseDown={event => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="banner-details-title" className="text-xl font-bold">Banner details</h2>
+          <button type="button" className="min-h-11 min-w-11" onClick={onClose} aria-label="Close banner details">
+            ×
+          </button>
+        </div>
+
+        <section className="mt-4" aria-labelledby="banner-pool-heading">
+          <h3 id="banner-pool-heading" className="font-bold">Pool</h3>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            {bannerClass === 'standard'
+              ? 'Permanent collection. The standard pool never rotates away.'
+              : 'Premium pool details are coming soon.'}
           </p>
-        </>
-      ) : (
-        <p role="status">
-          Exact rates are unavailable{error ? `: ${error}` : ' until a ticket-bound banner is active.'}
-        </p>
-      )}
+        </section>
+
+        <section className="mt-4" aria-labelledby="banner-odds-heading">
+          <h3 id="banner-odds-heading" className="font-bold">Base odds</h3>
+          {bannerClass === 'premium' ? (
+            <p className="mt-1 text-sm" role="status">
+              Premium banner odds are unavailable while it is coming soon.
+            </p>
+          ) : ratesLoading ? (
+            <p className="mt-1 text-sm" aria-label="Loading exact rates">Loading exact rates…</p>
+          ) : rates && banner ? (
+            <>
+              <table className="mt-1 w-full text-left">
+                <caption className="sr-only">Standard banner base rarity rates</caption>
+                <tbody>
+                  {rates.map(rate => (
+                    <tr key={rate.tierId}>
+                      <th className="py-1 capitalize">{rate.tierId}</th>
+                      <td>{rate.percent.toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                Exact base weights for {banner.bannerVersionId}; guarantees can raise the effective chance.
+              </p>
+            </>
+          ) : (
+            <p className="mt-1 text-sm" role="status">
+              Exact rates are unavailable{ratesError ? `: ${ratesError}` : ' until a ticket-bound banner is active.'}
+            </p>
+          )}
+        </section>
+
+        <section className="mt-4" aria-labelledby="banner-pity-heading">
+          <h3 id="banner-pity-heading" className="font-bold">Pity</h3>
+          {bannerClass === 'premium' ? (
+            <>
+              <p className="mt-1 text-sm">
+                Soft pity begins at pull 41; featured is guaranteed by 75.
+              </p>
+              <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                Base zone · soft-pity zone · hard 75
+              </p>
+            </>
+          ) : authStatus !== 'authenticated' ? (
+            <p className="mt-1 text-sm">Sign in to view your current pity.</p>
+          ) : pityLoading ? (
+            <p className="mt-1 text-sm" aria-label="Loading pity">Loading pity…</p>
+          ) : pityError ? (
+            <p className="mt-1 text-sm" role="status">Pity unavailable: {pityError}</p>
+          ) : pity && remaining !== null ? (
+            <>
+              <p className="mt-1 text-sm">
+                Rare+ guaranteed within {remaining} {remaining === 1 ? 'pull' : 'pulls'}
+                {' '}({pity.rareMisses}/{pity.rareHardGuaranteePull}).
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                <li>Rare+ hard guarantee: pull {pity.rareHardGuaranteePull}</li>
+                <li>Epic+ hard guarantee: pull {pity.epicHardGuaranteePull}</li>
+                <li>Selected-item hard guarantee: pull {pity.selectedHardGuaranteePull}</li>
+              </ul>
+              <div
+                className="mt-2 h-2 overflow-hidden"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={pity.rareHardGuaranteePull}
+                aria-valuenow={Math.min(pity.rareMisses, pity.rareHardGuaranteePull)}
+                aria-label="Rare guarantee progress"
+                style={{ backgroundColor: 'var(--color-background)' }}
+              >
+                <div
+                  className="h-full"
+                  style={{
+                    width: `${Math.min(100, pity.rareMisses / pity.rareHardGuaranteePull * 100)}%`,
+                    backgroundColor: 'var(--color-accent)',
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <p className="mt-1 text-sm">Pity is unavailable until a ticket-bound banner is active.</p>
+          )}
+        </section>
+
+        <section className="mt-4" aria-labelledby="banner-fairness-heading">
+          <h3 id="banner-fairness-heading" className="font-bold">Fair pulls</h3>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            The server seals each outcome before reveal. Its verification receipt includes
+            the commitment root, seed, and per-result nonces after the pull completes.
+          </p>
+        </section>
+      </section>
     </div>
   )
 }
@@ -734,12 +905,8 @@ function PremiumDormant() {
       <p className="text-xs font-bold uppercase tracking-wider">Locked</p>
       <h2 id="premium-heading" className="mt-2 text-2xl font-bold">Premium banner</h2>
       <p className="mt-2" style={{ color: 'var(--color-text-secondary)' }}>
-        Coming soon. Soft pity begins at pull 41; featured is guaranteed by 75.
+        Coming soon. See banner details for its planned pool and pity rules.
       </p>
-      <div className="mx-auto mt-5 h-2 max-w-sm" style={{ backgroundColor: 'var(--color-surface)' }}>
-        <div className="h-full w-[55%]" style={{ backgroundColor: 'var(--color-text-muted)' }} />
-      </div>
-      <p className="mt-2 text-sm">Base zone · soft-pity zone · hard 75</p>
     </section>
   )
 }

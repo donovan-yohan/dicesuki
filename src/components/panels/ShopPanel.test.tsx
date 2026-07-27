@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThemeContext } from '../../contexts/ThemeContext'
@@ -26,12 +25,12 @@ vi.mock('../../lib/paymentsConfig', () => ({
   isPaymentsEnabled: vi.fn(() => false),
 }))
 
-vi.mock('./BottomSheet', () => ({
-  BottomSheet: ({ isOpen, children, title }: {
-    isOpen: boolean
-    children: ReactNode
-    title: string
-  }) => isOpen ? <section aria-label={title}>{children}</section> : null,
+vi.mock('./PullBannerScreen', () => ({
+  PullBannerScreen: ({ embedded }: { embedded?: boolean }) => (
+    <section data-testid="pull-banner-screen" data-embedded={embedded ? 'true' : 'false'}>
+      Pull banners
+    </section>
+  ),
 }))
 
 const receipt = {
@@ -57,7 +56,7 @@ const lunarReceipt = {
 
 const originalRefresh = useWalletStore.getState().refresh
 
-function renderShop() {
+function renderShop(initialTab: 'shop' | 'banners' = 'shop', onClose = vi.fn()) {
   return render(
     <ThemeContext.Provider
       value={{
@@ -68,7 +67,7 @@ function renderShop() {
         purchaseTheme: vi.fn(async () => true),
       }}
     >
-      <ShopPanel isOpen onClose={vi.fn()} />
+      <ShopPanel isOpen onClose={onClose} initialTab={initialTab} />
     </ThemeContext.Provider>,
   )
 }
@@ -128,6 +127,60 @@ describe('ShopPanel', () => {
     expect(within(wallet).getByTestId('wallet-dust')).toHaveTextContent('5')
     expect(within(wallet).getByTestId('wallet-standard-rolls')).toHaveTextContent('1')
     expect(within(wallet).getByTestId('wallet-premium-rolls')).toHaveTextContent('2')
+  })
+
+  it('uses one full-screen shop surface while tabbing between wallet and banners', () => {
+    const onClose = vi.fn()
+    setSignedInWallet()
+    renderShop('banners', onClose)
+
+    expect(screen.getByRole('dialog', { name: 'Shop' })).toBeInTheDocument()
+    expect(screen.getByTestId('pull-banner-screen')).toHaveAttribute('data-embedded', 'true')
+    expect(screen.getByLabelText('Wallet balances')).toBeInTheDocument()
+    const walletTab = screen.getByRole('tab', { name: /wallet & bundles/i })
+    fireEvent.click(walletTab)
+    const walletPanel = screen.getByRole('tabpanel', { name: /wallet & bundles/i })
+    expect(walletTab).toHaveAttribute('aria-controls', walletPanel.id)
+    expect(screen.getByRole('heading', { name: 'Stars → standard rolls' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close Shop' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('focuses the dialog, closes with Escape, and restores the prior focus', async () => {
+    setSignedInWallet()
+    const onClose = vi.fn()
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+
+    const { unmount } = renderShop('shop', onClose)
+    const close = screen.getByRole('button', { name: 'Close Shop' })
+    await waitFor(() => expect(close).toHaveFocus())
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
+
+    unmount()
+    expect(opener).toHaveFocus()
+    opener.remove()
+  })
+
+  it('yields Escape and Tab to any nested modal dialog', () => {
+    setSignedInWallet()
+    const onClose = vi.fn()
+    renderShop('shop', onClose)
+
+    const nestedModal = document.createElement('section')
+    nestedModal.setAttribute('role', 'dialog')
+    nestedModal.setAttribute('aria-modal', 'true')
+    screen.getByRole('dialog', { name: 'Shop' }).append(nestedModal)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+
+    const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true })
+    document.dispatchEvent(tabEvent)
+    expect(tabEvent.defaultPrevented).toBe(false)
   })
 
   it('bounds the quantity to affordable rolls and disables conversion at zero balance', () => {
