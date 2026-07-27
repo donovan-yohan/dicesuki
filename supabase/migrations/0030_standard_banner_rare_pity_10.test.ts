@@ -125,6 +125,7 @@ describe('0030 standard banner rare pity 10', () => {
     const evidence = [
       'Version 2 changed while appending rare pity version 3',
       'Rare guarantee fired at pull 8 under version 3',
+      'Rare guarantee fired at pull 9 under version 3',
       'Rare guarantee did not fire at pull 10 under version 3',
       'Epic guarantee did not fire at pull 25 under version 3',
       'Pity read did not expose active version 3 thresholds and carried counters',

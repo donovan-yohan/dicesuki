@@ -2,6 +2,7 @@ begin;
 
 insert into auth.users (id) values
   ('d0300000-0000-4030-8030-000000000008'),
+  ('d0300000-0000-4030-8030-000000000009'),
   ('d0300000-0000-4030-8030-000000000010'),
   ('d0300000-0000-4030-8030-000000000025');
 
@@ -90,6 +91,10 @@ begin
         'slice21:ticket:seed:0008'
       ),
       (
+        'd0300000-0000-4030-8030-000000000009'::uuid,
+        'slice21:ticket:seed:0009'
+      ),
+      (
         'd0300000-0000-4030-8030-000000000010'::uuid,
         'slice21:ticket:seed:0010'
       ),
@@ -138,6 +143,12 @@ from (values
     0::bigint
   ),
   (
+    'd0300000-0000-4030-8030-000000000009'::uuid,
+    8::bigint,
+    8::bigint,
+    0::bigint
+  ),
+  (
     'd0300000-0000-4030-8030-000000000010'::uuid,
     9::bigint,
     9::bigint,
@@ -163,6 +174,10 @@ begin
       (
         'd0300000-0000-4030-8030-000000000008'::uuid,
         'slice21:prepare:pull-8'
+      ),
+      (
+        'd0300000-0000-4030-8030-000000000009'::uuid,
+        'slice21:prepare:pull-9'
       ),
       (
         'd0300000-0000-4030-8030-000000000010'::uuid,
@@ -198,6 +213,16 @@ begin
     where user_id = 'd0300000-0000-4030-8030-000000000008'
   ) is distinct from 'base' then
     raise exception 'Rare guarantee fired at pull 8 under version 3';
+  end if;
+
+  -- The pull immediately before the new boundary must still be unguaranteed,
+  -- proving 10 is exact rather than "8 or later".
+  if (
+    select resolution_reason
+    from public.sealed_pull_results
+    where user_id = 'd0300000-0000-4030-8030-000000000009'
+  ) is distinct from 'base' then
+    raise exception 'Rare guarantee fired at pull 9 under version 3';
   end if;
 
   if (
