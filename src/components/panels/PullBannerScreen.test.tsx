@@ -6,6 +6,7 @@ import { ThemeContext } from '../../contexts/ThemeContext'
 import { defaultTheme } from '../../themes/tokens'
 import { PullBannerScreen } from './PullBannerScreen'
 import { usePullFlow } from '../../hooks/usePullFlow'
+import { fetchActiveStandardPullBanner } from '../../lib/pullRpc'
 import { fetchMyPullPity } from '../../lib/pullPity'
 
 const startPull = vi.fn()
@@ -196,6 +197,79 @@ describe('PullBannerScreen CTA matrix', () => {
     const dialog = screen.getByRole('dialog', { name: 'Banner details' })
     expect(within(dialog).queryByTestId('pull-verification-receipt')).not.toBeInTheDocument()
     expect(within(dialog).getByText(/receipt appears here once a pull completes/i)).toBeInTheDocument()
+  })
+
+  it('recovers a superseded banner by refetching it and retrying the live version', async () => {
+    setState('authenticated', 10, 0)
+    const view = renderBanner()
+    await waitFor(() => expect(fetchActiveStandardPullBanner).toHaveBeenCalledOnce())
+
+    // The banner rolled over after mount, so prepare rejects the retired
+    // version with SQLSTATE 55000 and the next lookup returns the live one.
+    vi.mocked(fetchActiveStandardPullBanner).mockResolvedValueOnce({
+      bannerVersionId: 'standard-banner@2',
+      bannerId: 'standard-banner',
+      bannerVersion: 2,
+      bannerFamilyId: 'standard-banner',
+      bannerClass: 'standard',
+      rollType: 'standard_roll',
+    })
+    vi.mocked(usePullFlow).mockReturnValue(flowResult({
+      status: 'error',
+      stage: 'prepare',
+      error: 'prepare_pull_session failed: banner version standard-banner@1 superseded by version 2',
+      intent: {
+        ownerId: 'user-1',
+        bannerVersionId: 'standard-banner@1',
+        pullCount: 10,
+        idempotencyKey: 'key-1',
+        createdAt: '2026-07-27T00:00:00.000Z',
+      },
+    } as never))
+    view.rerender(<BannerFixture />)
+
+    await waitFor(() => expect(fetchActiveStandardPullBanner).toHaveBeenCalledTimes(2))
+    const notice = await screen.findByTestId('banner-superseded-notice')
+    expect(notice).toHaveTextContent(/banner updated — please retry/i)
+    // The raw SQLSTATE text never reaches the player.
+    expect(screen.queryByText(/superseded by version/i)).not.toBeInTheDocument()
+
+    // Retrying must target the refetched version, not the retired intent.
+    fireEvent.click(screen.getByRole('button', { name: /try pull again/i }))
+    expect(startPull).toHaveBeenCalledWith('standard-banner@2', 10)
+  })
+
+  it('leaves an unrelated prepare failure as a raw alert retried through the flow', async () => {
+    setState('authenticated', 10, 0)
+    const view = renderBanner()
+    await waitFor(() => expect(fetchActiveStandardPullBanner).toHaveBeenCalledOnce())
+
+    const retryPrepare = vi.fn()
+    vi.mocked(usePullFlow).mockReturnValue({
+      ...flowResult({
+        status: 'error',
+        stage: 'prepare',
+        error: 'prepare_pull_session failed: network unreachable',
+        intent: {
+          ownerId: 'user-1',
+          bannerVersionId: 'standard-banner@1',
+          pullCount: 1,
+          idempotencyKey: 'key-2',
+          createdAt: '2026-07-27T00:00:00.000Z',
+        },
+      } as never),
+      retryPrepare,
+    })
+    view.rerender(<BannerFixture />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/network unreachable/i)
+    expect(screen.queryByTestId('banner-superseded-notice')).not.toBeInTheDocument()
+    // No banner rollover, so no extra lookup and the ordinary retry path stands.
+    expect(fetchActiveStandardPullBanner).toHaveBeenCalledOnce()
+
+    fireEvent.click(screen.getByRole('button', { name: /try pull again/i }))
+    expect(retryPrepare).toHaveBeenCalledOnce()
+    expect(startPull).not.toHaveBeenCalled()
   })
 
   it('keeps odds, pity, pool, and fairness copy in the one-tap banner details modal', async () => {

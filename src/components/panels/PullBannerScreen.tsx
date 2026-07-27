@@ -25,6 +25,17 @@ import { PullProgressOverlay } from './PullProgressOverlay'
 import { PullRevealOverlay } from './PullRevealOverlay'
 
 /**
+ * A banner version can be superseded in place (migration 0030). A client that
+ * mounted before the switch still holds the retired `bannerVersionId`, so
+ * `prepare_pull_session` rejects it with SQLSTATE 55000 ("superseded by
+ * version"). Retrying the same intent can never succeed — the banner has to be
+ * refetched first — so this is recovered rather than shown as a raw backend
+ * error. `PullRpcError` stringifies as `"<operation> failed: <message>"`, and
+ * the flow keeps only that message, so the message text is the signal here.
+ */
+const SUPERSEDED_BANNER_ERROR = /superseded by version|\b55000\b/i
+
+/**
  * The banners tab of the shop. It always renders inside `ShopPanel`'s shared
  * full-screen surface — the shell (title, close affordance, Escape handling,
  * wallet header, tabs) belongs to `ShopPanel` for guests and members alike.
@@ -90,6 +101,10 @@ export function PullBannerScreen({
   // Retaining the latest one keeps the disclosure the Terms page promises
   // available in the single consolidated fairness spot: the details modal.
   const [receipt, setReceipt] = useState<PullVerificationDisclosure | null>(null)
+  // Set once a superseded-banner prepare failure has been recovered by
+  // refetching the active banner, so the retry targets the live version.
+  const [bannerSuperseded, setBannerSuperseded] = useState(false)
+  const supersededErrorRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (flow.verification) setReceipt(flow.verification)
@@ -134,6 +149,44 @@ export function PullBannerScreen({
       active = false
     }
   }, [client])
+
+  // The banner is otherwise fetched once on mount. Refetch it when a prepare
+  // fails because the version it named was superseded, so the retry below has a
+  // live version to prepare against. Same error handling as the mount fetch.
+  useEffect(() => {
+    const state = flow.state
+    if (state.status !== 'error' || state.stage !== 'prepare') {
+      supersededErrorRef.current = null
+      setBannerSuperseded(false)
+      return
+    }
+    if (!SUPERSEDED_BANNER_ERROR.test(state.error)) return
+    // Guard the refetch per distinct failure, so a retry that fails identically
+    // cannot loop the lookup.
+    if (supersededErrorRef.current === state.error) return
+    supersededErrorRef.current = state.error
+    if (!client) return
+
+    let active = true
+    setBannerLoading(true)
+    void fetchActiveStandardPullBanner(client)
+      .then(value => {
+        if (!active) return
+        setBanner(value)
+        setBannerError(null)
+        setBannerSuperseded(true)
+        setBannerLoading(false)
+      })
+      .catch(error => {
+        if (!active) return
+        setBannerError(error instanceof Error ? error.message : 'Banner lookup failed.')
+        setBannerSuperseded(false)
+        setBannerLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [client, flow.state])
 
   useEffect(() => {
     let active = true
@@ -247,6 +300,19 @@ export function PullBannerScreen({
     } else {
       setInsufficientCount(cta.pullCount)
     }
+  }
+
+  // The failed intent still names the retired version, so `retryPrepare` would
+  // reuse it and fail the same way. Once the banner has been refetched, start a
+  // fresh pull against the live version instead.
+  const retryPrepare = () => {
+    const state = flow.state
+    if (state.status !== 'error' || state.stage !== 'prepare') return
+    if (bannerSuperseded && banner) {
+      void flow.startPull(banner.bannerVersionId, state.intent.pullCount)
+      return
+    }
+    void flow.retryPrepare()
   }
 
   const convertAndPull = async () => {
@@ -487,9 +553,15 @@ export function PullBannerScreen({
             )}
             {flow.state.status === 'error' && (
               <div className="mt-4">
-                <p role="alert">{flow.state.error}</p>
+                {bannerSuperseded && flow.state.stage === 'prepare' ? (
+                  <p role="status" data-testid="banner-superseded-notice">
+                    Banner updated — please retry. No rolls or Stars were spent.
+                  </p>
+                ) : (
+                  <p role="alert">{flow.state.error}</p>
+                )}
                 {flow.state.stage === 'prepare' && (
-                  <button type="button" className="mt-2 min-h-11 underline" onClick={() => void flow.retryPrepare()}>
+                  <button type="button" className="mt-2 min-h-11 underline" onClick={retryPrepare}>
                     Try pull again
                   </button>
                 )}
