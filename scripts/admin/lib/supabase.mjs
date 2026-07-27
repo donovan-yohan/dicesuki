@@ -129,10 +129,19 @@ export async function findAuthUsers(environment, { filter = null, page = 1, perP
 }
 
 /**
- * Build a PostgREST `ilike` pattern. Values are double-quoted so display names
- * containing PostgREST's reserved characters (`,` `.` `(` `)`) are not parsed as
- * operator syntax; `%` is left intact so operators can wildcard on purpose.
+ * Build a PostgREST `ilike` pattern for a substring search.
+ *
+ * The value must NOT be quoted: PostgREST does not dequote a single filter
+ * value, so `ilike."%Ada%"` searches for a name containing literal double
+ * quotes and matches nothing. Commas and dots are only special inside `in.()`
+ * lists and logical trees, so an unquoted value is safe here.
+ *
+ * `\`, `%` and `_` are backslash-escaped so a display name containing them is
+ * matched literally rather than as SQL LIKE wildcards. `*` is deliberately left
+ * alone: PostgREST maps `*` to `%` in like/ilike patterns, so an operator can
+ * still type `Ada*Lovelace` for an explicit wildcard search.
  */
 export function likePattern(query) {
-  return `"%${String(query).replaceAll('\\', '\\\\').replaceAll('"', '\\"')}%"`
+  const escaped = String(query).replace(/[\\%_]/g, character => `\\${character}`)
+  return `%${escaped}%`
 }

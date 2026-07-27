@@ -67,9 +67,32 @@ The first line of output names the project and which env var the key came from
 | Nothing fires silently | Every mutating command prints the resolved target, the full RPC name, the provenance, and the exact SQL **before** doing anything. |
 | Interactive confirm | Mutations prompt `Type "yes" to continue:` unless `--yes` is passed. A non-TTY stdin without `--yes` is refused, not auto-approved. |
 | Dry-run by default where it matters | `grant-die` and `cancel-session` are `--dry-run` by default; they need `--no-dry-run` to act. Both write append-only rows that can never be corrected. |
-| Idempotent by construction | Keys are auto-derived as `admin-grant:<YYYY-MM-DD>:<slug>`. Re-running with the same `--key` and the same `--operator`/`--note` replays safely and returns the original row. |
+| Retry-safe by construction | The idempotency key is **derived deterministically from the grant itself**, so re-running the identical command replays instead of granting twice. See [Idempotency keys](#idempotency-keys). |
 | The database is the arbiter | The CLI never pre-computes a balance. Floors, holds, overflow, and idempotency drift are all decided server-side. |
 | No paid-Stars path | `grant-stars` only ever touches `stars`/`promotional`. The `paid` bucket is purchase-backed; refunds go through `refund_payment_order`, never a manual append. |
+
+### Idempotency keys
+
+Keys look like `admin-grant:<YYYY-MM-DD>:<12-hex-digest>`. The digest is a
+SHA-256 over the **whole intent** of the grant: UTC date, command, target user
+id, subject (the amount, or the catalog item for a die), roll type, `--operator`
+and `--note`.
+
+That matters because after a timeout, a dropped connection, or a Ctrl-C
+mid-call, you cannot tell whether the write landed. **Just run the exact same
+command again.** It derives the same key, the RPC recognises the replay, and you
+get the original row back rather than a second grant
+(`0028_sku_fulfillment.sql:508-521`, `0020_dice_copy_inventory.sql:182-197`).
+Every failure message also echoes the key so you can pass it explicitly.
+
+The flip side: **an intentional second identical grant on the same UTC day will
+be swallowed as a replay.** To make it a genuinely new grant, change `--note`
+(preferred — it is the audit trail anyway, e.g. `'ticket 1284 (second goodwill
+grant)'`) or pass an explicit `--key`.
+
+A key must be 8-200 characters; for `grant-die` it must additionally match
+`^[A-Za-z0-9][A-Za-z0-9._:-]+$` (`0020_dice_copy_inventory.sql:25-29`). Derived
+keys always satisfy both.
 
 ### Why provenance carries no timestamp
 
@@ -116,6 +139,10 @@ node scripts/admin/dicesuki-admin.mjs user 3f4a2b10-... --json
 
 If the query matches more than one player the CLI lists the candidates and exits
 rather than guessing — re-run with the uuid.
+
+Display-name search is a case-insensitive substring match. `%` and `_` in your
+query are matched literally; use `*` if you want an explicit wildcard (PostgREST
+maps `*` to `%` for `ilike`), e.g. `user 'Ada*Lovelace'`.
 
 > Identity comes from the GoTrue admin API, not from Postgres. `auth.users` is
 > not reachable over PostgREST (no view or accessor function exists in
@@ -206,8 +233,11 @@ node scripts/admin/dicesuki-admin.mjs grant-die someone@example.com \
   --no-dry-run
 ```
 
-The CLI validates the catalog item first (exists, `item_kind = 'die'`, has at
-least one asset version) and warns if a pull hold is live before it tries.
+The CLI validates the catalog item first and warns if a pull hold is live before
+it tries. **A catalog item with no `catalog_asset_versions` row is a hard
+refusal**, not a warning — see [the blast radius](#never-grant-an-asset-less-item)
+below. `--allow-missing-asset` overrides it; do not reach for that flag without
+independently confirming an asset version is about to ship.
 
 ### `ledger <user> [--limit N]`
 
@@ -247,8 +277,9 @@ node scripts/admin/dicesuki-admin.mjs cancel-session someone@example.com --confi
 | `--json` | machine-readable output on stdout (human text suppressed; warnings still go to stderr) |
 | `--yes` | skip the interactive confirmation — **required** with `--json` for a real mutation |
 | `--dry-run` / `--no-dry-run` | force dry-run on/off (mutating commands only) |
-| `--key <k>` | override the auto-derived idempotency key (8-200 chars) |
-| `--reason-code <c>` | override the default `support.manual.*` reason code |
+| `--key <k>` | override the derived idempotency key (8-200 chars; `grant-die` also requires `^[A-Za-z0-9][A-Za-z0-9._:-]+$`) |
+| `--reason-code <c>` | override the default reason code — must start with `support.` |
+| `--allow-missing-asset` | `grant-die` only: override the asset-version refusal (dangerous, see above) |
 | `--limit <n>` | tail size for read commands (1-200, default 10) |
 | `--help` | usage, optionally for one command |
 
@@ -256,11 +287,15 @@ Exit codes: `0` success, `1` operation failed, `2` usage or environment error.
 
 ### Error codes you will see
 
+Hints are scoped to the RPC that raised the code, so the guidance is never
+generic.
+
 | SQLSTATE | Meaning | Fix |
 |---|---|---|
-| `55000` | A prepared pull hold is live; grants are paused (`0021_pull_copy_grant_rework.sql:968-981`) | Run `cancel-session` to see `expires_at`, wait, retry with the **same** `--key` |
-| `22023` | An argument was rejected, or this key was already used with different arguments (`0028_sku_fulfillment.sql:508-521`) | Re-send byte-identical `--operator`/`--note`, or use a fresh `--key` |
-| `22003` | Balance floor or overflow (`0028_sku_fulfillment.sql:536-566`) | Reduce the debit, or wait out the pull hold reserving the funds |
+| `55000` (on `grant-die`) | A prepared pull hold is live; collectible grants are paused (`0021_pull_copy_grant_rework.sql:968-981`) | Run `cancel-session` to see `expires_at`, wait, then re-run the identical command |
+| `22023` | An argument was rejected, or this key was already used with different arguments (`0028_sku_fulfillment.sql:508-521`) | Re-run identically to replay, or change `--note` / pass `--key` to make it a new grant |
+| `22003` (wallet) | Balance floor or overflow, including funds reserved by a live pull hold (`0028_sku_fulfillment.sql:536-566`) | Reduce the debit, or wait out the hold |
+| `22003` (tickets) | Ticket floor (`0014_roll_ticket_ledger.sql:196-203`) | Reduce the debit |
 | `23503` | Unknown economy edition or catalog item | Check the id |
 | `42501` | Permission denied | The key in use is not a service-role key |
 
@@ -315,12 +350,26 @@ Two failure modes to know:
   `dice_copies_preserve_pull_snapshot` (`0021_pull_copy_grant_rework.sql:993-995`,
   function at `:949-985`) raises `'Collectible grants are paused while a prepared
   pull hold is active'` for any grant while the player holds a prepared,
-  unexpired, untransitioned pull session. **Wait for `expires_at` and retry with
-  the same `--key`.**
-- **A die with no asset version will not render.** `fetchCatalogSnapshot` drops
-  catalog items that have no `catalog_asset_versions` row
-  (`src/lib/collectibleCatalog.ts:259-260`). The grant would succeed and the die
-  would still be invisible, so the CLI warns before executing.
+  unexpired, untransitioned pull session. **Wait for `expires_at` and re-run the
+  identical command** — it derives the same key and replays safely.
+
+<a id="never-grant-an-asset-less-item"></a>
+- **Never grant a catalog item with no asset version.** This is not "the die
+  won't render" — it is a permanent, account-wide inventory outage:
+  1. `fetchCatalogSnapshot` drops catalog items that have no
+     `catalog_asset_versions` row (`src/lib/collectibleCatalog.ts:259-260`), so
+     the granted item is absent from the client's catalog entirely;
+  2. `mapServerCopiesToInventoryDice` then returns `null` for the **whole set**
+     the moment any live copy has no resolvable item or asset
+     (`src/store/useInventoryStore.ts:300-308` — `if (group.liveCount > 0) return
+     null`), so the player loses their **entire** server-copy inventory overlay,
+     not just the new die;
+  3. `dice_copies` rows can never be deleted — only the player can scrap them,
+     and only via their own client (`0020_dice_copy_inventory.sql:76-118`).
+
+  The CLI therefore refuses outright. Publish an asset version first. The
+  `--allow-missing-asset` escape hatch exists for the case where the asset
+  migration is already in flight, and it warns loudly.
 
 ### Why RPCs, not tables
 
@@ -338,7 +387,7 @@ Two failure modes to know:
 | `payment_orders` / `payment_events` | SELECT (`0013_paid_checkout_foundation.sql:564-565`) |
 | `profiles` | SELECT + DML (`0005_security_hardening.sql:37`) |
 
-`supabase/tests/0030_admin_support_cli.test.mjs` asserts this boundary against a
+`supabase/tests/0031_admin_support_cli.test.mjs` asserts this boundary against a
 real Postgres instance, so a migration that widens it fails CI.
 
 ---
@@ -398,7 +447,7 @@ player's Stars are reserved and **all collectible grants raise `55000`**.
    (`0011_earned_pull_preparation.sql:188`) and `expires_at = prepared_at +
    hold_ttl_seconds` exactly (`:230-231`). A live hold self-clears with **no write
    at all**. In almost every ticket this is the right answer: wait, then retry the
-   grant with the same `--key`.
+   grant by re-running the identical command (it derives the same key).
 3. **Or ask the player to retry in-app.** `public.cancel_pull_session(uuid)` is
    granted to `authenticated` and self-scoped, so the player's own client can
    release it.
@@ -438,11 +487,16 @@ player's Stars are reserved and **all collectible grants raise `55000`**.
 ## Development
 
 ```bash
-npx vitest run scripts/admin/admin-cli.test.ts   # pure logic: parsing, keys, provenance, plans
+npx vitest run scripts/admin/admin-cli.test.ts   # parsing, keys, provenance, plans, command gating
+npm run lint:admin                               # eslint over scripts/admin (.mjs + .ts)
 npm run test:db:supabase                         # live proof against a real Postgres + all migrations
 ```
 
-`supabase/tests/0030_admin_support_cli.test.mjs` imports the **same** plan
+`npm run lint` runs `lint:admin` after the repo-wide pass. The repo's `--ext
+ts,tsx` is deliberately unchanged; `.eslintrc.cjs` carries a scoped override that
+gives `scripts/admin/**/*.mjs` Node globals and module parsing.
+
+`supabase/tests/0031_admin_support_cli.test.mjs` imports the **same** plan
 builders the CLI uses and replays the SQL that `--dry-run` prints through
 `set role service_role`. If a future migration changes an argument name, a value
 domain, or a grant, that suite fails — the dry-run preview and the real call can

@@ -40,33 +40,53 @@ export class OperationError extends Error {
 }
 
 /**
- * SQLSTATE -> operator guidance. These are the codes the trusted RPCs raise on
- * purpose; anything else is surfaced verbatim.
+ * SQLSTATE -> operator guidance, scoped per RPC.
+ *
+ * The same code means different things depending on which function raised it,
+ * so the hint is never generic: `55000` on a die grant is the pull-hold pause,
+ * but on a wallet append it would be the paid-Stars guard, which this CLI has
+ * no way to trigger — saying "wait for the pull hold" there would send the
+ * operator down a dead end.
  */
-const SQLSTATE_HINTS = Object.freeze({
-  55000:
-    'A prepared pull hold is live for this player, so grants are paused ' +
-    '(0021_pull_copy_grant_rework.sql:968-981). Run `cancel-session <user>` to see when ' +
-    'the hold expires, then retry — the same --key replays safely.',
-  22023:
-    'An argument was rejected, or this idempotency key was already used with different ' +
-    'arguments (0028_sku_fulfillment.sql:508-521). Re-run with byte-identical --operator ' +
-    'and --note, or pick a fresh --key.',
-  22003:
-    'Balance floor hit. Negative deltas cannot take a balance below zero, and promotional ' +
-    'Stars cannot dip below the amount reserved by a live pull hold ' +
-    '(0028_sku_fulfillment.sql:536-566).',
-  23503: 'A referenced row does not exist (unknown economy edition or unknown catalog item).',
-  42501:
-    'Permission denied. These RPCs are granted to service_role only — the key in use is ' +
-    'not a service-role key.',
-})
+export function sqlstateHint(code, rpc) {
+  switch (String(code)) {
+    case '55000':
+      return rpc === 'record_dice_copy_grant'
+        ? 'A prepared pull hold is live for this player, so collectible grants are paused ' +
+            '(0021_pull_copy_grant_rework.sql:968-981). Run `cancel-session <user>` to see when ' +
+            'the hold expires, then re-run this exact command — the derived key replays safely.'
+        : null
+    case '22023':
+      return (
+        'An argument was rejected, or this idempotency key was already used with different ' +
+        'arguments (0028_sku_fulfillment.sql:508-521). Re-run the identical command to replay, ' +
+        'or change --note (or pass --key) to make it a genuinely new grant.'
+      )
+    case '22003':
+      return rpc === 'record_roll_ticket_ledger_entry'
+        ? 'Ticket floor hit: a negative delta cannot take the balance below zero ' +
+            '(0014_roll_ticket_ledger.sql:196-203).'
+        : 'Balance floor hit. A negative delta cannot take the balance below zero, and ' +
+            'promotional Stars cannot dip below the amount reserved by a live pull hold ' +
+            '(0028_sku_fulfillment.sql:536-566).'
+    case '23503':
+      return 'A referenced row does not exist (unknown economy edition or unknown catalog item).'
+    case '42501':
+      return (
+        'Permission denied. These RPCs are granted to service_role only — the key in use is ' +
+        'not a service-role key.'
+      )
+    default:
+      return null
+  }
+}
 
-function rpcFailure(error, label) {
+function rpcFailure(error, rpc, retryHint) {
   const parts = [error.message, error.details, error.hint].filter(Boolean)
-  const hint = SQLSTATE_HINTS[error.code]
+  const hint = sqlstateHint(error.code, rpc)
   if (hint) parts.push(hint)
-  return new OperationError(`${label} failed [${error.code ?? 'unknown'}]: ${parts.join(' | ')}`, {
+  if (retryHint) parts.push(retryHint)
+  return new OperationError(`${rpc} failed [${error.code ?? 'unknown'}]: ${parts.join(' | ')}`, {
     code: error.code ?? null,
   })
 }
@@ -375,15 +395,47 @@ async function executePlan(plan, request, context) {
     }
   }
 
-  const { data, error } = await context.client.rpc(plan.rpc, plan.payload)
-  if (error) throw rpcFailure(error, plan.rpc)
+  // Echoed on every failure path: after an ambiguous error the operator cannot
+  // tell whether the write landed, and this key is the thing that makes the
+  // retry safe either way.
+  const idempotencyKey = plan.payload.p_idempotency_key
+  const retryHint =
+    `Retry with --key '${idempotencyKey}' (or just re-run the identical command): the write ` +
+    'is replay-safe, so a retry returns the original row rather than granting twice.'
+
+  let response
+  try {
+    response = await context.client.rpc(plan.rpc, plan.payload)
+  } catch (cause) {
+    throw new OperationError(
+      `${plan.rpc} did not return a result: ${cause?.message ?? cause}. The write may or may ` +
+        `not have landed. ${retryHint}`,
+    )
+  }
+  const { data, error } = response
+  if (error) throw rpcFailure(error, plan.rpc, retryHint)
   io.say(`\nDONE — ${plan.summary}`)
   io.say(formatKeyValues(Object.entries(data ?? {}).map(([key, value]) => [key, JSON.stringify(value)])))
   return { plan, dryRun: false, executed: true, result: data ?? null }
 }
 
-function resolveKey(request) {
-  return request.idempotencyKey ?? deriveIdempotencyKey()
+/**
+ * Either the operator's explicit `--key`, or a key derived deterministically
+ * from the full intent of the grant, so a re-run after an ambiguous failure
+ * replays instead of double-granting.
+ */
+function resolveKey(request, userId, { subject = null, rollType = null } = {}) {
+  return (
+    request.idempotencyKey ??
+    deriveIdempotencyKey({
+      command: request.command,
+      userId,
+      subject,
+      rollType,
+      operator: request.operator,
+      note: request.note,
+    })
+  )
 }
 
 async function commandWalletGrant(kind, request, context) {
@@ -395,7 +447,7 @@ async function commandWalletGrant(kind, request, context) {
     amount: request.amount,
     operator: request.operator,
     note: request.note,
-    idempotencyKey: resolveKey(request),
+    idempotencyKey: resolveKey(request, candidate.id, { subject: request.amount }),
     reasonCode: request.reasonCode,
   })
   context.io.say(heading('Target'))
@@ -412,7 +464,10 @@ async function commandTicketGrant(request, context) {
     rollType: request.rollType,
     operator: request.operator,
     note: request.note,
-    idempotencyKey: resolveKey(request),
+    idempotencyKey: resolveKey(request, candidate.id, {
+      subject: request.amount,
+      rollType: request.rollType,
+    }),
     reasonCode: request.reasonCode,
   })
   context.io.say(heading('Target'))
@@ -435,10 +490,27 @@ async function commandDieGrant(request, context) {
         'record_dice_copy_grant only accepts dice (0020_dice_copy_inventory.sql:146-154).',
     )
   }
+  // HARD STOP, not a warning. `fetchCatalogSnapshot` drops catalog items with no
+  // asset version (src/lib/collectibleCatalog.ts:259-260), and
+  // `mapServerCopiesToInventoryDice` then returns null for the WHOLE set the
+  // moment any live copy has no resolvable item/asset
+  // (src/store/useInventoryStore.ts:300-308). So this does not merely fail to
+  // render one die — it collapses the player's entire server-copy inventory
+  // overlay. Dice copies are undeletable (0020_dice_copy_inventory.sql:76-118),
+  // so the damage is permanent and only an asset-version migration can undo it.
+  if (item.assetVersionCount === 0 && !request.allowMissingAsset) {
+    throw new OperationError(
+      `${item.id} has no catalog_asset_versions row. Granting it would permanently break this ` +
+        "player's ENTIRE inventory overlay, not just this die: the client drops asset-less " +
+        'catalog items and then discards the whole server-copy set, and dice_copies rows can ' +
+        'never be deleted. Publish an asset version first. Pass --allow-missing-asset only if ' +
+        'you have independently confirmed this is safe.',
+    )
+  }
   if (item.assetVersionCount === 0) {
     context.io.warn(
-      `WARNING: ${item.id} has no catalog_asset_versions row. The grant will succeed, but ` +
-        'the client drops asset-less catalog items, so the die will not render.',
+      `WARNING: --allow-missing-asset overrides the asset check for ${item.id}. This can ` +
+        "permanently collapse the player's entire server-copy inventory overlay.",
     )
   }
 
@@ -447,7 +519,7 @@ async function commandDieGrant(request, context) {
     context.io.warn(
       `WARNING: a pull hold is live until ${formatTimestamp(pulls.activeSession.expires_at)} ` +
         `(${secondsUntil(pulls.activeSession.expires_at)}s). Grants raise SQLSTATE 55000 while ` +
-        'it is held — wait for it to expire and retry with the same --key.',
+        'it is held — wait for it to expire and re-run this exact command (the derived key replays).',
     )
   }
 
@@ -470,7 +542,7 @@ async function commandDieGrant(request, context) {
     catalogItemId: item.id,
     operator: request.operator,
     note: request.note,
-    idempotencyKey: resolveKey(request),
+    idempotencyKey: resolveKey(request, candidate.id, { subject: item.id }),
   })
   return {
     user: { id: candidate.id },

@@ -27,7 +27,7 @@ const EXIT_USAGE = 2
  * stdout/stderr writers that strip the service-role key from every byte they
  * emit, so a stray error string or a copy-pasted transcript can never leak it.
  */
-function createIo({ json, secret }) {
+export function createIo({ json, secret }) {
   const write = (stream, text) => {
     stream.write(`${redactSecret(String(text), secret)}\n`)
   }
@@ -101,19 +101,19 @@ export async function main(argv, env = process.env) {
     io.result({ command: request.command, ok: true, ...data })
     return EXIT_OK
   } catch (error) {
-    if (error instanceof UsageError) {
-      io.warn(error.message)
-      return EXIT_USAGE
-    }
-    const message = error instanceof OperationError ? error.message : `${error?.stack ?? error}`
+    const usage = error instanceof UsageError
+    const message =
+      usage || error instanceof OperationError ? error.message : `${error?.stack ?? error}`
     io.warn(message)
+    // Every failure emits the same machine-readable envelope under --json,
+    // including usage errors raised mid-command; only the exit code differs.
     io.result({
       command: request.command,
       ok: false,
       error: error instanceof Error ? error.message : String(error),
       code: error?.code ?? null,
     })
-    return EXIT_FAILURE
+    return usage ? EXIT_USAGE : EXIT_FAILURE
   }
 }
 

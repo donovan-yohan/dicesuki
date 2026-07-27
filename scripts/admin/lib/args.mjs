@@ -81,9 +81,10 @@ export const COMMAND_SPECS = Object.freeze({
     summary: 'Mint a live dice_copies row via record_dice_copy_grant (source_kind=reward).',
     usage:
       'grant-die <user> <catalog_item_id> --operator <name> --note <why> ' +
-      '[--key K] [--no-dry-run] [--yes] [--json]',
+      '[--key K] [--allow-missing-asset] [--no-dry-run] [--yes] [--json]',
     positionals: ['query', 'catalogItemId'],
     values: ['operator', 'note', 'key'],
+    booleans: ['allow-missing-asset'],
     required: ['operator', 'note'],
     mutating: true,
     // Inventory is append-only: a dice_copies row can never be deleted, only
@@ -228,6 +229,7 @@ export function parseArgs(argv) {
     json: flags.get('json') === true,
     yes: flags.get('yes') === true,
     confirm: flags.get('confirm') === true,
+    allowMissingAsset: flags.get('allow-missing-asset') === true,
     mutating: Boolean(spec.mutating),
     dryRun: flags.has('dry-run')
       ? true

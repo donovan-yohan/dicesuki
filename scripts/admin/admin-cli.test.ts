@@ -1,10 +1,26 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+// Partial mock: the network-touching readers are stubbed so the command layer
+// can be exercised without a server; every pure export stays real.
+vi.mock('./lib/queries.mjs', async importOriginal => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    resolveUserCandidates: vi.fn(),
+    fetchCatalogItem: vi.fn(),
+    fetchPullSessions: vi.fn(),
+  }
+})
 
 import { DEFAULT_LIMIT, MAX_LIMIT, UsageError, parseArgs, usageText } from './lib/args.mjs'
+import { createIo } from './dicesuki-admin.mjs'
+import { runCommand, sqlstateHint } from './lib/commands.mjs'
+import { fetchCatalogItem, fetchPullSessions, resolveUserCandidates } from './lib/queries.mjs'
 import {
   DICE_COPY_KEY_PATTERN,
   ECONOMY_EDITION_ID,
   REASON_CODE_PATTERN,
+  assertSupportReasonCode,
   buildCancelSessionSql,
   buildDieGrantPlan,
   buildProvenance,
@@ -184,20 +200,52 @@ describe('parseArgs', () => {
 })
 
 describe('idempotency keys', () => {
-  it('derives admin-grant:<date>:<slug>', () => {
-    const key = deriveIdempotencyKey({ now: new Date('2026-07-27T09:15:00Z'), slug: '0a1b2c3d' })
-    expect(key).toBe('admin-grant:2026-07-27:0a1b2c3d')
+  const INTENT = {
+    command: 'grant-stars',
+    userId: USER,
+    subject: 20000,
+    operator: 'po',
+    note: 'ticket 1284',
+    now: new Date('2026-07-27T09:15:00Z'),
+  }
+
+  it('derives admin-grant:<date>:<digest> with the date in the clear', () => {
+    expect(deriveIdempotencyKey(INTENT)).toMatch(/^admin-grant:2026-07-27:[0-9a-f]{12}$/)
+  })
+
+  it('is deterministic, so re-running after an ambiguous failure replays', () => {
+    expect(deriveIdempotencyKey(INTENT)).toBe(deriveIdempotencyKey(INTENT))
+    // A fresh Date object for the same day must not change the key.
+    expect(deriveIdempotencyKey({ ...INTENT, now: new Date('2026-07-27T23:59:59Z') })).toBe(
+      deriveIdempotencyKey(INTENT),
+    )
+  })
+
+  it('changes when any part of the operator intent changes', () => {
+    const base = deriveIdempotencyKey(INTENT)
+    const variants = [
+      { ...INTENT, command: 'grant-dust' },
+      { ...INTENT, userId: '99999999-2222-4333-8444-555555555555' },
+      { ...INTENT, subject: 20001 },
+      { ...INTENT, rollType: 'premium_roll' },
+      { ...INTENT, operator: 'someone-else' },
+      { ...INTENT, note: 'ticket 1285' },
+      { ...INTENT, now: new Date('2026-07-28T09:15:00Z') },
+    ]
+    for (const variant of variants) {
+      expect(deriveIdempotencyKey(variant)).not.toBe(base)
+    }
+    // ...which is exactly how an INTENTIONAL same-day repeat grant is expressed.
+    expect(deriveIdempotencyKey({ ...INTENT, note: 'ticket 1284 (second goodwill grant)' })).not.toBe(
+      base,
+    )
   })
 
   it('satisfies both the ledger length rule and the dice_copies key regex', () => {
-    const key = deriveIdempotencyKey()
+    const key = deriveIdempotencyKey(INTENT)
     expect(key.length).toBeGreaterThanOrEqual(8)
     expect(key.length).toBeLessThanOrEqual(200)
     expect(DICE_COPY_KEY_PATTERN.test(key)).toBe(true)
-  })
-
-  it('produces a distinct key per invocation', () => {
-    expect(deriveIdempotencyKey()).not.toBe(deriveIdempotencyKey())
   })
 
   it('rejects an operator-supplied key that the database would refuse', () => {
@@ -280,6 +328,26 @@ describe('reason codes', () => {
         reasonCode: 'Support Manual',
       }),
     ).toThrow(/must be 3-128 chars/)
+  })
+
+  it('confines operator overrides to the support namespace', () => {
+    expect(assertSupportReasonCode('support.compensation.credit')).toBe(
+      'support.compensation.credit',
+    )
+    // The database would accept these — only the CLI stops them.
+    for (const hijacked of ['purchase.star_bundle', 'dice.scrap.dust.credit', 'lunar.daily']) {
+      expect(() => assertSupportReasonCode(hijacked)).toThrow(/must start with "support."/)
+    }
+    expect(() =>
+      buildTicketGrantPlan({
+        userId: USER,
+        amount: 1,
+        rollType: 'standard_roll',
+        ...GRANT,
+        idempotencyKey: KEY,
+        reasonCode: 'pull.commit.standard_roll.debit',
+      }),
+    ).toThrow(/must start with "support."/)
   })
 })
 
@@ -538,10 +606,24 @@ describe('environment resolution', () => {
     expect(redactSecret('nothing to hide', 'tiny')).toBe('nothing to hide')
   })
 
-  it('quotes display-name search patterns so PostgREST cannot mis-parse them', () => {
-    expect(likePattern('Ada')).toBe('"%Ada%"')
-    expect(likePattern('Lovelace, Ada')).toBe('"%Lovelace, Ada%"')
-    expect(likePattern('say "hi"')).toBe('"%say \\"hi\\"%"')
+  it('builds an unquoted substring ilike pattern', () => {
+    // PostgREST does not dequote a single filter value, so quoting the pattern
+    // would search for literal quote characters and match nothing.
+    expect(likePattern('Ada')).toBe('%Ada%')
+    expect(likePattern('')).toBe('%%')
+    // Commas and dots are only special inside in.() lists and logical trees.
+    expect(likePattern('Lovelace, Ada')).toBe('%Lovelace, Ada%')
+    expect(likePattern('say "hi"')).toBe('%say "hi"%')
+  })
+
+  it('escapes LIKE wildcards so they match literally', () => {
+    expect(likePattern('100%')).toBe('%100\\%%')
+    expect(likePattern('snake_case')).toBe('%snake\\_case%')
+    expect(likePattern('back\\slash')).toBe('%back\\\\slash%')
+  })
+
+  it('leaves * alone, since PostgREST maps it to % for deliberate wildcards', () => {
+    expect(likePattern('Ada*Lovelace')).toBe('%Ada*Lovelace%')
   })
 })
 
@@ -596,5 +678,233 @@ describe('report formatting', () => {
     const now = new Date('2026-07-27T12:00:00Z')
     expect(secondsUntil('2026-07-27T12:01:00Z', now)).toBe(60)
     expect(secondsUntil('2026-07-27T11:00:00Z', now)).toBe(0)
+  })
+})
+
+/* ------------------------------------------------------------------------- */
+/* Command layer (network readers stubbed)                                    */
+/* ------------------------------------------------------------------------- */
+
+function fakeIo() {
+  const said: string[] = []
+  const warned: string[] = []
+  return {
+    said,
+    warned,
+    say: (text: unknown) => said.push(String(text)),
+    warn: (text: unknown) => warned.push(String(text)),
+    confirm: vi.fn(async () => true),
+    text: () => said.join('\n'),
+  }
+}
+
+function fakeClient(response: unknown = { data: { id: 42 }, error: null }) {
+  return { rpc: vi.fn(async () => response) }
+}
+
+const CANDIDATE = { id: USER, auth: { email: 'ada@example.com' }, profile: { display_name: 'Ada' } }
+
+function grantStarsArgs(...extra: string[]) {
+  return parseArgs(['grant-stars', USER, '20000', '--operator', 'po', '--note', 'ticket 1', ...extra])
+}
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.mocked(resolveUserCandidates).mockReset()
+  vi.mocked(fetchCatalogItem).mockReset()
+  vi.mocked(fetchPullSessions).mockReset()
+})
+
+describe('user resolution refusals', () => {
+  it('refuses to guess when a query matches several players', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([
+      CANDIDATE,
+      { id: '22222222-2222-4333-8444-555555555555', auth: { email: 'ada2@example.com' } },
+    ])
+    await expect(
+      runCommand(parseArgs(['user', 'Ada']), { client: fakeClient(), environment: {}, io: fakeIo() }),
+    ).rejects.toThrow(/matched 2 players/)
+  })
+
+  it('reports a miss rather than proceeding', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([])
+    await expect(
+      runCommand(parseArgs(['ledger', 'nobody@example.com']), {
+        client: fakeClient(),
+        environment: {},
+        io: fakeIo(),
+      }),
+    ).rejects.toThrow(/No player matched/)
+  })
+})
+
+describe('executePlan gating', () => {
+  it('executes nothing on a dry run', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    const client = fakeClient()
+    const io = fakeIo()
+    const result = await runCommand(grantStarsArgs('--dry-run'), { client, environment: {}, io })
+    expect(client.rpc).not.toHaveBeenCalled()
+    expect(io.confirm).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ dryRun: true, executed: false, result: null })
+    expect(io.text()).toContain('DRY RUN — nothing was executed.')
+  })
+
+  it('sends the exact plan payload once --yes is given', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    const client = fakeClient()
+    const io = fakeIo()
+    const result = await runCommand(grantStarsArgs('--yes'), { client, environment: {}, io })
+    expect(io.confirm).not.toHaveBeenCalled()
+    expect(client.rpc).toHaveBeenCalledTimes(1)
+    expect(client.rpc).toHaveBeenCalledWith('append_wallet_ledger_entry', result.plan.payload)
+    expect(result).toMatchObject({ dryRun: false, executed: true })
+  })
+
+  it('aborts without calling the RPC when the operator declines', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    const client = fakeClient()
+    const io = fakeIo()
+    io.confirm.mockResolvedValue(false)
+    await expect(runCommand(grantStarsArgs(), { client, environment: {}, io })).rejects.toThrow(
+      /Aborted by operator/,
+    )
+    expect(client.rpc).not.toHaveBeenCalled()
+  })
+
+  it('echoes the idempotency key on an ambiguous failure so the retry is precise', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    const client = fakeClient({ data: null, error: { code: '22023', message: 'boom' } })
+    await expect(
+      runCommand(grantStarsArgs('--yes'), { client, environment: {}, io: fakeIo() }),
+    ).rejects.toThrow(/Retry with --key 'admin-grant:\d{4}-\d{2}-\d{2}:[0-9a-f]{12}'/)
+  })
+
+  it('reports a thrown transport error as possibly-landed, with the retry key', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    const client = { rpc: vi.fn(async () => { throw new Error('socket hang up') }) }
+    await expect(
+      runCommand(grantStarsArgs('--yes'), { client, environment: {}, io: fakeIo() }),
+    ).rejects.toThrow(/may or may not have landed.*Retry with --key/s)
+  })
+})
+
+describe('grant-die catalog validation', () => {
+  const dieArgs = (...extra: string[]) =>
+    parseArgs([
+      'grant-die',
+      USER,
+      'adventurer-starter/d20/common@1',
+      '--operator',
+      'po',
+      '--note',
+      'ticket 2',
+      ...extra,
+    ])
+
+  const ITEM = {
+    id: 'adventurer-starter/d20/common@1',
+    item_kind: 'die',
+    set_id: 'adventurer-starter',
+    dice_type: 'd20',
+    rarity: 'common',
+    assetVersionCount: 1,
+  }
+
+  it('refuses an unknown catalog item', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    vi.mocked(fetchCatalogItem).mockResolvedValue(null)
+    await expect(
+      runCommand(dieArgs(), { client: fakeClient(), environment: {}, io: fakeIo() }),
+    ).rejects.toThrow(/Unknown catalog item/)
+  })
+
+  it('refuses a catalog item that is not a die', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    vi.mocked(fetchCatalogItem).mockResolvedValue({ ...ITEM, item_kind: 'cosmetic' })
+    await expect(
+      runCommand(dieArgs(), { client: fakeClient(), environment: {}, io: fakeIo() }),
+    ).rejects.toThrow(/item_kind=cosmetic/)
+  })
+
+  it('hard-fails an asset-less item, naming the real blast radius', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    vi.mocked(fetchCatalogItem).mockResolvedValue({ ...ITEM, assetVersionCount: 0 })
+    const client = fakeClient()
+    await expect(
+      runCommand(dieArgs('--no-dry-run', '--yes'), { client, environment: {}, io: fakeIo() }),
+    ).rejects.toThrow(/ENTIRE inventory overlay/)
+    expect(client.rpc).not.toHaveBeenCalled()
+  })
+
+  it('allows the asset-less grant only behind the explicit escape flag', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    vi.mocked(fetchCatalogItem).mockResolvedValue({ ...ITEM, assetVersionCount: 0 })
+    vi.mocked(fetchPullSessions).mockResolvedValue({ sessions: [], activeSession: null })
+    const io = fakeIo()
+    const result = await runCommand(dieArgs('--allow-missing-asset'), {
+      client: fakeClient(),
+      environment: {},
+      io,
+    })
+    expect(result.dryRun).toBe(true)
+    expect(io.warned.join('\n')).toMatch(/--allow-missing-asset overrides the asset check/)
+  })
+
+  it('warns about a live pull hold before attempting the grant', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    vi.mocked(fetchCatalogItem).mockResolvedValue(ITEM)
+    vi.mocked(fetchPullSessions).mockResolvedValue({
+      sessions: [],
+      activeSession: { id: 's', expires_at: new Date(Date.now() + 60000).toISOString() },
+    })
+    const io = fakeIo()
+    await runCommand(dieArgs(), { client: fakeClient(), environment: {}, io })
+    expect(io.warned.join('\n')).toMatch(/pull hold is live.*55000/s)
+  })
+})
+
+describe('SQLSTATE hints are scoped to the RPC that raised them', () => {
+  it('only explains the pull-hold pause for die grants', () => {
+    expect(sqlstateHint('55000', 'record_dice_copy_grant')).toMatch(/prepared pull hold is live/)
+    expect(sqlstateHint('55000', 'append_wallet_ledger_entry')).toBeNull()
+    expect(sqlstateHint('55000', 'record_roll_ticket_ledger_entry')).toBeNull()
+  })
+
+  it('does not mention pull holds in the ticket balance floor', () => {
+    expect(sqlstateHint('22003', 'record_roll_ticket_ledger_entry')).not.toMatch(/pull hold/)
+    expect(sqlstateHint('22003', 'append_wallet_ledger_entry')).toMatch(/pull hold/)
+  })
+
+  it('returns null for codes it has nothing useful to say about', () => {
+    expect(sqlstateHint('40001', 'append_wallet_ledger_entry')).toBeNull()
+  })
+})
+
+describe('--json output purity', () => {
+  it('emits only the JSON envelope on stdout and redacts the key', () => {
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    const secret = 'sb_secret_0123456789abcdef'
+    const io = createIo({ json: true, secret })
+
+    io.say('human-readable noise that must not pollute stdout')
+    io.warn(`a warning containing ${secret}`)
+    io.result({ ok: true, key: secret })
+
+    expect(stdout).toHaveBeenCalledTimes(1)
+    expect(stdout.mock.calls[0][0]).toContain('"ok": true')
+    expect(stdout.mock.calls[0][0]).toContain('[REDACTED service-role key]')
+    expect(stdout.mock.calls[0][0]).not.toContain(secret)
+    expect(stderr.mock.calls[0][0]).not.toContain(secret)
+  })
+
+  it('writes human output and no JSON envelope when --json is absent', () => {
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    const io = createIo({ json: false, secret: 'sb_secret_0123456789abcdef' })
+    io.say('a table')
+    io.result({ ok: true })
+    expect(stdout).toHaveBeenCalledTimes(1)
+    expect(stdout.mock.calls[0][0]).toContain('a table')
   })
 })

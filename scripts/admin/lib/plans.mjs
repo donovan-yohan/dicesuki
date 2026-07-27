@@ -4,7 +4,7 @@
 // function name, its arguments in declared order (with SQL casts), the
 // PostgREST payload, and a human summary. Nothing here executes anything, so
 // `--dry-run` prints exactly what a real run would send, and the Supabase
-// Postgres harness (`supabase/tests/0030_admin_support_cli.test.mjs`) can
+// Postgres harness (`supabase/tests/0031_admin_support_cli.test.mjs`) can
 // execute the generated SQL against the real migration suite to prove the
 // argument names, order, and value domains still match the deployed functions.
 //
@@ -27,7 +27,7 @@
 //     -> public.dice_copies                0020_dice_copy_inventory.sql:125-136
 //     granted to service_role only         0020_dice_copy_inventory.sql:385-390
 
-import { randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 
 import { UsageError } from './args.mjs'
 
@@ -157,20 +157,62 @@ export function assertCatalogItemId(catalogItemId) {
   return value
 }
 
-/** Random 8-hex slug for auto-derived idempotency keys. */
-export function randomSlug() {
-  return randomUUID().replaceAll('-', '').slice(0, 8)
+/**
+ * `admin-grant:<YYYY-MM-DD>:<digest>` — DETERMINISTIC in the full intent of the
+ * grant, so a re-run after an ambiguous failure (network drop, timeout, Ctrl-C
+ * mid-call) replays rather than double-granting.
+ *
+ * The digest covers the UTC date, command, target user, subject (amount, or the
+ * catalog item for a die), roll type, operator, and note. Anything the operator
+ * could have meant differently produces a different key; anything identical
+ * produces the same key and the RPC returns the original row
+ * (0028_sku_fulfillment.sql:508-521, 0020_dice_copy_inventory.sql:182-197).
+ *
+ * Consequence, documented in the README: an INTENTIONAL second identical grant
+ * on the same UTC day needs a distinct `--note` (preferred — it is the audit
+ * trail anyway) or an explicit `--key`.
+ *
+ * The date is kept in the clear so a ledger row can be traced back to the day
+ * of the support ticket without recomputing anything.
+ */
+export function deriveIdempotencyKey({
+  command,
+  userId,
+  subject = null,
+  rollType = null,
+  operator,
+  note,
+  now = new Date(),
+}) {
+  const date = now.toISOString().slice(0, 10)
+  const fingerprint = JSON.stringify([
+    date,
+    String(command),
+    assertUserId(userId),
+    subject === null ? null : String(subject),
+    rollType === null ? null : String(rollType),
+    assertOperator(operator),
+    assertNote(note),
+  ])
+  const digest = createHash('sha256').update(fingerprint).digest('hex').slice(0, 12)
+  return assertIdempotencyKey(`${PROVENANCE_SOURCE}:${date}:${digest}`, { requireShape: true })
 }
 
 /**
- * `admin-grant:<YYYY-MM-DD>:<slug>` — carries the operation date so a support
- * ticket can be traced back from a ledger row, and a random slug so two grants
- * on the same day never collide. Satisfies both the ledger length check and the
- * stricter dice_copies key regex.
+ * An operator-supplied `--reason-code` must stay inside the `support.` namespace.
+ * Every code outside it belongs to an automated path whose invariants are
+ * reconciled elsewhere, and the database's only check is a format regex — it
+ * would happily accept `purchase.star_bundle` on a manual grant.
  */
-export function deriveIdempotencyKey({ now = new Date(), slug = randomSlug() } = {}) {
-  const date = now.toISOString().slice(0, 10)
-  return assertIdempotencyKey(`${PROVENANCE_SOURCE}:${date}:${slug}`, { requireShape: true })
+export function assertSupportReasonCode(reasonCode) {
+  const value = assertReasonCode(reasonCode)
+  if (!value.startsWith('support.')) {
+    throw new UsageError(
+      `--reason-code "${value}" must start with "support." — codes outside that namespace ` +
+        'belong to automated paths that reconcile against their own tables.',
+    )
+  }
+  return value
 }
 
 /**
@@ -304,7 +346,10 @@ export function buildWalletGrantPlan({
     { name: 'p_delta_amount', value: amount, cast: 'bigint' },
     {
       name: 'p_reason_code',
-      value: assertReasonCode(reasonCode ?? defaultWalletReasonCode(kind, amount)),
+      value:
+        reasonCode === null || reasonCode === undefined
+          ? defaultWalletReasonCode(kind, amount)
+          : assertSupportReasonCode(reasonCode),
       cast: 'text',
     },
     { name: 'p_idempotency_key', value: assertIdempotencyKey(idempotencyKey), cast: 'text' },
@@ -345,7 +390,10 @@ export function buildTicketGrantPlan({
     { name: 'p_delta_quantity', value: amount, cast: 'bigint' },
     {
       name: 'p_reason_code',
-      value: assertReasonCode(reasonCode ?? defaultTicketReasonCode(resolvedRollType, amount)),
+      value:
+        reasonCode === null || reasonCode === undefined
+          ? defaultTicketReasonCode(resolvedRollType, amount)
+          : assertSupportReasonCode(reasonCode),
       cast: 'text',
     },
     { name: 'p_idempotency_key', value: assertIdempotencyKey(idempotencyKey), cast: 'text' },

@@ -1,7 +1,7 @@
 // Live proof that the support CLI's call plans match the deployed database.
 //
 // The numeric prefix is HARNESS ORDERING ONLY — this suite is not bound to a
-// migration. `0030` places it after every migration and every migration suite in
+// migration. `0031` places it after every migration and every migration suite in
 // supabase/migrations/, which is what it needs: it replays the exact SQL that
 // `scripts/admin/dicesuki-admin.mjs --dry-run` prints, through `set role
 // service_role`, against the real migration stack.
@@ -50,7 +50,7 @@ async function expectFailure(psqlAsync, sql, label, expectedFragment) {
 }
 
 export async function run({ psql, psqlAsync }) {
-  psql(`insert into auth.users (id) values ('${USER_ID}');`, '0030 admin CLI target user')
+  psql(`insert into auth.users (id) values ('${USER_ID}');`, '0031 admin CLI target user')
 
   // --- The privilege boundary the CLI is designed around ------------------
   const privileges = psql(
@@ -69,12 +69,12 @@ export async function run({ psql, psqlAsync }) {
       has_table_privilege('service_role', 'public.dice_copies', 'INSERT')::text || ':' ||
       has_table_privilege('service_role', 'public.pull_session_transitions', 'INSERT')::text;
   `,
-    '0030 service_role privilege boundary',
+    '0031 service_role privilege boundary',
   )
   expectEqual(
     privileges,
     'true:true:true:false:false:false',
-    '0030 service_role may run the three grant RPCs and nothing else the CLI would need',
+    '0031 service_role may run the three grant RPCs and nothing else the CLI would need',
   )
 
   // --- grant-stars --------------------------------------------------------
@@ -85,9 +85,9 @@ export async function run({ psql, psqlAsync }) {
     ...GRANT,
     idempotencyKey: 'admin-grant:2026-07-27:aa000001',
   })
-  const starsEntryId = psql(callAs(starsPlan), '0030 grant-stars')
-  const starsReplayId = psql(callAs(starsPlan), '0030 grant-stars replay')
-  expectEqual(starsReplayId, starsEntryId, '0030 identical --key replay returns the original entry')
+  const starsEntryId = psql(callAs(starsPlan), '0031 grant-stars')
+  const starsReplayId = psql(callAs(starsPlan), '0031 grant-stars replay')
+  expectEqual(starsReplayId, starsEntryId, '0031 identical --key replay returns the original entry')
 
   const starsRow = psql(
     `
@@ -101,12 +101,12 @@ export async function run({ psql, psqlAsync }) {
      and balances.balance_bucket = entries.balance_bucket
     where entries.user_id = '${USER_ID}' and entries.currency_id = 'stars';
   `,
-    '0030 grant-stars reconciliation',
+    '0031 grant-stars reconciliation',
   )
   expectEqual(
     starsRow,
     'support.manual.stars.credit:admin-grant:harness-operator:earned-collection@1:20000:1',
-    '0030 grant-stars wrote exactly one promotional Stars credit with admin-grant provenance',
+    '0031 grant-stars wrote exactly one promotional Stars credit with admin-grant provenance',
   )
 
   // --- negative correction, and the balance floor -------------------------
@@ -118,24 +118,24 @@ export async function run({ psql, psqlAsync }) {
     note: 'correcting an over-grant',
     idempotencyKey: 'admin-grant:2026-07-27:aa000002',
   })
-  psql(callAs(correctionPlan), '0030 grant-stars negative correction')
+  psql(callAs(correctionPlan), '0031 grant-stars negative correction')
   expectEqual(
     psql(
       `select current_balance from public.wallet_balances
        where user_id = '${USER_ID}' and currency_id = 'stars' and balance_bucket = 'promotional';`,
-      '0030 corrected Stars balance',
+      '0031 corrected Stars balance',
     ),
     '15000',
-    '0030 negative delta debits promotional Stars',
+    '0031 negative delta debits promotional Stars',
   )
   expectEqual(
     psql(
       `select reason_code from public.wallet_ledger_entries
        where user_id = '${USER_ID}' and delta_amount < 0;`,
-      '0030 correction reason code',
+      '0031 correction reason code',
     ),
     'support.manual.stars.debit',
-    '0030 a negative delta picks the debit reason code',
+    '0031 a negative delta picks the debit reason code',
   )
 
   const overdraftPlan = buildWalletGrantPlan({
@@ -149,7 +149,7 @@ export async function run({ psql, psqlAsync }) {
   await expectFailure(
     psqlAsync,
     callAs(overdraftPlan),
-    '0030 overdraft',
+    '0031 overdraft',
     'Insufficient stars/promotional balance',
   )
 
@@ -164,16 +164,16 @@ export async function run({ psql, psqlAsync }) {
         idempotencyKey: 'admin-grant:2026-07-27:aa000004',
       }),
     ),
-    '0030 grant-dust',
+    '0031 grant-dust',
   )
   expectEqual(
     psql(
       `select currency_id || '/' || balance_bucket || ':' || current_balance
        from public.wallet_balances where user_id = '${USER_ID}' and currency_id = 'dust';`,
-      '0030 dust balance',
+      '0031 dust balance',
     ),
     'dust/earned:12',
-    '0030 grant-dust credits the earned Dust bucket',
+    '0031 grant-dust credits the earned Dust bucket',
   )
 
   const ticketPlan = buildTicketGrantPlan({
@@ -183,20 +183,20 @@ export async function run({ psql, psqlAsync }) {
     ...GRANT,
     idempotencyKey: 'admin-grant:2026-07-27:aa000005',
   })
-  const ticketEntryId = psql(callAs(ticketPlan), '0030 grant-tickets')
+  const ticketEntryId = psql(callAs(ticketPlan), '0031 grant-tickets')
   expectEqual(
-    psql(callAs(ticketPlan), '0030 grant-tickets replay'),
+    psql(callAs(ticketPlan), '0031 grant-tickets replay'),
     ticketEntryId,
-    '0030 identical ticket --key replay returns the original entry',
+    '0031 identical ticket --key replay returns the original entry',
   )
   expectEqual(
     psql(
       `select roll_type || ':' || current_quantity from public.roll_ticket_balances
        where user_id = '${USER_ID}';`,
-      '0030 ticket balance',
+      '0031 ticket balance',
     ),
     'standard_roll:3',
-    '0030 grant-tickets credits standard_roll once despite the replay',
+    '0031 grant-tickets credits standard_roll once despite the replay',
   )
 
   // --- grant-die ----------------------------------------------------------
@@ -206,21 +206,21 @@ export async function run({ psql, psqlAsync }) {
     ...GRANT,
     idempotencyKey: 'admin-grant:2026-07-27:aa000010',
   })
-  const copyId = psql(callAs(diePlan), '0030 grant-die')
+  const copyId = psql(callAs(diePlan), '0031 grant-die')
   expectEqual(
-    psql(callAs(diePlan), '0030 grant-die replay'),
+    psql(callAs(diePlan), '0031 grant-die replay'),
     copyId,
-    '0030 identical die --key replay returns the original copy',
+    '0031 identical die --key replay returns the original copy',
   )
   expectEqual(
     psql(
       `select catalog_item_id || ':' || source_kind || ':' || is_first_copy || ':' ||
         coalesce(scrapped_at::text, 'live') || ':' || source_reference || ':' || count(*) over ()
        from public.dice_copies where user_id = '${USER_ID}';`,
-      '0030 dice copy reconciliation',
+      '0031 dice copy reconciliation',
     ),
     `${CATALOG_ITEM_ID}:reward:true:live:admin-grant:harness-operator:supabase harness proof:1`,
-    '0030 grant-die mints exactly one live reward copy with an auditable source reference',
+    '0031 grant-die mints exactly one live reward copy with an auditable source reference',
   )
 
   // --- the die appears on the surface the client actually reads ------------
@@ -230,10 +230,10 @@ export async function run({ psql, psqlAsync }) {
        join public.catalog_items as items on items.id = copies.catalog_item_id
        where copies.user_id = '${USER_ID}' and copies.scrapped_at is null
          and items.item_kind = 'die';`,
-      '0030 live playable copies',
+      '0031 live playable copies',
     ),
     '1',
-    '0030 the granted die is a live dice_copies row, the authoritative inventory surface',
+    '0031 the granted die is a live dice_copies row, the authoritative inventory surface',
   )
 
   // --- the CLI cannot cancel a pull session, by construction ---------------
@@ -241,7 +241,7 @@ export async function run({ psql, psqlAsync }) {
     psqlAsync,
     `set role service_role;
      select public.cancel_pull_session('${USER_ID}'::uuid);`,
-    '0030 service_role cancel_pull_session',
+    '0031 service_role cancel_pull_session',
     'permission denied',
   )
   await expectFailure(
@@ -250,7 +250,7 @@ export async function run({ psql, psqlAsync }) {
      insert into public.pull_session_transitions
        (session_id, account_id, user_id, banner_version_id, kind)
      values ('${USER_ID}'::uuid, '${USER_ID}'::uuid, '${USER_ID}'::uuid, 'x', 'cancelled');`,
-    '0030 service_role transition insert',
+    '0031 service_role transition insert',
     'permission denied',
   )
 }
