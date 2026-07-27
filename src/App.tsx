@@ -19,6 +19,8 @@ import { isPaymentsEnabled } from './lib/paymentsConfig'
 // so with payments disabled these modules are never even imported.
 const CheckoutReturnRoute = lazy(() => import('./components/checkout/CheckoutReturnRoute'))
 const PendingPurchaseBanner = lazy(() => import('./components/checkout/PendingPurchaseBanner'))
+const TermsPage = lazy(() => import('./components/legal/TermsPage'))
+const PrivacyPage = lazy(() => import('./components/legal/PrivacyPage'))
 
 function MainApp() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
@@ -115,6 +117,27 @@ function App() {
             }
           />
         )}
+        {/* Public legal pages — available without an account or device check. */}
+        <Route
+          path="/terms"
+          element={
+            <ThemeProvider>
+              <Suspense fallback={<StartupSplash phase="device" />}>
+                <TermsPage />
+              </Suspense>
+            </ThemeProvider>
+          }
+        />
+        <Route
+          path="/privacy"
+          element={
+            <ThemeProvider>
+              <Suspense fallback={<StartupSplash phase="device" />}>
+                <PrivacyPage />
+              </Suspense>
+            </ThemeProvider>
+          }
+        />
         {/* Public room browser route (#79) */}
         <Route path="/rooms" element={
           <ThemeProvider>

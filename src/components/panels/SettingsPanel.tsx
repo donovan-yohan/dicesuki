@@ -170,6 +170,21 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             <span style={{ color: 'var(--color-accent)' }}>→</span>
           </button>
         </div>
+
+        <footer
+          className="flex items-center gap-4 border-t pt-4 text-xs"
+          style={{
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            color: 'var(--color-text-muted)',
+          }}
+        >
+          <a className="hover:underline" href="/terms">
+            Terms
+          </a>
+          <a className="hover:underline" href="/privacy">
+            Privacy
+          </a>
+        </footer>
       </FlyoutPanel>
 
       {/* Theme Selector Modal */}
