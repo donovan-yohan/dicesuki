@@ -24,25 +24,20 @@ do $$
 declare
   discovered record;
 begin
-  select
-    count(*) as row_count,
-    min(id) as id,
-    min(banner_id) as banner_id,
-    min(banner_version) as banner_version,
-    min(banner_family_id) as banner_family_id,
-    min(banner_class) as banner_class,
-    min(roll_type) as roll_type
+  select *
   into strict discovered
-  from pg_temp.slice20_standard_discovery;
+  from pg_temp.slice20_standard_discovery
+  order by banner_version desc, id
+  limit 1;
 
-  if discovered.row_count is distinct from 1::bigint or
-     discovered.id is distinct from 'earned-collection-001@2' or
+  if (select count(*) from pg_temp.slice20_standard_discovery) is distinct from 2::bigint or
+     discovered.id is distinct from 'earned-collection-001@3' or
      discovered.banner_id is distinct from 'earned-collection-001' or
-     discovered.banner_version is distinct from 2 or
+     discovered.banner_version is distinct from 3 or
      discovered.banner_family_id is distinct from 'earned-collection' or
      discovered.banner_class is distinct from 'standard' or
      discovered.roll_type is distinct from 'standard_roll' then
-    raise exception 'Standard discovery query did not return exactly earned-collection-001@2';
+    raise exception 'Standard discovery query did not return active earned-collection-001@3';
   end if;
 end;
 $$;
@@ -231,8 +226,8 @@ begin
   select * into strict old_pity
   from public.get_my_pull_pity('earned-collection');
 
-  if old_pity.banner_version_id is distinct from 'earned-collection-001@2' or
-     old_pity.banner_version is distinct from 2 or
+  if old_pity.banner_version_id is distinct from 'earned-collection-001@3' or
+     old_pity.banner_version is distinct from 3 or
      (select current_balance
       from public.wallet_balances
       where user_id = 'd0290000-0000-4029-8029-000000000001'
@@ -304,15 +299,15 @@ begin
   from public.get_my_pull_pity('earned-collection');
 
   if new_pity.banner_family_id is distinct from 'earned-collection' or
-     new_pity.banner_version_id is distinct from 'earned-collection-001@2' or
-     new_pity.banner_version is distinct from 2 or
-     new_pity.rare_hard_guarantee_pull is distinct from 8 or
+     new_pity.banner_version_id is distinct from 'earned-collection-001@3' or
+     new_pity.banner_version is distinct from 3 or
+     new_pity.rare_hard_guarantee_pull is distinct from 10 or
      new_pity.epic_hard_guarantee_pull is distinct from 25 or
      new_pity.selected_hard_guarantee_pull is distinct from 20 or
      new_pity.soft_pity_model is not null or
      new_pity.soft_pity_start_pull is not null or
      new_pity.soft_pity_per_pull_increment is not null then
-    raise exception 'Pity read did not expose version @2 counters, shallow thresholds, and NULL soft pity';
+    raise exception 'Pity read did not expose active version @3 counters, shallow thresholds, and NULL soft pity';
   end if;
 
   update pg_temp.slice20_lifecycle_ctx
