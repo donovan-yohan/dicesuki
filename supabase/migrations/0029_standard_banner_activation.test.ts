@@ -126,7 +126,7 @@ describe('0029 standard banner activation', () => {
     expect(sql).toMatch(/cost is distinct from pull_count::bigint/i)
   })
 
-  it('matches fetchActiveStandardPullBanner exact discovery shape and proves one result', () => {
+  it('matches fetchActiveStandardPullBanner discovery shape and proves the latest result', () => {
     const discovery =
       pullRpc.match(
         /export async function fetchActiveStandardPullBanner\([\s\S]*?\n}\n/,
@@ -142,7 +142,7 @@ describe('0029 standard banner activation', () => {
     )
     expectIfRaise(
       behavior,
-      'Standard discovery query did not return exactly earned-collection-001@2',
+      'Standard discovery query did not return active earned-collection-001@3',
     )
   })
 
@@ -183,12 +183,17 @@ describe('0029 standard banner activation', () => {
   it('backs every activation claim with behavioral and NULL-hole assertions', () => {
     const behavior = executable(behavioralSql)
     const evidence = [
-      'Standard discovery query did not return exactly earned-collection-001@2',
-      'Legacy Stars-funded version @1 did not prepare and commit under NULL roll binding',
-      'Version @2 did not reserve ten standard-roll tickets without touching Stars',
-      'Version @2 did not continue every family counter from version @1',
-      'Version @2 commit did not grant ten copies and debit exactly ten tickets',
-      'Pity read did not expose version @2 counters, shallow thresholds, and NULL soft pity',
+      'Standard discovery query did not return active earned-collection-001@3',
+      // 0030 retired the superseded versions from the player path, so the
+      // behavioral suite now proves the rejection instead of the old
+      // Stars-funded @1 and ticket-funded @2 preparations.
+      'Superseded version @1 is still player-callable',
+      'Superseded version @2 is still player-callable',
+      'A rejected superseded preparation still reserved funds',
+      'Version @3 did not reserve ten standard-roll tickets without touching Stars',
+      'Version @3 did not continue every family counter seeded under @1 and @2',
+      'Version @3 commit did not grant ten copies and debit exactly ten tickets',
+      'Pity read did not expose active version @3 counters, shallow thresholds, and NULL soft pity',
       'Premium preparation no longer failed closed',
       'Standard activation NULL-hole audit failed',
     ]

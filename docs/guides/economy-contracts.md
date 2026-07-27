@@ -218,3 +218,35 @@ their deeper domain invariants.
 Currency provenance is not commerce entitlement provenance. Pulls, RNG,
 guarantee state, source-specific paid grant/reversal history, checkout, and
 money remain downstream slices.
+
+## Production edition 0002 and the active banner version
+
+`economy/production/editions/0002-earned-collection.json` is the second
+production edition of record. It is the append that the rate-change rule above
+requires: byte-identical to edition 0001 except for its append-only identity,
+its migration anchor, and `rareOrBetter.hardGuaranteePull`, which moves from 8
+to 10. `scripts/validate-production-economy.js` pins every published edition in
+one boundary table (`EARNED_COLLECTION_BOUNDARIES`), so appending a further
+edition means adding one row there and its exact source hash — never editing an
+existing one.
+
+Its anchored migration is `0030_earned_economy_rare_pity_10.sql`, which seeds
+the `earned-collection@2` row into `economy_editions` and appends banner version
+`earned-collection-001@3` attesting that edition. A banner version's
+`economy_edition_id`/`source_config_sha256` must point at the edition that
+actually declares its boundaries; copying the predecessor's hash would leave the
+shipped rate attested by an 8-pull contract, and the migration fails closed if it
+does.
+
+The same migration re-creates `private.prepare_pull_for_user` so that only the
+highest `banner_version` within a `banner_family_id` is preparable — the same
+active-version rule `0025_pity_read.sql` uses, and fail-closed on an ambiguous
+family head. Without it every superseded version stays player-callable, and the
+retired 8-pull guarantee would remain buyable at the new ticket price. The guard
+runs before the wallet account lock, so a rejection can never reserve funds, and
+commit/reveal is unchanged because a session stores its banner at preparation.
+
+Behavioral suites written against a retired banner version clone it into an
+appended test-only family that heads its own lineage (for example
+`slice11-stars@1`); banner history itself stays append-only and is never
+rewritten or deleted.

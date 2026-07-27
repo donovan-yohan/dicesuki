@@ -13,8 +13,13 @@ const editionPath = path.join(
   root,
   'economy/production/editions/0001-earned-collection.json',
 )
+const edition0002Path = path.join(
+  root,
+  'economy/production/editions/0002-earned-collection.json',
+)
 const catalogPath = path.join(root, 'src/generated/collectibleCatalog.json')
 const edition = JSON.parse(fs.readFileSync(editionPath, 'utf8'))
+const edition0002 = JSON.parse(fs.readFileSync(edition0002Path, 'utf8'))
 const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'))
 const temporaryDirectories: string[] = []
 
@@ -46,11 +51,24 @@ function createVersionBumpFixture() {
     'supabase/migrations/0009_earned_economy_ledger.sql',
     fs.readFileSync(path.join(root, 'supabase/migrations/0009_earned_economy_ledger.sql'), 'utf8'),
   )
+  write(
+    rootDir,
+    'economy/production/editions/0002-earned-collection.json',
+    fs.readFileSync(edition0002Path, 'utf8'),
+  )
+  write(
+    rootDir,
+    'supabase/migrations/0030_earned_economy_rare_pity_10.sql',
+    fs.readFileSync(
+      path.join(root, 'supabase/migrations/0030_earned_economy_rare_pity_10.sql'),
+      'utf8',
+    ),
+  )
 
   const nextEdition = clone(edition)
-  nextEdition.edition = 2
-  nextEdition.editionId = 'earned-collection@2'
-  nextEdition.migration = '0010_earned_economy_tuning.sql'
+  nextEdition.edition = 3
+  nextEdition.editionId = 'earned-collection@3'
+  nextEdition.migration = '0031_earned_economy_tuning.sql'
   nextEdition.decisionSource = {
     studyId: 'candidate-b-live-tuning@1',
     selectedCandidateId: 'retuned-costs-and-pity@1',
@@ -76,16 +94,16 @@ function createVersionBumpFixture() {
 
   const source = `${JSON.stringify(nextEdition, null, 2)}\n`
   const sha256 = productionEditionSha256(nextEdition)
-  write(rootDir, 'economy/production/editions/0002-earned-collection.json', source)
+  write(rootDir, 'economy/production/editions/0003-earned-collection.json', source)
   write(
     rootDir,
-    'supabase/migrations/0010_earned_economy_tuning.sql',
+    'supabase/migrations/0031_earned_economy_tuning.sql',
     `do $seed$\n` +
       `declare\n` +
       `  expected_config constant jsonb :=\n` +
-      `-- BEGIN EARNED ECONOMY EDITION 0002\n` +
+      `-- BEGIN EARNED ECONOMY EDITION 0003\n` +
       `$edition$\n${source}$edition$::jsonb\n` +
-      `-- END EARNED ECONOMY EDITION 0002\n` +
+      `-- END EARNED ECONOMY EDITION 0003\n` +
       `  ;\n` +
       `  expected_sha256 constant text := '${sha256}';\n` +
       `begin\n` +
@@ -103,13 +121,56 @@ afterEach(() => {
 })
 
 describe('production economy contract', () => {
-  it('validates the immutable edition and its exact migration anchor', () => {
+  it('validates every immutable edition and its exact migration anchor', () => {
     const result = validateProductionEconomy({ rootDir: root })
-    expect(result.editions).toHaveLength(1)
+    expect(result.editions).toHaveLength(2)
     expect(result.editions[0]).toMatchObject({
       fileName: '0001-earned-collection.json',
       sha256: productionEditionSha256(edition),
     })
+    expect(result.editions[1]).toMatchObject({
+      fileName: '0002-earned-collection.json',
+      sha256: productionEditionSha256(edition0002),
+    })
+    expect(result.editions[1].edition.migration).toBe(
+      '0030_earned_economy_rare_pity_10.sql',
+    )
+  })
+
+  it('appends edition 0002 as the pull-10 rare guarantee edition of record', () => {
+    expect(edition0002.editionId).toBe('earned-collection@2')
+    expect(edition0002.acquisition.banner.guarantees).toMatchObject({
+      rareOrBetter: { hardGuaranteePull: 10 },
+      epicOrBetter: { hardGuaranteePull: 25 },
+      selectedFeaturedUnowned: { hardGuaranteePull: 20 },
+    })
+
+    // Only the rare boundary and the append-only identity may differ from the
+    // frozen edition 0001 source.
+    const rebased = clone(edition0002)
+    rebased.edition = edition.edition
+    rebased.editionId = edition.editionId
+    rebased.migration = edition.migration
+    rebased.acquisition.banner.guarantees.rareOrBetter.hardGuaranteePull =
+      edition.acquisition.banner.guarantees.rareOrBetter.hardGuaranteePull
+    expect(rebased).toEqual(edition)
+
+    const drifted = clone(edition0002)
+    drifted.acquisition.banner.guarantees.rareOrBetter.hardGuaranteePull = 8
+    expect(() => validateProductionEdition(
+      drifted,
+      catalog,
+      '0002-earned-collection.json',
+    )).toThrow(/rareOrBetter production boundary/)
+
+    const rewritten = clone(edition0002)
+    rewritten.acquisition.banner.tiers[0].catalogItemIds.reverse()
+    rewritten.rewards.newCollectorPassport.eligibleCatalogItemIds.reverse()
+    expect(() => validateProductionEdition(
+      rewritten,
+      catalog,
+      '0002-earned-collection.json',
+    )).toThrow(/Production edition 0002 must retain its frozen Candidate B source/)
   })
 
   it('freezes selected Candidate B rates, guarantees, and earned-only boundaries', () => {
@@ -197,9 +258,9 @@ describe('production economy contract', () => {
 
     const { rootDir, nextEdition, sha256 } = createVersionBumpFixture()
     const result = validateProductionEconomy({ rootDir })
-    expect(result.editions).toHaveLength(2)
-    expect(result.editions[1]).toMatchObject({
-      fileName: '0002-earned-collection.json',
+    expect(result.editions).toHaveLength(3)
+    expect(result.editions[2]).toMatchObject({
+      fileName: '0003-earned-collection.json',
       edition: nextEdition,
       sha256,
     })
@@ -210,7 +271,7 @@ describe('production economy contract', () => {
     expect(() => validateProductionEdition(
       nextEdition,
       catalog,
-      '0002-earned-collection.json',
+      '0003-earned-collection.json',
     )).not.toThrow()
   })
 
@@ -225,7 +286,7 @@ describe('production economy contract', () => {
     expect(() => validateProductionEdition(
       nextEdition,
       catalog,
-      '0002-earned-collection.json',
+      '0003-earned-collection.json',
     )).not.toThrow()
   })
 
@@ -240,7 +301,7 @@ describe('production economy contract', () => {
     expect(() => validateProductionEdition(
       nextEdition,
       catalog,
-      '0002-earned-collection.json',
+      '0003-earned-collection.json',
     )).toThrow(/configured=0\.006.*derived=0\.01/)
   })
 
@@ -252,7 +313,7 @@ describe('production economy contract', () => {
       startPull: 12,
       perPullIncrement: 0.005,
     }
-    expect(() => validateProductionEdition(nextEdition, catalog, '0002-earned-collection.json'))
+    expect(() => validateProductionEdition(nextEdition, catalog, '0003-earned-collection.json'))
       .toThrow(/must contain exactly/)
 
     selected.softPity = {
@@ -261,7 +322,7 @@ describe('production economy contract', () => {
       perPullIncrement: 0.005,
       baseFeaturedRate: 0.006,
     }
-    expect(() => validateProductionEdition(nextEdition, catalog, '0002-earned-collection.json'))
+    expect(() => validateProductionEdition(nextEdition, catalog, '0003-earned-collection.json'))
       .toThrow(/below the selected hard guarantee/)
 
     selected.softPity = {
@@ -270,7 +331,7 @@ describe('production economy contract', () => {
       perPullIncrement: 0,
       baseFeaturedRate: 0.006,
     }
-    expect(() => validateProductionEdition(nextEdition, catalog, '0002-earned-collection.json'))
+    expect(() => validateProductionEdition(nextEdition, catalog, '0003-earned-collection.json'))
       .toThrow(/positive finite number/)
 
     selected.softPity = {
@@ -279,7 +340,7 @@ describe('production economy contract', () => {
       perPullIncrement: 0.005,
       baseFeaturedRate: 0.006,
     }
-    expect(() => validateProductionEdition(nextEdition, catalog, '0002-earned-collection.json'))
+    expect(() => validateProductionEdition(nextEdition, catalog, '0003-earned-collection.json'))
       .toThrow(/greater than 1/)
 
     selected.softPity = {
@@ -288,7 +349,7 @@ describe('production economy contract', () => {
       perPullIncrement: 0.005,
       baseFeaturedRate: 1,
     }
-    expect(() => validateProductionEdition(nextEdition, catalog, '0002-earned-collection.json'))
+    expect(() => validateProductionEdition(nextEdition, catalog, '0003-earned-collection.json'))
       .toThrow(/probability between 0 and 1/)
   })
 

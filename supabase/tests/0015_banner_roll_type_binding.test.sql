@@ -1,5 +1,119 @@
 begin;
 
+-- Active-version fixture. 0030_earned_economy_rare_pity_10.sql restricted
+-- preparation to a banner family's single highest version, and the
+-- earned-collection family now heads at the ticket-funded
+-- earned-collection-001@3. The Stars-funded preparation this suite proves is
+-- therefore exercised on an appended test-only family that clones
+-- earned-collection-001@1 byte for byte and heads its own lineage. Banner
+-- history stays append-only: nothing published is rewritten.
+insert into public.pull_banner_families (id) values ('slice6-legacy-stars');
+
+insert into public.pull_banner_versions (
+  id,
+  banner_id,
+  banner_version,
+  banner_family_id,
+  economy_edition_id,
+  source_config_sha256,
+  hold_policy_id,
+  currency_id,
+  balance_bucket,
+  duplicate_currency_id,
+  duplicate_balance_bucket,
+  weight_scale,
+  rare_minimum_rank,
+  rare_hard_guarantee_pull,
+  epic_minimum_rank,
+  epic_hard_guarantee_pull,
+  selected_minimum_rank,
+  selected_hard_guarantee_pull,
+  resolution_order,
+  banner_class,
+  roll_type,
+  soft_pity_model,
+  soft_pity_start_pull,
+  soft_pity_per_pull_increment
+)
+select
+  'slice6-legacy-stars@1',
+  'slice6-legacy-stars',
+  1,
+  'slice6-legacy-stars',
+  economy_edition_id,
+  source_config_sha256,
+  hold_policy_id,
+  currency_id,
+  balance_bucket,
+  duplicate_currency_id,
+  duplicate_balance_bucket,
+  weight_scale,
+  rare_minimum_rank,
+  rare_hard_guarantee_pull,
+  epic_minimum_rank,
+  epic_hard_guarantee_pull,
+  selected_minimum_rank,
+  selected_hard_guarantee_pull,
+  resolution_order,
+  banner_class,
+  roll_type,
+  soft_pity_model,
+  soft_pity_start_pull,
+  soft_pity_per_pull_increment
+from public.pull_banner_versions
+where id = 'earned-collection-001@1';
+
+insert into public.pull_banner_offers (banner_version_id, pull_count, cost)
+select 'slice6-legacy-stars@1', pull_count, cost
+from public.pull_banner_offers
+where banner_version_id = 'earned-collection-001@1';
+
+insert into public.pull_banner_tiers (
+  banner_version_id,
+  tier_id,
+  tier_rank,
+  weight_units,
+  duplicate_dust
+)
+select 'slice6-legacy-stars@1', tier_id, tier_rank, weight_units, duplicate_dust
+from public.pull_banner_tiers
+where banner_version_id = 'earned-collection-001@1';
+
+insert into public.pull_banner_items (
+  banner_version_id,
+  tier_id,
+  tier_rank,
+  canonical_order,
+  catalog_item_id,
+  selected_featured
+)
+select
+  'slice6-legacy-stars@1',
+  tier_id,
+  tier_rank,
+  canonical_order,
+  catalog_item_id,
+  selected_featured
+from public.pull_banner_items
+where banner_version_id = 'earned-collection-001@1';
+
+do $fixture$
+begin
+  if (select count(*) from public.pull_banner_offers
+      where banner_version_id = 'slice6-legacy-stars@1') <>
+     (select count(*) from public.pull_banner_offers
+      where banner_version_id = 'earned-collection-001@1') or
+     (select count(*) from public.pull_banner_items
+      where banner_version_id = 'slice6-legacy-stars@1') <>
+     (select count(*) from public.pull_banner_items
+      where banner_version_id = 'earned-collection-001@1') or
+     (select max(banner_version) from public.pull_banner_versions
+      where banner_family_id = 'slice6-legacy-stars') <> 1 then
+    raise exception 'Stars-funded active-version fixture is not a complete version-1 clone';
+  end if;
+end;
+$fixture$;
+
 insert into auth.users (id) values
   ('b1511111-1111-4111-8111-111111111111'),
   ('b1522222-2222-4222-8222-222222222222'),
@@ -294,7 +408,7 @@ declare
 begin
   select * into strict receipt
   from public.prepare_pull(
-    'earned-collection-001@1', 1::smallint, 'binding:legacy:stars:0001'
+    'slice6-legacy-stars@1', 1::smallint, 'binding:legacy:stars:0001'
   );
   if receipt.held_amount <> 160 then
     raise exception 'Legacy banner did not reserve its Stars offer cost';
