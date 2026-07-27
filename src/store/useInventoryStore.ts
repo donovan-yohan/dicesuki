@@ -1051,19 +1051,19 @@ export const useInventoryStore = create<InventoryStore>()(
       },
 
       clearServerCopies: () => {
-        set(state => {
-          if (!state.serverCopiesActive) return {}
-          const retained = selectRetainedLocalInventory(state)
-          const playableLocalDice = retained.dice.length > 0
-            ? retained.dice
-            : STARTER_DICE.map(createInventoryDie)
-          return {
-            dice: playableLocalDice,
-            localDice: playableLocalDice,
-            assignments: retained.assignments,
-            localAssignments: retained.assignments,
-            serverCopiesActive: false,
-          }
+        const state = get()
+        if (!state.serverCopiesActive) return
+
+        const retained = selectRetainedLocalInventory(state)
+        const playableLocalDice = retained.dice.length > 0
+          ? retained.dice
+          : STARTER_DICE.map(createInventoryDie)
+        set({
+          dice: playableLocalDice,
+          localDice: playableLocalDice,
+          assignments: retained.assignments,
+          localAssignments: retained.assignments,
+          serverCopiesActive: false,
         })
       },
     }),

@@ -91,6 +91,21 @@ describe('useInventoryStore server-copy slice', () => {
     expect(useInventoryStore.getState().dice.map(die => die.id)).toEqual([local.id])
   })
 
+  it('does not publish or replace state when clearing inactive server copies', () => {
+    const stateBeforeClear = useInventoryStore.getState()
+    let notificationCount = 0
+    const unsubscribe = useInventoryStore.subscribe(() => {
+      notificationCount += 1
+    })
+
+    stateBeforeClear.clearServerCopies()
+    const stateAfterClear = useInventoryStore.getState()
+    unsubscribe()
+
+    expect(notificationCount).toBe(0)
+    expect(stateAfterClear).toBe(stateBeforeClear)
+  })
+
   it('keeps a 23-die playable baseline when the authoritative copy read is empty', () => {
     expect(useInventoryStore.getState().dice).toHaveLength(0)
     expect(
