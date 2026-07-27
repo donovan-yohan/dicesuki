@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { memo, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -40,6 +40,7 @@ export const ShopPanel = memo(function ShopPanel({
   deviceTier = 'high',
 }: ShopPanelProps) {
   const authStatus = useAuthStore(state => state.status)
+  const signIn = useAuthStore(state => state.signInWithDiscord)
   const walletUserId = useWalletStore(state => state.userId)
   const promotionalStars = useWalletStore(state => state.wallet.stars.promotional)
   const paidStars = useWalletStore(state => state.wallet.stars.paid ?? 0)
@@ -82,8 +83,9 @@ export const ShopPanel = memo(function ShopPanel({
     if (isOpen) setActiveTab(initialTab)
   }, [initialTab, isOpen])
 
+  // Guests get the same shell, so they get the same focus trap and Escape.
   useEffect(() => {
-    if (!isOpen || authStatus !== 'authenticated') return
+    if (!isOpen) return
 
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
@@ -144,7 +146,7 @@ export const ShopPanel = memo(function ShopPanel({
       previouslyFocusedRef.current?.focus()
       previouslyFocusedRef.current = null
     }
-  }, [authStatus, isOpen])
+  }, [isOpen])
 
   const changeQuantity = useCallback((delta: number) => {
     setNotice(null)
@@ -184,20 +186,9 @@ export const ShopPanel = memo(function ShopPanel({
 
   if (!isOpen) return null
 
-  if (authStatus !== 'authenticated') {
-    return (
-      <PullBannerScreen
-        onClose={onClose}
-        onOpenShop={() => setActiveTab('shop')}
-        onAddDie={onAddDie}
-        tableDiceCount={tableDiceCount}
-        deviceTier={deviceTier}
-      />
-    )
-  }
+  const signedIn = authStatus === 'authenticated'
 
   return (
-    <AnimatePresence>
       <motion.section
         ref={dialogRef}
         role="dialog"
@@ -209,9 +200,10 @@ export const ShopPanel = memo(function ShopPanel({
           color: colors.text.primary,
           backgroundColor: colors.background,
         }}
+        // No `exit`: the panel is unmounted by its own `isOpen` guard, so there
+        // is no AnimatePresence that could ever play one.
         initial={{ y: reduceMotion ? 0 : '100%', opacity: reduceMotion ? 1 : 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: reduceMotion ? 0 : '100%', opacity: reduceMotion ? 1 : 0 }}
         transition={{ duration: reduceMotion ? 0 : 0.3, ease: [0.4, 0, 0.2, 1] }}
       >
         <header
@@ -267,15 +259,18 @@ export const ShopPanel = memo(function ShopPanel({
               Wallet &amp; bundles
             </button>
           </nav>
-          <div className="pb-3 pt-2">
-            <WalletBalanceSummary
-              stars={promotionalStars + paidStars}
-              dust={dust}
-              standardTickets={standardTickets}
-              premiumTickets={premiumTickets}
-              stale={stale}
-            />
-          </div>
+          {/* The wallet block is account data — auth-gated, shell is not. */}
+          {signedIn && (
+            <div className="pb-3 pt-2">
+              <WalletBalanceSummary
+                stars={promotionalStars + paidStars}
+                dust={dust}
+                standardTickets={standardTickets}
+                premiumTickets={premiumTickets}
+                stale={stale}
+              />
+            </div>
+          )}
         </header>
 
         {activeTab === 'banners' ? (
@@ -286,9 +281,6 @@ export const ShopPanel = memo(function ShopPanel({
             className="flex min-h-0 flex-1 flex-col"
           >
             <PullBannerScreen
-              embedded
-              onClose={onClose}
-              onOpenShop={() => setActiveTab('shop')}
               onAddDie={onAddDie}
               tableDiceCount={tableDiceCount}
               deviceTier={deviceTier}
@@ -308,6 +300,48 @@ export const ShopPanel = memo(function ShopPanel({
               color: colors.text.primary,
             }}
           >
+        {!signedIn ? (
+          <section
+            aria-labelledby="conversion-heading"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: `calc(${spacing.unit} * 3)`,
+              padding: `calc(${spacing.unit} * 4)`,
+              borderRadius: effects.borderRadius.lg,
+              backgroundColor: colors.surface,
+              border: `1px solid ${colors.text.muted}`,
+              boxShadow: effects.shadows.sm,
+            }}
+          >
+            <h3
+              id="conversion-heading"
+              style={{
+                color: colors.text.primary,
+                fontSize: typography.fontSize.lg,
+                fontWeight: typography.fontWeight.bold,
+              }}
+            >
+              Stars → standard rolls
+            </h3>
+            <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm }}>
+              Sign in to hold Stars, convert them into standard rolls, and keep
+              everything you pull.
+            </p>
+            <button
+              type="button"
+              className="min-h-11 rounded-md px-4 font-bold"
+              style={{
+                border: `1px solid ${colors.accent}`,
+                backgroundColor: colors.accent,
+                color: colors.text.primary,
+              }}
+              onClick={() => void signIn()}
+            >
+              Sign in with Discord
+            </button>
+          </section>
+        ) : (
         <section
           aria-labelledby="conversion-heading"
           style={{
@@ -439,6 +473,7 @@ export const ShopPanel = memo(function ShopPanel({
             </p>
           )}
         </section>
+        )}
 
         <LunarPassCard
           key={`${walletUserId ?? 'none'}:${subscription?.subscriptionId ?? 'none'}`}
@@ -527,7 +562,6 @@ export const ShopPanel = memo(function ShopPanel({
           </div>
         )}
       </motion.section>
-    </AnimatePresence>
   )
 })
 

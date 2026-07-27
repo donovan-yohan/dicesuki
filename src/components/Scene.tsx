@@ -41,8 +41,7 @@ import { swapsAxes } from '../lib/viewRotation'
 import { isPaymentsEnabled } from '../lib/paymentsConfig'
 
 // Components
-import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
-import { HUD_LAYOUT } from './layout/hudLayout'
+import { TableHud } from './layout/TableHud'
 import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
 import { PlayerPanel } from './multiplayer/PlayerPanel'
@@ -429,6 +428,7 @@ function SceneContent({ onReady }: SceneProps) {
   const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>('high')
   const [showRenderLodDebug, setShowRenderLodDebug] = useState(false)
   const detectedRenderDeviceTierRef = useRef<RenderDeviceTier | null>(null)
+  const railBeforeOverlayRef = useRef(false)
 
   // Detect if mobile
   const [isMobile, setIsMobile] = useState(false)
@@ -526,7 +526,35 @@ function SceneContent({ onReady }: SceneProps) {
     setIsShopOpen(false)
     setIsPlayerPanelOpen(false)
     setInspectedInventoryDieId(null)
+    railBeforeOverlayRef.current = false
   }, [isUIVisible])
+
+  // Any overlay that owns the screen (full-screen shop, bottom sheets, the
+  // settings flyout, the hero inspector). While one is open the HUD must not
+  // paint over it or steal its taps.
+  const isOverlayOpen =
+    isShopOpen ||
+    isSettingsOpen ||
+    isInventoryOpen ||
+    isHistoryOpen ||
+    isSavedRollsOpen ||
+    inspectedInventoryDieId !== null
+
+  // Auto-close the dice toolbar rail while an overlay owns the screen, and
+  // restore it afterwards so the player's rail state survives the round trip.
+  useEffect(() => {
+    if (isOverlayOpen) {
+      setIsDiceManagerOpen(open => {
+        railBeforeOverlayRef.current = open
+        return false
+      })
+      return
+    }
+    if (railBeforeOverlayRef.current) {
+      railBeforeOverlayRef.current = false
+      setIsDiceManagerOpen(true)
+    }
+  }, [isOverlayOpen])
 
   const content = (
     <>
@@ -569,6 +597,32 @@ function SceneContent({ onReady }: SceneProps) {
         <PerformanceOverlay />
       </Canvas>
 
+      <TableHud
+        isUIVisible={isUIVisible}
+        isOverlayOpen={isOverlayOpen}
+        isMobile={isMobile}
+        motionMode={motionMode}
+        showShop={showShop}
+        isDiceManagerOpen={isDiceManagerOpen}
+        canRoll={tableDice.length > 0}
+        onToggleUIVisibility={toggleUIVisibility}
+        onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
+        onOpenSavedRolls={() => setIsSavedRollsOpen(true)}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenPlayerPanel={() => setIsPlayerPanelOpen(!isPlayerPanelOpen)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenShop={() => setIsShopOpen(true)}
+        onRotateView={() => useUIStore.getState().rotateViewCW()}
+        onToggleMotion={handleToggleMotion}
+        onRoll={activeBackend.roll}
+        onAddDice={handleAddDice}
+        onClearAllDice={activeBackend.clearAll}
+        onOpenInventory={() => {
+          setIsInventoryOpen(true)
+          setIsDiceManagerOpen(false)
+        }}
+      />
+
       {isUIVisible && (
         <>
           {/* Result Display - subscribes to store */}
@@ -579,82 +633,6 @@ function SceneContent({ onReady }: SceneProps) {
             deviceTier={renderDeviceTier}
             tableDiceCount={useMultiplayerStore.getState().dice.size}
             isMultiplayer={isMultiplayer}
-          />
-
-          {/* Bottom Navigation Bar */}
-          <BottomNav
-            isVisible
-            onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
-            onOpenSavedRolls={() => setIsSavedRollsOpen(true)}
-            onOpenHistory={() => setIsHistoryOpen(true)}
-            onOpenPlayerPanel={() => setIsPlayerPanelOpen(!isPlayerPanelOpen)}
-            diceManagerOpen={isDiceManagerOpen}
-          />
-
-          {/* Center Roll Button - elevated above nav */}
-          <CenterRollButton
-            onClick={activeBackend.roll}
-            disabled={tableDice.length === 0}
-          />
-
-          {/* Top-Left Corner: Settings */}
-          <CornerIcon
-            position="top-left"
-            onClick={() => setIsSettingsOpen(true)}
-            label="Settings"
-            isVisible
-          >
-            ⚙️
-          </CornerIcon>
-
-          {/* Top-right shop hub keeps the existing payments/conversion gate. */}
-          {showShop && (
-            <CornerIcon
-              position="top-right"
-              onClick={() => setIsShopOpen(true)}
-              label="Shop"
-              isVisible
-            >
-              🛍️
-            </CornerIcon>
-          )}
-
-          {/* Bottom-left controls stay above the nav. */}
-          <button
-            type="button"
-            onClick={() => useUIStore.getState().rotateViewCW()}
-            className="fixed left-4 z-50 flex items-center justify-center rounded-full transition-all hover:scale-105"
-            style={bottomLeftControlStyle(HUD_LAYOUT.rotate.bottom)}
-            aria-label="Rotate view 90 degrees"
-            title="Rotate my view 90°"
-            data-testid="rotate-view-button"
-          >
-            🔄
-          </button>
-          {isMobile && (
-            <button
-              type="button"
-              onClick={handleToggleMotion}
-              className="fixed left-4 z-50 flex items-center justify-center rounded-full transition-all hover:scale-105"
-              style={{
-                ...bottomLeftControlStyle(HUD_LAYOUT.motion.bottom),
-                backgroundColor: motionMode ? 'var(--color-accent)' : 'var(--color-surface)',
-              }}
-              aria-label="Motion Mode"
-              title="Motion Mode"
-              aria-pressed={motionMode}
-            >
-              PHYS
-            </button>
-          )}
-          <DiceToolbar
-            isOpen={isDiceManagerOpen}
-            onAddDice={handleAddDice}
-            onClearAllDice={activeBackend.clearAll}
-            onOpenInventory={() => {
-              setIsInventoryOpen(true)
-              setIsDiceManagerOpen(false)
-            }}
           />
 
           <HistoryPanel
@@ -710,10 +688,6 @@ function SceneContent({ onReady }: SceneProps) {
           )}
         </>
       )}
-
-      {/* Permanent UI toggle / hide-UI eye. */}
-      <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
-
     </>
   )
 
@@ -727,18 +701,6 @@ function SceneContent({ onReady }: SceneProps) {
  */
 function Scene({ onReady }: SceneProps) {
   return <SceneContent onReady={onReady} />
-}
-
-function bottomLeftControlStyle(bottom: number) {
-  return {
-    bottom: `${bottom}px`,
-    width: '48px',
-    height: '48px',
-    backgroundColor: 'var(--color-surface)',
-    color: 'var(--color-text-primary)',
-    boxShadow: 'var(--shadow-md)',
-    opacity: 0.7,
-  }
 }
 
 /**

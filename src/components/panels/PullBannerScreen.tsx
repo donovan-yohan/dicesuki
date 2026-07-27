@@ -1,6 +1,11 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { DiceShape } from '../../types/diceShape'
-import type { PullCount, PullCtaState, StandardPullBanner } from '../../types/pull'
+import type {
+  PullCount,
+  PullCtaState,
+  PullVerificationDisclosure,
+  StandardPullBanner,
+} from '../../types/pull'
 import type { PullPitySnapshot } from '../../lib/pullPity'
 import type { RenderDeviceTier } from '../../lib/renderLod'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
@@ -19,14 +24,15 @@ import { PullDicePreview } from './PullDicePreview'
 import { PullProgressOverlay } from './PullProgressOverlay'
 import { PullRevealOverlay } from './PullRevealOverlay'
 
+/**
+ * The banners tab of the shop. It always renders inside `ShopPanel`'s shared
+ * full-screen surface — the shell (title, close affordance, Escape handling,
+ * wallet header, tabs) belongs to `ShopPanel` for guests and members alike.
+ */
 interface PullBannerScreenProps {
-  onClose: () => void
-  onOpenShop: () => void
   onAddDie: (type: DiceShape, inventoryDieId: string) => string | null
   tableDiceCount: number
   deviceTier: RenderDeviceTier
-  /** Renders inside ShopPanel's shared full-screen surface. */
-  embedded?: boolean
 }
 
 interface PullTierRate {
@@ -36,12 +42,9 @@ interface PullTierRate {
 }
 
 export function PullBannerScreen({
-  onClose,
-  onOpenShop,
   onAddDie,
   tableDiceCount,
   deviceTier,
-  embedded = false,
 }: PullBannerScreenProps) {
   const client = getSupabaseClient()
   const authStatus = useAuthStore(state => state.status)
@@ -83,6 +86,14 @@ export function PullBannerScreen({
   const [conversionError, setConversionError] = useState<string | null>(null)
   const [pityRefreshGeneration, setPityRefreshGeneration] = useState(0)
   const previousFlowStatusRef = useRef(flow.state.status)
+  // The flow only exposes a receipt while the reveal overlay owns the screen.
+  // Retaining the latest one keeps the disclosure the Terms page promises
+  // available in the single consolidated fairness spot: the details modal.
+  const [receipt, setReceipt] = useState<PullVerificationDisclosure | null>(null)
+
+  useEffect(() => {
+    if (flow.verification) setReceipt(flow.verification)
+  }, [flow.verification])
 
   useEffect(() => {
     const previousStatus = previousFlowStatusRef.current
@@ -395,40 +406,13 @@ export function PullBannerScreen({
 
   return (
     <div
-      className={embedded
-        ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
-        : 'fixed inset-0 z-50 flex h-[100dvh] flex-col overflow-hidden'}
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
       style={{
         color: 'var(--color-text-primary)',
         backgroundColor: 'var(--color-background)',
       }}
     >
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col overflow-y-auto px-4 pb-5">
-        {!embedded && (
-          <header className="sticky top-0 z-10 -mx-4 border-b px-4 py-2 backdrop-blur">
-          <div className="flex min-h-11 items-center justify-between">
-            <button type="button" className="min-h-11 min-w-11" onClick={onClose} aria-label="Close Banners">
-              Back
-            </button>
-            <h1 className="text-xl font-bold">Shop</h1>
-            <span className="min-w-11" aria-hidden="true" />
-          </div>
-          <nav aria-label="Shop sections" className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              aria-current="page"
-              className="min-h-11 border-b-2 font-bold"
-              style={{ borderColor: 'var(--color-accent)' }}
-            >
-              Banners
-            </button>
-            <button type="button" className="min-h-11" onClick={onOpenShop}>
-              Wallet &amp; bundles
-            </button>
-          </nav>
-          </header>
-        )}
-
         <div role="tablist" aria-label="Banner class" className="mt-4 grid grid-cols-2 gap-2">
           <button
             id={standardBannerTabId}
@@ -461,13 +445,6 @@ export function PullBannerScreen({
             aria-labelledby={premiumBannerTabId}
           >
             <PremiumDormant />
-            <button
-              type="button"
-              className="mt-4 min-h-11 self-start underline"
-              onClick={() => setDetailsOpen(true)}
-            >
-              Banner details: odds, pity &amp; pool
-            </button>
           </div>
         ) : (
           <div
@@ -497,14 +474,6 @@ export function PullBannerScreen({
                 Real dice for your table. The standard pool never rotates away.
               </p>
             </section>
-
-            <button
-              type="button"
-              className="mt-4 min-h-11 self-start underline"
-              onClick={() => setDetailsOpen(true)}
-            >
-              Banner details: odds, pity &amp; pool
-            </button>
 
             {!online && (
               <p role="status" className="mt-4">You&apos;re offline. Pulls will resume when you reconnect.</p>
@@ -539,6 +508,7 @@ export function PullBannerScreen({
       </div>
 
       <footer
+        data-testid="pull-cta-footer"
         className="shrink-0 border-t p-4"
         style={{
           backgroundColor: 'var(--color-surface)',
@@ -556,6 +526,19 @@ export function PullBannerScreen({
               </>
             )}
           </div>
+          {/*
+            Odds, pity and the verification receipt are one tap from the pull
+            CTAs and never below the fold — the footer is `shrink-0`, so this
+            row stays on screen at every supported viewport.
+          */}
+          <button
+            type="button"
+            className="mb-3 min-h-11 w-full rounded-md border text-sm font-semibold underline"
+            style={{ borderColor: 'var(--color-text-muted)' }}
+            onClick={() => setDetailsOpen(true)}
+          >
+            Banner details: odds, pity &amp; pool
+          </button>
           <div className="grid grid-cols-2 gap-3">
             {ctas.map(cta => {
               const locked = activeClass === 'premium'
@@ -614,6 +597,7 @@ export function PullBannerScreen({
         rates={rates}
         ratesLoading={ratesLoading}
         ratesError={ratesError}
+        receipt={receipt}
       />
 
       <BottomSheet
@@ -687,6 +671,7 @@ function BannerDetailsModal({
   rates,
   ratesLoading,
   ratesError,
+  receipt,
 }: {
   isOpen: boolean
   onClose: () => void
@@ -699,6 +684,7 @@ function BannerDetailsModal({
   rates: PullTierRate[] | null
   ratesLoading: boolean
   ratesError: string | null
+  receipt: PullVerificationDisclosure | null
 }) {
   const dialogRef = useRef<HTMLElement>(null)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
@@ -893,6 +879,49 @@ function BannerDetailsModal({
             The server seals each outcome before reveal. Its verification receipt includes
             the commitment root, seed, and per-result nonces after the pull completes.
           </p>
+
+          {receipt ? (
+            <div className="mt-3" data-testid="pull-verification-receipt">
+              <h4 className="text-sm font-bold">Your latest pull receipt</h4>
+              <dl className="mt-1 grid gap-1 text-xs">
+                <div>
+                  <dt className="font-semibold">Commitment root</dt>
+                  <dd className="break-all font-mono" data-testid="receipt-commitment-root">
+                    {receipt.commitmentRoot}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-semibold">RNG seed</dt>
+                  <dd className="break-all font-mono" data-testid="receipt-rng-seed">
+                    {receipt.rngSeed}
+                  </dd>
+                </div>
+              </dl>
+              <table className="mt-2 w-full text-left text-xs">
+                <caption className="sr-only">Per-result nonces and commitments</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" className="py-1">#</th>
+                    <th scope="col" className="py-1">Nonce</th>
+                    <th scope="col" className="py-1">Commitment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receipt.rows.map(row => (
+                    <tr key={row.position} data-testid="receipt-row">
+                      <th scope="row" className="py-1 pr-2 font-normal">{row.position}</th>
+                      <td className="break-all py-1 pr-2 font-mono">{row.nonce}</td>
+                      <td className="break-all py-1 font-mono">{row.commitment}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm" role="status">
+              Your latest pull receipt appears here once a pull completes.
+            </p>
+          )}
         </section>
       </section>
     </div>

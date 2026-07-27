@@ -101,30 +101,6 @@ export const topRightIconVariants: Variants = {
 }
 
 // ============================================================================
-// Mini Toggle Animations
-// ============================================================================
-
-export const miniToggleVariants: Variants = {
-  show: {
-    opacity: 0.7,
-    scale: 1,
-    transition: {
-      duration: TIMING.fast,
-      delay: TIMING.normal + STAGGER.normal * 2, // After nav and corners
-      ease: EASING.enter,
-    },
-  },
-  hide: {
-    opacity: 0,
-    scale: 0.8,
-    transition: {
-      duration: TIMING.fast,
-      ease: EASING.exit,
-    },
-  },
-}
-
-// ============================================================================
 // Roll Button States
 // ============================================================================
 

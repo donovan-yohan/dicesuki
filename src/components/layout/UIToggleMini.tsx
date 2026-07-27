@@ -28,11 +28,11 @@ export function UIToggleMini({ onClick, isVisible }: UIToggleMiniProps) {
   return (
     <motion.button
       onClick={onClick}
-      className="fixed left-4 z-50 flex items-center justify-center rounded-full transition-all"
+      className="fixed left-4 z-40 flex items-center justify-center rounded-full transition-all"
       style={{
         bottom: `${HUD_LAYOUT.eye.bottom}px`,
-        width: '48px',
-        height: '48px',
+        width: `${HUD_LAYOUT.eye.size}px`,
+        height: `${HUD_LAYOUT.eye.size}px`,
         backgroundColor: 'var(--color-surface)',
         color: 'var(--color-text-primary)',
         boxShadow: 'var(--shadow-md)',

@@ -100,7 +100,7 @@ function setState(status: 'guest' | 'authenticated', tickets: number, stars: num
   })
 }
 
-function BannerFixture({ onClose = vi.fn() }: { onClose?: () => void }) {
+function BannerFixture() {
   return (
     <ThemeContext.Provider
       value={{
@@ -112,8 +112,6 @@ function BannerFixture({ onClose = vi.fn() }: { onClose?: () => void }) {
       }}
     >
       <PullBannerScreen
-        onClose={onClose}
-        onOpenShop={vi.fn()}
         onAddDie={vi.fn(() => 'request')}
         tableDiceCount={0}
         deviceTier="low"
@@ -149,6 +147,57 @@ describe('PullBannerScreen CTA matrix', () => {
     },
   )
 
+  it('keeps the single odds/pity entry point in the sticky footer beside the pull CTAs', async () => {
+    setState('authenticated', 10, 0)
+    renderBanner()
+
+    const details = await screen.findAllByRole('button', { name: /banner details/i })
+    // Exactly one entry point, and it lives in the footer that never scrolls,
+    // not in the scrollable banner body where it fell below the fold.
+    expect(details).toHaveLength(1)
+    const footer = screen.getByTestId('pull-cta-footer')
+    expect(footer).toContainElement(details[0])
+    expect(footer).toContainElement(screen.getAllByRole('button', { name: /pull ×1/i })[0])
+
+    // The same entry point is present on the premium tab.
+    fireEvent.click(screen.getByRole('tab', { name: /premium/i }))
+    expect(screen.getAllByRole('button', { name: /banner details/i })).toHaveLength(1)
+  })
+
+  it('renders the retained verification receipt inside the banner details modal', async () => {
+    vi.mocked(usePullFlow).mockReturnValue({
+      ...flowResult(),
+      verification: {
+        commitmentRoot: 'root-abc',
+        rngSeed: 'seed-xyz',
+        rows: [
+          { position: 1, nonce: 'nonce-1', commitment: 'commit-1' },
+          { position: 2, nonce: 'nonce-2', commitment: 'commit-2' },
+        ],
+      },
+    })
+    setState('authenticated', 10, 0)
+    renderBanner()
+    fireEvent.click(await screen.findByRole('button', { name: /banner details/i }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Banner details' })
+    expect(within(dialog).getByTestId('receipt-commitment-root')).toHaveTextContent('root-abc')
+    expect(within(dialog).getByTestId('receipt-rng-seed')).toHaveTextContent('seed-xyz')
+    expect(within(dialog).getAllByTestId('receipt-row')).toHaveLength(2)
+    expect(within(dialog).getByText('nonce-2')).toBeInTheDocument()
+    expect(within(dialog).getByText('commit-1')).toBeInTheDocument()
+  })
+
+  it('explains the receipt is pending when no pull has completed yet', async () => {
+    setState('authenticated', 10, 0)
+    renderBanner()
+    fireEvent.click(await screen.findByRole('button', { name: /banner details/i }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Banner details' })
+    expect(within(dialog).queryByTestId('pull-verification-receipt')).not.toBeInTheDocument()
+    expect(within(dialog).getByText(/receipt appears here once a pull completes/i)).toBeInTheDocument()
+  })
+
   it('keeps odds, pity, pool, and fairness copy in the one-tap banner details modal', async () => {
     setState('authenticated', 10, 0)
     renderBanner()
@@ -179,8 +228,7 @@ describe('PullBannerScreen CTA matrix', () => {
 
   it('keeps focus inside banner details and lets Escape close only that modal', async () => {
     setState('authenticated', 10, 0)
-    const onClose = vi.fn()
-    render(<BannerFixture onClose={onClose} />)
+    render(<BannerFixture />)
     const trigger = await screen.findByRole('button', { name: /banner details/i })
     trigger.focus()
     fireEvent.click(trigger)
@@ -194,7 +242,6 @@ describe('PullBannerScreen CTA matrix', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Banner details' })).not.toBeInTheDocument())
-    expect(onClose).not.toHaveBeenCalled()
     expect(trigger).toHaveFocus()
   })
 

@@ -16,6 +16,7 @@ import {
   shouldReduceMotion,
 } from '../../animations/ui-transitions'
 import { useTheme } from '../../contexts/ThemeContext'
+import { CenterRollButton } from './CenterRollButton'
 
 interface BottomNavProps {
   isVisible: boolean
@@ -23,6 +24,8 @@ interface BottomNavProps {
   onOpenSavedRolls: () => void
   onOpenHistory: () => void
   onOpenPlayerPanel: () => void
+  onRoll: () => void
+  rollDisabled?: boolean
   diceManagerOpen?: boolean
 }
 
@@ -32,6 +35,8 @@ export function BottomNav({
   onOpenSavedRolls,
   onOpenHistory,
   onOpenPlayerPanel,
+  onRoll,
+  rollDisabled = false,
   diceManagerOpen = false,
 }: BottomNavProps) {
   const { currentTheme } = useTheme()
@@ -74,10 +79,10 @@ export function BottomNav({
         />
       </div>
 
-      {/* Center Section: Roll Button (rendered separately - elevated) */}
-      {/* This is just a spacer - actual button is in CenterRollButton component */}
-      <div className="flex-1 flex justify-center" data-nav-item="ROLL">
+      {/* Center Section: the real elevated Roll button, centred on the rail. */}
+      <div className="flex-1 flex justify-center">
         <div style={{ width: '70px' }} />
+        <CenterRollButton onClick={onRoll} disabled={rollDisabled} />
       </div>
 
       {/* Right Section: Roll History + Players / Room */}

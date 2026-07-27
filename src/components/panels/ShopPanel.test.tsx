@@ -26,10 +26,8 @@ vi.mock('../../lib/paymentsConfig', () => ({
 }))
 
 vi.mock('./PullBannerScreen', () => ({
-  PullBannerScreen: ({ embedded }: { embedded?: boolean }) => (
-    <section data-testid="pull-banner-screen" data-embedded={embedded ? 'true' : 'false'}>
-      Pull banners
-    </section>
+  PullBannerScreen: () => (
+    <section data-testid="pull-banner-screen">Pull banners</section>
   ),
 }))
 
@@ -108,10 +106,31 @@ describe('ShopPanel', () => {
     useWalletStore.setState({ refresh: originalRefresh })
   })
 
-  it('does not render for guests', () => {
-    renderShop()
-    expect(screen.queryByLabelText('Shop')).not.toBeInTheDocument()
+  it('gives guests the same full-screen shell with the wallet block auth-gated', async () => {
+    const onClose = vi.fn()
+    const signIn = vi.fn()
+    useAuthStore.setState({ signInWithDiscord: signIn })
+    renderShop('banners', onClose)
+
+    // One shell, one close affordance, and Escape — same as for members.
+    const dialog = screen.getByRole('dialog', { name: 'Shop' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(screen.getByTestId('pull-banner-screen')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close Banners' })).not.toBeInTheDocument()
+
+    // Account data is gated; the shell around it is not.
     expect(screen.queryByLabelText('Wallet balances')).not.toBeInTheDocument()
+
+    // The wallet tab is live for guests and offers sign-in instead of a dead control.
+    fireEvent.click(screen.getByRole('tab', { name: /wallet & bundles/i }))
+    expect(screen.getByRole('tabpanel', { name: /wallet & bundles/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Roll quantity')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /sign in with discord/i }))
+    expect(signIn).toHaveBeenCalledOnce()
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Close Shop' })).toBeInTheDocument())
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('keeps authenticated balances in the shop header instead of a table overlay', () => {
@@ -135,7 +154,7 @@ describe('ShopPanel', () => {
     renderShop('banners', onClose)
 
     expect(screen.getByRole('dialog', { name: 'Shop' })).toBeInTheDocument()
-    expect(screen.getByTestId('pull-banner-screen')).toHaveAttribute('data-embedded', 'true')
+    expect(screen.getByTestId('pull-banner-screen')).toBeInTheDocument()
     expect(screen.getByLabelText('Wallet balances')).toBeInTheDocument()
     const walletTab = screen.getByRole('tab', { name: /wallet & bundles/i })
     fireEvent.click(walletTab)
