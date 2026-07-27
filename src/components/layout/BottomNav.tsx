@@ -2,11 +2,11 @@
  * Bottom Navigation Bar Component
  *
  * Main navigation bar with 5 buttons:
- * 1. UI Toggle (left)
- * 2. Dice Manager
+ * 1. Dice Manager
+ * 2. Saved Rolls
  * 3. Roll Button (center, elevated)
- * 4. History
- * 5. Motion Toggle (mobile only, right)
+ * 4. Roll History
+ * 5. Players / Room
  */
 
 import { motion } from 'framer-motion'
@@ -15,43 +15,28 @@ import {
   navBarVariants,
   shouldReduceMotion,
 } from '../../animations/ui-transitions'
-import { STANDARD_ROLL_CONVERSION_AVAILABLE } from '../economy/shopCatalog'
 import { useTheme } from '../../contexts/ThemeContext'
-import { isPaymentsEnabled } from '../../lib/paymentsConfig'
 
 interface BottomNavProps {
   isVisible: boolean
-  onToggleUI: () => void
   onOpenDiceManager: () => void
+  onOpenSavedRolls: () => void
   onOpenHistory: () => void
-  onOpenShop?: () => void
-  onToggleMotion?: () => void // Optional - mobile only
-  isMobile: boolean
-  motionModeActive?: boolean
+  onOpenPlayerPanel: () => void
   diceManagerOpen?: boolean
-  shopOpen?: boolean
 }
 
 export function BottomNav({
   isVisible,
-  onToggleUI,
   onOpenDiceManager,
+  onOpenSavedRolls,
   onOpenHistory,
-  onOpenShop,
-  onToggleMotion,
-  isMobile,
-  motionModeActive = false,
+  onOpenPlayerPanel,
   diceManagerOpen = false,
-  shopOpen = false,
 }: BottomNavProps) {
   const { currentTheme } = useTheme()
   const getIcon = (name: keyof typeof currentTheme.assets.icons) => currentTheme.assets.icons[name]
   const reduceMotion = shouldReduceMotion()
-  // The Banners destination is intentionally browseable by guests. Conversion
-  // and paid surfaces remain gated inside the Shop hub.
-  const showShop = Boolean(onOpenShop) &&
-    (isPaymentsEnabled() || STANDARD_ROLL_CONVERSION_AVAILABLE)
-
   return (
     <motion.nav
       className="fixed bottom-4 left-4 right-4 z-40 flex items-center justify-between px-3 md:px-6"
@@ -69,60 +54,49 @@ export function BottomNav({
       initial="show"
       animate={reduceMotion ? 'show' : isVisible ? 'show' : 'hide'}
     >
-      {/* Left Section: UI Toggle + Dice Manager */}
+      {/* Left Section: Dice Manager + Saved Rolls */}
       <div className="flex items-center gap-3 md:gap-4 flex-1 justify-between">
-        {/* Button 1: UI Toggle */}
-        <NavButton
-          onClick={onToggleUI}
-          label="Toggle UI"
-          icon={getIcon('uiToggle') || 'UI'}
-        />
-
-        {/* Button 2: Dice Manager */}
+        {/* Button 1: Dice Manager */}
         <NavButton
           onClick={onOpenDiceManager}
           label="Manage Dice"
+          navItem="Dice Manager"
           icon={getIcon('dice') || 'DICE'}
           active={diceManagerOpen}
+        />
+
+        {/* Button 2: Saved Rolls */}
+        <NavButton
+          onClick={onOpenSavedRolls}
+          label="My Dice Rolls"
+          navItem="Saved Rolls"
+          icon="📋"
         />
       </div>
 
       {/* Center Section: Roll Button (rendered separately - elevated) */}
       {/* This is just a spacer - actual button is in CenterRollButton component */}
-      <div className="flex-1 flex justify-center">
+      <div className="flex-1 flex justify-center" data-nav-item="ROLL">
         <div style={{ width: '70px' }} />
       </div>
 
-      {/* Right Section: History + Motion Toggle */}
+      {/* Right Section: Roll History + Players / Room */}
       <div className="flex items-center gap-3 md:gap-4 flex-1 justify-between">
-        {showShop && onOpenShop && (
-          <NavButton
-            onClick={onOpenShop}
-            label="Shop"
-            icon="SHOP"
-            active={shopOpen}
-          />
-        )}
-
-        {/* Button 4: History */}
+        {/* Button 4: Roll History */}
         <NavButton
           onClick={onOpenHistory}
           label="Roll History"
+          navItem="Roll History"
           icon={getIcon('history') || 'HIST'}
         />
 
-        {/* Button 5: Motion Toggle */}
-        {onToggleMotion && (
-          <NavButton
-            onClick={() => {
-              console.log('Motion toggle clicked, current state:', motionModeActive)
-              onToggleMotion()
-            }}
-            label={isMobile ? 'Motion Mode' : 'Device Motion'}
-            icon="PHYS"
-            active={motionModeActive}
-          />
-        )}
+        {/* Button 5: Players / Room */}
+        <NavButton
+          onClick={onOpenPlayerPanel}
+          label="Room Players"
+          navItem="Players/Room"
+          icon="👥"
+        />
       </div>
     </motion.nav>
   )
@@ -135,11 +109,12 @@ export function BottomNav({
 interface NavButtonProps {
   onClick: () => void
   label: string
+  navItem?: string
   icon: string // URL or emoji
   active?: boolean
 }
 
-function NavButton({ onClick, label, icon, active = false }: NavButtonProps) {
+function NavButton({ onClick, label, navItem = label, icon, active = false }: NavButtonProps) {
   const reduceMotion = shouldReduceMotion()
   const isImage = icon.startsWith('/') || icon.startsWith('http')
 
@@ -168,6 +143,7 @@ function NavButton({ onClick, label, icon, active = false }: NavButtonProps) {
       whileTap={!reduceMotion ? buttonPressScale : undefined}
       aria-label={label}
       title={label}
+      data-nav-item={navItem}
     >
       {/* Icon - just use the icon directly (emojis already provided as fallback) */}
       <div className="text-xs font-bold">

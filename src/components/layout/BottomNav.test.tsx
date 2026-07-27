@@ -1,16 +1,17 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ThemeContext } from '../../contexts/ThemeContext'
-import { isPaymentsEnabled } from '../../lib/paymentsConfig'
-import { useAuthStore } from '../../store/useAuthStore'
 import { defaultTheme } from '../../themes/tokens'
 import { BottomNav } from './BottomNav'
 
-vi.mock('../../lib/paymentsConfig', () => ({
-  isPaymentsEnabled: vi.fn(() => false),
-}))
+function renderNav() {
+  const handlers = {
+    onOpenDiceManager: vi.fn(),
+    onOpenSavedRolls: vi.fn(),
+    onOpenHistory: vi.fn(),
+    onOpenPlayerPanel: vi.fn(),
+  }
 
-function renderNav(onOpenShop = vi.fn()) {
   render(
     <ThemeContext.Provider
       value={{
@@ -21,44 +22,40 @@ function renderNav(onOpenShop = vi.fn()) {
         purchaseTheme: vi.fn(async () => true),
       }}
     >
-      <BottomNav
-        isVisible
-        onToggleUI={vi.fn()}
-        onOpenDiceManager={vi.fn()}
-        onOpenHistory={vi.fn()}
-        onOpenShop={onOpenShop}
-        isMobile={false}
-      />
+      <BottomNav isVisible {...handlers} />
     </ThemeContext.Provider>,
   )
-  return onOpenShop
+
+  return handlers
 }
 
-describe('BottomNav shop entry', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    useAuthStore.setState({ status: 'guest', user: null, profile: null })
+describe('BottomNav Layout A', () => {
+  it('keeps the exact five-slot order: Dice Manager, Saved Rolls, ROLL, History, Players', () => {
+    renderNav()
+
+    const nav = screen.getByRole('navigation')
+    expect(Array.from(nav.querySelectorAll<HTMLElement>('[data-nav-item]')).map(item => item.dataset.navItem)).toEqual([
+      'Dice Manager',
+      'Saved Rolls',
+      'ROLL',
+      'Roll History',
+      'Players/Room',
+    ])
+    expect(screen.queryByRole('button', { name: 'Shop' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Toggle UI' })).not.toBeInTheDocument()
   })
 
-  it.each([false, true])(
-    'opens the guest-browseable Banners destination when payments enabled is %s',
-    (paymentsEnabled) => {
-      vi.mocked(isPaymentsEnabled).mockReturnValue(paymentsEnabled)
-      const onOpenShop = renderNav()
-      fireEvent.click(screen.getByRole('button', { name: 'Shop' }))
-      expect(onOpenShop).toHaveBeenCalledOnce()
-    },
-  )
+  it('routes each moved action through its matching callback', () => {
+    const handlers = renderNav()
 
-  it.each([false, true])(
-    'shows the free conversion shop for signed-in users when payments enabled is %s',
-    (paymentsEnabled) => {
-      vi.mocked(isPaymentsEnabled).mockReturnValue(paymentsEnabled)
-      useAuthStore.setState({ status: 'authenticated' })
-      const onOpenShop = renderNav()
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Dice' }))
+    fireEvent.click(screen.getByRole('button', { name: 'My Dice Rolls' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Roll History' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Room Players' }))
 
-      fireEvent.click(screen.getByRole('button', { name: 'Shop' }))
-      expect(onOpenShop).toHaveBeenCalledOnce()
-    },
-  )
+    expect(handlers.onOpenDiceManager).toHaveBeenCalledOnce()
+    expect(handlers.onOpenSavedRolls).toHaveBeenCalledOnce()
+    expect(handlers.onOpenHistory).toHaveBeenCalledOnce()
+    expect(handlers.onOpenPlayerPanel).toHaveBeenCalledOnce()
+  })
 })

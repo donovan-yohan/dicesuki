@@ -112,6 +112,22 @@ describe('ShopPanel', () => {
   it('does not render for guests', () => {
     renderShop()
     expect(screen.queryByLabelText('Shop')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Wallet balances')).not.toBeInTheDocument()
+  })
+
+  it('keeps authenticated balances in the shop header instead of a table overlay', () => {
+    setSignedInWallet(320)
+    useWalletStore.setState({
+      wallet: { stars: { promotional: 320, paid: 20 }, dust: { earned: 5 } },
+      tickets: { standard_roll: 1, premium_roll: 2 },
+    })
+    renderShop()
+
+    const wallet = screen.getByLabelText('Wallet balances')
+    expect(within(wallet).getByTestId('wallet-stars')).toHaveTextContent('340')
+    expect(within(wallet).getByTestId('wallet-dust')).toHaveTextContent('5')
+    expect(within(wallet).getByTestId('wallet-standard-rolls')).toHaveTextContent('1')
+    expect(within(wallet).getByTestId('wallet-premium-rolls')).toHaveTextContent('2')
   })
 
   it('bounds the quantity to affordable rolls and disables conversion at zero balance', () => {

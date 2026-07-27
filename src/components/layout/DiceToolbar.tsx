@@ -17,6 +17,7 @@ import { TRASH_DROP_ZONE_ID } from '../../lib/trashDropZone'
 import type { DiceShape } from '../../types/diceShape'
 import type { InventoryDie } from '../../types/inventory'
 import { SharedInventoryDicePreviewCanvas } from '../panels/SharedInventoryDicePreviewCanvas'
+import { HUD_LAYOUT } from './hudLayout'
 
 interface DiceToolbarProps {
   isOpen: boolean
@@ -98,7 +99,9 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory
         <motion.div
           className="fixed left-4 z-[65] flex w-12 flex-col items-center gap-3"
           style={{
-            bottom: '80px',
+            // Keep the slide-out rail clear of the permanent bottom-left
+            // rotate/motion/eye control cluster.
+            bottom: `${HUD_LAYOUT.toolbar.bottom}px`,
           }}
         >
           {availableDiceTypes.map(({ type, label, available }, index) => {
