@@ -398,12 +398,138 @@ begin
 end;
 $$;
 
+-- Active-version fixture. 0030_earned_economy_rare_pity_10.sql restricted
+-- preparation to a banner family's single highest version, and the
+-- earned-collection family now heads at the ticket-funded
+-- earned-collection-001@3. Every preparation case below therefore runs against
+-- an appended test-only family that clones earned-collection-001@1 byte for
+-- byte and heads its own lineage, which keeps the Stars-funded 160/1600 offers,
+-- the 45-item pool, and the 8/25/20 boundaries this suite asserts. Banner
+-- history stays append-only: nothing published is rewritten, and the identity,
+-- normalization, RLS, and grant assertions above still read the published rows.
+insert into public.pull_banner_families (id) values ('slice11-stars');
+
+insert into public.pull_banner_versions (
+  id,
+  banner_id,
+  banner_version,
+  banner_family_id,
+  economy_edition_id,
+  source_config_sha256,
+  hold_policy_id,
+  currency_id,
+  balance_bucket,
+  duplicate_currency_id,
+  duplicate_balance_bucket,
+  weight_scale,
+  rare_minimum_rank,
+  rare_hard_guarantee_pull,
+  epic_minimum_rank,
+  epic_hard_guarantee_pull,
+  selected_minimum_rank,
+  selected_hard_guarantee_pull,
+  resolution_order,
+  banner_class,
+  roll_type,
+  soft_pity_model,
+  soft_pity_start_pull,
+  soft_pity_per_pull_increment
+)
+select
+  'slice11-stars@1',
+  'slice11-stars',
+  1,
+  'slice11-stars',
+  economy_edition_id,
+  source_config_sha256,
+  hold_policy_id,
+  currency_id,
+  balance_bucket,
+  duplicate_currency_id,
+  duplicate_balance_bucket,
+  weight_scale,
+  rare_minimum_rank,
+  rare_hard_guarantee_pull,
+  epic_minimum_rank,
+  epic_hard_guarantee_pull,
+  selected_minimum_rank,
+  selected_hard_guarantee_pull,
+  resolution_order,
+  banner_class,
+  roll_type,
+  soft_pity_model,
+  soft_pity_start_pull,
+  soft_pity_per_pull_increment
+from public.pull_banner_versions
+where id = 'earned-collection-001@1';
+
+insert into public.pull_banner_offers (banner_version_id, pull_count, cost)
+select 'slice11-stars@1', pull_count, cost
+from public.pull_banner_offers
+where banner_version_id = 'earned-collection-001@1';
+
+insert into public.pull_banner_tiers (
+  banner_version_id,
+  tier_id,
+  tier_rank,
+  weight_units,
+  duplicate_dust
+)
+select 'slice11-stars@1', tier_id, tier_rank, weight_units, duplicate_dust
+from public.pull_banner_tiers
+where banner_version_id = 'earned-collection-001@1';
+
+insert into public.pull_banner_items (
+  banner_version_id,
+  tier_id,
+  tier_rank,
+  canonical_order,
+  catalog_item_id,
+  selected_featured
+)
+select
+  'slice11-stars@1',
+  tier_id,
+  tier_rank,
+  canonical_order,
+  catalog_item_id,
+  selected_featured
+from public.pull_banner_items
+where banner_version_id = 'earned-collection-001@1';
+
+do $fixture$
+begin
+  if not exists (
+    select 1
+    from public.pull_banner_versions as clone
+    join public.pull_banner_versions as source
+      on source.id = 'earned-collection-001@1'
+    where clone.id = 'slice11-stars@1'
+      and clone.currency_id = source.currency_id
+      and clone.balance_bucket = source.balance_bucket
+      and clone.roll_type is not distinct from source.roll_type
+      and clone.rare_hard_guarantee_pull = source.rare_hard_guarantee_pull
+      and clone.epic_hard_guarantee_pull = source.epic_hard_guarantee_pull
+      and clone.selected_hard_guarantee_pull = source.selected_hard_guarantee_pull
+  ) or (select count(*) from public.pull_banner_offers
+        where banner_version_id = 'slice11-stars@1') <> 2 or
+     (select count(*) from public.pull_banner_items
+      where banner_version_id = 'slice11-stars@1') <> 45 or
+     (select count(*) from public.pull_banner_items
+      where banner_version_id = 'slice11-stars@1' and selected_featured) <> 6 or
+     (select max(banner_version) from public.pull_banner_versions
+      where banner_family_id = 'slice11-stars') <> 1 then
+    raise exception 'Stars-funded active-version fixture is not a complete version-1 clone';
+  end if;
+end;
+$fixture$;
+
 -- API denial includes the anon role, an anonymous JWT using authenticated,
 -- and service_role. Only a non-anonymous authenticated JWT may enter the RPC.
 set local role anon;
 do $$
 begin
-  perform public.prepare_pull('earned-collection-001@1', 1::smallint, 'prepare:anon:0001');
+  perform public.prepare_pull('slice11-stars@1', 1::smallint, 'prepare:anon:0001');
   raise exception 'anon unexpectedly executed prepare_pull';
 exception when insufficient_privilege then
   null;
@@ -415,7 +541,7 @@ set local "request.jwt.claims" = '{"sub":"89999999-9999-4999-8999-999999999999",
 set local role authenticated;
 do $$
 begin
-  perform public.prepare_pull('earned-collection-001@1', 1::smallint, 'prepare:anonymous-jwt:0001');
+  perform public.prepare_pull('slice11-stars@1', 1::smallint, 'prepare:anonymous-jwt:0001');
   raise exception 'Anonymous JWT unexpectedly prepared a pull';
 exception when sqlstate '28000' then
   null;
@@ -426,7 +552,7 @@ reset role;
 set local role service_role;
 do $$
 begin
-  perform public.prepare_pull('earned-collection-001@1', 1::smallint, 'prepare:service:0001');
+  perform public.prepare_pull('slice11-stars@1', 1::smallint, 'prepare:service:0001');
   raise exception 'service_role unexpectedly executed public prepare_pull';
 exception when insufficient_privilege then
   null;
@@ -500,7 +626,7 @@ insert into public.pull_guarantee_states (
   account_id, user_id, banner_family_id,
   total_pulls, rare_misses, epic_misses, selected_misses
 )
-select id, user_id, 'earned-collection', 9, 2, 3, 4
+select id, user_id, 'slice11-stars', 9, 2, 3, 4
 from public.wallet_accounts
 where user_id = '81111111-1111-4111-8111-111111111111';
 
@@ -512,9 +638,9 @@ declare
   replay_receipt record;
 begin
   select * into strict first_receipt
-  from public.prepare_pull('earned-collection-001@1', 1::smallint, 'prepare:exact:0001');
+  from public.prepare_pull('slice11-stars@1', 1::smallint, 'prepare:exact:0001');
   select * into strict replay_receipt
-  from public.prepare_pull('earned-collection-001@1', 1::smallint, 'prepare:exact:0001');
+  from public.prepare_pull('slice11-stars@1', 1::smallint, 'prepare:exact:0001');
 
   if row(
     first_receipt.session_id,
@@ -542,21 +668,21 @@ begin
   end if;
 
   begin
-    perform public.prepare_pull('earned-collection-001@1', 10::smallint, 'prepare:exact:0001');
+    perform public.prepare_pull('slice11-stars@1', 10::smallint, 'prepare:exact:0001');
     raise exception 'Mismatched replay unexpectedly succeeded';
   exception when sqlstate '22023' then
     null;
   end;
 
   begin
-    perform public.prepare_pull('earned-collection-001@1', 1::smallint, 'prepare:exact:0002');
+    perform public.prepare_pull('slice11-stars@1', 1::smallint, 'prepare:exact:0002');
     raise exception 'Second live family pull unexpectedly succeeded';
   exception when sqlstate '55000' then
     null;
   end;
 
   begin
-    perform public.prepare_pull('earned-collection-001@1', 5::smallint, 'prepare:invalid-count');
+    perform public.prepare_pull('slice11-stars@1', 5::smallint, 'prepare:invalid-count');
     raise exception 'Unsupported pull count unexpectedly succeeded';
   exception when sqlstate '22023' then
     null;
@@ -645,7 +771,7 @@ declare
   receipt record;
 begin
   select * into strict receipt
-  from public.prepare_pull('earned-collection-001@1', 10::smallint, 'prepare:ten:0001');
+  from public.prepare_pull('slice11-stars@1', 10::smallint, 'prepare:ten:0001');
   if receipt.pull_count <> 10 or receipt.held_amount <> 1600 or
      receipt.commitment_root !~ '^[0-9a-f]{64}$' or
      receipt.rng_scheme <> 'hmac-sha256-seed-v1' then
@@ -679,7 +805,7 @@ begin
   );
   expired := private.prepare_pull_for_user(
     '83333333-3333-4333-8333-333333333333',
-    'earned-collection-001@1',
+    'slice11-stars@1',
     1::smallint,
     'prepare:expired:0001',
     statement_timestamp() - interval '121 seconds',
@@ -700,11 +826,11 @@ declare
   replay_receipt record;
 begin
   select * into strict expired_receipt
-  from public.prepare_pull('earned-collection-001@1', 1::smallint, 'prepare:expired:0001');
+  from public.prepare_pull('slice11-stars@1', 1::smallint, 'prepare:expired:0001');
   select * into strict active_receipt
-  from public.prepare_pull('earned-collection-001@1', 1::smallint, 'prepare:expired:0002');
+  from public.prepare_pull('slice11-stars@1', 1::smallint, 'prepare:expired:0002');
   select * into strict replay_receipt
-  from public.prepare_pull('earned-collection-001@1', 1::smallint, 'prepare:expired:0001');
+  from public.prepare_pull('slice11-stars@1', 1::smallint, 'prepare:expired:0001');
 
   if expired_receipt.session_id <> replay_receipt.session_id or
      expired_receipt.commitment_root <> replay_receipt.commitment_root or
@@ -713,7 +839,7 @@ begin
   end if;
 
   begin
-    perform public.prepare_pull('earned-collection-001@1', 10::smallint, 'prepare:expired:0001');
+    perform public.prepare_pull('slice11-stars@1', 10::smallint, 'prepare:expired:0001');
     raise exception 'Expired mismatched replay unexpectedly succeeded';
   exception when sqlstate '22023' then
     null;
@@ -738,28 +864,28 @@ insert into public.pull_guarantee_states (
   account_id, user_id, banner_family_id,
   total_pulls, rare_misses, epic_misses, selected_misses
 )
-select id, user_id, 'earned-collection', 100, 7, 24, 19
+select id, user_id, 'slice11-stars', 100, 7, 24, 19
 from public.wallet_accounts where user_id = '84444444-4444-4444-8444-444444444444';
 
 insert into public.pull_guarantee_states (
   account_id, user_id, banner_family_id,
   total_pulls, rare_misses, epic_misses, selected_misses
 )
-select id, user_id, 'earned-collection', 100, 7, 24, 0
+select id, user_id, 'slice11-stars', 100, 7, 24, 0
 from public.wallet_accounts where user_id = '85555555-5555-4555-8555-555555555555';
 
 insert into public.pull_guarantee_states (
   account_id, user_id, banner_family_id,
   total_pulls, rare_misses, epic_misses, selected_misses
 )
-select id, user_id, 'earned-collection', 100, 7, 0, 0
+select id, user_id, 'slice11-stars', 100, 7, 0, 0
 from public.wallet_accounts where user_id = '86666666-6666-4666-8666-666666666666';
 
 insert into public.pull_guarantee_states (
   account_id, user_id, banner_family_id,
   total_pulls, rare_misses, epic_misses, selected_misses
 )
-select id, user_id, 'earned-collection', 100, 6, 23, 18
+select id, user_id, 'slice11-stars', 100, 6, 23, 18
 from public.wallet_accounts where user_id = '87777777-7777-4777-8777-777777777777';
 
 set local role service_role;
@@ -770,7 +896,7 @@ begin
   for item in
     select catalog_item_id, tier_id, canonical_order
     from public.pull_banner_items
-    where banner_version_id = 'earned-collection-001@1'
+    where banner_version_id = 'slice11-stars@1'
     order by tier_rank, canonical_order
   loop
     perform public.record_dice_copy_grant(
@@ -789,7 +915,7 @@ insert into public.pull_guarantee_states (
   account_id, user_id, banner_family_id,
   total_pulls, rare_misses, epic_misses, selected_misses
 )
-select id, user_id, 'earned-collection', 100, 7, 24, 19
+select id, user_id, 'slice11-stars', 100, 7, 24, 19
 from public.wallet_accounts where user_id = '88888888-8888-4888-8888-888888888888';
 
 -- The selected counter resets for any newly awarded selected-featured item,
@@ -803,14 +929,14 @@ declare
 begin
   select catalog_item_id into strict lowest_target
   from public.pull_banner_items
-  where banner_version_id = 'earned-collection-001@1' and selected_featured
+  where banner_version_id = 'slice11-stars@1' and selected_featured
   order by catalog_item_id
   limit 1;
 
   select catalog_item_id, selected_featured
     into strict alternate_target, alternate_is_featured
   from public.pull_banner_items
-  where banner_version_id = 'earned-collection-001@1' and selected_featured
+  where banner_version_id = 'slice11-stars@1' and selected_featured
   order by catalog_item_id
   offset 1 limit 1;
 
@@ -848,7 +974,7 @@ begin
       jsonb_build_object('sub', target_user, 'is_anonymous', false)::text,
       true
     );
-    perform public.prepare_pull('earned-collection-001@1', 1::smallint, key);
+    perform public.prepare_pull('slice11-stars@1', 1::smallint, key);
   end loop;
 end;
 $$;
@@ -865,7 +991,7 @@ begin
       and catalog_item_id = (
         select min(items.catalog_item_id)
         from public.pull_banner_items as items
-        where items.banner_version_id = 'earned-collection-001@1'
+        where items.banner_version_id = 'slice11-stars@1'
           and items.selected_featured
       )
       and tier_rank = 3
@@ -1156,7 +1282,7 @@ begin
   begin
     perform private.prepare_pull_for_user(
       '8aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-      'earned-collection-001@1',
+      'slice11-stars@1',
       10::smallint,
       'prepare:atomic:0001',
       null,

@@ -11,7 +11,17 @@ const ROOT_DIR = path.resolve(path.dirname(__filename), '..')
 const EDITION_FILE_PATTERN = /^(\d{4})-([a-z0-9]+(?:-[a-z0-9]+)*)\.json$/
 const MIGRATION_FILE_PATTERN = /^\d{4}_earned_economy_[a-z0-9_]+\.sql$/
 const EDITION_0001_SHA256 = '6e198c0f3a3a96975ada45b27334583b5c17d84549db9eefe4e3671b296aba09'
+const EDITION_0002_SHA256 = '62232a0a8913c8162ee0733532b0ce3c034fe2c9eda7276c6d2b7b4e37ca8626'
 const BASE_FEATURED_RATE_RELATIVE_EPSILON = 1e-9
+
+// Per-edition production boundaries and frozen source hashes for the
+// earned-collection lineage. A rate change appends the next contiguous entry
+// instead of rewriting a published one, so every published edition keeps an
+// exact pin and only the deliberately tuned boundary differs between rows.
+const EARNED_COLLECTION_BOUNDARIES = new Map([
+  [1, { sha256: EDITION_0001_SHA256, rareHardGuaranteePull: 8 }],
+  [2, { sha256: EDITION_0002_SHA256, rareHardGuaranteePull: 10 }],
+])
 
 function compareStrings(left, right) {
   return left < right ? -1 : left > right ? 1 : 0
@@ -425,7 +435,7 @@ function validateTierPools(edition, itemsById) {
   return tierItems
 }
 
-function validateGuarantees(edition, tierItems) {
+function validateGuarantees(edition, tierItems, rareHardGuaranteePull) {
   const guarantees = edition.acquisition.banner.guarantees
   assertExactKeys(
     guarantees,
@@ -438,7 +448,7 @@ function validateGuarantees(edition, tierItems) {
     'guarantee resolution order',
   )
   const boundaries = [
-    ['rareOrBetter', 1, 8, 'qualifying-result-awarded'],
+    ['rareOrBetter', 1, rareHardGuaranteePull, 'qualifying-result-awarded'],
     ['epicOrBetter', 2, 25, 'qualifying-result-awarded'],
   ]
   for (const [key, minimumRank, hardGuaranteePull, reset] of boundaries) {
@@ -649,31 +659,36 @@ function validateSchemaV1ProductionEdition(edition, catalog) {
   validateSchemaV1DuplicateConversion(edition)
 }
 
-function validateEdition0001CandidateB(edition, catalog) {
+function validateEarnedCollectionEdition(edition, catalog) {
+  const marker = String(edition.edition).padStart(4, '0')
+  const boundaries = EARNED_COLLECTION_BOUNDARIES.get(edition.edition)
+  if (!boundaries) {
+    throw new Error(`Production edition ${marker} has no frozen earned-collection boundary pin`)
+  }
   if (
     edition.decisionSource.studyId !== 'candidate-a-vs-collection-first@1' ||
     edition.decisionSource.selectedCandidateId !== 'collection-first-showcase@1'
   ) {
-    throw new Error('Production edition 0001 must select Candidate B from the frozen study')
+    throw new Error(`Production edition ${marker} must select Candidate B from the frozen study`)
   }
   if (edition.catalogContractVersion !== 1) {
-    throw new Error('Production edition 0001 must bind canonical catalog contract 1')
+    throw new Error(`Production edition ${marker} must bind canonical catalog contract 1`)
   }
   const currency = edition.acquisition.currency
   if (
     currency.singlePullCost !== 160 ||
     currency.tenPullCost !== 1600
   ) {
-    throw new Error('Production edition 0001 pulls must cost 160/1600 promotional Stars')
+    throw new Error(`Production edition ${marker} pulls must cost 160/1600 promotional Stars`)
   }
 
   const itemsById = catalogById(catalog)
   const tierItems = validateTierPools(edition, itemsById)
-  validateGuarantees(edition, tierItems)
+  validateGuarantees(edition, tierItems, boundaries.rareHardGuaranteePull)
   validateRewards(edition, tierItems, itemsById)
   validateDuplicateConversion(edition)
-  if (productionEditionSha256(edition) !== EDITION_0001_SHA256) {
-    throw new Error('Production edition 0001 must retain the frozen Candidate B source')
+  if (productionEditionSha256(edition) !== boundaries.sha256) {
+    throw new Error(`Production edition ${marker} must retain its frozen Candidate B source`)
   }
 }
 
@@ -681,9 +696,11 @@ const SCHEMA_VERSION_VALIDATORS = new Map([
   [1, validateSchemaV1ProductionEdition],
 ])
 
-const EDITION_VALIDATORS = new Map([
-  [1, validateEdition0001CandidateB],
-])
+const EDITION_VALIDATORS = new Map(
+  [...EARNED_COLLECTION_BOUNDARIES.keys()].map(
+    editionNumber => [editionNumber, validateEarnedCollectionEdition],
+  ),
+)
 
 export function canonicalProductionEdition(edition) {
   return JSON.stringify(edition)

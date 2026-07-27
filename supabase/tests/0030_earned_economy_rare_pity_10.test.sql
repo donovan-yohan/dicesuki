@@ -77,6 +77,149 @@ begin
 end;
 $$;
 
+-- The rate change is attested by an appended production edition, not by
+-- re-using the predecessor's 8-pull source hash.
+do $$
+declare
+  version_2 public.pull_banner_versions%rowtype;
+  version_3 public.pull_banner_versions%rowtype;
+  edition_2 public.economy_editions%rowtype;
+begin
+  select * into strict version_2
+  from public.pull_banner_versions where id = 'earned-collection-001@2';
+  select * into strict version_3
+  from public.pull_banner_versions where id = 'earned-collection-001@3';
+  select * into strict edition_2
+  from public.economy_editions where id = 'earned-collection@2';
+
+  if edition_2.edition_version is distinct from 2 or
+     edition_2.config_sha256 is distinct from
+       '62232a0a8913c8162ee0733532b0ce3c034fe2c9eda7276c6d2b7b4e37ca8626' or
+     (edition_2.config -> 'acquisition' -> 'banner' -> 'guarantees'
+        -> 'rareOrBetter' ->> 'hardGuaranteePull')::integer is distinct from 10 or
+     (edition_2.config -> 'acquisition' -> 'banner' -> 'guarantees'
+        -> 'epicOrBetter' ->> 'hardGuaranteePull')::integer is distinct from 25 or
+     (edition_2.config -> 'acquisition' -> 'banner' -> 'guarantees'
+        -> 'selectedFeaturedUnowned' ->> 'hardGuaranteePull')::integer
+       is distinct from 20 or
+     edition_2.config ->> 'migration' is distinct from
+       '0030_earned_economy_rare_pity_10.sql' then
+    raise exception 'Economy edition earned-collection@2 is not the 10-pull edition of record';
+  end if;
+
+  if version_3.economy_edition_id is distinct from 'earned-collection@2' or
+     version_3.source_config_sha256 is distinct from edition_2.config_sha256 or
+     version_3.source_config_sha256 is not distinct from
+       version_2.source_config_sha256 or
+     version_2.economy_edition_id is distinct from 'earned-collection@1' or
+     (select config_sha256 from public.economy_editions
+      where id = 'earned-collection@1') is distinct from
+       version_2.source_config_sha256 then
+    raise exception 'Version 3 is not anchored to the appended 10-pull economy edition';
+  end if;
+end;
+$$;
+
+-- Superseded versions are not player-callable: the same authenticated caller
+-- that can prepare the active version 3 is rejected on versions 1 and 2, so the
+-- old 8-pull guarantee cannot be bought at the new ticket price.
+insert into auth.users (id) values
+  ('d0300000-0000-4030-8030-000000000099');
+
+set local role service_role;
+do $$
+begin
+  perform public.record_roll_ticket_ledger_entry(
+    'd0300000-0000-4030-8030-000000000099',
+    'standard_roll',
+    5,
+    'test.slice21.ticket.seed',
+    'slice21:ticket:seed:0099',
+    '{}'::jsonb
+  );
+  perform public.append_wallet_ledger_entry(
+    'd0300000-0000-4030-8030-000000000099',
+    'stars',
+    'promotional',
+    160,
+    'test.slice21.stars.seed',
+    'slice21:stars:seed:0099',
+    'earned-collection@1',
+    '{}'::jsonb
+  );
+end;
+$$;
+reset role;
+
+set local "request.jwt.claims" =
+  '{"sub":"d0300000-0000-4030-8030-000000000099","is_anonymous":false}';
+set local role authenticated;
+
+do $$
+declare
+  prepared record;
+begin
+  begin
+    perform public.prepare_pull(
+      'earned-collection-001@1',
+      1::smallint,
+      'slice21:superseded:version-1'
+    );
+    raise exception 'Superseded version 1 is still player-callable';
+  exception when sqlstate '55000' then
+    if sqlerrm is distinct from
+       'Pull banner version earned-collection-001@1 is superseded by version 3 '
+       || 'of family earned-collection' then
+      raise exception 'Superseded version 1 is still player-callable';
+    end if;
+  end;
+
+  begin
+    perform public.prepare_pull(
+      'earned-collection-001@2',
+      1::smallint,
+      'slice21:superseded:version-2'
+    );
+    raise exception 'Superseded version 2 is still player-callable';
+  exception when sqlstate '55000' then
+    if sqlerrm is distinct from
+       'Pull banner version earned-collection-001@2 is superseded by version 3 '
+       || 'of family earned-collection' then
+      raise exception 'Superseded version 2 is still player-callable';
+    end if;
+  end;
+
+  -- The rejections cost nothing and the active version still prepares.
+  if (select current_quantity
+      from public.roll_ticket_balances
+      where user_id = 'd0300000-0000-4030-8030-000000000099'
+        and roll_type = 'standard_roll') is distinct from 5::bigint or
+     (select current_balance
+      from public.wallet_balances
+      where user_id = 'd0300000-0000-4030-8030-000000000099'
+        and currency_id = 'stars'
+        and balance_bucket = 'promotional') is distinct from 160::bigint then
+    raise exception 'A rejected superseded preparation still reserved funds';
+  end if;
+
+  select * into strict prepared
+  from public.prepare_pull(
+    'earned-collection-001@3',
+    1::smallint,
+    'slice21:active:version-3'
+  );
+
+  if prepared.banner_version_id is distinct from 'earned-collection-001@3' or
+     prepared.held_amount is distinct from 1::bigint then
+    raise exception 'Active version 3 did not prepare after the superseded rejections';
+  end if;
+
+  perform public.cancel_pull_session(prepared.session_id);
+end;
+$$;
+
+reset role;
+
 set local role service_role;
 
 do $$

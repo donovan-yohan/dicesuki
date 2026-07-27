@@ -116,10 +116,14 @@ begin
 end;
 $$;
 
--- The same user proves both compatibility paths in sequence. Stars fund the
--- explicit legacy @1 preparation; tickets fund @2. A distinctive family row
--- is present before @1, then @1's committed projection becomes @2's exact
--- before-state.
+-- The same user proves the post-0030 boundary and the ticket-funded lifecycle
+-- in sequence. 0030_earned_economy_rare_pity_10.sql restricted preparation to a
+-- banner family's single highest version, so the superseded Stars-funded @1 and
+-- the superseded ticket-funded @2 now both fail closed and only @3 prepares.
+-- A distinctive family row is written first: the counters it carries were
+-- accumulated while @1 and @2 were live, and @3 consumes them unchanged, which
+-- is the cross-version family carry this suite exists to prove. The stored @1
+-- and @2 rows above remain asserted exactly as published.
 set local role service_role;
 
 do $$
@@ -194,15 +198,61 @@ declare
   new_pity record;
   receipt jsonb;
 begin
+  -- Superseded versions are not player-callable. Both legs must fail closed
+  -- before any hold, Star reservation, or ticket reservation can exist, and the
+  -- exact message proves the rejection is the active-version guard rather than
+  -- an incidental funding or offer failure.
+  begin
+    perform public.prepare_pull(
+      'earned-collection-001@1',
+      1::smallint,
+      'slice20:legacy:prepare:0001'
+    );
+    raise exception 'Superseded version @1 is still player-callable';
+  exception when sqlstate '55000' then
+    if sqlerrm is distinct from
+       'Pull banner version earned-collection-001@1 is superseded by version 3 '
+       || 'of family earned-collection' then
+      raise exception 'Superseded version @1 is still player-callable';
+    end if;
+  end;
+
+  begin
+    perform public.prepare_pull(
+      'earned-collection-001@2',
+      10::smallint,
+      'slice20:standard:prepare:0002'
+    );
+    raise exception 'Superseded version @2 is still player-callable';
+  exception when sqlstate '55000' then
+    if sqlerrm is distinct from
+       'Pull banner version earned-collection-001@2 is superseded by version 3 '
+       || 'of family earned-collection' then
+      raise exception 'Superseded version @2 is still player-callable';
+    end if;
+  end;
+
+  if (select current_balance
+      from public.wallet_balances
+      where user_id = 'd0290000-0000-4029-8029-000000000001'
+        and currency_id = 'stars'
+        and balance_bucket = 'promotional') is distinct from 160::bigint or
+     (select current_quantity
+      from public.roll_ticket_balances
+      where user_id = 'd0290000-0000-4029-8029-000000000001'
+        and roll_type = 'standard_roll') is distinct from 11::bigint then
+    raise exception 'A rejected superseded preparation still reserved funds';
+  end if;
+
   select * into strict prepared
   from public.prepare_pull(
-    'earned-collection-001@1',
+    'earned-collection-001@3',
     1::smallint,
-    'slice20:legacy:prepare:0001'
+    'slice20:active:prepare:0001'
   );
 
-  if prepared.banner_version_id is distinct from 'earned-collection-001@1' or
-     prepared.held_amount is distinct from 160::bigint or
+  if prepared.banner_version_id is distinct from 'earned-collection-001@3' or
+     prepared.held_amount is distinct from 1::bigint or
      (select current_balance
       from public.wallet_balances
       where user_id = 'd0290000-0000-4029-8029-000000000001'
@@ -212,15 +262,15 @@ begin
       from public.roll_ticket_balances
       where user_id = 'd0290000-0000-4029-8029-000000000001'
         and roll_type = 'standard_roll') is distinct from 11::bigint then
-    raise exception 'Legacy Stars-funded version @1 did not prepare and commit under NULL roll binding';
+    raise exception 'Active version @3 did not reserve one ticket without touching Stars';
   end if;
 
   receipt := public.commit_pull_session(prepared.session_id);
 
-  if receipt ->> 'banner_version_id' is distinct from 'earned-collection-001@1' or
-     (receipt ->> 'held_amount')::bigint is distinct from 160::bigint or
+  if receipt ->> 'banner_version_id' is distinct from 'earned-collection-001@3' or
+     (receipt ->> 'held_amount')::bigint is distinct from 1::bigint or
      jsonb_array_length(receipt -> 'results') is distinct from 1 then
-    raise exception 'Legacy Stars-funded version @1 did not prepare and commit under NULL roll binding';
+    raise exception 'Active version @3 did not commit exactly one ticket-funded pull';
   end if;
 
   select * into strict old_pity
@@ -232,12 +282,12 @@ begin
       from public.wallet_balances
       where user_id = 'd0290000-0000-4029-8029-000000000001'
         and currency_id = 'stars'
-        and balance_bucket = 'promotional') is distinct from 0::bigint or
+        and balance_bucket = 'promotional') is distinct from 160::bigint or
      (select current_quantity
       from public.roll_ticket_balances
       where user_id = 'd0290000-0000-4029-8029-000000000001'
-        and roll_type = 'standard_roll') is distinct from 11::bigint then
-    raise exception 'Legacy Stars-funded version @1 did not prepare and commit under NULL roll binding';
+        and roll_type = 'standard_roll') is distinct from 10::bigint then
+    raise exception 'Active version @3 did not debit exactly one ticket';
   end if;
 
   insert into pg_temp.slice20_lifecycle_ctx (
@@ -266,33 +316,33 @@ begin
 
   select * into strict prepared
   from public.prepare_pull(
-    'earned-collection-001@2',
+    'earned-collection-001@3',
     10::smallint,
-    'slice20:standard:prepare:0002'
+    'slice20:active:prepare:0002'
   );
 
-  if prepared.banner_version_id is distinct from 'earned-collection-001@2' or
+  if prepared.banner_version_id is distinct from 'earned-collection-001@3' or
      prepared.pull_count is distinct from 10::smallint or
      prepared.held_amount is distinct from 10::bigint or
      (select current_quantity
       from public.roll_ticket_balances
       where user_id = 'd0290000-0000-4029-8029-000000000001'
-        and roll_type = 'standard_roll') is distinct from 11::bigint or
+        and roll_type = 'standard_roll') is distinct from 10::bigint or
      (select current_balance
       from public.wallet_balances
       where user_id = 'd0290000-0000-4029-8029-000000000001'
         and currency_id = 'stars'
-        and balance_bucket = 'promotional') is distinct from 0::bigint then
-    raise exception 'Version @2 did not reserve ten standard-roll tickets without touching Stars';
+        and balance_bucket = 'promotional') is distinct from 160::bigint then
+    raise exception 'Version @3 did not reserve ten standard-roll tickets without touching Stars';
   end if;
 
   receipt := public.commit_pull_session(prepared.session_id);
 
-  if receipt ->> 'banner_version_id' is distinct from 'earned-collection-001@2' or
+  if receipt ->> 'banner_version_id' is distinct from 'earned-collection-001@3' or
      (receipt ->> 'held_amount')::bigint is distinct from 10::bigint or
      (receipt ->> 'pull_count')::integer is distinct from 10 or
      jsonb_array_length(receipt -> 'results') is distinct from 10 then
-    raise exception 'Version @2 commit did not grant ten copies and debit exactly ten tickets';
+    raise exception 'Version @3 commit did not grant ten copies and debit exactly ten tickets';
   end if;
 
   select * into strict new_pity
@@ -374,13 +424,13 @@ begin
        new_session.epic_misses_projected,
        new_session.selected_misses_projected
      ) then
-    raise exception 'Version @2 did not continue every family counter from version @1';
+    raise exception 'Version @3 did not continue every family counter seeded under @1 and @2';
   end if;
 
   if (select current_quantity
       from public.roll_ticket_balances
       where user_id = 'd0290000-0000-4029-8029-000000000001'
-        and roll_type = 'standard_roll') is distinct from 1::bigint or
+        and roll_type = 'standard_roll') is distinct from 0::bigint or
      (select count(*)
       from public.roll_ticket_ledger_entries
       where user_id = 'd0290000-0000-4029-8029-000000000001'
@@ -391,11 +441,18 @@ begin
       from public.wallet_ledger_entries
       where user_id = 'd0290000-0000-4029-8029-000000000001'
         and currency_id = 'stars'
-        and balance_bucket = 'promotional') is distinct from 2::bigint or
+        and balance_bucket = 'promotional') is distinct from 1::bigint or
      (select count(*)
       from public.wallet_ledger_entries
       where user_id = 'd0290000-0000-4029-8029-000000000001'
-        and reason_code = 'pull.commit.stars.debit') is distinct from 1::bigint or
+        and reason_code = 'pull.commit.stars.debit') is distinct from 0::bigint or
+     (select count(*)
+      from public.pull_sessions
+      where user_id = 'd0290000-0000-4029-8029-000000000001') is distinct from 2::bigint or
+     (select count(*)
+      from public.pull_sessions
+      where user_id = 'd0290000-0000-4029-8029-000000000001'
+        and banner_version_id = 'earned-collection-001@3') is distinct from 2::bigint or
      (select count(*)
       from public.dice_copies
       where user_id = 'd0290000-0000-4029-8029-000000000001'
@@ -406,7 +463,7 @@ begin
         and source_kind = 'pull'
         and source_reference like
           'pull-session:' || ctx.new_session_id::text || ':result:%') is distinct from 10::bigint then
-    raise exception 'Version @2 commit did not grant ten copies and debit exactly ten tickets';
+    raise exception 'Version @3 commit did not grant ten copies and debit exactly ten tickets';
   end if;
 end;
 $$;

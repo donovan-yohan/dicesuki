@@ -1,10 +1,82 @@
+const FIXTURE_BANNER = 'slice11-race@1'
+
+// Active-version fixture. 0030_earned_economy_rare_pity_10.sql restricted
+// preparation to a banner family's single highest version, and the
+// earned-collection family now heads at the ticket-funded
+// earned-collection-001@3. These deterministic race inversions need the
+// Stars-funded 160-per-pull offer, so they run against an appended test-only
+// family that clones earned-collection-001@1 byte for byte and heads its own
+// lineage. Banner history stays append-only; unlike the .sql suites this file
+// commits, so the clone is inserted once and never rewritten or removed.
+const fixtureBannerSql = `
+  insert into public.pull_banner_families (id) values ('slice11-race');
+
+  insert into public.pull_banner_versions (
+    id, banner_id, banner_version, banner_family_id, economy_edition_id,
+    source_config_sha256, hold_policy_id, currency_id, balance_bucket,
+    duplicate_currency_id, duplicate_balance_bucket, weight_scale,
+    rare_minimum_rank, rare_hard_guarantee_pull,
+    epic_minimum_rank, epic_hard_guarantee_pull,
+    selected_minimum_rank, selected_hard_guarantee_pull, resolution_order,
+    banner_class, roll_type,
+    soft_pity_model, soft_pity_start_pull, soft_pity_per_pull_increment
+  )
+  select
+    '${FIXTURE_BANNER}', 'slice11-race', 1, 'slice11-race', economy_edition_id,
+    source_config_sha256, hold_policy_id, currency_id, balance_bucket,
+    duplicate_currency_id, duplicate_balance_bucket, weight_scale,
+    rare_minimum_rank, rare_hard_guarantee_pull,
+    epic_minimum_rank, epic_hard_guarantee_pull,
+    selected_minimum_rank, selected_hard_guarantee_pull, resolution_order,
+    banner_class, roll_type,
+    soft_pity_model, soft_pity_start_pull, soft_pity_per_pull_increment
+  from public.pull_banner_versions
+  where id = 'earned-collection-001@1';
+
+  insert into public.pull_banner_offers (banner_version_id, pull_count, cost)
+  select '${FIXTURE_BANNER}', pull_count, cost
+  from public.pull_banner_offers
+  where banner_version_id = 'earned-collection-001@1';
+
+  insert into public.pull_banner_tiers (
+    banner_version_id, tier_id, tier_rank, weight_units, duplicate_dust
+  )
+  select '${FIXTURE_BANNER}', tier_id, tier_rank, weight_units, duplicate_dust
+  from public.pull_banner_tiers
+  where banner_version_id = 'earned-collection-001@1';
+
+  insert into public.pull_banner_items (
+    banner_version_id, tier_id, tier_rank, canonical_order,
+    catalog_item_id, selected_featured
+  )
+  select
+    '${FIXTURE_BANNER}', tier_id, tier_rank, canonical_order,
+    catalog_item_id, selected_featured
+  from public.pull_banner_items
+  where banner_version_id = 'earned-collection-001@1';
+
+  do $fixture$
+  begin
+    if (select count(*) from public.pull_banner_offers
+        where banner_version_id = '${FIXTURE_BANNER}'
+          and pull_count = 1 and cost = 160) <> 1 or
+       (select count(*) from public.pull_banner_items
+        where banner_version_id = '${FIXTURE_BANNER}') <> 45 or
+       (select max(banner_version) from public.pull_banner_versions
+        where banner_family_id = 'slice11-race') <> 1 then
+      raise exception 'Stars-funded race fixture is not a complete version-1 clone';
+    end if;
+  end;
+  $fixture$;
+`
+
 function prepareSessionSql(userId, idempotencyKey, pullCount = 1) {
   return `
     set "request.jwt.claims" = '{"sub":"${userId}","is_anonymous":false}';
     set role authenticated;
     select receipt.session_id
     from public.prepare_pull(
-      'earned-collection-001@1',
+      '${FIXTURE_BANNER}',
       ${pullCount}::smallint,
       '${idempotencyKey}'
     ) as receipt;
@@ -17,7 +89,7 @@ function prepareReceiptSql(userId, idempotencyKey, pullCount = 1) {
     set role authenticated;
     select row_to_json(receipt)::text
     from public.prepare_pull(
-      'earned-collection-001@1',
+      '${FIXTURE_BANNER}',
       ${pullCount}::smallint,
       '${idempotencyKey}'
     ) as receipt;
@@ -171,6 +243,8 @@ async function runInversion({
 }
 
 export async function run({ psql, psqlAsync }) {
+  psql(fixtureBannerSql, '0011 Stars-funded race banner fixture')
+
   const prepareInversionUser = '91111111-1111-4111-8111-111111111111'
   const exactReplayUser = '92222222-2222-4222-8222-222222222222'
   const debitInversionUser = '93333333-3333-4333-8333-333333333333'
@@ -213,7 +287,7 @@ export async function run({ psql, psqlAsync }) {
       set "request.jwt.claims" = '{"sub":"${prepareInversionUser}","is_anonymous":false}';
       select receipt.session_id
       from public.prepare_pull(
-        'earned-collection-001@1',
+        '${FIXTURE_BANNER}',
         1::smallint,
         (select payload from private.pull_race_gates where id = 1 for update)
       ) as receipt;
@@ -316,7 +390,7 @@ export async function run({ psql, psqlAsync }) {
   ]
   if (JSON.stringify(Object.keys(replayReceipt)) !== JSON.stringify(expectedReceiptKeys) ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(replayReceipt.session_id) ||
-      replayReceipt.banner_version_id !== 'earned-collection-001@1' ||
+      replayReceipt.banner_version_id !== FIXTURE_BANNER ||
       replayReceipt.pull_count !== 1 ||
       replayReceipt.held_amount !== 160 ||
       !Number.isFinite(Date.parse(replayReceipt.prepared_at)) ||

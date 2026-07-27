@@ -184,10 +184,15 @@ describe('0029 standard banner activation', () => {
     const behavior = executable(behavioralSql)
     const evidence = [
       'Standard discovery query did not return active earned-collection-001@3',
-      'Legacy Stars-funded version @1 did not prepare and commit under NULL roll binding',
-      'Version @2 did not reserve ten standard-roll tickets without touching Stars',
-      'Version @2 did not continue every family counter from version @1',
-      'Version @2 commit did not grant ten copies and debit exactly ten tickets',
+      // 0030 retired the superseded versions from the player path, so the
+      // behavioral suite now proves the rejection instead of the old
+      // Stars-funded @1 and ticket-funded @2 preparations.
+      'Superseded version @1 is still player-callable',
+      'Superseded version @2 is still player-callable',
+      'A rejected superseded preparation still reserved funds',
+      'Version @3 did not reserve ten standard-roll tickets without touching Stars',
+      'Version @3 did not continue every family counter seeded under @1 and @2',
+      'Version @3 commit did not grant ten copies and debit exactly ten tickets',
       'Pity read did not expose active version @3 counters, shallow thresholds, and NULL soft pity',
       'Premium preparation no longer failed closed',
       'Standard activation NULL-hole audit failed',
