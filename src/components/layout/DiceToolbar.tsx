@@ -6,7 +6,9 @@
  */
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { RefObject } from 'react'
+import { createPortal } from 'react-dom'
 
 import { buttonPressScale, shouldReduceMotion } from '../../animations/ui-transitions'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -17,6 +19,7 @@ import { TRASH_DROP_ZONE_ID } from '../../lib/trashDropZone'
 import type { DiceShape } from '../../types/diceShape'
 import type { InventoryDie } from '../../types/inventory'
 import { SharedInventoryDicePreviewCanvas } from '../panels/SharedInventoryDicePreviewCanvas'
+import { getDiceToolbarLane } from './hudLayout'
 
 interface DiceToolbarProps {
   isOpen: boolean
@@ -34,8 +37,37 @@ const ALL_DICE_TYPES: Array<{ type: DiceShape; label: string }> = [
   { type: 'd20', label: 'D20' },
 ]
 
+/**
+ * Track the visual viewport height so the rail can be clamped to the space it
+ * actually has. `visualViewport` follows mobile browser chrome collapsing,
+ * which `innerHeight` does not.
+ */
+function useViewportHeight(): number {
+  const [height, setHeight] = useState(() => (
+    typeof window === 'undefined'
+      ? 0
+      : window.visualViewport?.height ?? window.innerHeight
+  ))
+
+  useEffect(() => {
+    const update = () => setHeight(window.visualViewport?.height ?? window.innerHeight)
+    update()
+
+    window.addEventListener('resize', update)
+    window.visualViewport?.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.visualViewport?.removeEventListener('resize', update)
+    }
+  }, [])
+
+  return height
+}
+
 export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory }: DiceToolbarProps) {
   const reduceMotion = shouldReduceMotion()
+  const viewportHeight = useViewportHeight()
+  const railLane = getDiceToolbarLane(viewportHeight)
   const { dice: inventoryDice } = useInventoryStore()
   const multiplayerDiceOnTable = useMultiplayerStore(state => state.dice)
   const localPlayerId = useMultiplayerStore(state => state.localPlayerId)
@@ -96,11 +128,24 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed left-4 z-[65] flex w-12 flex-col items-center gap-3"
+          data-testid="dice-toolbar-rail"
+          className="fixed left-4 z-40 flex w-12 flex-col"
           style={{
-            bottom: '80px',
+            // Keep the slide-out rail clear of the permanent bottom-left
+            // rotate/motion/eye control cluster…
+            bottom: `${railLane.bottom}px`,
+            // …and clamp its top to the corner-icon clearance so short
+            // viewports scroll the rail instead of pushing it off-screen.
+            maxHeight: `${railLane.maxHeight}px`,
           }}
         >
+          {/* The negative margin widens only the scroll box, so slot badges are
+              not clipped while the slots themselves stay on the same x. */}
+          <div
+            data-testid="dice-toolbar-scroll"
+            className="-mx-2 flex min-h-0 flex-1 flex-col items-center gap-3 overflow-y-auto overscroll-contain px-2 py-2"
+            style={{ scrollbarWidth: 'none' }}
+          >
           {availableDiceTypes.map(({ type, label, available }, index) => {
             const favorites = favoriteDiceByType.get(type) ?? []
             const isFavoriteOpen = activeFavoriteType === type
@@ -151,6 +196,7 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory
           >
             <TrashButton onClick={onClearAllDice} />
           </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -187,10 +233,12 @@ function DiceQuickSlot({
   const accentColor = currentTheme.tokens.colors.accent
   const surfaceColor = currentTheme.tokens.colors.surface
   const hasFavorites = favorites.length > 0
+  const slotRef = useRef<HTMLDivElement>(null)
 
   return (
     <motion.div
-      className="relative h-12 w-12"
+      ref={slotRef}
+      className="relative h-12 w-12 shrink-0"
       initial={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
       animate={!reduceMotion ? { x: 0, opacity: 1 } : { opacity: 1 }}
       exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
@@ -265,6 +313,7 @@ function DiceQuickSlot({
 
       {isFavoriteOpen && (
         <FavoriteDiceFlyout
+          anchorRef={slotRef}
           dice={favorites}
           label={label}
           onSpawn={onSpawnFavorite}
@@ -274,11 +323,17 @@ function DiceQuickSlot({
   )
 }
 
+/**
+ * Rendered into `document.body` because the rail is a scroll container on short
+ * viewports, and an in-tree flyout would be clipped by its overflow.
+ */
 function FavoriteDiceFlyout({
+  anchorRef,
   dice,
   label,
   onSpawn,
 }: {
+  anchorRef: RefObject<HTMLElement | null>
   dice: InventoryDie[]
   label: string
   onSpawn: (die: InventoryDie) => void
@@ -286,20 +341,42 @@ function FavoriteDiceFlyout({
   const { currentTheme } = useTheme()
   const hostRef = useRef<HTMLDivElement>(null)
   const slotRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
 
-  return (
+  useLayoutEffect(() => {
+    const update = () => {
+      const element = anchorRef.current
+      if (!element) return
+      const rect = element.getBoundingClientRect()
+      setAnchor({ top: rect.top + rect.height / 2, left: rect.right + 12 })
+    }
+
+    update()
+    window.addEventListener('resize', update)
+    // Capture phase so the rail's own scrolling is tracked too.
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [anchorRef])
+
+  if (!anchor || typeof document === 'undefined') return null
+
+  return createPortal(
     <motion.div
-      className="absolute left-[60px] top-1/2 z-[70] -translate-y-1/2 overflow-hidden rounded-lg shadow-xl"
+      className="fixed z-40 overflow-hidden rounded-lg shadow-xl"
       style={{
+        top: `${anchor.top}px`,
+        left: `${anchor.left}px`,
         width: 'min(328px, calc(100vw - 92px))',
         backgroundColor: 'rgba(31, 41, 55, 0.92)',
         border: `1px solid ${currentTheme.tokens.colors.accent}`,
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
       }}
-      initial={{ opacity: 0, x: -8, scale: 0.96 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: -8, scale: 0.96 }}
+      initial={{ opacity: 0, x: -8, y: '-50%', scale: 0.96 }}
+      animate={{ opacity: 1, x: 0, y: '-50%', scale: 1 }}
       transition={{ duration: 0.16 }}
       aria-label={`Favorite ${label} dice`}
     >
@@ -334,7 +411,8 @@ function FavoriteDiceFlyout({
           ))}
         </div>
       </div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   )
 }
 

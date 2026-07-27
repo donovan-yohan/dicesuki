@@ -83,7 +83,8 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
         <motion.div
           className="fixed z-30 flex flex-col rounded-xl overflow-hidden"
           style={{
-            top: '208px',
+            // Starts below the top-right Shop CornerIcon (16px + 56px).
+            top: '80px',
             right: '16px',
             width: '232px',
             maxHeight: '60vh',

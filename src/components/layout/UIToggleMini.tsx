@@ -1,46 +1,46 @@
 /**
  * UI Toggle Mini Component
  *
- * Minimal button shown in bottom-left when UI is hidden.
- * Allows user to restore the full UI.
+ * Permanent eye button in the bottom-left control cluster.
+ * It remains available when the surrounding UI is hidden.
  */
 
 import { motion } from 'framer-motion'
 import { useTheme } from '../../contexts/ThemeContext'
 import { hasAsset } from '../../lib/themeHelpers'
+import { HUD_LAYOUT } from './hudLayout'
 import {
-  miniToggleVariants,
   buttonPressScale,
   shouldReduceMotion,
 } from '../../animations/ui-transitions'
 
 interface UIToggleMiniProps {
   onClick: () => void
-  isVisible: boolean // Controls fade in/out
+  isVisible: boolean
 }
 
 export function UIToggleMini({ onClick, isVisible }: UIToggleMiniProps) {
   const { currentTheme } = useTheme()
   const toggleIcon = currentTheme.assets.icons.uiToggle
   const reduceMotion = shouldReduceMotion()
+  const label = isVisible ? 'Hide UI' : 'Show UI'
 
   return (
     <motion.button
       onClick={onClick}
-      className="fixed bottom-4 left-4 z-10 flex items-center justify-center rounded-full transition-all"
+      className="fixed left-4 z-40 flex items-center justify-center rounded-full transition-all"
       style={{
-        width: '48px',
-        height: '48px',
+        bottom: `${HUD_LAYOUT.eye.bottom}px`,
+        width: `${HUD_LAYOUT.eye.size}px`,
+        height: `${HUD_LAYOUT.eye.size}px`,
         backgroundColor: 'var(--color-surface)',
         color: 'var(--color-text-primary)',
         boxShadow: 'var(--shadow-md)',
         // Semi-transparent when showing
         opacity: 0.7,
       }}
-      // Animations
-      variants={miniToggleVariants}
-      initial="hide"
-      animate={reduceMotion ? (isVisible ? 'hide' : 'show') : isVisible ? 'hide' : 'show'}
+      initial={false}
+      animate={{ opacity: 0.7 }}
       whileHover={
         !reduceMotion
           ? {
@@ -51,11 +51,11 @@ export function UIToggleMini({ onClick, isVisible }: UIToggleMiniProps) {
       }
       whileTap={!reduceMotion ? buttonPressScale : undefined}
       // Accessibility
-      aria-label="Show UI"
-      title="Show UI"
+      aria-label={label}
+      title={label}
     >
       {hasAsset(toggleIcon) ? (
-        <img src={toggleIcon} alt="Show UI" className="w-6 h-6" />
+        <img src={toggleIcon} alt={label} className="w-6 h-6" />
       ) : (
         <span className="text-xl">👁️</span>
       )}

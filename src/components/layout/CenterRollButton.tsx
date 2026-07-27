@@ -33,17 +33,17 @@ export function CenterRollButton({
       onClick={onClick}
       disabled={disabled}
       className="absolute rounded-full flex items-center justify-center cursor-pointer disabled:cursor-not-allowed transition-opacity"
+      data-nav-item="ROLL"
       style={{
         // Size - smaller to match new nav
         width: '70px',
         height: '70px',
-        // Centering - use margin instead of transform to avoid conflicts
+        // Centred on the nav rail (its containing block) on both axes. Margins
+        // rather than transforms, so framer-motion's tap scale cannot conflict.
         left: '50%',
         marginLeft: '-35px', // Half of width
-        // Elevated above nav (nav is 56px tall, positioned at bottom-4 which is 16px)
-        // Button center should align with nav center: 16px + (56px/2) = 44px from bottom
-        // Minus half button height: 44px - 35px = 9px
-        bottom: '9px',
+        top: '50%',
+        marginTop: '-35px', // Half of height
         // Theming
         backgroundColor: 'var(--color-accent)',
         color: 'var(--color-text-primary)',

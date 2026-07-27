@@ -6,6 +6,7 @@ import { ThemeContext } from '../../contexts/ThemeContext'
 import { defaultTheme } from '../../themes/tokens'
 import { PullBannerScreen } from './PullBannerScreen'
 import { usePullFlow } from '../../hooks/usePullFlow'
+import { fetchActiveStandardPullBanner } from '../../lib/pullRpc'
 import { fetchMyPullPity } from '../../lib/pullPity'
 
 const startPull = vi.fn()
@@ -112,8 +113,6 @@ function BannerFixture() {
       }}
     >
       <PullBannerScreen
-        onClose={vi.fn()}
-        onOpenShop={vi.fn()}
         onAddDie={vi.fn(() => 'request')}
         tableDiceCount={0}
         deviceTier="low"
@@ -149,11 +148,175 @@ describe('PullBannerScreen CTA matrix', () => {
     },
   )
 
-  it('uses the server pity counter without a client-side increment', async () => {
+  it('keeps the single odds/pity entry point in the sticky footer beside the pull CTAs', async () => {
     setState('authenticated', 10, 0)
     renderBanner()
-    expect(await screen.findByText('4/40')).toBeInTheDocument()
-    expect(screen.getByText('Rare+ guaranteed within 36 pulls')).toBeInTheDocument()
+
+    const details = await screen.findAllByRole('button', { name: /banner details/i })
+    // Exactly one entry point, and it lives in the footer that never scrolls,
+    // not in the scrollable banner body where it fell below the fold.
+    expect(details).toHaveLength(1)
+    const footer = screen.getByTestId('pull-cta-footer')
+    expect(footer).toContainElement(details[0])
+    expect(footer).toContainElement(screen.getAllByRole('button', { name: /pull ×1/i })[0])
+
+    // The same entry point is present on the premium tab.
+    fireEvent.click(screen.getByRole('tab', { name: /premium/i }))
+    expect(screen.getAllByRole('button', { name: /banner details/i })).toHaveLength(1)
+  })
+
+  it('renders the retained verification receipt inside the banner details modal', async () => {
+    vi.mocked(usePullFlow).mockReturnValue({
+      ...flowResult(),
+      verification: {
+        commitmentRoot: 'root-abc',
+        rngSeed: 'seed-xyz',
+        rows: [
+          { position: 1, nonce: 'nonce-1', commitment: 'commit-1' },
+          { position: 2, nonce: 'nonce-2', commitment: 'commit-2' },
+        ],
+      },
+    })
+    setState('authenticated', 10, 0)
+    renderBanner()
+    fireEvent.click(await screen.findByRole('button', { name: /banner details/i }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Banner details' })
+    expect(within(dialog).getByTestId('receipt-commitment-root')).toHaveTextContent('root-abc')
+    expect(within(dialog).getByTestId('receipt-rng-seed')).toHaveTextContent('seed-xyz')
+    expect(within(dialog).getAllByTestId('receipt-row')).toHaveLength(2)
+    expect(within(dialog).getByText('nonce-2')).toBeInTheDocument()
+    expect(within(dialog).getByText('commit-1')).toBeInTheDocument()
+  })
+
+  it('explains the receipt is pending when no pull has completed yet', async () => {
+    setState('authenticated', 10, 0)
+    renderBanner()
+    fireEvent.click(await screen.findByRole('button', { name: /banner details/i }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Banner details' })
+    expect(within(dialog).queryByTestId('pull-verification-receipt')).not.toBeInTheDocument()
+    expect(within(dialog).getByText(/receipt appears here once a pull completes/i)).toBeInTheDocument()
+  })
+
+  it('recovers a superseded banner by refetching it and retrying the live version', async () => {
+    setState('authenticated', 10, 0)
+    const view = renderBanner()
+    await waitFor(() => expect(fetchActiveStandardPullBanner).toHaveBeenCalledOnce())
+
+    // The banner rolled over after mount, so prepare rejects the retired
+    // version with SQLSTATE 55000 and the next lookup returns the live one.
+    vi.mocked(fetchActiveStandardPullBanner).mockResolvedValueOnce({
+      bannerVersionId: 'standard-banner@2',
+      bannerId: 'standard-banner',
+      bannerVersion: 2,
+      bannerFamilyId: 'standard-banner',
+      bannerClass: 'standard',
+      rollType: 'standard_roll',
+    })
+    vi.mocked(usePullFlow).mockReturnValue(flowResult({
+      status: 'error',
+      stage: 'prepare',
+      error: 'prepare_pull_session failed: banner version standard-banner@1 superseded by version 2',
+      intent: {
+        ownerId: 'user-1',
+        bannerVersionId: 'standard-banner@1',
+        pullCount: 10,
+        idempotencyKey: 'key-1',
+        createdAt: '2026-07-27T00:00:00.000Z',
+      },
+    } as never))
+    view.rerender(<BannerFixture />)
+
+    await waitFor(() => expect(fetchActiveStandardPullBanner).toHaveBeenCalledTimes(2))
+    const notice = await screen.findByTestId('banner-superseded-notice')
+    expect(notice).toHaveTextContent(/banner updated — please retry/i)
+    // The raw SQLSTATE text never reaches the player.
+    expect(screen.queryByText(/superseded by version/i)).not.toBeInTheDocument()
+
+    // Retrying must target the refetched version, not the retired intent.
+    fireEvent.click(screen.getByRole('button', { name: /try pull again/i }))
+    expect(startPull).toHaveBeenCalledWith('standard-banner@2', 10)
+  })
+
+  it('leaves an unrelated prepare failure as a raw alert retried through the flow', async () => {
+    setState('authenticated', 10, 0)
+    const view = renderBanner()
+    await waitFor(() => expect(fetchActiveStandardPullBanner).toHaveBeenCalledOnce())
+
+    const retryPrepare = vi.fn()
+    vi.mocked(usePullFlow).mockReturnValue({
+      ...flowResult({
+        status: 'error',
+        stage: 'prepare',
+        error: 'prepare_pull_session failed: network unreachable',
+        intent: {
+          ownerId: 'user-1',
+          bannerVersionId: 'standard-banner@1',
+          pullCount: 1,
+          idempotencyKey: 'key-2',
+          createdAt: '2026-07-27T00:00:00.000Z',
+        },
+      } as never),
+      retryPrepare,
+    })
+    view.rerender(<BannerFixture />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/network unreachable/i)
+    expect(screen.queryByTestId('banner-superseded-notice')).not.toBeInTheDocument()
+    // No banner rollover, so no extra lookup and the ordinary retry path stands.
+    expect(fetchActiveStandardPullBanner).toHaveBeenCalledOnce()
+
+    fireEvent.click(screen.getByRole('button', { name: /try pull again/i }))
+    expect(retryPrepare).toHaveBeenCalledOnce()
+    expect(startPull).not.toHaveBeenCalled()
+  })
+
+  it('keeps odds, pity, pool, and fairness copy in the one-tap banner details modal', async () => {
+    setState('authenticated', 10, 0)
+    renderBanner()
+    fireEvent.click(await screen.findByRole('button', { name: /banner details/i }))
+
+    expect(screen.getByRole('dialog', { name: 'Banner details' })).toBeInTheDocument()
+    expect(await screen.findByText(/Rare\+ guaranteed within 36 pulls/i)).toBeInTheDocument()
+    expect(screen.getByText('Epic+ hard guarantee: pull 40')).toBeInTheDocument()
+    expect(screen.getByText('Selected-item hard guarantee: pull 40')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Pool' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Base odds' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Fair pulls' })).toBeInTheDocument()
+  })
+
+  it('opens premium banner details with its coming-soon status in one tap', async () => {
+    setState('authenticated', 10, 0)
+    renderBanner()
+    await waitFor(() => expect(fetchMyPullPity).toHaveBeenCalledOnce())
+
+    fireEvent.click(screen.getByRole('tab', { name: /premium/i }))
+    fireEvent.click(screen.getByRole('button', { name: /banner details/i }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Banner details' })
+    expect(within(dialog).getByText('Premium pool details are coming soon.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Premium banner odds are unavailable while it is coming soon.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Soft pity begins at pull 41; featured is guaranteed by 75.')).toBeInTheDocument()
+  })
+
+  it('keeps focus inside banner details and lets Escape close only that modal', async () => {
+    setState('authenticated', 10, 0)
+    render(<BannerFixture />)
+    const trigger = await screen.findByRole('button', { name: /banner details/i })
+    trigger.focus()
+    fireEvent.click(trigger)
+
+    const dialog = screen.getByRole('dialog', { name: 'Banner details' })
+    const close = within(dialog).getByRole('button', { name: 'Close banner details' })
+    await waitFor(() => expect(close).toHaveFocus())
+
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(close).toHaveFocus()
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Banner details' })).not.toBeInTheDocument())
+    expect(trigger).toHaveFocus()
   })
 
   it('clamps ARIA pity progress to the server-owned maximum', async () => {
@@ -174,6 +337,7 @@ describe('PullBannerScreen CTA matrix', () => {
     })
     setState('authenticated', 10, 0)
     renderBanner()
+    fireEvent.click(await screen.findByRole('button', { name: /banner details/i }))
 
     expect(await screen.findByRole('progressbar', {
       name: 'Rare guarantee progress',
@@ -183,7 +347,7 @@ describe('PullBannerScreen CTA matrix', () => {
   it('refetches pity only when the flow enters a terminal transition', async () => {
     setState('authenticated', 10, 0)
     const view = renderBanner()
-    await screen.findByText('4/40')
+    await waitFor(() => expect(fetchMyPullPity).toHaveBeenCalledOnce())
     expect(fetchMyPullPity).toHaveBeenCalledOnce()
 
     vi.mocked(usePullFlow).mockReturnValue(flowResult({ status: 'preparing' } as never))
@@ -223,7 +387,7 @@ describe('PullBannerScreen CTA matrix', () => {
   it('opens explicit conversion and free-faucet sheets instead of silently spending', async () => {
     setState('authenticated', 0, 1600)
     const { unmount } = renderBanner()
-    await screen.findByText('4/40')
+    await waitFor(() => expect(fetchMyPullPity).toHaveBeenCalledOnce())
     fireEvent.click(await screen.findByRole('button', {
       name: /pull ×10 · convert 1600 stars/i,
     }))
@@ -234,7 +398,7 @@ describe('PullBannerScreen CTA matrix', () => {
     unmount()
     setState('authenticated', 0, 0)
     renderBanner()
-    await screen.findByText('4/40')
+    await waitFor(() => expect(fetchMyPullPity).toHaveBeenCalledTimes(2))
     fireEvent.click(await screen.findByRole('button', { name: /how to earn more rolls/i }))
     expect(screen.getByRole('dialog', { name: 'Not enough rolls yet' })).toBeInTheDocument()
     expect(screen.getByText(/daily login: \+1 roll tomorrow/i)).toBeInTheDocument()

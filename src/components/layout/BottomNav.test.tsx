@@ -1,16 +1,18 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ThemeContext } from '../../contexts/ThemeContext'
-import { isPaymentsEnabled } from '../../lib/paymentsConfig'
-import { useAuthStore } from '../../store/useAuthStore'
 import { defaultTheme } from '../../themes/tokens'
 import { BottomNav } from './BottomNav'
 
-vi.mock('../../lib/paymentsConfig', () => ({
-  isPaymentsEnabled: vi.fn(() => false),
-}))
+function renderNav(rollDisabled = false) {
+  const handlers = {
+    onOpenDiceManager: vi.fn(),
+    onOpenSavedRolls: vi.fn(),
+    onOpenHistory: vi.fn(),
+    onOpenPlayerPanel: vi.fn(),
+    onRoll: vi.fn(),
+  }
 
-function renderNav(onOpenShop = vi.fn()) {
   render(
     <ThemeContext.Provider
       value={{
@@ -21,44 +23,82 @@ function renderNav(onOpenShop = vi.fn()) {
         purchaseTheme: vi.fn(async () => true),
       }}
     >
-      <BottomNav
-        isVisible
-        onToggleUI={vi.fn()}
-        onOpenDiceManager={vi.fn()}
-        onOpenHistory={vi.fn()}
-        onOpenShop={onOpenShop}
-        isMobile={false}
-      />
+      <BottomNav isVisible rollDisabled={rollDisabled} {...handlers} />
     </ThemeContext.Provider>,
   )
-  return onOpenShop
+
+  return handlers
 }
 
-describe('BottomNav shop entry', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    useAuthStore.setState({ status: 'guest', user: null, profile: null })
+describe('BottomNav Layout A', () => {
+  it('keeps the exact five-slot order: Dice Manager, Saved Rolls, ROLL, History, Players', () => {
+    renderNav()
+
+    const nav = screen.getByRole('navigation')
+    expect(Array.from(nav.querySelectorAll<HTMLElement>('[data-nav-item]')).map(item => item.dataset.navItem)).toEqual([
+      'Dice Manager',
+      'Saved Rolls',
+      'ROLL',
+      'Roll History',
+      'Players/Room',
+    ])
+    expect(screen.queryByRole('button', { name: 'Shop' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Toggle UI' })).not.toBeInTheDocument()
   })
 
-  it.each([false, true])(
-    'opens the guest-browseable Banners destination when payments enabled is %s',
-    (paymentsEnabled) => {
-      vi.mocked(isPaymentsEnabled).mockReturnValue(paymentsEnabled)
-      const onOpenShop = renderNav()
-      fireEvent.click(screen.getByRole('button', { name: 'Shop' }))
-      expect(onOpenShop).toHaveBeenCalledOnce()
-    },
-  )
+  it('fills the ROLL slot with the real roll button centred between Saved Rolls and Roll History', () => {
+    const handlers = renderNav()
 
-  it.each([false, true])(
-    'shows the free conversion shop for signed-in users when payments enabled is %s',
-    (paymentsEnabled) => {
-      vi.mocked(isPaymentsEnabled).mockReturnValue(paymentsEnabled)
-      useAuthStore.setState({ status: 'authenticated' })
-      const onOpenShop = renderNav()
+    const nav = screen.getByRole('navigation')
+    const roll = screen.getByRole('button', { name: 'Roll dice' })
 
-      fireEvent.click(screen.getByRole('button', { name: 'Shop' }))
-      expect(onOpenShop).toHaveBeenCalledOnce()
-    },
-  )
+    // The ROLL slot is the actual button, not a spacer standing in for it.
+    expect(nav.querySelector('[data-nav-item="ROLL"]')).toBe(roll)
+    expect(roll.tagName).toBe('BUTTON')
+    fireEvent.click(roll)
+    expect(handlers.onRoll).toHaveBeenCalledOnce()
+
+    // Its centre-x is the nav's centre-x: left 50% of the nav, pulled back by
+    // half its own width. jsdom has no layout engine, so the geometry is
+    // asserted from the resolved box; e2e/hud-layout.spec.ts measures the real
+    // centre-x ordering in a browser at every supported viewport.
+    expect(roll.className).toContain('absolute')
+    expect(roll.style.left).toBe('50%')
+    expect(roll.style.width).toBe('70px')
+    expect(roll.style.marginLeft).toBe('-35px')
+    expect(roll.style.top).toBe('50%')
+    expect(roll.style.marginTop).toBe('-35px')
+
+    // Saved Rolls sits in the leading flex group, Roll History in the trailing
+    // one, so the centred button falls between them.
+    const groups = Array.from(nav.children)
+    const savedRolls = screen.getByRole('button', { name: 'My Dice Rolls' })
+    const history = screen.getByRole('button', { name: 'Roll History' })
+    expect(groups.findIndex(group => group.contains(savedRolls))).toBe(0)
+    expect(groups.findIndex(group => group.contains(roll))).toBe(1)
+    expect(groups.findIndex(group => group.contains(history))).toBe(2)
+  })
+
+  it('disables the roll button when the table is empty', () => {
+    const handlers = renderNav(true)
+
+    const roll = screen.getByRole('button', { name: 'Cannot roll' })
+    expect(roll).toBeDisabled()
+    fireEvent.click(roll)
+    expect(handlers.onRoll).not.toHaveBeenCalled()
+  })
+
+  it('routes each moved action through its matching callback', () => {
+    const handlers = renderNav()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Dice' }))
+    fireEvent.click(screen.getByRole('button', { name: 'My Dice Rolls' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Roll History' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Room Players' }))
+
+    expect(handlers.onOpenDiceManager).toHaveBeenCalledOnce()
+    expect(handlers.onOpenSavedRolls).toHaveBeenCalledOnce()
+    expect(handlers.onOpenHistory).toHaveBeenCalledOnce()
+    expect(handlers.onOpenPlayerPanel).toHaveBeenCalledOnce()
+  })
 })

@@ -1,4 +1,6 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
+import { memo, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { shouldReduceMotion } from '../../animations/ui-transitions'
 import { useTheme } from '../../contexts/ThemeContext'
 import type { DiceShape } from '../../types/diceShape'
 import type { RenderDeviceTier } from '../../lib/renderLod'
@@ -12,7 +14,6 @@ import {
   STARS_PER_STANDARD_ROLL,
 } from '../economy/shopCatalog'
 import { WalletBalanceSummary } from '../economy/WalletHud'
-import { BottomSheet } from './BottomSheet'
 import { LunarPassCard } from './LunarPassCard'
 import { PullBannerScreen } from './PullBannerScreen'
 
@@ -39,6 +40,7 @@ export const ShopPanel = memo(function ShopPanel({
   deviceTier = 'high',
 }: ShopPanelProps) {
   const authStatus = useAuthStore(state => state.status)
+  const signIn = useAuthStore(state => state.signInWithDiscord)
   const walletUserId = useWalletStore(state => state.userId)
   const promotionalStars = useWalletStore(state => state.wallet.stars.promotional)
   const paidStars = useWalletStore(state => state.wallet.stars.paid ?? 0)
@@ -54,6 +56,14 @@ export const ShopPanel = memo(function ShopPanel({
   const [notice, setNotice] = useState<ConversionNotice>(null)
   const [activeTab, setActiveTab] = useState<'shop' | 'banners'>(initialTab)
   const pendingRef = useRef(false)
+  const dialogRef = useRef<HTMLElement>(null)
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  const bannersTabId = useId()
+  const shopTabId = useId()
+  const bannersPanelId = useId()
+  const shopPanelId = useId()
+  onCloseRef.current = onClose
   const { currentTheme } = useTheme()
   const { colors, effects, spacing, typography } = currentTheme.tokens
   const affordable = Math.floor(promotionalStars / STARS_PER_STANDARD_ROLL)
@@ -63,6 +73,7 @@ export const ShopPanel = memo(function ShopPanel({
   )
   const quantityCeiling = Math.max(1, maximumConvertible)
   const paymentsEnabled = isPaymentsEnabled()
+  const reduceMotion = shouldReduceMotion()
 
   useEffect(() => {
     setQuantity(current => Math.min(Math.max(current, 1), quantityCeiling))
@@ -71,6 +82,71 @@ export const ShopPanel = memo(function ShopPanel({
   useEffect(() => {
     if (isOpen) setActiveTab(initialTab)
   }, [initialTab, isOpen])
+
+  // Guests get the same shell, so they get the same focus trap and Escape.
+  useEffect(() => {
+    if (!isOpen) return
+
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const dialog = dialogRef.current
+    const focusableSelector = [
+      'button:not([disabled])',
+      '[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(',')
+    const focusFirst = () => {
+      const first = dialog?.querySelector<HTMLElement>(focusableSelector)
+      ;(first ?? dialog)?.focus()
+    }
+    const animationFrame = window.requestAnimationFrame(focusFirst)
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // A nested modal owns focus and Escape while it is open.
+      const hasNestedModal = Boolean(dialog?.querySelector(
+        '[role="dialog"][aria-modal="true"]',
+      ))
+      if (hasNestedModal) return
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || !dialog) return
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(focusableSelector),
+      )
+      if (focusable.length === 0) {
+        event.preventDefault()
+        dialog.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      document.removeEventListener('keydown', handleKeyDown)
+      previouslyFocusedRef.current?.focus()
+      previouslyFocusedRef.current = null
+    }
+  }, [isOpen])
 
   const changeQuantity = useCallback((delta: number) => {
     setNotice(null)
@@ -110,68 +186,162 @@ export const ShopPanel = memo(function ShopPanel({
 
   if (!isOpen) return null
 
-  if (activeTab === 'banners' || authStatus !== 'authenticated') {
-    return (
-      <PullBannerScreen
-        onClose={onClose}
-        onOpenShop={() => setActiveTab('shop')}
-        onAddDie={onAddDie}
-        tableDiceCount={tableDiceCount}
-        deviceTier={deviceTier}
-      />
-    )
-  }
+  const signedIn = authStatus === 'authenticated'
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title="Shop">
-      <div
+      <motion.section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shop-title"
+        tabIndex={-1}
+        className="fixed inset-0 z-50 flex h-[100dvh] flex-col overflow-hidden"
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: `calc(${spacing.unit} * 5)`,
-          paddingBottom: `calc(${spacing.unit} * 20)`,
           color: colors.text.primary,
+          backgroundColor: colors.background,
         }}
+        // No `exit`: the panel is unmounted by its own `isOpen` guard, so there
+        // is no AnimatePresence that could ever play one.
+        initial={{ y: reduceMotion ? 0 : '100%', opacity: reduceMotion ? 1 : 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: reduceMotion ? 0 : 0.3, ease: [0.4, 0, 0.2, 1] }}
       >
-        <nav aria-label="Shop sections" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.unit }}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('banners')}
-            style={{ minHeight: 44 }}
-          >
-            Banners
-          </button>
-          <button type="button" aria-current="page" style={{ minHeight: 44 }}>
-            Wallet &amp; bundles
-          </button>
-        </nav>
-        <section
-          aria-labelledby="shop-wallet-heading"
+        <header
+          className="shrink-0 border-b px-4 pt-2"
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: `calc(${spacing.unit} * 3)`,
+            borderColor: colors.text.muted,
+            backgroundColor: colors.surface,
           }}
         >
-          <h2
-            id="shop-wallet-heading"
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <h1
+              id="shop-title"
+              style={{
+                color: colors.accent,
+                fontSize: typography.fontSize.xl,
+                fontWeight: typography.fontWeight.bold,
+              }}
+            >
+              Shop
+            </h1>
+            <button
+              type="button"
+              className="min-h-11 min-w-11 text-xl"
+              onClick={onClose}
+              aria-label="Close Shop"
+            >
+              ×
+            </button>
+          </div>
+          <nav role="tablist" aria-label="Shop sections" className="grid grid-cols-2 gap-2">
+            <button
+              id={bannersTabId}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'banners'}
+              aria-controls={bannersPanelId}
+              className="min-h-11 border-b-2 font-bold"
+              onClick={() => setActiveTab('banners')}
+              style={{ borderColor: activeTab === 'banners' ? colors.accent : 'transparent' }}
+            >
+              Banners
+            </button>
+            <button
+              id={shopTabId}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'shop'}
+              aria-controls={shopPanelId}
+              className="min-h-11 border-b-2 font-bold"
+              onClick={() => setActiveTab('shop')}
+              style={{ borderColor: activeTab === 'shop' ? colors.accent : 'transparent' }}
+            >
+              Wallet &amp; bundles
+            </button>
+          </nav>
+          {/* The wallet block is account data — auth-gated, shell is not. */}
+          {signedIn && (
+            <div className="pb-3 pt-2">
+              <WalletBalanceSummary
+                stars={promotionalStars + paidStars}
+                dust={dust}
+                standardTickets={standardTickets}
+                premiumTickets={premiumTickets}
+                stale={stale}
+              />
+            </div>
+          )}
+        </header>
+
+        {activeTab === 'banners' ? (
+          <div
+            id={bannersPanelId}
+            role="tabpanel"
+            aria-labelledby={bannersTabId}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <PullBannerScreen
+              onAddDie={onAddDie}
+              tableDiceCount={tableDiceCount}
+              deviceTier={deviceTier}
+            />
+          </div>
+        ) : (
+          <div
+            id={shopPanelId}
+            role="tabpanel"
+            aria-labelledby={shopTabId}
+            className="min-h-0 flex-1 overflow-y-auto px-4 py-5"
             style={{
-              color: colors.accent,
-              fontSize: typography.fontSize['2xl'],
-              fontWeight: typography.fontWeight.bold,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: `calc(${spacing.unit} * 5)`,
+              paddingBottom: `calc(${spacing.unit} * 20)`,
+              color: colors.text.primary,
             }}
           >
-            Your wallet
-          </h2>
-          <WalletBalanceSummary
-            stars={promotionalStars + paidStars}
-            dust={dust}
-            standardTickets={standardTickets}
-            premiumTickets={premiumTickets}
-            stale={stale}
-          />
-        </section>
-
+        {!signedIn ? (
+          <section
+            aria-labelledby="conversion-heading"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: `calc(${spacing.unit} * 3)`,
+              padding: `calc(${spacing.unit} * 4)`,
+              borderRadius: effects.borderRadius.lg,
+              backgroundColor: colors.surface,
+              border: `1px solid ${colors.text.muted}`,
+              boxShadow: effects.shadows.sm,
+            }}
+          >
+            <h3
+              id="conversion-heading"
+              style={{
+                color: colors.text.primary,
+                fontSize: typography.fontSize.lg,
+                fontWeight: typography.fontWeight.bold,
+              }}
+            >
+              Stars → standard rolls
+            </h3>
+            <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm }}>
+              Sign in to hold Stars, convert them into standard rolls, and keep
+              everything you pull.
+            </p>
+            <button
+              type="button"
+              className="min-h-11 rounded-md px-4 font-bold"
+              style={{
+                border: `1px solid ${colors.accent}`,
+                backgroundColor: colors.accent,
+                color: colors.text.primary,
+              }}
+              onClick={() => void signIn()}
+            >
+              Sign in with Discord
+            </button>
+          </section>
+        ) : (
         <section
           aria-labelledby="conversion-heading"
           style={{
@@ -303,6 +473,7 @@ export const ShopPanel = memo(function ShopPanel({
             </p>
           )}
         </section>
+        )}
 
         <LunarPassCard
           key={`${walletUserId ?? 'none'}:${subscription?.subscriptionId ?? 'none'}`}
@@ -388,8 +559,9 @@ export const ShopPanel = memo(function ShopPanel({
             </div>
           </section>
         )}
-      </div>
-    </BottomSheet>
+          </div>
+        )}
+      </motion.section>
   )
 })
 

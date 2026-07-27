@@ -38,29 +38,19 @@ import type { InventoryDie } from '../types/inventory'
 import { useMultiplayerStore, type MultiplayerDie as MultiplayerDieState } from '../store/useMultiplayerStore'
 import { useUIStore } from '../store/useUIStore'
 import { swapsAxes } from '../lib/viewRotation'
+import { isPaymentsEnabled } from '../lib/paymentsConfig'
 
 // Components
-import { BottomNav, CenterRollButton, CornerIcon, DiceToolbar, UIToggleMini } from './layout'
+import { TableHud } from './layout/TableHud'
 import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
 import { PlayerPanel } from './multiplayer/PlayerPanel'
 import { RoomNotices } from './multiplayer/RoomNotices'
 import { MultiplayerMotionController } from './multiplayer/MultiplayerMotionController'
 import { RoomMotionHint } from './multiplayer/RoomMotionHint'
-import { WalletHud } from './economy/WalletHud'
+import { STANDARD_ROLL_CONVERSION_AVAILABLE } from './economy/shopCatalog'
 import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel, ShopPanel } from './panels'
 import type { TableDieSummary } from '../types/tableDice'
-
-/**
- * Shared styles for top-right corner buttons
- */
-const TOP_RIGHT_BUTTON_STYLES = {
-  backgroundColor: 'rgba(31, 41, 55, 0.7)',
-  backdropFilter: 'blur(10px)',
-  WebkitBackdropFilter: 'blur(10px)',
-  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-  border: '1px solid rgba(249, 135, 151, 0.2)'
-} as const
 
 const LOD_DEBUG_NAMESPACE = 'RenderLOD'
 
@@ -438,6 +428,7 @@ function SceneContent({ onReady }: SceneProps) {
   const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>('high')
   const [showRenderLodDebug, setShowRenderLodDebug] = useState(false)
   const detectedRenderDeviceTierRef = useRef<RenderDeviceTier | null>(null)
+  const railBeforeOverlayRef = useRef(false)
 
   // Detect if mobile
   const [isMobile, setIsMobile] = useState(false)
@@ -480,6 +471,7 @@ function SceneContent({ onReady }: SceneProps) {
   // Get the active backend — always provided by SoloRoom / MultiplayerRoom
   const activeBackend = useDiceBackend()
   const isMultiplayer = activeBackend.mode === 'multiplayer'
+  const showShop = isPaymentsEnabled() || STANDARD_ROLL_CONVERSION_AVAILABLE
 
   // Delegate add/remove/clear through the active room backend
   const handleAddDice = useCallback(
@@ -520,6 +512,49 @@ function SceneContent({ onReady }: SceneProps) {
     setOnDiceDelete(activeBackend.removeDie)
     return () => setOnDiceDelete(undefined)
   }, [setOnDiceDelete, activeBackend.removeDie])
+
+  // Hiding the HUD is a structural state, not an animation preference. Closing
+  // transient chrome prevents reduced-motion users from retaining controls
+  // that are visually supposed to collapse to the permanent eye button.
+  useEffect(() => {
+    if (isUIVisible) return
+    setIsDiceManagerOpen(false)
+    setIsHistoryOpen(false)
+    setIsSavedRollsOpen(false)
+    setIsInventoryOpen(false)
+    setIsSettingsOpen(false)
+    setIsShopOpen(false)
+    setIsPlayerPanelOpen(false)
+    setInspectedInventoryDieId(null)
+    railBeforeOverlayRef.current = false
+  }, [isUIVisible])
+
+  // Any overlay that owns the screen (full-screen shop, bottom sheets, the
+  // settings flyout, the hero inspector). While one is open the HUD must not
+  // paint over it or steal its taps.
+  const isOverlayOpen =
+    isShopOpen ||
+    isSettingsOpen ||
+    isInventoryOpen ||
+    isHistoryOpen ||
+    isSavedRollsOpen ||
+    inspectedInventoryDieId !== null
+
+  // Auto-close the dice toolbar rail while an overlay owns the screen, and
+  // restore it afterwards so the player's rail state survives the round trip.
+  useEffect(() => {
+    if (isOverlayOpen) {
+      setIsDiceManagerOpen(open => {
+        railBeforeOverlayRef.current = open
+        return false
+      })
+      return
+    }
+    if (railBeforeOverlayRef.current) {
+      railBeforeOverlayRef.current = false
+      setIsDiceManagerOpen(true)
+    }
+  }, [isOverlayOpen])
 
   const content = (
     <>
@@ -562,131 +597,24 @@ function SceneContent({ onReady }: SceneProps) {
         <PerformanceOverlay />
       </Canvas>
 
-      {/* Result Display - subscribes to store */}
-      <ResultDisplay />
-
-      <RenderLodDebugOverlay
-        isVisible={showRenderLodDebug}
-        deviceTier={renderDeviceTier}
-        tableDiceCount={useMultiplayerStore.getState().dice.size}
-        isMultiplayer={isMultiplayer}
-      />
-
-      {/* NEW LAYOUT SYSTEM */}
-      {/* Authenticated economy status: bounded bottom-right, clear of result/notices and bottom controls. */}
-      <WalletHud isVisible={isUIVisible} />
-
-      {/* Bottom Navigation Bar */}
-      <BottomNav
-        isVisible={isUIVisible}
-        onToggleUI={toggleUIVisibility}
-        onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
-        onOpenHistory={() => setIsHistoryOpen(true)}
-        onOpenShop={() => setIsShopOpen(true)}
-        onToggleMotion={handleToggleMotion} // Request permission when enabling
+      <TableHud
+        isUIVisible={isUIVisible}
+        isOverlayOpen={isOverlayOpen}
         isMobile={isMobile}
-        motionModeActive={motionMode}
-        diceManagerOpen={isDiceManagerOpen}
-        shopOpen={isShopOpen}
-      />
-
-      {/* Center Roll Button - elevated above nav */}
-      <CenterRollButton
-        onClick={activeBackend.roll}
-        disabled={tableDice.length === 0}
-      />
-
-      {/* Top-Left Corner: Settings */}
-      <CornerIcon
-        position="top-left"
-        onClick={() => setIsSettingsOpen(true)}
-        label="Settings"
-        isVisible={isUIVisible}
-      >
-        ⚙️
-      </CornerIcon>
-
-      {/* Top-Right: My Dice Rolls */}
-      <div
-        className="fixed z-40"
-        style={{
-          top: '16px',
-          right: '16px',
-          pointerEvents: isUIVisible ? 'auto' : 'none'
-        }}
-      >
-        <button
-          onClick={() => setIsSavedRollsOpen(true)}
-          className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
-          style={{
-            ...TOP_RIGHT_BUTTON_STYLES,
-            opacity: isUIVisible ? 1 : 0,
-            transform: isUIVisible ? 'scale(1)' : 'scale(0.8)'
-          }}
-          aria-label="My Dice Rolls"
-          title="Saved Rolls"
-        >
-          📋
-        </button>
-      </div>
-
-      {/* Top-Right (Lowest): Room Players — multiplayer only */}
-      {isMultiplayer && (
-        <div
-          className="fixed z-40"
-          style={{
-            top: '80px',
-            right: '16px',
-            pointerEvents: isUIVisible ? 'auto' : 'none'
-          }}
-        >
-          <button
-            onClick={() => setIsPlayerPanelOpen(!isPlayerPanelOpen)}
-            className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
-            style={{
-              ...TOP_RIGHT_BUTTON_STYLES,
-              opacity: isUIVisible ? 1 : 0,
-              transform: isUIVisible ? 'scale(1)' : 'scale(0.8)',
-            }}
-            aria-label="Room Players"
-            title="Toggle player list"
-          >
-            👥
-          </button>
-        </div>
-      )}
-
-      {/* Top-Right: rotate my view 90° — client-only, per-device (ADR 009) */}
-      <div
-        className="fixed z-40"
-        style={{
-          top: '144px',
-          right: '16px',
-          pointerEvents: isUIVisible ? 'auto' : 'none',
-        }}
-      >
-        <button
-          onClick={() => useUIStore.getState().rotateViewCW()}
-          className="w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all hover:scale-110"
-          style={{
-            ...TOP_RIGHT_BUTTON_STYLES,
-            opacity: isUIVisible ? 1 : 0,
-            transform: isUIVisible ? 'scale(1)' : 'scale(0.8)',
-          }}
-          aria-label="Rotate view 90 degrees"
-          title="Rotate my view 90°"
-          data-testid="rotate-view-button"
-        >
-          🔄
-        </button>
-      </div>
-
-      {/* Mini UI Toggle - shows when UI hidden */}
-      <UIToggleMini onClick={toggleUIVisibility} isVisible={isUIVisible} />
-
-      {/* DICE TOOLBAR - Compact slide-out dice management */}
-      <DiceToolbar
-        isOpen={isDiceManagerOpen}
+        motionMode={motionMode}
+        showShop={showShop}
+        isDiceManagerOpen={isDiceManagerOpen}
+        canRoll={tableDice.length > 0}
+        onToggleUIVisibility={toggleUIVisibility}
+        onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
+        onOpenSavedRolls={() => setIsSavedRollsOpen(true)}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenPlayerPanel={() => setIsPlayerPanelOpen(!isPlayerPanelOpen)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenShop={() => setIsShopOpen(true)}
+        onRotateView={() => useUIStore.getState().rotateViewCW()}
+        onToggleMotion={handleToggleMotion}
+        onRoll={activeBackend.roll}
         onAddDice={handleAddDice}
         onClearAllDice={activeBackend.clearAll}
         onOpenInventory={() => {
@@ -695,61 +623,71 @@ function SceneContent({ onReady }: SceneProps) {
         }}
       />
 
-      {/* THEMED PANELS */}
-      <HistoryPanel
-        isOpen={isHistoryOpen}
-        onClose={() => setIsHistoryOpen(false)}
-      />
-
-      <SavedRollsPanel
-        isOpen={isSavedRollsOpen}
-        onClose={() => setIsSavedRollsOpen(false)}
-        tableDice={tableDice}
-      />
-
-      <InventoryPanel
-        isOpen={isInventoryOpen}
-        onClose={() => {
-          setIsInventoryOpen(false)
-        }}
-        onSpawnDie={handleAddDice}
-      />
-
-      <SettingsPanel
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
-
-      <ShopPanel
-        isOpen={isShopOpen}
-        onClose={() => setIsShopOpen(false)}
-        initialTab="banners"
-        onAddDie={(type, inventoryDieId) => activeBackend.addDie(type, inventoryDieId)}
-        tableDiceCount={multiplayerDice.size}
-        deviceTier={renderDeviceTier}
-      />
-
-      {inspectedInventoryDie && (
-        <HeroDieInspector
-          die={inspectedInventoryDie}
-          theme={currentTheme}
-          onClose={() => setInspectedInventoryDieId(null)}
-          onSpawn={() => {
-            handleAddDice(inspectedInventoryDie.type, inspectedInventoryDie.id)
-            setInspectedInventoryDieId(null)
-          }}
-        />
-      )}
-
-      {/* Multiplayer player panel + join/leave notices */}
-      {isMultiplayer && (
+      {isUIVisible && (
         <>
+          {/* Result Display - subscribes to store */}
+          <ResultDisplay />
+
+          <RenderLodDebugOverlay
+            isVisible={showRenderLodDebug}
+            deviceTier={renderDeviceTier}
+            tableDiceCount={useMultiplayerStore.getState().dice.size}
+            isMultiplayer={isMultiplayer}
+          />
+
+          <HistoryPanel
+            isOpen={isHistoryOpen}
+            onClose={() => setIsHistoryOpen(false)}
+          />
+
+          <SavedRollsPanel
+            isOpen={isSavedRollsOpen}
+            onClose={() => setIsSavedRollsOpen(false)}
+            tableDice={tableDice}
+          />
+
+          <InventoryPanel
+            isOpen={isInventoryOpen}
+            onClose={() => setIsInventoryOpen(false)}
+            onSpawnDie={handleAddDice}
+          />
+
+          <SettingsPanel
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+          />
+
+          <ShopPanel
+            isOpen={isShopOpen}
+            onClose={() => setIsShopOpen(false)}
+            initialTab="banners"
+            onAddDie={(type, inventoryDieId) => activeBackend.addDie(type, inventoryDieId)}
+            tableDiceCount={multiplayerDice.size}
+            deviceTier={renderDeviceTier}
+          />
+
+          {inspectedInventoryDie && (
+            <HeroDieInspector
+              die={inspectedInventoryDie}
+              theme={currentTheme}
+              onClose={() => setInspectedInventoryDieId(null)}
+              onSpawn={() => {
+                handleAddDice(inspectedInventoryDie.type, inspectedInventoryDie.id)
+                setInspectedInventoryDieId(null)
+              }}
+            />
+          )}
+
+          {/* Players / room controls are also available from the solo table. */}
           <PlayerPanel isOpen={isPlayerPanelOpen} />
-          <RoomNotices />
-          <RoomMotionHint />
+          {isMultiplayer && (
+            <>
+              <RoomNotices />
+              <RoomMotionHint />
+            </>
+          )}
         </>
       )}
-
     </>
   )
 

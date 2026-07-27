@@ -98,17 +98,6 @@ export function PullProgressOverlay({
         tabIndex={-1}
         className="w-full max-w-md text-center"
       >
-        <div
-          aria-hidden="true"
-          className="mx-auto mb-6 flex h-28 w-28 rotate-12 items-center justify-center border font-mono text-xl font-black"
-          style={{
-            color: 'var(--color-text-muted)',
-            borderColor: 'var(--color-text-muted)',
-            backgroundColor: 'var(--color-surface)',
-          }}
-        >
-          SEALED
-        </div>
         <h2 id="pull-progress-title" className="text-2xl font-bold">
           {mode === 'sealing'
             ? 'Sealing your pull…'
@@ -116,20 +105,6 @@ export function PullProgressOverlay({
               ? 'Restoring your pull…'
               : 'Finishing your pull…'}
         </h2>
-        {preparation && (
-          <>
-            <p className="mt-3 font-semibold">
-              Outcome sealed <span aria-hidden="true">✓</span>
-            </p>
-            <code
-              className="mx-auto mt-2 block max-w-full truncate text-xs"
-              title={preparation.commitmentRoot}
-              style={{ color: 'var(--color-text-secondary)' }}
-            >
-              {preparation.commitmentRoot}
-            </code>
-          </>
-        )}
         {mode === 'hold' && countdown && (
           <p className="mt-4" aria-live="polite">
             Hold expires in {countdown}
