@@ -13,7 +13,7 @@
 //   payment_events              0013_paid_checkout_foundation.sql:565
 //   catalog_items               0004_collectible_catalog.sql:362
 
-import { isUuid } from './plans.mjs'
+import { GRANT_WRITE_TARGETS, isUuid } from './plans.mjs'
 import { findAuthUsers, likePattern } from './supabase.mjs'
 
 function unwrap({ data, error, count }, label) {
@@ -300,6 +300,33 @@ export async function fetchOrders(client, userId, limit) {
       ) ?? []
   }
   return { orders, events }
+}
+
+/**
+ * Has this exact grant already been written?
+ *
+ * Because idempotency keys are derived deterministically from the operator's
+ * intent, re-running a command is normally a REPLAY, not a new grant. The RPC
+ * would happily return the original row, but the CLI would then report it as a
+ * fresh write. Looking first lets the operator be told the truth.
+ *
+ * `service_role` holds SELECT on all three tables (0009:656-657, 0014:267-268,
+ * 0020:382). Returns `null` when nothing has been written yet.
+ */
+export async function findExistingGrant(client, plan) {
+  const target = GRANT_WRITE_TARGETS[plan.rpc]
+  if (!target) return null
+  const row = unwrap(
+    await client
+      .from(target.table)
+      .select(target.select)
+      .eq('user_id', plan.payload.p_user_id)
+      .eq(target.keyColumn, plan.payload.p_idempotency_key)
+      .maybeSingle(),
+    `${target.table} replay pre-flight`,
+  )
+  if (!row) return null
+  return { id: row.id, createdAt: row[target.createdColumn] ?? null, table: target.table, row }
 }
 
 /**

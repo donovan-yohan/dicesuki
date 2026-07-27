@@ -85,6 +85,40 @@ export const PROVENANCE_MAX_BYTES = 8192
 /** dice_copies.source_reference is 1..512 chars (0020:23-24). */
 export const SOURCE_REFERENCE_MAX_LENGTH = 512
 
+/**
+ * Where each grant RPC's write actually lands, so a replay can be detected
+ * BEFORE the call rather than inferred after it. Note the dice-copy key column
+ * is named differently from the two ledgers.
+ *
+ *   wallet_ledger_entries       unique (account_id, idempotency_key)      0009:107
+ *   roll_ticket_ledger_entries  unique (user_id, idempotency_key)         0014:48
+ *   dice_copies                 unique (user_id, grant_idempotency_key)   0020:21-22
+ *
+ * Lives here rather than in queries.mjs so the Supabase Postgres harness can
+ * assert these column names against the real schema without importing the
+ * Supabase client.
+ */
+export const GRANT_WRITE_TARGETS = Object.freeze({
+  append_wallet_ledger_entry: Object.freeze({
+    table: 'wallet_ledger_entries',
+    keyColumn: 'idempotency_key',
+    createdColumn: 'created_at',
+    select: 'id, created_at, currency_id, balance_bucket, delta_amount, balance_after, reason_code',
+  }),
+  record_roll_ticket_ledger_entry: Object.freeze({
+    table: 'roll_ticket_ledger_entries',
+    keyColumn: 'idempotency_key',
+    createdColumn: 'created_at',
+    select: 'id, created_at, roll_type, delta_quantity, quantity_after, reason_code',
+  }),
+  record_dice_copy_grant: Object.freeze({
+    table: 'dice_copies',
+    keyColumn: 'grant_idempotency_key',
+    createdColumn: 'acquired_at',
+    select: 'id, acquired_at, catalog_item_id, source_kind, is_first_copy, scrapped_at',
+  }),
+})
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export function isUuid(value) {

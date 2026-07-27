@@ -80,10 +80,21 @@ and `--note`.
 
 That matters because after a timeout, a dropped connection, or a Ctrl-C
 mid-call, you cannot tell whether the write landed. **Just run the exact same
-command again.** It derives the same key, the RPC recognises the replay, and you
-get the original row back rather than a second grant
+command again.** It derives the same key, so the write cannot happen twice
 (`0028_sku_fulfillment.sql:508-521`, `0020_dice_copy_inventory.sql:182-197`).
-Every failure message also echoes the key so you can pass it explicitly.
+
+Before executing anything, the CLI looks for an existing row with that key and
+tells you plainly which case you are in:
+
+```
+REPLAYED — this exact grant already exists (id 2, created 2026-07-27T09:00:00Z); nothing changed.
+Change --note or pass --key to grant again.
+```
+
+It does not prompt and does not call the RPC in that case, and `--json` reports
+`"executed": false, "replayed": true` — so a replay is never mistaken for a
+fresh grant. A failure message echoes the key too, but only when a retry could
+actually behave differently (see [Error codes](#error-codes-you-will-see)).
 
 The flip side: **an intentional second identical grant on the same UTC day will
 be swallowed as a replay.** To make it a genuinely new grant, change `--note`
@@ -285,10 +296,15 @@ node scripts/admin/dicesuki-admin.mjs cancel-session someone@example.com --confi
 
 Exit codes: `0` success, `1` operation failed, `2` usage or environment error.
 
+<a id="error-codes-you-will-see"></a>
 ### Error codes you will see
 
 Hints are scoped to the RPC that raised the code, so the guidance is never
-generic.
+generic. A "retry with `--key`" suggestion only appears where a retry could
+plausibly behave differently — a transport failure, contention (`40001`,
+`40P01`, `57014`, `08*`), or the self-clearing pull hold. Deterministic
+rejections say nothing about retrying, because the same key would fail
+identically.
 
 | SQLSTATE | Meaning | Fix |
 |---|---|---|

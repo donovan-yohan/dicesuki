@@ -14,6 +14,7 @@ import {
   fetchCatalogItem,
   fetchCopySummary,
   fetchOrders,
+  findExistingGrant,
   fetchPullSessions,
   fetchTicketBalances,
   fetchTicketLedger,
@@ -79,6 +80,24 @@ export function sqlstateHint(code, rpc) {
     default:
       return null
   }
+}
+
+/**
+ * SQLSTATEs where re-running the identical command could plausibly behave
+ * differently: transient contention, cancellation, and the pull-hold pause that
+ * clears on its own. Everything else the grant RPCs raise is a deterministic
+ * rejection of these exact arguments — offering a retry there is worse than
+ * silence, because it contradicts the code-specific fix printed alongside it.
+ *
+ * A missing code means the failure never reached Postgres (transport), which is
+ * ambiguous, so the operator does get the key.
+ */
+const RETRYABLE_SQLSTATES = new Set(['55000', '40001', '40P01', '55P03', '57014'])
+
+export function isRetryable(code) {
+  if (code === null || code === undefined || code === '') return true
+  const value = String(code)
+  return RETRYABLE_SQLSTATES.has(value) || value.startsWith('08')
 }
 
 function rpcFailure(error, rpc, retryHint) {
@@ -385,7 +404,23 @@ async function executePlan(plan, request, context) {
 
   if (request.dryRun) {
     io.say('\nDRY RUN — nothing was executed. Re-run with --no-dry-run to apply.')
-    return { plan, dryRun: true, executed: false, result: null }
+    return { plan, dryRun: true, executed: false, replayed: false, result: null }
+  }
+
+  // Replay pre-flight, BEFORE the prompt. Keys are derived from the operator's
+  // intent, so re-running a command is normally a replay. The RPC would return
+  // the original row and we would report a write that never happened — and
+  // prompting for a no-op is noise. Racy only in the benign direction: if a
+  // concurrent write lands between this check and the call, the RPC is still
+  // idempotent, we just report it as fresh.
+  const existing = await findExistingGrant(context.client, plan)
+  if (existing) {
+    io.say(
+      `\nREPLAYED — this exact grant already exists (id ${existing.id}, created ` +
+        `${formatTimestamp(existing.createdAt)}); nothing changed.`,
+    )
+    io.say('Change --note or pass --key to grant again.')
+    return { plan, dryRun: false, executed: false, replayed: true, result: existing.row }
   }
 
   if (!request.yes) {
@@ -395,13 +430,13 @@ async function executePlan(plan, request, context) {
     }
   }
 
-  // Echoed on every failure path: after an ambiguous error the operator cannot
-  // tell whether the write landed, and this key is the thing that makes the
-  // retry safe either way.
-  const idempotencyKey = plan.payload.p_idempotency_key
+  // Only offered when a retry could actually behave differently. On a
+  // deterministic rejection (22023/22003/23503/42501) the same key is
+  // guaranteed to fail the same way, and telling the operator to retry would
+  // contradict the code-specific guidance printed right next to it.
   const retryHint =
-    `Retry with --key '${idempotencyKey}' (or just re-run the identical command): the write ` +
-    'is replay-safe, so a retry returns the original row rather than granting twice.'
+    `Retry with --key '${plan.payload.p_idempotency_key}' (or re-run the identical command): ` +
+    'the key is stable, so a retry cannot double-grant.'
 
   let response
   try {
@@ -413,10 +448,10 @@ async function executePlan(plan, request, context) {
     )
   }
   const { data, error } = response
-  if (error) throw rpcFailure(error, plan.rpc, retryHint)
+  if (error) throw rpcFailure(error, plan.rpc, isRetryable(error.code) ? retryHint : null)
   io.say(`\nDONE — ${plan.summary}`)
   io.say(formatKeyValues(Object.entries(data ?? {}).map(([key, value]) => [key, JSON.stringify(value)])))
-  return { plan, dryRun: false, executed: true, result: data ?? null }
+  return { plan, dryRun: false, executed: true, replayed: false, result: data ?? null }
 }
 
 /**

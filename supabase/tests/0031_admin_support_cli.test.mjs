@@ -18,6 +18,7 @@
 //     instead of executing it.
 
 import {
+  GRANT_WRITE_TARGETS,
   buildDieGrantPlan,
   buildTicketGrantPlan,
   buildWalletGrantPlan,
@@ -235,6 +236,30 @@ export async function run({ psql, psqlAsync }) {
     '1',
     '0031 the granted die is a live dice_copies row, the authoritative inventory surface',
   )
+
+  // --- the replay pre-flight finds exactly the rows the RPCs wrote ---------
+  // The CLI checks for an existing write before calling, so it can report a
+  // replay instead of claiming a fresh grant. That check must query the right
+  // table and the right key column for each RPC; a rename here would silently
+  // turn every replay back into a false "DONE".
+  for (const [rpc, key] of [
+    ['append_wallet_ledger_entry', 'admin-grant:2026-07-27:aa000001'],
+    ['record_roll_ticket_ledger_entry', 'admin-grant:2026-07-27:aa000005'],
+    ['record_dice_copy_grant', 'admin-grant:2026-07-27:aa000010'],
+  ]) {
+    const target = GRANT_WRITE_TARGETS[rpc]
+    expectEqual(
+      psql(
+        `select count(*)::text || ':' ||
+           count(${target.createdColumn})::text
+         from public.${target.table}
+         where user_id = '${USER_ID}' and ${target.keyColumn} = '${key}';`,
+        `0031 replay pre-flight for ${rpc}`,
+      ),
+      '1:1',
+      `0031 the CLI replay pre-flight for ${rpc} resolves the row it wrote`,
+    )
+  }
 
   // --- the CLI cannot cancel a pull session, by construction ---------------
   await expectFailure(

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Partial mock: the network-touching readers are stubbed so the command layer
 // can be exercised without a server; every pure export stays real.
@@ -9,13 +9,19 @@ vi.mock('./lib/queries.mjs', async importOriginal => {
     resolveUserCandidates: vi.fn(),
     fetchCatalogItem: vi.fn(),
     fetchPullSessions: vi.fn(),
+    findExistingGrant: vi.fn(),
   }
 })
 
 import { DEFAULT_LIMIT, MAX_LIMIT, UsageError, parseArgs, usageText } from './lib/args.mjs'
 import { createIo } from './dicesuki-admin.mjs'
-import { runCommand, sqlstateHint } from './lib/commands.mjs'
-import { fetchCatalogItem, fetchPullSessions, resolveUserCandidates } from './lib/queries.mjs'
+import { isRetryable, runCommand, sqlstateHint } from './lib/commands.mjs'
+import {
+  fetchCatalogItem,
+  fetchPullSessions,
+  findExistingGrant,
+  resolveUserCandidates,
+} from './lib/queries.mjs'
 import {
   DICE_COPY_KEY_PATTERN,
   ECONOMY_EDITION_ID,
@@ -708,11 +714,17 @@ function grantStarsArgs(...extra: string[]) {
   return parseArgs(['grant-stars', USER, '20000', '--operator', 'po', '--note', 'ticket 1', ...extra])
 }
 
+beforeEach(() => {
+  // Default: nothing has been written yet, so grants take the fresh-write path.
+  vi.mocked(findExistingGrant).mockResolvedValue(null)
+})
+
 afterEach(() => {
   vi.restoreAllMocks()
   vi.mocked(resolveUserCandidates).mockReset()
   vi.mocked(fetchCatalogItem).mockReset()
   vi.mocked(fetchPullSessions).mockReset()
+  vi.mocked(findExistingGrant).mockReset()
 })
 
 describe('user resolution refusals', () => {
@@ -761,6 +773,65 @@ describe('executePlan gating', () => {
     expect(result).toMatchObject({ dryRun: false, executed: true })
   })
 
+  it('reports a replay instead of claiming a write that did not happen', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    vi.mocked(findExistingGrant).mockResolvedValue({
+      id: 7,
+      createdAt: '2026-07-27T09:00:00Z',
+      table: 'wallet_ledger_entries',
+      row: { id: 7, delta_amount: 20000 },
+    })
+    const client = fakeClient()
+    const io = fakeIo()
+    const result = await runCommand(grantStarsArgs('--yes'), { client, environment: {}, io })
+
+    expect(client.rpc).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ executed: false, replayed: true, dryRun: false })
+    expect(result.result).toEqual({ id: 7, delta_amount: 20000 })
+    expect(io.text()).toContain(
+      'REPLAYED — this exact grant already exists (id 7, created 2026-07-27T09:00:00Z)',
+    )
+    expect(io.text()).toContain('Change --note or pass --key to grant again.')
+    expect(io.text()).not.toContain('DONE —')
+  })
+
+  it('does not prompt for a replay, since there is nothing to approve', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    vi.mocked(findExistingGrant).mockResolvedValue({
+      id: 7,
+      createdAt: '2026-07-27T09:00:00Z',
+      table: 'wallet_ledger_entries',
+      row: { id: 7 },
+    })
+    const io = fakeIo()
+    await runCommand(grantStarsArgs(), { client: fakeClient(), environment: {}, io })
+    expect(io.confirm).not.toHaveBeenCalled()
+  })
+
+  it('checks for a replay before prompting, and marks fresh writes replayed:false', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    const client = fakeClient()
+    const result = await runCommand(grantStarsArgs('--yes'), {
+      client,
+      environment: {},
+      io: fakeIo(),
+    })
+    expect(findExistingGrant).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({ executed: true, replayed: false })
+    expect(client.rpc).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not pre-flight on a dry run', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    const result = await runCommand(grantStarsArgs('--dry-run'), {
+      client: fakeClient(),
+      environment: {},
+      io: fakeIo(),
+    })
+    expect(findExistingGrant).not.toHaveBeenCalled()
+    expect(result.replayed).toBe(false)
+  })
+
   it('aborts without calling the RPC when the operator declines', async () => {
     vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
     const client = fakeClient()
@@ -772,12 +843,33 @@ describe('executePlan gating', () => {
     expect(client.rpc).not.toHaveBeenCalled()
   })
 
-  it('echoes the idempotency key on an ambiguous failure so the retry is precise', async () => {
+  it('echoes the idempotency key when a retry could behave differently', async () => {
     vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
-    const client = fakeClient({ data: null, error: { code: '22023', message: 'boom' } })
+    const client = fakeClient({ data: null, error: { code: '40001', message: 'serialization' } })
     await expect(
       runCommand(grantStarsArgs('--yes'), { client, environment: {}, io: fakeIo() }),
     ).rejects.toThrow(/Retry with --key 'admin-grant:\d{4}-\d{2}-\d{2}:[0-9a-f]{12}'/)
+  })
+
+  it('does NOT suggest a retry on a deterministic rejection', async () => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+    for (const code of ['22023', '22003', '23503', '42501']) {
+      const client = fakeClient({ data: null, error: { code, message: 'nope' } })
+      // The same key is guaranteed to fail identically, and a retry suggestion
+      // would contradict the code-specific guidance printed beside it.
+      await expect(
+        runCommand(grantStarsArgs('--yes'), { client, environment: {}, io: fakeIo() }),
+      ).rejects.toThrow(new RegExp(`\\[${code}\\](?![\\s\\S]*Retry with --key)`))
+    }
+  })
+
+  it('classifies which SQLSTATEs are worth retrying', () => {
+    for (const retryable of ['55000', '40001', '40P01', '57014', '08006', null, undefined]) {
+      expect(isRetryable(retryable)).toBe(true)
+    }
+    for (const deterministic of ['22023', '22003', '23503', '42501']) {
+      expect(isRetryable(deterministic)).toBe(false)
+    }
   })
 
   it('reports a thrown transport error as possibly-landed, with the retry key', async () => {
