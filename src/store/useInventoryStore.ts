@@ -231,6 +231,44 @@ function emptyPersistedInventory() {
   }
 }
 
+export interface VisibleInventoryState {
+  readonly dice: readonly InventoryDie[]
+  readonly assignments: Readonly<Record<string, string>>
+  readonly serverCopiesActive: boolean
+}
+
+/**
+ * Canonical local projection for sync, refresh, sign-out, and persistence.
+ * Authenticated copy rows are ephemeral; every other visible row remains part
+ * of the retained local-first inventory.
+ */
+export function selectRetainedLocalInventory(
+  state: VisibleInventoryState,
+): {
+  dice: InventoryDie[]
+  assignments: Record<string, string>
+} {
+  if (!state.serverCopiesActive) {
+    return {
+      dice: [...state.dice],
+      assignments: { ...state.assignments },
+    }
+  }
+  const serverIds = new Set(
+    state.dice
+      .filter(die => Boolean(die.serverCopyMetadata))
+      .map(die => die.id),
+  )
+  return {
+    dice: state.dice.filter(die => !die.serverCopyMetadata),
+    assignments: Object.fromEntries(
+      Object.entries(state.assignments).filter(
+        ([, dieId]) => !serverIds.has(dieId),
+      ),
+    ),
+  }
+}
+
 function acquisitionSource(source: DiceCopySourceKind): InventoryDie['source'] {
   switch (source) {
     case 'pull':
@@ -991,29 +1029,42 @@ export const useInventoryStore = create<InventoryStore>()(
         if (!catalog) return false
         const serverDice = mapServerCopiesToInventoryDice(copies, catalog)
         if (!serverDice) return false
-        set(state => ({
-          // Merge rule: authenticated server copies replace the playable dice
-          // view. The prior guest/local list remains untouched for sign-out.
-          localDice: state.serverCopiesActive ? state.localDice : state.dice,
-          localAssignments: state.serverCopiesActive
-            ? state.localAssignments
-            : state.assignments,
-          dice: serverDice,
+        const retained = selectRetainedLocalInventory(get())
+        const playableLocalDice = retained.dice.length > 0
+          ? retained.dice
+          : STARTER_DICE.map(createInventoryDie)
+        const localIds = new Set(playableLocalDice.map(die => die.id))
+        if (serverDice.some(die => localIds.has(die.id))) return false
+
+        set({
+          // Signed-in play keeps the local-first baseline and overlays the
+          // authoritative copy rows. An empty-but-successful copy read must not
+          // erase the 23 playable starter instances. Refresh always derives
+          // local state from current visible non-server rows.
+          localDice: playableLocalDice,
+          localAssignments: retained.assignments,
+          dice: [...playableLocalDice, ...serverDice],
           serverCopiesActive: true,
-          // Assignments cannot cross identity domains safely.
-          assignments: {},
-        }))
+          assignments: retained.assignments,
+        })
         return true
       },
 
       clearServerCopies: () => {
-        set(state => ({
-          dice: state.serverCopiesActive ? state.localDice : state.dice,
-          assignments: state.serverCopiesActive
-            ? state.localAssignments
-            : state.assignments,
+        const state = get()
+        if (!state.serverCopiesActive) return
+
+        const retained = selectRetainedLocalInventory(state)
+        const playableLocalDice = retained.dice.length > 0
+          ? retained.dice
+          : STARTER_DICE.map(createInventoryDie)
+        set({
+          dice: playableLocalDice,
+          localDice: playableLocalDice,
+          assignments: retained.assignments,
+          localAssignments: retained.assignments,
           serverCopiesActive: false,
-        }))
+        })
       },
     }),
 
@@ -1040,16 +1091,14 @@ export const useInventoryStore = create<InventoryStore>()(
       // Partial persistence (only save essential data)
       partialize: state => {
         // Frontend-ADR-002: server truth is never persisted. While signed in,
-        // persist the retained guest/local view rather than ephemeral copies.
-        const localDice = state.serverCopiesActive ? state.localDice : state.dice
-        const localAssignments = state.serverCopiesActive
-          ? state.localAssignments
-          : state.assignments
+        // derive the retained local view from current visible rows so edits made
+        // during an authenticated overlay are not lost.
+        const retained = selectRetainedLocalInventory(state)
         return {
-          dice: localDice,
-          localDice,
-          assignments: localAssignments,
-          localAssignments,
+          dice: retained.dice,
+          localDice: retained.dice,
+          assignments: retained.assignments,
+          localAssignments: retained.assignments,
           serverCopiesActive: false,
           currency: state.currency,
         }

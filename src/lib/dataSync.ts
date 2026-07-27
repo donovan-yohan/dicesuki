@@ -31,6 +31,7 @@ import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient'
 import { useAuthStore } from '../store/useAuthStore'
 import {
   migratePersistedInventoryState,
+  selectRetainedLocalInventory,
   useInventoryStore,
 } from '../store/useInventoryStore'
 import { useSavedRollsStore, normalizePersistedSavedRollsState } from '../store/useSavedRollsStore'
@@ -72,11 +73,13 @@ export function createRealTargets(): SyncTarget[] {
       table: 'inventory',
       getPayload: () => {
         const s = useInventoryStore.getState()
-        const localDice = s.serverCopiesActive ? s.localDice : s.dice
-        const assignments = s.serverCopiesActive
-          ? s.localAssignments
-          : s.assignments
-        return { v: 4, dice: localDice, currency: s.currency, assignments }
+        const retained = selectRetainedLocalInventory(s)
+        return {
+          v: 4,
+          dice: retained.dice,
+          currency: s.currency,
+          assignments: retained.assignments,
+        }
       },
       applyPayload: (data) => {
         const d = asRecord(data)
