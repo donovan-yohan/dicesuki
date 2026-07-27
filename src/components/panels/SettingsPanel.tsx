@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { ThemeSelector } from '../ThemeSelector'
 import { FlyoutPanel } from './FlyoutPanel'
@@ -170,6 +171,21 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             <span style={{ color: 'var(--color-accent)' }}>→</span>
           </button>
         </div>
+
+        <footer
+          className="flex items-center gap-4 border-t pt-4 text-xs"
+          style={{
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            color: 'var(--color-text-muted)',
+          }}
+        >
+          <Link className="hover:underline" to="/terms">
+            Terms
+          </Link>
+          <Link className="hover:underline" to="/privacy">
+            Privacy
+          </Link>
+        </footer>
       </FlyoutPanel>
 
       {/* Theme Selector Modal */}

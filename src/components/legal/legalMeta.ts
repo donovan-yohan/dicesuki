@@ -1,0 +1,2 @@
+export const LEGAL_LAST_UPDATED = '2026-07-27'
+export const LEGAL_DOCUMENT_VERSION = '1.0'

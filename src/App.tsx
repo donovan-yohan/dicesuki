@@ -19,6 +19,8 @@ import { isPaymentsEnabled } from './lib/paymentsConfig'
 // so with payments disabled these modules are never even imported.
 const CheckoutReturnRoute = lazy(() => import('./components/checkout/CheckoutReturnRoute'))
 const PendingPurchaseBanner = lazy(() => import('./components/checkout/PendingPurchaseBanner'))
+const TermsPage = lazy(() => import('./components/legal/TermsPage'))
+const PrivacyPage = lazy(() => import('./components/legal/PrivacyPage'))
 
 function MainApp() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
@@ -78,20 +80,9 @@ function MainApp() {
   )
 }
 
-function App() {
-  // Bootstrap auth once at startup. When Supabase is unconfigured this resolves
-  // straight to guest mode with no network calls and no console noise (#81).
-  useEffect(() => {
-    // Wire per-account data sync to auth state first (no-op / guest-safe when
-    // Supabase is unconfigured), then bootstrap auth (#82, #81).
-    initDataSync()
-    void useAuthStore.getState().initialize()
-  }, [])
-
-  const paymentsEnabled = isPaymentsEnabled()
-
+export function AppRoutes({ paymentsEnabled }: { paymentsEnabled: boolean }) {
   return (
-    <BrowserRouter>
+    <>
       {/* Cold-relaunch reconciliation: if a purchase was in flight when the app
           was last closed, surface a "confirming purchase" affordance. Flag-gated
           and null when there is no pending order, so it is inert by default. */}
@@ -115,6 +106,27 @@ function App() {
             }
           />
         )}
+        {/* Public legal pages — available without an account or device check. */}
+        <Route
+          path="/terms"
+          element={
+            <ThemeProvider>
+              <Suspense fallback={<StartupSplash phase="boot" />}>
+                <TermsPage />
+              </Suspense>
+            </ThemeProvider>
+          }
+        />
+        <Route
+          path="/privacy"
+          element={
+            <ThemeProvider>
+              <Suspense fallback={<StartupSplash phase="boot" />}>
+                <PrivacyPage />
+              </Suspense>
+            </ThemeProvider>
+          }
+        />
         {/* Public room browser route (#79) */}
         <Route path="/rooms" element={
           <ThemeProvider>
@@ -141,6 +153,23 @@ function App() {
           }
         />
       </Routes>
+    </>
+  )
+}
+
+function App() {
+  // Bootstrap auth once at startup. When Supabase is unconfigured this resolves
+  // straight to guest mode with no network calls and no console noise (#81).
+  useEffect(() => {
+    // Wire per-account data sync to auth state first (no-op / guest-safe when
+    // Supabase is unconfigured), then bootstrap auth (#82, #81).
+    initDataSync()
+    void useAuthStore.getState().initialize()
+  }, [])
+
+  return (
+    <BrowserRouter>
+      <AppRoutes paymentsEnabled={isPaymentsEnabled()} />
     </BrowserRouter>
   )
 }
