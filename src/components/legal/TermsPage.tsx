@@ -32,8 +32,8 @@ export function TermsPage() {
                 dicesuki.vercel.app
               </a>
               . It is operated by an individual developer. In these terms, “we”
-              and “us” refer to that operator. By using Dicesuki, you agree to
-              these terms.
+              and “us” refer to that operator. These terms describe the rules for
+              using Dicesuki.
             </p>
           </section>
 
@@ -42,11 +42,11 @@ export function TermsPage() {
               Eligibility and accounts
             </h2>
             <p>
-              Accounts are optional. You can use guest mode without an account,
-              in which case your data stays locally in your browser. If you sign
-              in, authentication is provided through Discord OAuth via Supabase.
-              Dicesuki is not directed at children under 13, and you must also
-              meet the minimum age required to use Discord in your region.
+              You must be at least 13 to use Dicesuki and meet any minimum age
+              required to use Discord where you live. Guest mode is available
+              without an account, but guests cannot make purchases. Real-money
+              purchases are available only to people who are the age of majority
+              in their jurisdiction or who have parental consent.
             </p>
           </section>
 
@@ -55,26 +55,80 @@ export function TermsPage() {
               Virtual items and purchases
             </h2>
             <p>
-              Stars, Dust, roll tickets, collectible dice, and other virtual
-              items are limited licenses to use features in Dicesuki. They are
-              not property, have no cash value, are non-transferable, and cannot
-              be redeemed for money. We may adjust the virtual economy as the
-              service evolves. Purchases of randomized content will show odds
-              where required.
+              Stars, roll tickets, Dust, collectible dice, and other virtual
+              items are a limited, personal, revocable, non-transferable license
+              to use Dicesuki features. They are not property, have no cash
+              value, and can never be redeemed for money. We keep an immutable,
+              append-only record of what you acquire so the economy can be
+              audited honestly.
             </p>
             <p className="mt-3">
-              Payments are processed by Xsolla as Merchant of Record. Xsolla
-              handles payment details, taxes, refunds, and chargebacks under its
-              own terms and privacy policy. We do not receive or store card
-              numbers. Refunds are handled according to the point-of-sale terms
-              and applicable law. See{' '}
+              You may not sell, resell, gift, trade, or otherwise transfer
+              virtual items or accounts, except where Dicesuki explicitly
+              permits it. We may rebalance, modify, or discontinue virtual items
+              and their rates as the service develops. If an economy change is
+              material, we will provide advance notice and an effective date.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-xl font-semibold text-theme-text">
+              Randomized content and published odds
+            </h2>
+            <p>
+              Before you buy randomized content, Dicesuki will show the current
+              odds and guarantee thresholds (sometimes called “pity”) in the
+              product. Those published rates are authoritative. No particular
+              outcome is promised unless it is part of a stated guarantee. Our
+              sealed commit/reveal design lets you verify an outcome after it is
+              revealed.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-xl font-semibold text-theme-text">
+              Payments and Merchant of Record
+            </h2>
+            <p>
+              Xsolla is the seller and Merchant of Record for every real-money
+              transaction. Xsolla&apos;s terms govern payment processing, tax,
+              refunds, and chargebacks; Dicesuki&apos;s terms govern only the
+              in-game license layer. We never receive your card details. See{' '}
               <a
                 href="https://xsolla.com/legal-documents"
                 className="text-theme-accent hover:underline"
               >
                 Xsolla&apos;s legal documents
               </a>{' '}
-              for more information.
+              for its terms and policies.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-xl font-semibold text-theme-text">
+              Refunds and payment disputes
+            </h2>
+            <p>
+              If Xsolla refunds a purchase or a chargeback reverses it, we remove
+              the credited value with a compensating ledger entry. Your balance
+              can become negative if that value has already been spent, and paid
+              features may be limited until the balance is restored. Raising a
+              good-faith payment dispute does not by itself lock your account or
+              forfeit unrelated purchases. We may handle fraud or abuse
+              separately.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-xl font-semibold text-theme-text">
+              Lunar Pass subscriptions
+            </h2>
+            <p>
+              For a Lunar Pass, the renewal term and price are shown when you
+              purchase it. You can cancel at any time, effective at the end of
+              the current period, and we provide cancellation instructions at
+              signup. Daily Stars are claim-or-lose: if you do not claim a day,
+              that day&apos;s Stars are forfeited and are not refunded.
             </p>
           </section>
 
@@ -83,36 +137,44 @@ export function TermsPage() {
               Acceptable use
             </h2>
             <p>
-              Do not cheat, exploit bugs, interfere with gameplay, abuse other
-              users or the service, attempt unauthorized access, or use Dicesuki
-              in a way that harms the service or anyone using it. If you find an
-              exploit, please report it instead of using or sharing it.
+              Do not exploit the client, room servers, economy endpoints, or
+              bugs; automate pulls; attempt unauthorized access; or abuse,
+              harass, or harm other players. Please report an exploit instead of
+              using or sharing it. We use graduated enforcement: warning, then
+              suspension, then termination. Immediate termination is reserved for
+              a material breach, as explained below.
             </p>
           </section>
 
           <section>
             <h2 className="mb-3 text-xl font-semibold text-theme-text">
-              Availability and changes
+              Availability, termination, and service sunset
             </h2>
             <p>
-              Dicesuki may change, experience interruptions, or stop offering
-              particular features. The service is provided “as is” and “as
-              available,” without warranties to the extent permitted by law.
-              We may suspend or terminate access when someone abuses the service
-              or violates these terms.
+              Features may be unavailable in some jurisdictions, including paid
+              randomized content, and may change or be interrupted. We may end
+              an account immediately only for a material breach, such as
+              cheating, exploits, or fraud. Ending an account ends its virtual
+              item licenses and forfeits those items. If Dicesuki ever shuts
+              down, we will give reasonable advance notice and a wind-down period
+              for purchased balances.
             </p>
           </section>
 
           <section>
             <h2 className="mb-3 text-xl font-semibold text-theme-text">
-              Limitation of liability
+              Disclaimers, liability, and resolving concerns
             </h2>
             <p>
-              To the extent permitted by law, we are not liable for indirect,
-              incidental, special, consequential, or punitive damages, or for
-              lost data, access, or profits arising from your use of Dicesuki.
-              Nothing in these terms limits rights or liability that cannot
-              legally be limited.
+              Dicesuki is provided “as is” and “as available,” to the extent the
+              law allows. To that same extent, we are not liable for indirect,
+              incidental, special, consequential, punitive, or lost-profit
+              damages. Our total liability for a claim is limited to the amounts
+              you paid for Dicesuki through Xsolla in the 12 months before the
+              claim. Please contact us first; we ask for 60 days to try to resolve
+              a concern informally before formal action. Nothing in these terms
+              limits a consumer right or liability that cannot legally be limited
+              by contract.
             </p>
           </section>
 
@@ -121,19 +183,24 @@ export function TermsPage() {
               Changes to these terms
             </h2>
             <p>
-              We may update these terms as Dicesuki changes. When we do, we will
-              update the date at the top of this page. Continuing to use the
-              service after an update means you accept the revised terms.
+              We may update these terms as Dicesuki changes. For a material
+              change, we will give notice in the app or by email and state its
+              effective date. Continued use alone is not our acceptance mechanism
+              for a material change.
             </p>
           </section>
 
           <section>
             <h2 className="mb-3 text-xl font-semibold text-theme-text">
-              Severability
+              Other legal terms
             </h2>
             <p>
-              If any part of these terms is found unenforceable, the remaining
-              parts will continue to apply.
+              If one part of these terms is unenforceable, the rest remains in
+              effect. These terms, and provisions that by their nature should
+              continue, survive termination. Notices may be sent by email or
+              shown in the app. You may not assign these terms or your account;
+              we may assign them as part of operating, restructuring, or
+              transferring Dicesuki.
             </p>
           </section>
 
