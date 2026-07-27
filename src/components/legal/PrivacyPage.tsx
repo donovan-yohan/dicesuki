@@ -1,23 +1,25 @@
-const LAST_UPDATED = '2026-07-27'
-const POLICY_VERSION = '1.0'
+import { Link } from 'react-router-dom'
+import { LEGAL_DOCUMENT_VERSION, LEGAL_LAST_UPDATED } from './legalMeta'
 
 export function PrivacyPage() {
   return (
-    <main className="min-h-full overflow-y-auto bg-theme-bg px-5 py-10 text-theme-text sm:px-8">
+    <main className="w-full h-full overflow-y-auto bg-theme-bg px-5 py-10 text-theme-text sm:px-8">
       <article className="mx-auto max-w-3xl">
-        <a
-          href="/"
+        <Link
+          to="/"
           className="mb-8 inline-flex text-sm font-medium text-theme-accent hover:underline"
         >
           ← Back to Dicesuki
-        </a>
+        </Link>
 
         <header className="mb-10">
           <h1 className="text-3xl font-bold sm:text-4xl">Privacy Policy</h1>
           <p className="mt-3 text-sm text-theme-text-muted">
-            Last updated: {LAST_UPDATED}
+            Last updated: {LEGAL_LAST_UPDATED}
           </p>
-          <p className="text-sm text-theme-text-muted">Policy version: {POLICY_VERSION}</p>
+          <p className="text-sm text-theme-text-muted">
+            Policy version: {LEGAL_DOCUMENT_VERSION}
+          </p>
         </header>
 
         <div className="space-y-8 leading-7 text-theme-text-secondary">
@@ -57,6 +59,8 @@ export function PrivacyPage() {
               Merchant of Record under{' '}
               <a
                 href="https://xsolla.com/legal-documents"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-theme-accent hover:underline"
               >
                 its own privacy policy
@@ -77,10 +81,15 @@ export function PrivacyPage() {
               Guest mode and multiplayer visibility
             </h2>
             <p>
-              In guest mode, all guest data stays in your browser&apos;s localStorage;
-              it does not reach our servers. In a multiplayer room, your display
-              name and dice activity are visible to other people in that room.
-              The public room registry exposes a room&apos;s name and player count.
+              In guest mode, nothing is stored in our database and solo play stays
+              entirely in your browser. Joining a multiplayer room transmits your
+              display name and dice activity to the room server transiently; they
+              are not stored in our database. Your display name and dice activity
+              are visible to other people in that room. The public server registry
+              exposes server instance metadata, including its public URL, name,
+              player counts, and heartbeat. The room browser lists only rooms made
+              public (rooms are unlisted by default); neither surface exposes
+              personal data beyond room and display names.
             </p>
           </section>
 
@@ -126,12 +135,15 @@ export function PrivacyPage() {
             <p>
               Supabase processes database and authentication information for us
               and enforces own-row access with row-level security. Vercel
-              processes hosting and CDN traffic. Xsolla is an independent
-              controller and Merchant of Record for payments. We may also disclose
-              information to authorities when lawfully required or to a successor
-              in a business transfer. Processor transfers are covered by their
-              data processing agreements, which incorporate standard contractual
-              clauses where applicable.
+              processes hosting and CDN traffic. Self-operated multiplayer room
+              servers receive display names, dice activity, IP addresses, and
+              request headers for multiplayer sessions; their logs are transient
+              and they are not part of Supabase or Vercel. Xsolla is an
+              independent controller and Merchant of Record for payments. We may
+              also disclose information to authorities when lawfully required or
+              to a successor in a business transfer. We rely on our processors&apos;
+              standard data processing terms, which incorporate standard
+              contractual clauses where applicable.
             </p>
           </section>
 
@@ -140,13 +152,13 @@ export function PrivacyPage() {
               Retention and deletion
             </h2>
             <p>
-              We keep account data while your account exists. To request deletion,
-              email us using the manual process below. On deletion, we erase your
-              profile, inventory, and saved rolls. We retain append-only purchase
-              and economy ledger rows for two years in pseudonymized form,
-              unlinked from your Discord identity, to prevent fraud, support
-              refunds and chargebacks, and maintain financial records. Deleting an
-              account forfeits its virtual items.
+              Deletion requests are handled manually via the contact email below.
+              We delete your profile, settings, inventory, and saved rolls.
+              Append-only economy and payment records are retained as immutable
+              audit history required for fraud prevention and payment-dispute
+              support and cannot be altered. We remove the link between those
+              records and your Discord identity where technically possible.
+              Deleting an account forfeits its virtual items.
             </p>
           </section>
 
@@ -206,9 +218,11 @@ export function PrivacyPage() {
               Changes to this policy
             </h2>
             <p>
-              We may update this policy as Dicesuki changes. We will publish an
-              effective date and version with each update, and give affirmative
-              notice for a material change.
+              We may update this policy as Dicesuki changes. Updates will be
+              posted on this page with a new effective date; for material changes
+              affecting purchases, we will make reasonable efforts to notify
+              signed-in users (for example, in-app or via the email on your
+              account).
             </p>
           </section>
 

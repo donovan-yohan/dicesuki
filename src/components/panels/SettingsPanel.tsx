@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { ThemeSelector } from '../ThemeSelector'
 import { FlyoutPanel } from './FlyoutPanel'
@@ -178,12 +179,12 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             color: 'var(--color-text-muted)',
           }}
         >
-          <a className="hover:underline" href="/terms">
+          <Link className="hover:underline" to="/terms">
             Terms
-          </a>
-          <a className="hover:underline" href="/privacy">
+          </Link>
+          <Link className="hover:underline" to="/privacy">
             Privacy
-          </a>
+          </Link>
         </footer>
       </FlyoutPanel>
 

@@ -80,20 +80,9 @@ function MainApp() {
   )
 }
 
-function App() {
-  // Bootstrap auth once at startup. When Supabase is unconfigured this resolves
-  // straight to guest mode with no network calls and no console noise (#81).
-  useEffect(() => {
-    // Wire per-account data sync to auth state first (no-op / guest-safe when
-    // Supabase is unconfigured), then bootstrap auth (#82, #81).
-    initDataSync()
-    void useAuthStore.getState().initialize()
-  }, [])
-
-  const paymentsEnabled = isPaymentsEnabled()
-
+export function AppRoutes({ paymentsEnabled }: { paymentsEnabled: boolean }) {
   return (
-    <BrowserRouter>
+    <>
       {/* Cold-relaunch reconciliation: if a purchase was in flight when the app
           was last closed, surface a "confirming purchase" affordance. Flag-gated
           and null when there is no pending order, so it is inert by default. */}
@@ -122,7 +111,7 @@ function App() {
           path="/terms"
           element={
             <ThemeProvider>
-              <Suspense fallback={<StartupSplash phase="device" />}>
+              <Suspense fallback={<StartupSplash phase="boot" />}>
                 <TermsPage />
               </Suspense>
             </ThemeProvider>
@@ -132,7 +121,7 @@ function App() {
           path="/privacy"
           element={
             <ThemeProvider>
-              <Suspense fallback={<StartupSplash phase="device" />}>
+              <Suspense fallback={<StartupSplash phase="boot" />}>
                 <PrivacyPage />
               </Suspense>
             </ThemeProvider>
@@ -164,6 +153,23 @@ function App() {
           }
         />
       </Routes>
+    </>
+  )
+}
+
+function App() {
+  // Bootstrap auth once at startup. When Supabase is unconfigured this resolves
+  // straight to guest mode with no network calls and no console noise (#81).
+  useEffect(() => {
+    // Wire per-account data sync to auth state first (no-op / guest-safe when
+    // Supabase is unconfigured), then bootstrap auth (#82, #81).
+    initDataSync()
+    void useAuthStore.getState().initialize()
+  }, [])
+
+  return (
+    <BrowserRouter>
+      <AppRoutes paymentsEnabled={isPaymentsEnabled()} />
     </BrowserRouter>
   )
 }

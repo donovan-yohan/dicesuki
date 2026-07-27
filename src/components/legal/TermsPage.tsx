@@ -1,21 +1,23 @@
-const LAST_UPDATED = '2026-07-27'
+import { Link } from 'react-router-dom'
+import { LEGAL_DOCUMENT_VERSION, LEGAL_LAST_UPDATED } from './legalMeta'
 
 export function TermsPage() {
   return (
-    <main className="min-h-full overflow-y-auto bg-theme-bg px-5 py-10 text-theme-text sm:px-8">
+    <main className="w-full h-full overflow-y-auto bg-theme-bg px-5 py-10 text-theme-text sm:px-8">
       <article className="mx-auto max-w-3xl">
-        <a
-          href="/"
+        <Link
+          to="/"
           className="mb-8 inline-flex text-sm font-medium text-theme-accent hover:underline"
         >
           ← Back to Dicesuki
-        </a>
+        </Link>
 
         <header className="mb-10">
           <h1 className="text-3xl font-bold sm:text-4xl">Terms of Service</h1>
           <p className="mt-3 text-sm text-theme-text-muted">
-            Last updated: {LAST_UPDATED}
+            Last updated: {LEGAL_LAST_UPDATED}
           </p>
+          <p className="text-sm text-theme-text-muted">Terms version: {LEGAL_DOCUMENT_VERSION}</p>
         </header>
 
         <div className="space-y-8 leading-7 text-theme-text-secondary">
@@ -63,6 +65,10 @@ export function TermsPage() {
               audited honestly.
             </p>
             <p className="mt-3">
+              Real-money purchases are not yet available; the store currently
+              operates in a test (sandbox) mode.
+            </p>
+            <p className="mt-3">
               You may not sell, resell, gift, trade, or otherwise transfer
               virtual items or accounts, except where Dicesuki explicitly
               permits it. We may rebalance, modify, or discontinue virtual items
@@ -78,10 +84,11 @@ export function TermsPage() {
             <p>
               Before you buy randomized content, Dicesuki will show the current
               odds and guarantee thresholds (sometimes called “pity”) in the
-              product. Those published rates are authoritative. No particular
-              outcome is promised unless it is part of a stated guarantee. Our
-              sealed commit/reveal design lets you verify an outcome after it is
-              revealed.
+              product. Those published base rates are authoritative; server-owned
+              pity rules can only increase effective chances. No particular
+              outcome is promised unless it is part of a stated guarantee. After
+              reveal, we disclose the commitment root, seed, and per-result
+              nonces so outcomes can be independently checked.
             </p>
           </section>
 
@@ -96,6 +103,8 @@ export function TermsPage() {
               in-game license layer. We never receive your card details. See{' '}
               <a
                 href="https://xsolla.com/legal-documents"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-theme-accent hover:underline"
               >
                 Xsolla&apos;s legal documents
@@ -124,11 +133,11 @@ export function TermsPage() {
               Lunar Pass subscriptions
             </h2>
             <p>
-              For a Lunar Pass, the renewal term and price are shown when you
-              purchase it. You can cancel at any time, effective at the end of
-              the current period, and we provide cancellation instructions at
-              signup. Daily Stars are claim-or-lose: if you do not claim a day,
-              that day&apos;s Stars are forfeited and are not refunded.
+              When the Lunar Pass becomes available for purchase, its renewal
+              term and price will be shown at purchase. Cancellation will take
+              effect at the end of the current period. Daily Stars are
+              claim-or-lose: if you do not claim a day, that day&apos;s Stars are
+              forfeited and are not refunded.
             </p>
           </section>
 
@@ -140,9 +149,9 @@ export function TermsPage() {
               Do not exploit the client, room servers, economy endpoints, or
               bugs; automate pulls; attempt unauthorized access; or abuse,
               harass, or harm other players. Please report an exploit instead of
-              using or sharing it. We use graduated enforcement: warning, then
-              suspension, then termination. Immediate termination is reserved for
-              a material breach, as explained below.
+              using or sharing it. Enforcement may include warnings, suspension,
+              or termination, applied proportionately. Immediate termination is
+              reserved for a material breach, as explained below.
             </p>
           </section>
 
@@ -183,10 +192,12 @@ export function TermsPage() {
               Changes to these terms
             </h2>
             <p>
-              We may update these terms as Dicesuki changes. For a material
-              change, we will give notice in the app or by email and state its
-              effective date. Continued use alone is not our acceptance mechanism
-              for a material change.
+              We may update these terms as Dicesuki changes. Updates will be
+              posted on this page with a new effective date; for material changes
+              affecting purchases, we will make reasonable efforts to notify
+              signed-in users (for example, in-app or via the email on your
+              account). Continued use alone is not our acceptance mechanism for a
+              material change.
             </p>
           </section>
 

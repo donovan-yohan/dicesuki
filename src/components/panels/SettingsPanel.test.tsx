@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import { SettingsPanel } from './SettingsPanel'
 
 vi.mock('../../hooks/useHapticFeedback', () => ({
@@ -23,8 +24,14 @@ vi.mock('./artist-tools/ArtistTestingPanel', () => ({
 }))
 
 describe('SettingsPanel', () => {
+  const renderSettingsPanel = () => render(
+    <MemoryRouter>
+      <SettingsPanel isOpen onClose={vi.fn()} />
+    </MemoryRouter>,
+  )
+
   it('no longer hosts the multiplayer entry points (moved to the in-scene panel)', () => {
-    render(<SettingsPanel isOpen onClose={vi.fn()} />)
+    renderSettingsPanel()
 
     // Create/browse a server room now live in the PlayerPanel's solo controls.
     expect(screen.queryByRole('button', { name: /create multiplayer room/i })).toBeNull()
@@ -34,7 +41,7 @@ describe('SettingsPanel', () => {
   })
 
   it('still exposes appearance and developer settings', () => {
-    render(<SettingsPanel isOpen onClose={vi.fn()} />)
+    renderSettingsPanel()
 
     expect(screen.getByRole('button', { name: /change theme/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /artist testing platform/i })).toBeInTheDocument()
