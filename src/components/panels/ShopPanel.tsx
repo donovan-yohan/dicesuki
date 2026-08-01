@@ -334,7 +334,7 @@ export const ShopPanel = memo(function ShopPanel({
               style={{
                 border: `1px solid ${colors.accent}`,
                 backgroundColor: colors.accent,
-                color: colors.text.primary,
+                color: colors.onAccent,
               }}
               onClick={() => void signIn()}
             >
@@ -448,7 +448,7 @@ export const ShopPanel = memo(function ShopPanel({
               borderRadius: effects.borderRadius.md,
               border: `1px solid ${pending || maximumConvertible < 1 ? colors.text.muted : colors.accent}`,
               backgroundColor: pending || maximumConvertible < 1 ? colors.background : colors.accent,
-              color: pending || maximumConvertible < 1 ? colors.text.muted : colors.text.primary,
+              color: pending || maximumConvertible < 1 ? colors.text.muted : colors.onAccent,
               fontSize: typography.fontSize.sm,
               fontWeight: typography.fontWeight.semibold,
               cursor: pending || maximumConvertible < 1 ? 'not-allowed' : 'pointer',

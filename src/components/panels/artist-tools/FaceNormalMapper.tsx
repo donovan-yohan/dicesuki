@@ -250,7 +250,7 @@ export function FaceNormalMapper({
               onClick={() => setMappingMode('preset')}
               className={`flex-1 py-1.5 px-2 rounded transition-colors ${
                 mappingMode === 'preset'
-                  ? 'bg-theme-accent text-theme-primary'
+                  ? 'bg-theme-accent text-theme-on-accent'
                   : 'bg-theme-primary text-theme-text-secondary hover:bg-theme-secondary'
               }`}
             >
@@ -260,7 +260,7 @@ export function FaceNormalMapper({
               onClick={() => setMappingMode('click')}
               className={`flex-1 py-1.5 px-2 rounded transition-colors ${
                 mappingMode === 'click'
-                  ? 'bg-theme-accent text-theme-primary'
+                  ? 'bg-theme-accent text-theme-on-accent'
                   : 'bg-theme-primary text-theme-text-secondary hover:bg-theme-secondary'
               }`}
             >

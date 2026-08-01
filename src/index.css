@@ -10,11 +10,13 @@
   --color-primary: #3f1d3e;
   --color-secondary: #9c89c4;
   --color-accent: #f98797;
+  --color-on-accent: #2a1120;
   --color-background: #1a101d;
   --color-surface: #2a1a2e;
+  --color-error: #f98a8a;
   --color-text-primary: #f3ebe2;
   --color-text-secondary: #d8c8d6;
-  --color-text-muted: #a892ad;
+  --color-text-muted: #b6a3ba;
   --color-dice-highlight: #f98797;
   --color-dice-shadow: #0d0710;
 
@@ -52,9 +54,12 @@
      (Frontend-ADR-003) yet — defined here so components stop emitting
      `border: 2px solid var(--color-border)` declarations that were invalid at
      computed-value time and therefore rendered no border at all. Neutral
-     translucent values that read correctly on every theme surface. */
+     translucent values that read correctly on every theme surface.
+     NOTE: this is a non-text UI boundary (WCAG 1.4.11) and currently measures
+     1.30-1.55:1 against every theme surface — see EXCLUDED_PAIRINGS in
+     src/themes/contrast.ts. `--color-error` used to live here too; it is now a
+     per-theme token because no single red clears AA on all five palettes. */
   --color-border: rgba(255, 255, 255, 0.14);
-  --color-error: #ef4444;
 
   --startup-splash-bg: #f3ebe2;
   --startup-splash-text: rgba(75, 41, 72, 0.78);

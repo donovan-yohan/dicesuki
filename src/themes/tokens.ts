@@ -13,6 +13,20 @@ export interface ThemeColors {
   primary: string
   secondary: string
   accent: string
+  /**
+   * Foreground for text and glyphs rendered ON an `accent`-filled surface
+   * (the centre Roll button, primary CTAs, selected chips).
+   *
+   * `accent` has to do two contradictory jobs: read as *text* on `background`
+   * / `surface` (so it must be light on our dark themes) and act as a *fill*
+   * behind a label. A single token cannot satisfy both, which is why the
+   * accent-filled buttons historically each guessed their own label colour
+   * (`text.primary`, `background`, or a hardcoded `#ffffff`) and why some of
+   * them rendered at 1.99:1. This token is the one right answer per theme.
+   *
+   * Gated by `src/themes/contrast.guard.test.ts` at >= 4.5:1 against `accent`.
+   */
+  onAccent: string
   background: string
   surface: string
   text: {
@@ -20,6 +34,16 @@ export interface ThemeColors {
     secondary: string
     muted: string
   }
+  /**
+   * Destructive / validation-failure text and fills (invalid field messages,
+   * over-capacity warnings, delete affordances).
+   *
+   * Previously a single global `--color-error: #ef4444` in `src/index.css`,
+   * which could not clear 4.5:1 on every theme at once (a mid red on a mid
+   * green surface tops out around 2.5:1). It is a per-theme token so each
+   * palette can pick a red that actually reads on its own surfaces.
+   */
+  error: string
   dice: {
     highlight: string
     shadow: string
@@ -292,17 +316,20 @@ export const defaultTheme: Theme = {
 
   tokens: {
     colors: {
-      // Brand palette (2026-07-18 dark-plum default). Contrast (WCAG) vs
-      // surface #2a1a2e and background #1a101d verified AA — see below.
+      // Brand palette (2026-07-18 dark-plum default). Every foreground below
+      // is gated at WCAG AA by src/themes/contrast.guard.test.ts; the ratios
+      // quoted are the *worst* backdrop in CONTRAST_PAIRINGS, not the easiest.
       primary: '#3F1D3E', // Plum ink — primary surfaces / nav
-      secondary: '#9C89C4', // Lavender — secondary accents (5.98:1 on bg)
-      accent: '#F98797', // Brand pink — CTAs / highlights (7.87:1 on bg)
+      secondary: '#9C89C4', // Lavender — borders / secondary fills (non-text)
+      accent: '#F98797', // Brand pink — CTAs / highlights (worst 5.21:1)
+      onAccent: '#2a1120', // Deep plum ink on brand pink (7.45:1)
       background: '#1a101d', // Plum-black canvas
       surface: '#2a1a2e', // Elevated plum (cream text 13.84:1)
+      error: '#f98a8a', // Soft brand-warm red (worst 5.56:1)
       text: {
         primary: '#f3ebe2', // Cream (15.67:1 on bg, 13.84:1 on surface)
         secondary: '#d8c8d6', // Soft lavender-cream (10.23:1 on surface)
-        muted: '#a892ad', // Muted lavender-gray (5.74:1 on surface)
+        muted: '#b6a3ba', // Muted lavender-gray (worst 5.61:1)
       },
       dice: {
         highlight: '#F98797',
@@ -456,15 +483,20 @@ export const fantasyTheme: Theme = {
 
   tokens: {
     colors: {
-      primary: '#2d5016', // Deep forest green
-      secondary: '#4a7c2e', // Moss green
-      accent: '#ffd700', // Gold
-      background: '#1a2814', // Dark forest
-      surface: '#2d5016',
+      // Surfaces dropped ~1 lightness step from the original mid-moss values
+      // (#2d5016 / #1a2814) so warm parchment text clears AA on them; the hue
+      // and saturation are untouched, so the theme still reads deep-forest.
+      primary: '#1c330e', // Deep forest green
+      secondary: '#4a7c2e', // Moss green — borders / secondary fills (non-text)
+      accent: '#ffd700', // Gold (worst 7.60:1)
+      onAccent: '#1a1a0f', // Near-black bark on gold (12.49:1)
+      background: '#131e0c', // Dark forest floor
+      surface: '#1c330e',
+      error: '#ffa5a5', // Faded rose — reads on moss (worst 6.20:1)
       text: {
         primary: '#f5e6d3', // Parchment
         secondary: '#d4c4a8', // Aged parchment
-        muted: '#8b7355', // Brown
+        muted: '#bda78a', // Weathered parchment-brown (worst 4.90:1)
       },
       dice: {
         highlight: '#ffd700',
@@ -511,7 +543,7 @@ export const fantasyTheme: Theme = {
         lg: '0 10px 20px -3px rgba(26, 26, 15, 0.5), 0 4px 8px -2px rgba(26, 26, 15, 0.4)',
       },
       gradients: {
-        primary: 'linear-gradient(135deg, #4a7c2e 0%, #2d5016 100%)',
+        primary: 'linear-gradient(135deg, #4a7c2e 0%, #1c330e 100%)',
         secondary: 'linear-gradient(135deg, #ffd700 0%, #daa520 100%)',
       },
     },
@@ -624,15 +656,23 @@ export const critterForestTheme: Theme = {
 
   tokens: {
     colors: {
-      primary: '#8b5a3c', // Warm brown
-      secondary: '#a67c52', // Light brown
-      accent: '#ff69b4', // Hot pink (cute!)
-      background: '#4a7c59', // Forest green
-      surface: '#8b5a3c',
+      // The original UI surfaces were mid-tone (#4a7c59 grass, #8b5a3c bark),
+      // which cannot carry light text at AA in either direction — white on
+      // grass was 4.86:1 and tan on bark 2.60:1. Same hues, dusk lightness.
+      // NOTE: only the *UI* palette moved; `environment.background` below is
+      // still the bright sky-blue → grass gradient, so the 3D table keeps the
+      // sunny woodland look that gives this theme its character.
+      primary: '#3b2a1c', // Deep bark brown
+      secondary: '#a67c52', // Light brown — borders / secondary fills (non-text)
+      accent: '#ff9ecb', // Candy pink — lifted off #ff69b4 so it reads as text
+      onAccent: '#3d1526', // Deep berry ink on candy pink (8.25:1)
+      background: '#22392a', // Deep forest green
+      surface: '#3b2a1c',
+      error: '#ff9f9f', // Soft coral (worst 5.58:1)
       text: {
         primary: '#ffffff',
         secondary: '#ffe4e1', // Misty rose
-        muted: '#d4a574', // Tan
+        muted: '#d9ad80', // Tan (worst 5.38:1)
       },
       dice: {
         highlight: '#ff69b4',
@@ -679,8 +719,8 @@ export const critterForestTheme: Theme = {
         lg: '0 10px 20px -3px rgba(139, 90, 60, 0.4), 0 4px 8px -2px rgba(139, 90, 60, 0.3)',
       },
       gradients: {
-        primary: 'linear-gradient(135deg, #ff69b4 0%, #ff1493 100%)',
-        secondary: 'linear-gradient(135deg, #ffd700 0%, #ff69b4 100%)',
+        primary: 'linear-gradient(135deg, #ff9ecb 0%, #ff1493 100%)',
+        secondary: 'linear-gradient(135deg, #ffd700 0%, #ff9ecb 100%)',
       },
     },
   },
@@ -793,14 +833,21 @@ export const dungeonCastleTheme: Theme = {
   tokens: {
     colors: {
       primary: '#1a1a1a', // Deep black
-      secondary: '#2d2d2d', // Dark gray
-      accent: '#8b0000', // Dark red
+      secondary: '#2d2d2d', // Dark gray — borders / secondary fills (non-text)
+      // #8b0000 "dark red" was 1.98:1 as text on #0a0a0a — the literal
+      // dark-on-dark case. Lifted to a torch-ember red: same blood-red hue
+      // family, now legible as both link text and a button fill.
+      accent: '#ef7367', // Torch ember red (worst 4.60:1)
+      onAccent: '#0a0a0a', // Dungeon black on ember (6.90:1)
       background: '#0a0a0a', // Almost black
       surface: '#1a1a1a',
+      error: '#f88484', // Wound red (worst 5.73:1)
+      // Silver ramp lifted one step each; the three tiers stay visually
+      // distinct (relative luminance 0.63 / 0.43 / 0.33) while all clearing AA.
       text: {
-        primary: '#c0c0c0', // Silver
-        secondary: '#8b8b8b', // Gray
-        muted: '#696969', // Dim gray
+        primary: '#d0d0d0', // Silver (worst 8.43:1)
+        secondary: '#b0b0b0', // Gray (worst 6.00:1)
+        muted: '#9c9c9c', // Dim gray (worst 5.19:1)
       },
       dice: {
         highlight: '#8b0000',
@@ -848,7 +895,7 @@ export const dungeonCastleTheme: Theme = {
       },
       gradients: {
         primary: 'linear-gradient(135deg, #1a1a1a 0%, #000000 100%)',
-        secondary: 'linear-gradient(135deg, #8b0000 0%, #4b0000 100%)',
+        secondary: 'linear-gradient(135deg, #ef7367 0%, #8b0000 100%)',
       },
     },
   },
@@ -958,14 +1005,16 @@ export const neonCyberCityTheme: Theme = {
   tokens: {
     colors: {
       primary: '#1a0033', // Deep purple
-      secondary: '#2d1b69', // Dark purple
-      accent: '#00ffff', // Cyan
+      secondary: '#2d1b69', // Dark purple — borders / secondary fills (non-text)
+      accent: '#00ffff', // Cyan (worst 11.96:1)
+      onAccent: '#001414', // Near-black teal on cyan (15.09:1)
       background: '#0d0221', // Very dark purple
       surface: '#1a0033',
+      error: '#ff5c8a', // Hot rose — distinct from the magenta text tier
       text: {
         primary: '#00ffff', // Cyan
-        secondary: '#ff00ff', // Magenta
-        muted: '#9d4edd', // Purple
+        secondary: '#ff36ff', // Magenta, one notch brighter (worst 5.28:1)
+        muted: '#b57ae8', // Purple, one notch brighter (worst 5.33:1)
       },
       dice: {
         highlight: '#00ffff',

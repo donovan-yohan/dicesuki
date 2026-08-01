@@ -627,7 +627,13 @@ export function PullBannerScreen({
                   onClick={() => handleCta(cta)}
                   style={{
                     borderColor: disabled ? 'var(--color-text-muted)' : 'var(--color-accent)',
-                    color: disabled ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+                    // The x10 CTA is accent-filled, the rest sit on the page
+                    // background — each needs its own legible label colour.
+                    color: disabled
+                      ? 'var(--color-text-muted)'
+                      : cta.pullCount === 10
+                        ? 'var(--color-on-accent)'
+                        : 'var(--color-text-primary)',
                     backgroundColor: cta.pullCount === 10 && !disabled
                       ? 'var(--color-accent)'
                       : 'var(--color-background)',

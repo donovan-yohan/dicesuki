@@ -386,7 +386,7 @@ export function InventoryPanel({
             title="No Matching Dice"
             description="Adjust filters or search to find another die."
             theme={currentTheme}
-            action={hasActiveFilters ? <button type="button" onClick={clearFilters} className="mt-4 rounded-md px-4 py-2 text-sm font-semibold" style={{ backgroundColor: currentTheme.tokens.colors.accent, color: currentTheme.tokens.colors.text.primary }}>Clear Filters</button> : null}
+            action={hasActiveFilters ? <button type="button" onClick={clearFilters} className="mt-4 rounded-md px-4 py-2 text-sm font-semibold" style={{ backgroundColor: currentTheme.tokens.colors.accent, color: currentTheme.tokens.colors.onAccent }}>Clear Filters</button> : null}
           />
         ) : (
           <section className="space-y-4" aria-label="Inventory dice grid">
@@ -515,7 +515,7 @@ function StatusButton({ label, count, active, onClick, theme }: StatusButtonProp
       className="h-9 shrink-0 rounded-md px-3 text-sm font-semibold transition-colors"
       style={{
         backgroundColor: active ? theme.tokens.colors.accent : theme.tokens.colors.surface,
-        color: active ? theme.tokens.colors.text.primary : theme.tokens.colors.text.secondary,
+        color: active ? theme.tokens.colors.onAccent : theme.tokens.colors.text.secondary,
         border: `1px solid ${active ? theme.tokens.colors.accent : theme.tokens.colors.text.muted}`,
       }}
     >
@@ -672,7 +672,7 @@ const InventoryDieCard = memo(function InventoryDieCard({
             className="h-9 w-full rounded-md text-sm font-semibold transition-colors"
             style={{
               backgroundColor: isOnTable ? theme.tokens.colors.surface : theme.tokens.colors.accent,
-              color: isOnTable ? theme.tokens.colors.text.muted : theme.tokens.colors.text.primary,
+              color: isOnTable ? theme.tokens.colors.text.muted : theme.tokens.colors.onAccent,
               cursor: isOnTable ? 'not-allowed' : 'pointer',
               opacity: isOnTable ? 0.6 : 1,
             }}
@@ -728,7 +728,7 @@ function ServerCopyBadge({
         backgroundColor: accent
           ? theme.tokens.colors.accent
           : theme.tokens.colors.background,
-        color: theme.tokens.colors.text.primary,
+        color: accent ? theme.tokens.colors.onAccent : theme.tokens.colors.text.primary,
         fontSize: theme.tokens.typography.fontSize.xs,
         fontWeight: theme.tokens.typography.fontWeight.bold,
         border: `1px solid ${

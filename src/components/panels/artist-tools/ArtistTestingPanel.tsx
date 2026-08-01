@@ -401,7 +401,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
               onClick={() => setSelectedDiceType(type)}
               className={`py-3 px-4 rounded font-bold transition-colors ${
                 selectedDiceType === type
-                  ? 'bg-theme-accent text-theme-primary'
+                  ? 'bg-theme-accent text-theme-on-accent'
                   : 'bg-theme-primary text-theme-text-secondary hover:bg-theme-secondary'
               }`}
             >

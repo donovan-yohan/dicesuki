@@ -324,7 +324,7 @@ export function LunarPassCard({
                   borderRadius: effects.borderRadius.md,
                   border: `1px solid ${claimPending ? colors.text.muted : colors.accent}`,
                   backgroundColor: claimPending ? colors.background : colors.accent,
-                  color: claimPending ? colors.text.muted : colors.text.primary,
+                  color: claimPending ? colors.text.muted : colors.onAccent,
                   fontSize: typography.fontSize.sm,
                   fontWeight: typography.fontWeight.semibold,
                   cursor: claimPending ? 'not-allowed' : 'pointer',

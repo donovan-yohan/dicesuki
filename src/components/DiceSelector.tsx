@@ -28,7 +28,7 @@ export function DiceSelector({ selectedShape, onShapeChange }: DiceSelectorProps
           onClick={() => onShapeChange(shape)}
           className={`px-3 py-2 rounded transition-all ${
             selectedShape === shape
-              ? 'bg-theme-accent text-theme-primary scale-110'
+              ? 'bg-theme-accent text-theme-on-accent scale-110'
               : 'bg-theme-surface text-theme-text-secondary hover:bg-theme-primary'
           }`}
         >
