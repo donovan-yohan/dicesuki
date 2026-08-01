@@ -31,7 +31,7 @@ export function DeviceMotionButton() {
     return (
       <button
         onClick={handleClick}
-        className="fixed top-20 left-4 z-20 bg-theme-accent hover:bg-theme-secondary text-theme-primary px-6 py-3 rounded-lg shadow-lg transition-colors text-lg font-semibold"
+        className="fixed top-20 left-4 z-20 bg-theme-accent hover:bg-theme-secondary text-theme-on-accent px-6 py-3 rounded-lg shadow-lg transition-colors text-lg font-semibold"
       >
         📱 Enable Motion
       </button>
@@ -44,7 +44,7 @@ export function DeviceMotionButton() {
       <button
         className={`fixed top-20 left-4 z-20 px-6 py-3 rounded-lg shadow-lg transition-all text-lg font-semibold ${
           isShaking
-            ? 'bg-theme-accent text-theme-primary scale-110'
+            ? 'bg-theme-accent text-theme-on-accent scale-110'
             : 'bg-theme-secondary text-theme-primary'
         }`}
       >

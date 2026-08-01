@@ -218,7 +218,7 @@ export function PullRevealOverlay({
             className="min-h-11 rounded-md px-4 font-bold"
             style={{
               backgroundColor: 'var(--color-accent)',
-              color: 'var(--color-background)',
+              color: 'var(--color-on-accent)',
             }}
             onClick={() => claim(isSingle ? false : newOnly)}
           >

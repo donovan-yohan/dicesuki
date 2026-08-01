@@ -114,7 +114,7 @@ export function SoloRoom() {
           <button
             type="button"
             onClick={retry}
-            className="px-5 py-3 rounded-lg bg-theme-accent text-theme-primary font-semibold"
+            className="px-5 py-3 rounded-lg bg-theme-accent text-theme-on-accent font-semibold"
           >
             Try again
           </button>

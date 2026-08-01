@@ -124,6 +124,7 @@ export function RoomBrowser() {
                 textMuted={colors.text.muted}
                 surface={colors.surface}
                 accent={colors.accent}
+                onAccent={colors.onAccent}
                 onJoin={() => joinRoom(room.roomId)}
               />
             ))}
@@ -175,10 +176,11 @@ interface RoomRowProps {
   textMuted: string
   surface: string
   accent: string
+  onAccent: string
   onJoin: () => void
 }
 
-function RoomRow({ room, textPrimary, textMuted, surface, accent, onJoin }: RoomRowProps) {
+function RoomRow({ room, textPrimary, textMuted, surface, accent, onAccent, onJoin }: RoomRowProps) {
   const label = room.name || room.roomId
   return (
     <li
@@ -207,7 +209,7 @@ function RoomRow({ room, textPrimary, textMuted, surface, accent, onJoin }: Room
       <button
         onClick={onJoin}
         className="px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0"
-        style={{ background: accent, color: '#fff' }}
+        style={{ background: accent, color: onAccent }}
         aria-label={`Join ${label}`}
       >
         Join

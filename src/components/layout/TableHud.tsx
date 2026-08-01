@@ -130,7 +130,10 @@ export function TableHud({
               className="fixed left-4 z-40 flex items-center justify-center rounded-full transition-all hover:scale-105"
               style={{
                 ...bottomLeftControlStyle(HUD_LAYOUT.motion.bottom),
+                // Active state swaps the fill to accent, so the label has to
+                // swap with it — text.primary is not legible on every accent.
                 backgroundColor: motionMode ? 'var(--color-accent)' : 'var(--color-surface)',
+                color: motionMode ? 'var(--color-on-accent)' : 'var(--color-text-primary)',
               }}
               aria-label="Motion Mode"
               title="Motion Mode"

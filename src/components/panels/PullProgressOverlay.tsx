@@ -121,7 +121,7 @@ export function PullProgressOverlay({
               type="button"
               className="min-h-11 rounded-md px-4 font-bold"
               style={{
-                color: 'var(--color-background)',
+                color: 'var(--color-on-accent)',
                 backgroundColor: 'var(--color-accent)',
               }}
               onClick={onRevealNow}

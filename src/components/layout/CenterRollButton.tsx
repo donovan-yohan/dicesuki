@@ -46,7 +46,8 @@ export function CenterRollButton({
         marginTop: '-35px', // Half of height
         // Theming
         backgroundColor: 'var(--color-accent)',
-        color: 'var(--color-text-primary)',
+        // Label on an accent fill — `--color-text-primary` was 1.99:1 here.
+        color: 'var(--color-on-accent)',
         boxShadow: 'var(--shadow-md)', // Simple shadow, no glow
         zIndex: 45, // Above nav bar (40)
       }}
