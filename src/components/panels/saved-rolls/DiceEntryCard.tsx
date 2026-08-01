@@ -4,7 +4,6 @@ import type { DiceEntry } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
 import { formatDiceEntry } from '../../../lib/diceHelpers'
 import {
-  createAnonymousRollSource,
   getDiceEntrySourceQuantity,
   normalizeRollSources,
   withNormalizedRollSources,
@@ -23,24 +22,46 @@ interface DiceEntryCardProps {
  */
 export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: DiceEntryCardProps) {
   const [showAdvanced, setShowAdvanced] = useState(false)
+  // While the numeric field is being typed into it owns the displayed text, so
+  // partial input ("" on its way to "12") is not clobbered by the clamp.
+  const [quantityDraft, setQuantityDraft] = useState<string | null>(null)
+
+  // Per-entry floor is 1; the roll-wide ROOM_DICE_CAPACITY ceiling is validated
+  // in RollBuilder, which is the only place that can see every entry's total.
+  const commitQuantity = (nextQuantity: number) => {
+    onUpdate(withNormalizedRollSources({
+      ...entry,
+      quantity: Math.max(1, Math.floor(nextQuantity)),
+    }))
+  }
 
   const handleQuantityChange = (delta: number) => {
-    const currentQuantity = getDiceEntrySourceQuantity(entry)
-    const newQuantity = Math.max(1, currentQuantity + delta)
-    onUpdate(withNormalizedRollSources({ ...entry, quantity: newQuantity }))
+    setQuantityDraft(null)
+    commitQuantity(getDiceEntrySourceQuantity(entry) + delta)
+  }
+
+  const handleQuantityInput = (rawValue: string) => {
+    const digits = rawValue.replace(/[^0-9]/g, '')
+    setQuantityDraft(digits)
+
+    const parsed = Number.parseInt(digits, 10)
+    if (Number.isInteger(parsed) && parsed >= 1) {
+      commitQuantity(parsed)
+    }
+  }
+
+  const handleQuantityBlur = () => {
+    if (quantityDraft !== null) {
+      const parsed = Number.parseInt(quantityDraft, 10)
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        commitQuantity(1)
+      }
+    }
+    setQuantityDraft(null)
   }
 
   const handleBonusChange = (bonus: number) => {
     onUpdate({ ...entry, perDieBonus: bonus })
-  }
-
-  const handleAnonymousQuantity = (quantity: number) => {
-    onUpdate({
-      ...entry,
-      quantity,
-      rollCount: undefined,
-      sources: [createAnonymousRollSource(quantity, entry.skinId)],
-    })
   }
 
   // Display formula for this entry
@@ -61,7 +82,7 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
     >
       {/* Main row: dice icon, formula, controls */}
       <div className="flex items-center gap-3">
-        <DiceIconWithNumber type={entry.type} number={entry.quantity} size={40} />
+        <DiceIconWithNumber type={entry.type} number={quantity} size={40} />
 
         <div className="flex-1">
           <div className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
@@ -103,9 +124,22 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
           >
             −
           </button>
-          <span className="w-8 text-center font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            {quantity}
-          </span>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={quantityDraft ?? String(quantity)}
+            onChange={(event) => handleQuantityInput(event.target.value)}
+            onFocus={(event) => event.currentTarget.select()}
+            onBlur={handleQuantityBlur}
+            className="field-focus-ring w-12 h-8 text-center rounded font-semibold"
+            style={{
+              backgroundColor: 'var(--color-background)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border)',
+            }}
+            aria-label={`${entry.type.toUpperCase()} quantity`}
+          />
           <button
             onClick={() => handleQuantityChange(1)}
             className="w-8 h-8 rounded flex items-center justify-center font-bold transition-all"
@@ -151,7 +185,8 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
             type="number"
             value={entry.perDieBonus}
             onChange={(e) => handleBonusChange(parseInt(e.target.value) || 0)}
-            className="w-16 h-7 text-center rounded font-semibold"
+            aria-label={`${entry.type.toUpperCase()} bonus per die`}
+            className="field-focus-ring w-16 h-7 text-center rounded font-semibold"
             style={{
               backgroundColor: 'var(--color-background)',
               color: 'var(--color-text-primary)',
@@ -169,27 +204,6 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
             +
           </button>
         </div>
-      </div>
-
-      <div className="flex flex-wrap gap-1" aria-label={`${entry.type.toUpperCase()} bulk quantity shortcuts`}>
-        {[1, 2, 4, 6, 8, 10].map((quantityOption) => (
-          <button
-            key={quantityOption}
-            type="button"
-            onClick={() => handleAnonymousQuantity(quantityOption)}
-            className="h-7 px-2 rounded text-xs font-semibold transition-all"
-            style={{
-              backgroundColor: quantity === quantityOption
-                ? 'var(--color-accent)'
-                : 'rgba(255, 255, 255, 0.08)',
-              color: quantity === quantityOption ? '#ffffff' : 'var(--color-text-secondary)',
-              border: quantity === quantityOption ? 'none' : '1px solid var(--color-border)',
-            }}
-            aria-label={`Set ${entry.type.toUpperCase()} quantity to ${quantityOption}`}
-          >
-            {quantityOption}
-          </button>
-        ))}
       </div>
 
       {/* Advanced options toggle */}

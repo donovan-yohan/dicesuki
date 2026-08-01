@@ -16,6 +16,13 @@ interface BottomSheetProps {
   height?: string // e.g., "80vh", "600px"
   children: ReactNode
   showHandle?: boolean // Show drag handle at top
+  /**
+   * Extra classes for the sheet container, intended for desktop-only widening
+   * (e.g. `lg:mx-auto lg:max-w-5xl`). The sheet is `fixed` with `left-0
+   * right-0`, so `mx-auto` plus a `max-w-*` centers it without touching the
+   * transform framer-motion animates. Mobile layout is unaffected.
+   */
+  desktopClassName?: string
 }
 
 export function BottomSheet({
@@ -25,6 +32,7 @@ export function BottomSheet({
   height = '80vh',
   children,
   showHandle = true,
+  desktopClassName = '',
 }: BottomSheetProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
@@ -150,7 +158,7 @@ export function BottomSheet({
           {/* Bottom Sheet */}
           <motion.div
             ref={containerRef}
-            className="fixed bottom-0 left-0 right-0 z-50 flex flex-col overflow-hidden rounded-t-3xl"
+            className={`fixed bottom-0 left-0 right-0 z-50 flex flex-col overflow-hidden rounded-t-3xl ${desktopClassName}`.trim()}
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}

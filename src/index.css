@@ -48,6 +48,15 @@
   --gradient-primary: linear-gradient(90deg, #f98797 0%, #9c89c4 100%);
   --gradient-secondary: linear-gradient(135deg, #3f1d3e 0%, #9c89c4 100%);
 
+  /* Form/field chrome. Not part of the Theme token interface
+     (Frontend-ADR-003) yet — defined here so components stop emitting
+     `border: 2px solid var(--color-border)` declarations that were invalid at
+     computed-value time and therefore rendered no border at all. Neutral
+     translucent values that read correctly on every theme surface. */
+  --color-border: rgba(255, 255, 255, 0.14);
+  --color-border-strong: rgba(255, 255, 255, 0.28);
+  --color-error: #ef4444;
+
   --startup-splash-bg: #f3ebe2;
   --startup-splash-text: rgba(75, 41, 72, 0.78);
   --startup-splash-border: rgba(63, 29, 63, 0.16);
@@ -87,6 +96,15 @@ body,
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--startup-splash-bg);
+}
+
+/* Accent focus ring for form fields. Tailwind's `ring-*` utilities cannot read
+   theme CSS custom properties without extending the config, so field chrome
+   uses this class to get a theme-aware, clearly visible focus indicator. */
+.field-focus-ring:focus,
+.field-focus-ring:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .startup-splash {

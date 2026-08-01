@@ -187,4 +187,35 @@ describe('SavedRollsPanel room execution', () => {
     expect(roll).toHaveBeenCalledOnce()
     expect(useDiceStore.getState().activeSavedRoll).toBeNull()
   })
+
+  it('refuses an over-capacity legacy roll without clearing the table', async () => {
+    // Arrange — a roll saved before the 30-dice cap existed
+    useSavedRollsStore.setState({
+      savedRolls: [{
+        ...savedRoll,
+        name: 'Legacy avalanche',
+        dice: [{
+          id: 'entry-huge',
+          type: 'd6',
+          quantity: 31,
+          perDieBonus: 0,
+          sources: [{ kind: 'anonymous', quantity: 31 }],
+        }],
+      }],
+      currentlyEditing: null,
+    })
+    const clearAll = vi.fn()
+    const roll = vi.fn()
+    const { onClose } = renderPanel({ clearAll, roll })
+
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Roll Legacy avalanche' }))
+
+    // Assert — guarded client-side, never reaching a server DICE_LIMIT
+    expect(await screen.findByRole('alert')).toHaveTextContent('Rolls are limited to 30 dice')
+    expect(screen.getByRole('alert')).toHaveTextContent('needs 31')
+    expect(clearAll).not.toHaveBeenCalled()
+    expect(roll).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
 })

@@ -15,7 +15,8 @@ import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
 import { useMultiplayerStore, type MultiplayerDie } from '../../store/useMultiplayerStore'
 import { createClientId } from '../../lib/clientId'
-import { expandDiceEntrySources } from '../../lib/rollSources'
+import { expandDiceEntrySources, getRollDiceCount } from '../../lib/rollSources'
+import { ROLL_DICE_CAPACITY_MESSAGE, ROOM_DICE_CAPACITY } from '../../config/roomCapacity'
 import { SavedRoll } from '../../types/savedRolls'
 
 const ROOM_ACK_TIMEOUT_MS = 5_000
@@ -126,6 +127,19 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
     setExecutionError(null)
     setIsExecuting(true)
 
+    // Capacity guard. Rolls saved before the cap existed can exceed it; fail
+    // here with readable copy rather than clearing the table and taking a
+    // server-side DICE_LIMIT rejection mid-spawn.
+    const requestedDiceCount = getRollDiceCount(roll.dice)
+    if (requestedDiceCount > ROOM_DICE_CAPACITY) {
+      setExecutionError(
+        `${ROLL_DICE_CAPACITY_MESSAGE}. "${roll.name}" needs ${requestedDiceCount} — edit it to continue.`,
+      )
+      executingRef.current = false
+      setIsExecuting(false)
+      return
+    }
+
     const room = useMultiplayerStore.getState()
     const ownerId = backend.multiplayer?.localPlayerId ?? room.localPlayerId
     if (!ownerId || room.connectionStatus !== 'connected') {
@@ -235,7 +249,12 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
   }
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title="My Dice Rolls">
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title="My Dice Rolls"
+      desktopClassName="lg:mx-auto lg:max-w-5xl"
+    >
       {view === 'list' ? (
         // List View
         <>
