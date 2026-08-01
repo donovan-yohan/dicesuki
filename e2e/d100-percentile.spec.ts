@@ -7,6 +7,8 @@ import { expect, test } from '@playwright/test'
  * in-browser wasm room, and proves that the tens+ones PAIR settles and reads as
  * one combined 1-100 result. Also guards the d10 regression: a plain d10 entry
  * must still spawn one die and read 0-9.
+ *
+ * Manual run: `npm run test:e2e:d100`
  */
 
 test.beforeEach(async ({ page }) => {

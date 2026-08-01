@@ -212,6 +212,99 @@ export function resizeRollSources(
 }
 
 /**
+ * Collapse a per-die SLOT list back into storage-shaped source groups.
+ *
+ * {@link expandDiceEntrySources} is lossless but emits one source per die.
+ * Persisting that shape would bloat the stored roll and render as a row of
+ * "1 generic" chips — the same bloat {@link resizeRollSources} avoids by
+ * growing a trailing group in place. Merging ADJACENT anonymous slots that
+ * share a skin keeps pin ORDER visible (a pinned die stays where the player put
+ * it) while runs of plain dice collapse back to a single chip.
+ *
+ * Only adjacent slots merge: reordering would move a pinned die relative to the
+ * generic dice around it, and slot order is what the picker shows the player.
+ */
+export function collapseRollSources(slots: readonly RollSource[]): RollSource[] {
+  const collapsed: RollSource[] = []
+
+  for (const slot of slots) {
+    const last = collapsed[collapsed.length - 1]
+    if (slot.kind === 'anonymous' && last?.kind === 'anonymous' && last.skinId === slot.skinId) {
+      collapsed[collapsed.length - 1] = createAnonymousRollSource(
+        getRollSourceQuantity(last) + getRollSourceQuantity(slot),
+        slot.skinId,
+      )
+      continue
+    }
+    collapsed.push(slot)
+  }
+
+  return collapsed
+}
+
+/** How an entry's dice are divided between pinned owned dice and auto fill. */
+export interface EntrySlotSummary {
+  /** Dice this entry rolls — always `pinned + auto`. */
+  total: number
+  /** Slots pinned to a specific owned die. */
+  pinned: number
+  /**
+   * Slots left to owned-first auto fill: any free owned die of the type, then a
+   * basic die once they run out (`spawnEntry` in `savedRollExecution.ts`).
+   */
+  auto: number
+}
+
+/** Split an entry's slots into pinned and auto, for the picker's summary line. */
+export function getEntrySlotSummary(entry: DiceEntry): EntrySlotSummary {
+  const slots = expandDiceEntrySources(entry)
+  const pinned = slots.filter((slot) => slot.kind === 'specific').length
+  return { total: slots.length, pinned, auto: slots.length - pinned }
+}
+
+/**
+ * Pin an owned die into this entry's first AUTO slot.
+ *
+ * Pinning NEVER changes how many dice the entry rolls — it only decides which
+ * physical die fills a slot the entry already had. That invariant is what keeps
+ * the picker out of the count/capacity rules S1 owns: an entry with no auto slot
+ * left is returned unchanged (the caller disables the tile and says why) rather
+ * than silently growing.
+ *
+ * Pinning the same die twice is a no-op: one inventory die is one physical die,
+ * and `spawnEntry` marks it pending the moment it is sent, so a second slot
+ * claiming it would quietly spawn a basic.
+ */
+export function pinDieToEntry(entry: DiceEntry, dieId: string): DiceEntry {
+  const slots = expandDiceEntrySources(entry)
+  if (slots.some((slot) => slot.kind === 'specific' && slot.dieId === dieId)) return entry
+
+  const slotIndex = slots.findIndex((slot) => slot.kind === 'anonymous')
+  if (slotIndex === -1) return entry
+
+  const next = [...slots]
+  next[slotIndex] = createSpecificDieRollSource(dieId)
+  return withRollSources(entry, collapseRollSources(next))
+}
+
+/**
+ * Release a pinned owned die back to auto fill, keeping the entry's dice count.
+ *
+ * The freed slot becomes a plain anonymous source with no skin — the same shape
+ * {@link resizeRollSources} grows into — so an unpinned slot is indistinguishable
+ * from one the player never pinned.
+ */
+export function unpinDieFromEntry(entry: DiceEntry, dieId: string): DiceEntry {
+  const slots = expandDiceEntrySources(entry)
+  const slotIndex = slots.findIndex((slot) => slot.kind === 'specific' && slot.dieId === dieId)
+  if (slotIndex === -1) return entry
+
+  const next = [...slots]
+  next[slotIndex] = createAnonymousRollSource(1)
+  return withRollSources(entry, collapseRollSources(next))
+}
+
+/**
  * Total physical dice a roll spawns on the table.
  *
  * Counts exactly what {@link expandDiceEntrySpawns} produces at execution time —

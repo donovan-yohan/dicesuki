@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
+import { useNestedDialog } from '../../hooks/useNestedDialog'
 import { getFaceRendererForShape } from '../../lib/faceRenderers'
 import { createDiceGeometry } from '../../lib/geometries'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
@@ -34,6 +35,12 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
   const [deviceTier, setDeviceTier] = useState<RenderDeviceTier>('high')
   const { renameDie, toggleFavorite, updateDie } = useInventoryStore()
   const rarityColor = getRarityColor(die.rarity, theme)
+  // This dialog is opened from INSIDE the inventory's BottomSheet, which yields
+  // Escape and its focus trap the moment a nested `aria-modal` dialog mounts.
+  // Declaring `aria-modal` without handling either left Escape dead and let Tab
+  // walk out onto the HUD behind the sheet; `useNestedDialog` is the other half
+  // of that contract.
+  const { dialogRef, onKeyDown, backdropProps } = useNestedDialog<HTMLDivElement>(onClose)
 
   useEffect(() => {
     setName(die.name)
@@ -70,13 +77,15 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-theme-bg/70 p-3"
-      onClick={onClose}
-      role="presentation"
+      {...backdropProps}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${die.name} inspector`}
+        tabIndex={-1}
+        data-testid="hero-die-inspector"
         className="grid max-h-[92vh] w-full max-w-5xl gap-4 overflow-y-auto rounded-lg p-4 md:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1fr)] md:p-5"
         style={{
           backgroundColor: theme.tokens.colors.surface,
@@ -85,6 +94,7 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
           boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5)',
         }}
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={onKeyDown}
       >
         <HeroDieStage die={die} theme={theme} heroLod={heroLod} />
 

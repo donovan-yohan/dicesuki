@@ -28,7 +28,7 @@ import { ROOM_DICE_CAPACITY } from '../config/roomCapacity'
 import { D10_FACE_NORMALS, D10TENS_FACE_NORMALS } from './geometries'
 import { getFaceRendererForShape } from './faceRenderers'
 import { createFaceMaterialsArray, validateFaceNormalRules } from './faceMaterialMapping'
-import { parseInventoryDieDragPayload, serializeInventoryDieDragPayload, INVENTORY_DIE_DRAG_TYPE } from './inventoryDrag'
+import { INVENTORY_DICE_SHAPES, isInventoryDiceShape } from '../types/diceShape'
 import type { DiceEntry, SavedRoll } from '../types/savedRolls'
 import * as THREE from 'three'
 
@@ -295,33 +295,22 @@ describe('d10tens engine shape', () => {
       .not.toBe(getFaceRendererForShape('d10'))
   })
 
-  it('is not draggable out of the inventory', () => {
-    const payload = serializeInventoryDieDragPayload({
-      inventoryDieId: 'die-1',
-      // Forced: the engine-only shape must never survive the drag boundary.
-      type: PERCENTILE_TENS_SHAPE,
-      name: 'Tens',
-    })
-    const dataTransfer = {
-      getData: (type: string) => (type === INVENTORY_DIE_DRAG_TYPE ? payload : ''),
-    } as unknown as DataTransfer
-    expect(parseInventoryDieDragPayload(dataTransfer)).toBeNull()
+  /*
+   * These two used to go through `lib/inventoryDrag`, the inventory→builder drag
+   * payload parser. The dice picker replaced dragging and that module is gone,
+   * so they now assert the SAME claim against the ownership boundary the parser
+   * was only ever a consumer of: `INVENTORY_DICE_SHAPES`. Everything that must
+   * be player-ownable — the picker's candidate list, the toolbar, minting —
+   * keys off it, so this is the check that actually keeps a tens die out.
+   */
+  it('is not an ownable inventory shape', () => {
+    expect(isInventoryDiceShape(PERCENTILE_TENS_SHAPE)).toBe(false)
+    expect(INVENTORY_DICE_SHAPES).not.toContain(PERCENTILE_TENS_SHAPE)
   })
 
-  it('still accepts an ownable shape through the drag boundary', () => {
-    const payload = serializeInventoryDieDragPayload({
-      inventoryDieId: 'die-1',
-      type: 'd10',
-      name: 'Ones',
-    })
-    const dataTransfer = {
-      getData: (type: string) => (type === INVENTORY_DIE_DRAG_TYPE ? payload : ''),
-    } as unknown as DataTransfer
-    expect(parseInventoryDieDragPayload(dataTransfer)).toEqual({
-      inventoryDieId: 'die-1',
-      type: 'd10',
-      name: 'Ones',
-    })
+  it('leaves the ones half ownable, so a d100 can still be pinned', () => {
+    expect(isInventoryDiceShape(PERCENTILE_ONES_SHAPE)).toBe(true)
+    expect(INVENTORY_DICE_SHAPES).toContain(PERCENTILE_ONES_SHAPE)
   })
 })
 

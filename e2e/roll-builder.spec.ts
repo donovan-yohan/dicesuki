@@ -215,12 +215,16 @@ test.describe('owned dice safety at 1280x800', () => {
     await openBuilder(page)
     await page.getByLabel('Roll name').fill('Owned die growth')
 
-    // Arrange — an entry backed by a real owned die
-    const ownedDie = page.getByRole('button', { name: /Add .* to roll/ }).first()
-    await expect(ownedDie).toBeVisible()
-    const ownedLabel = (await ownedDie.getAttribute('aria-label'))!
-    const dieName = ownedLabel.replace(/^Add /, '').replace(/ to roll$/, '')
-    await ownedDie.click()
+    // Arrange — an entry backed by a real owned die. Owned dice are chosen in
+    // the per-entry picker now; the builder no longer carries a standing grid.
+    await page.getByRole('button', { name: 'Add 1 D20 die' }).click()
+    await page.getByTestId('dice-entry-picker-trigger').click()
+    const picker = page.getByTestId('roll-dice-picker')
+    const ownedTile = picker.getByRole('button', { name: /^Pin / }).first()
+    await expect(ownedTile).toBeVisible()
+    const dieName = (await ownedTile.getAttribute('aria-label'))!.replace(/^Pin /, '')
+    await ownedTile.click()
+    await picker.getByRole('button', { name: 'Done' }).click()
 
     const entryCard = page.getByText('[1 specific]').first()
     await expect(entryCard).toBeVisible()

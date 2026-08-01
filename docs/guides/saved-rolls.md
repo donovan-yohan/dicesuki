@@ -94,6 +94,34 @@ A plan groups room dice into **chains** whose faces sum into one logical die res
 ### Notation
 `formatDiceEntry` appends in a fixed order: exploding binds to the die (`4d6!`, `4d6!5`), then ` kh2`/` kl2`, ` r≤2`, ` ≥5`, ` [2 specific]`. Min/max clamps are a badge, not notation. `calculateDiceEntryRange` returns `{ min, max, open? }`; `open` marks an exploding entry, rendered as `Range: 4 - 12+`.
 
+### Composing an entry: pinned vs auto slots (`RollDicePicker.tsx`)
+The builder assembles the **roll**; which physical dice fill it is decided per entry in a dialog opened from the entry card (the die preview / formula / source chips are one `aria-haspopup="dialog"` button). There is no standing grid of owned dice in the builder, and no inventory drop zone — PO decision (g), 2026-07-28.
+
+An entry of N dice has **N slots**, one per die (`expandDiceEntrySources`). Each slot is either:
+- **pinned** — a `specific` source naming one `InventoryDie` by id, or
+- **auto** — an `anonymous` source, filled owned-first at execution and falling back to a basic die once the player's dice of that type run out (`spawnEntry`).
+
+`pinDieToEntry` / `unpinDieFromEntry` move a slot between the two and **never change N**. That is the load-bearing invariant: the room-capacity validation (`getRollDiceCount`) and the executor's spawn loop both key off the dice count, so the picker cannot move it underneath them. With every slot pinned the remaining tiles go `disabled` rather than growing the entry. `collapseRollSources` merges adjacent auto slots back into one group afterwards, so pinning does not persist a row of "1 generic" sources.
+
+One inventory die is one physical die, so a die pinned by another entry of the same roll is shown disabled ("In another entry") rather than hidden — `spawnDice` marks it pending on send, and a second claim would silently spawn a basic.
+
+**Percentile entries are pickable.** The tens half is always a plain engine die (nobody can own a `d10tens`), but the ONES half is an ordinary owned d10 and carries the entry's source, so pinning applies to it; the dialog says so inline.
+
+Tiles reuse the inventory's presentation — the real animated 3D previews — through a **single** `SharedInventoryDicePreviewCanvas` scissored across the grid. Do not mount a canvas per tile; a large collection would exhaust the browser's WebGL contexts. Tiles are also batched at `VISIBLE_DICE_BATCH_SIZE` (24, matching `InventoryPanel`) behind a "Show More": every visible preview is transformed and scissor-rendered every frame, and an unbounded grid measured single-digit fps at 60 tiles. Only the visible batch is handed to the canvas, since it builds a geometry + material entry per die it receives.
+
+Dragging a die out of the inventory into the builder is **gone** — the picker replaced it, `src/lib/inventoryDrag.ts` is deleted, and the inventory cards are no longer `draggable`.
+
+### The nested-dialog contract (`useNestedDialog`)
+
+The dialog is `fixed inset-0 z-[70]`, the same band as `HeroDieInspector`, so it sits above the `z-50` sheet that hosts it. Layering alone is not enough, because `BottomSheet` runs its own Escape and focus trap on `document`:
+
+- `BottomSheet` **yields** both while any nested `[role="dialog"][aria-modal="true"]` is mounted. Without that, one Escape dismissed two dialogs.
+- The nested dialog **must then do the job itself**, via `useNestedDialog` (`src/hooks/useNestedDialog.ts`): focus into the dialog on open and back to the opener on close, a Tab trap, and Escape — with Tab and Escape *stopped* so the sheet's handlers never see them.
+
+Both halves are required. Declaring `aria-modal` without handling anything makes the sheet yield to a dialog that then handles nothing: Escape does nothing and Tab walks out onto the HUD. `HeroDieInspector` shipped in exactly that state and is now on the same hook; `HeroDieInspector.test.tsx` mounts it inside a **real** `BottomSheet` and is the regression gate for both halves (`InventoryPanel.test.tsx` mocks the sheet away, which is why this went unnoticed).
+
+Backdrop dismissal requires the press **and** the release on the backdrop. Checking the click target alone is not enough: the browser fires `click` on the nearest common ancestor of press and release, so a gesture starting on the backdrop and ending inside the dialog would dismiss it — as would a click the backdrop merely inherits when pinning re-renders the tile under the cursor.
+
 ### Percentile (d100) entries
 A d100 is a `d10tens` + `d10` PAIR combined into one 1-100 result, which changes what the mechanics can mean:
 
@@ -144,9 +172,11 @@ working untouched, and a roll saved before d100 shipped (no flag) still means
 "an ordinary d10 entry" — so **no store migration is required**. Notation renders
 `1d100` via `formatDiceEntry`; range math goes through `getEntryMin`/`getEntryMax`.
 
-`d10tens` is an **engine-only** shape: it is never minted, owned, pulled, themed
-or dragged out of the inventory. Anything that must be player-ownable uses
-`INVENTORY_DICE_SHAPES` / `isInventoryDiceShape` from `src/types/diceShape.ts`.
+`d10tens` is an **engine-only** shape: it is never minted, owned, pulled, themed,
+or offered in the dice picker. Anything that must be player-ownable uses
+`INVENTORY_DICE_SHAPES` / `isInventoryDiceShape` from `src/types/diceShape.ts` —
+that predicate is the boundary, and `percentileRolls.test.ts` asserts against it
+directly.
 
 ### Pairing lives on the dice, not on the roll
 

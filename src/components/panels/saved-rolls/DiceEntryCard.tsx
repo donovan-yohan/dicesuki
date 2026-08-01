@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useState } from 'react'
+import { type KeyboardEvent, useId, useState } from 'react'
 import { DiceIconWithNumber } from '../../icons/DiceIconWithNumber'
 import type { DiceEntry, KeepMode, QuickPreset, RollSource } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
@@ -179,6 +179,12 @@ interface DiceEntryCardProps {
   onUpdate: (entry: DiceEntry) => void
   onRemove: () => void
   inventoryDiceById?: Map<string, InventoryDie>
+  /**
+   * Open the dice picker for this entry. The die preview and formula are the
+   * affordance — "click into the entry to choose its dice" (PO (g)) — so the
+   * card exposes the intent and the builder owns the dialog.
+   */
+  onOpenPicker?: () => void
   /** True when the roll as a whole exceeds the room dice capacity. */
   isOverCapacity?: boolean
   /** Id of the builder's capacity message, for aria-describedby. */
@@ -202,11 +208,15 @@ export function DiceEntryCard({
   onUpdate,
   onRemove,
   inventoryDiceById,
+  onOpenPicker,
   isOverCapacity = false,
   capacityMessageId,
   isSuccessModeMixed = false,
   successModeMessageId,
 }: DiceEntryCardProps) {
+  const detailPrefix = useId()
+  const badgesId = `${detailPrefix}-badges`
+  const sourcesId = `${detailPrefix}-sources`
   const [showAdvanced, setShowAdvanced] = useState(false)
   // The draft owns the displayed text while the field is being typed into, and
   // is only committed on blur or Enter. Committing per keystroke would make
@@ -444,6 +454,79 @@ export function DiceEntryCard({
     return formatDiceEntry(entry)
   }
 
+  /**
+   * The entry's identity: which die, how many, what it does, and which of its
+   * slots are pinned to owned dice. This whole block is the picker affordance
+   * when the builder supplies one, so "click into the entry" reaches the same
+   * dialog whether the player aims at the die, the formula or a source chip.
+   */
+  const entrySummary = (
+    <>
+      {/* A percentile entry is a d10tens+d10 PAIR — show the % die, not a plain d10. */}
+      <DiceIconWithNumber
+        type={isPercentile ? 'd10tens' : entry.type}
+        number={rolledCount}
+        size={40}
+      />
+
+      <div className="flex-1 min-w-0 text-left">
+        <div className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
+          {getFormula()}
+        </div>
+        {/* Mechanics at a glance. The formula already spells out the notation;
+            these read as plain labels for the mechanics it encodes. */}
+        {badges.length > 0 && (
+          <div id={badgesId} className="flex flex-wrap gap-1 mt-1">
+            {badges.map((badge) => (
+              <span
+                key={badge}
+                className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
+                style={{
+                  backgroundColor: 'var(--color-background)',
+                  color: 'var(--color-text-secondary)',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                {badge}
+              </span>
+            ))}
+          </div>
+        )}
+        {sourceLabels.length > 0 && (
+          <div id={sourcesId} className="flex flex-wrap gap-1 mt-1">
+            {sourceLabels.map((source) => (
+              <span
+                key={source.key}
+                className="text-[11px] px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: source.isMissing
+                    ? 'rgba(239, 68, 68, 0.18)'
+                    : 'rgba(249, 135, 151, 0.16)',
+                  color: source.isMissing ? '#fca5a5' : 'var(--color-accent)',
+                  border: source.isMissing
+                    ? '1px solid rgba(239, 68, 68, 0.35)'
+                    : '1px solid rgba(249, 135, 151, 0.25)',
+                }}
+              >
+                {source.label}
+              </span>
+            ))}
+          </div>
+        )}
+        {/* Choosing owned dice used to be a standing grid in the builder. Now
+            that it lives behind this card, the card has to SAY so — an
+            affordance nobody can see is a feature nobody can reach. */}
+        {onOpenPicker && (
+          <span
+            className="mt-1 inline-block text-[11px] font-semibold"
+            style={{ color: 'var(--color-accent)' }}
+          >
+            Choose dice ›
+          </span>
+        )}
+      </div>
+    </>
+  )
 
   return (
     <div
@@ -455,58 +538,31 @@ export function DiceEntryCard({
     >
       {/* Main row: dice icon, formula, controls */}
       <div className="flex items-center gap-3">
-        {/* A percentile entry is a d10tens+d10 PAIR — show the % die, not a plain d10. */}
-        <DiceIconWithNumber
-          type={isPercentile ? 'd10tens' : entry.type}
-          number={rolledCount}
-          size={40}
-        />
-
-        <div className="flex-1 min-w-0">
-          <div className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
-            {getFormula()}
-          </div>
-          {/* Mechanics at a glance. The formula already spells out the notation;
-              these read as plain labels for the mechanics it encodes. */}
-          {badges.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {badges.map((badge) => (
-                <span
-                  key={badge}
-                  className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
-                  style={{
-                    backgroundColor: 'var(--color-background)',
-                    color: 'var(--color-text-secondary)',
-                    border: '1px solid var(--color-border)',
-                  }}
-                >
-                  {badge}
-                </span>
-              ))}
-            </div>
-          )}
-          {sourceLabels.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {sourceLabels.map((source) => (
-                <span
-                  key={source.key}
-                  className="text-[11px] px-2 py-0.5 rounded-full"
-                  style={{
-                    backgroundColor: source.isMissing
-                      ? 'rgba(239, 68, 68, 0.18)'
-                      : 'rgba(249, 135, 151, 0.16)',
-                    color: source.isMissing ? '#fca5a5' : 'var(--color-accent)',
-                    border: source.isMissing
-                      ? '1px solid rgba(239, 68, 68, 0.35)'
-                      : '1px solid rgba(249, 135, 151, 0.25)',
-                  }}
-                >
-                  {source.label}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
+        {onOpenPicker ? (
+          <button
+            type="button"
+            onClick={onOpenPicker}
+            aria-haspopup="dialog"
+            aria-label={`Choose dice for ${getFormula()}`}
+            // The label NAMES the control; the mechanics badges and source
+            // chips are its description. Without this they are inside the
+            // button and an accessible name overrides its contents, so a
+            // screen reader would announce "Choose dice for 4d20 kh1" and
+            // silently drop "Advantage" and which owned dice are pinned.
+            aria-describedby={
+              [
+                badges.length > 0 ? badgesId : null,
+                sourceLabels.length > 0 ? sourcesId : null,
+              ].filter(Boolean).join(' ') || undefined
+            }
+            data-testid="dice-entry-picker-trigger"
+            className="field-focus-ring flex flex-1 items-center gap-3 min-w-0 rounded-lg p-1 -m-1 text-left transition-all"
+          >
+            {entrySummary}
+          </button>
+        ) : (
+          <div className="flex flex-1 items-center gap-3 min-w-0">{entrySummary}</div>
+        )}
 
         {/* Quantity controls */}
         <div className="flex items-center gap-1">

@@ -5,10 +5,9 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
-import { INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload } from '../../lib/inventoryDrag'
 import { getRarityColor } from '../../lib/rarityColor'
 import { INVENTORY_DICE_SHAPES, type DiceShape } from '../../types/diceShape'
 import type { DieRarity, InventoryDie } from '../../types/inventory'
@@ -22,7 +21,6 @@ interface InventoryPanelProps {
   isOpen: boolean
   onClose: () => void
   onSpawnDie?: (dieType: string, inventoryDieId?: string) => void
-  onInventoryDragStateChange?: (isDragging: boolean) => void
   now?: () => number
 }
 
@@ -47,7 +45,6 @@ export function InventoryPanel({
   isOpen,
   onClose,
   onSpawnDie,
-  onInventoryDragStateChange,
   now = Date.now,
 }: InventoryPanelProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -413,7 +410,6 @@ export function InventoryPanel({
                     onSelect={() => setSelectedDie(die)}
                     onSpawn={onSpawnDie ? () => handleSpawnDie(die) : undefined}
                     isOnTable={onTableInventoryIds.has(die.id)}
-                    onDragStateChange={onInventoryDragStateChange}
                     registerPreviewSlot={registerPreviewSlot}
                     liveCopyCount={
                       serverCopiesActive && die.catalogRef
@@ -530,7 +526,6 @@ interface InventoryDieCardProps {
   onSelect: () => void
   onSpawn?: () => void
   isOnTable?: boolean
-  onDragStateChange?: (isDragging: boolean) => void
   registerPreviewSlot: (dieId: string, element: HTMLElement | null) => void
   liveCopyCount?: number
   showRecentFirstCopy?: boolean
@@ -542,7 +537,6 @@ const InventoryDieCard = memo(function InventoryDieCard({
   onSelect,
   onSpawn,
   isOnTable = false,
-  onDragStateChange,
   registerPreviewSlot,
   liveCopyCount = 1,
   showRecentFirstCopy = false,
@@ -556,12 +550,6 @@ const InventoryDieCard = memo(function InventoryDieCard({
         backgroundColor: theme.tokens.colors.surface,
         border: `1px solid ${rarityColor}`,
       }}
-      draggable
-      onDragStart={(event) => {
-        onDragStateChange?.(true)
-        handleInventoryDieDragStart(event, die)
-      }}
-      onDragEnd={() => onDragStateChange?.(false)}
     >
       <button
         type="button"
@@ -791,16 +779,6 @@ function isRecentlyRolled(die: InventoryDie) {
   if ((die.recentRollValues?.length ?? 0) > 0) return true
   if (!die.lastRolledAt) return false
   return Date.now() - die.lastRolledAt <= RECENT_ROLL_WINDOW_MS
-}
-
-function handleInventoryDieDragStart(event: DragEvent<HTMLElement>, die: InventoryDie) {
-  event.dataTransfer.effectAllowed = 'copy'
-  event.dataTransfer.setData(INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload({
-    inventoryDieId: die.id,
-    type: die.type,
-    name: die.name,
-  }))
-  event.dataTransfer.setData('text/plain', die.id)
 }
 
 function capitalize(value: string) {
