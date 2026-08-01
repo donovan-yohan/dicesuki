@@ -133,6 +133,18 @@ export function getDiceEntrySourceQuantity(entry: DiceEntry): number {
   )
 }
 
+/**
+ * Total physical dice a roll spawns on the table.
+ *
+ * Sums every entry's source quantity, which is exactly the number of dice
+ * `expandDiceEntrySources` produces at execution time, so this is the value to
+ * compare against `ROOM_DICE_CAPACITY`.
+ */
+export function getRollDiceCount(dice: DiceEntry[] | undefined): number {
+  if (!Array.isArray(dice)) return 0
+  return dice.reduce((total, entry) => total + getDiceEntrySourceQuantity(entry), 0)
+}
+
 export function expandDiceEntrySources(entry: DiceEntry): RollSource[] {
   return normalizeRollSources(entry).flatMap(source => {
     if (source.kind === 'specific') return [source]
