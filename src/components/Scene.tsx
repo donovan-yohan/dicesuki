@@ -21,6 +21,7 @@ import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
 
 // Utilities
 import { formatBonus } from '../lib/diceHelpers'
+import { groupPercentileResults, percentileSumCorrection } from '../lib/percentileRolls'
 import { detectRenderDeviceTier } from '../lib/deviceDetection'
 import {
   type DiceRenderContext,
@@ -798,12 +799,21 @@ function ResultDisplay() {
   const isAnyRolling = filteredRollingDice.size > 0
   const hasSettled = settledArray.length > 0
 
+  // Percentile (d100) pairs read `tens + ones`, except `00 + 0` which is 100.
+  // The room total stays a plain face sum by design, so the correction is applied
+  // here, client-side (see src/lib/percentileRolls.ts).
+  const percentileCorrection = percentileSumCorrection(
+    new Map(settledArray.map((die) => [die.diceId, die.value])),
+    activeSavedRoll?.percentilePairs,
+  )
+  const resultGroups = groupPercentileResults(settledArray, activeSavedRoll?.percentilePairs)
+
   // Calculate grand total with bonuses
   const perDieBonusTotal = activeSavedRoll
     ? settledArray.reduce((acc, d) => acc + (activeSavedRoll.perDieBonuses.get(d.diceId) ?? 0), 0)
     : 0
   const flatBonus = activeSavedRoll?.flatBonus ?? 0
-  const grandTotal = rawSum + perDieBonusTotal + flatBonus
+  const grandTotal = rawSum + percentileCorrection + perDieBonusTotal + flatBonus
 
   // Animate sum changes
   useEffect(() => {
@@ -851,8 +861,27 @@ function ResultDisplay() {
 
         {/* Individual dice chips + flat bonus */}
         <div className="flex gap-2 justify-center flex-wrap">
-          {/* Settled dice */}
-          {settledArray.map((die) => {
+          {/* Settled dice — a percentile pair shows as ONE combined d100 chip */}
+          {resultGroups.map((group) => {
+            if (group.kind === 'percentile') {
+              const { tens, ones, value } = group
+              const bonusStr = formatBonus(
+                (activeSavedRoll?.perDieBonuses.get(tens.diceId) ?? 0)
+                + (activeSavedRoll?.perDieBonuses.get(ones.diceId) ?? 0),
+              )
+              return (
+                <DiceChip key={`d100-${tens.diceId}`} label="D100">
+                  <span className="text-lg font-bold">{value}</span>
+                  {bonusStr && (
+                    <span className="text-sm font-semibold ml-0.5" style={{ color: 'var(--color-accent)' }}>
+                      {bonusStr}
+                    </span>
+                  )}
+                </DiceChip>
+              )
+            }
+
+            const die = group.die
             const bonusStr = formatBonus(activeSavedRoll?.perDieBonuses.get(die.diceId) ?? 0)
             return (
               <DiceChip key={die.diceId} label={getResultDieLabel(die)}>

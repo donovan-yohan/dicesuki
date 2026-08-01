@@ -1,18 +1,23 @@
 import type { FaceRenderer } from '../textureRendering'
+import { formatDieFaceLabel, PERCENTILE_TENS_SHAPE } from '../percentileRolls'
 import { drawKite } from './shapes'
 
 const SINGLE_DIGIT_FONT_SCALE = 0.36
 const DOUBLE_DIGIT_FONT_SCALE = 0.28
 
-export const renderD10Kite: FaceRenderer = (
-  ctx,
-  faceValue,
-  canvasSize,
-  backgroundColor,
-) => {
+/**
+ * Draw one kite face carrying `text`. Shared by the ones d10 (`0`–`9`) and the
+ * percentile tens die (`00`–`90`) so both look like the same die family; the
+ * two-digit tens labels drop to a smaller font so they stay inside the kite.
+ */
+function renderKiteLabel(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  canvasSize: number,
+  backgroundColor: string,
+): void {
   const centerX = canvasSize / 2
   const centerY = canvasSize / 2
-  const text = faceValue.toString()
   const fontScale = text.length > 1 ? DOUBLE_DIGIT_FONT_SCALE : SINGLE_DIGIT_FONT_SCALE
   const fontSize = canvasSize * fontScale
   const textY = centerY + canvasSize * 0.02
@@ -44,3 +49,30 @@ export const renderD10Kite: FaceRenderer = (
   ctx.restore()
 }
 
+export const renderD10Kite: FaceRenderer = (
+  ctx,
+  faceValue,
+  canvasSize,
+  backgroundColor,
+) => {
+  renderKiteLabel(ctx, faceValue.toString(), canvasSize, backgroundColor)
+}
+
+/**
+ * Percentile TENS die face renderer. Same kite art as the d10, but the face
+ * value is drawn zero-padded — `00`, `10`, … `90` — which is what makes the die
+ * readable as the tens half of a d100 pair.
+ */
+export const renderD10TensKite: FaceRenderer = (
+  ctx,
+  faceValue,
+  canvasSize,
+  backgroundColor,
+) => {
+  renderKiteLabel(
+    ctx,
+    formatDieFaceLabel(PERCENTILE_TENS_SHAPE, faceValue),
+    canvasSize,
+    backgroundColor,
+  )
+}

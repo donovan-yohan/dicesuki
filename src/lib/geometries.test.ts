@@ -5,6 +5,7 @@ import {
   D6_FACE_NORMALS,
   D8_FACE_NORMALS,
   D10_FACE_NORMALS,
+  D10TENS_FACE_NORMALS,
   D12_FACE_NORMALS,
   D20_FACE_NORMALS,
   getDiceFaceValue,
@@ -17,11 +18,12 @@ const FACE_NORMALS_BY_SHAPE: Record<DiceShape, typeof D4_FACE_NORMALS> = {
   d6: D6_FACE_NORMALS,
   d8: D8_FACE_NORMALS,
   d10: D10_FACE_NORMALS,
+  d10tens: D10TENS_FACE_NORMALS,
   d12: D12_FACE_NORMALS,
   d20: D20_FACE_NORMALS,
 }
 
-const DICE_TYPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
+const DICE_TYPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd10tens', 'd12', 'd20']
 
 describe('D6 Geometry', () => {
   describe('D6_FACE_NORMALS', () => {
@@ -200,7 +202,7 @@ describe('getDiceFaceValue - all dice types, all orientations', () => {
  */
 describe('Face normal arrays - structural validation', () => {
   const expectedCounts: Record<DiceShape, number> = {
-    d4: 4, d6: 6, d8: 8, d10: 10, d12: 12, d20: 20,
+    d4: 4, d6: 6, d8: 8, d10: 10, d10tens: 10, d12: 12, d20: 20,
   }
 
   for (const shape of DICE_TYPES) {

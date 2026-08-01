@@ -314,6 +314,65 @@ describe('useDiceStore', () => {
     })
   })
 
+  describe('percentile (d100) history snapshots', () => {
+    function startPercentileRoll() {
+      useDiceStore.getState().setActiveSavedRoll({
+        name: 'Percentile',
+        flatBonus: 0,
+        perDieBonuses: new Map(),
+        percentilePairs: [{ tensDieId: 'tens', onesDieId: 'ones' }],
+      })
+      useDiceStore.getState().markDiceRolling(['tens', 'ones'])
+    }
+
+    it('sums a normal pair as tens + ones', () => {
+      startPercentileRoll()
+      useDiceStore.getState().recordDieSettled('tens', 30, 'd10tens')
+      useDiceStore.getState().recordDieSettled('ones', 4, 'd10')
+
+      const [snapshot] = useDiceStore.getState().rollHistory
+      expect(snapshot.sum).toBe(34)
+      expect(snapshot.percentilePairs).toEqual([{ tensDieId: 'tens', onesDieId: 'ones' }])
+    })
+
+    it('records 00 + 0 as 100, not 0 (the server total stays a plain sum)', () => {
+      startPercentileRoll()
+      useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens')
+      useDiceStore.getState().recordDieSettled('ones', 0, 'd10')
+
+      const [snapshot] = useDiceStore.getState().rollHistory
+      // Raw faces are still both 0 — only the aggregate is corrected.
+      expect(snapshot.dice.map((die) => die.value)).toEqual([0, 0])
+      expect(snapshot.sum).toBe(100)
+    })
+
+    it('adds a percentile pair alongside ordinary dice', () => {
+      useDiceStore.getState().setActiveSavedRoll({
+        name: 'Mixed',
+        flatBonus: 0,
+        perDieBonuses: new Map(),
+        percentilePairs: [{ tensDieId: 'tens', onesDieId: 'ones' }],
+      })
+      useDiceStore.getState().markDiceRolling(['tens', 'ones', 'plain'])
+      useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens')
+      useDiceStore.getState().recordDieSettled('ones', 0, 'd10')
+      useDiceStore.getState().recordDieSettled('plain', 5, 'd6')
+
+      const [snapshot] = useDiceStore.getState().rollHistory
+      expect(snapshot.sum).toBe(105)
+    })
+
+    it('leaves non-percentile rolls as a plain sum with no pairings recorded', () => {
+      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
+      useDiceStore.getState().recordDieSettled('die-1', 0, 'd10')
+      useDiceStore.getState().recordDieSettled('die-2', 0, 'd10')
+
+      const [snapshot] = useDiceStore.getState().rollHistory
+      expect(snapshot.sum).toBe(0)
+      expect(snapshot.percentilePairs).toBeUndefined()
+    })
+  })
+
   describe('reset', () => {
     it('should clear everything including activeSavedRoll', () => {
       useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')

@@ -260,6 +260,10 @@ export const EXPECTED_FACE_COUNTS: Record<DiceShape, number> = {
   d6: 6,
   d8: 8,
   d10: 10,
+  // Percentile tens die — the d10 solid, so the same face count. Listed for
+  // completeness only: `diceMetadataSchema` does NOT accept it as a custom-dice
+  // type (custom dice are inventory dice; d10tens is engine-only).
+  d10tens: 10,
   d12: 12,
   d20: 20,
 }
@@ -278,6 +282,7 @@ export const DEFAULT_PHYSICS: Record<DiceShape, PhysicsProperties> = {
   d6: { density: 0.3, restitution: 0.3, friction: 0.6 },
   d8: { density: 0.3, restitution: 0.3, friction: 0.6 },
   d10: { density: 0.3, restitution: 0.3, friction: 0.6 },
+  d10tens: { density: 0.3, restitution: 0.3, friction: 0.6 },
   d12: { density: 0.3, restitution: 0.3, friction: 0.6 },
   d20: { density: 0.3, restitution: 0.3, friction: 0.6 },
 }
@@ -296,6 +301,7 @@ export const DEFAULT_COLLIDERS: Record<DiceShape, ColliderConfig> = {
   },
   d8: { type: 'hull', args: {} },
   d10: { type: 'hull', args: {} },
+  d10tens: { type: 'hull', args: {} },
   d12: { type: 'hull', args: {} },
   d20: { type: 'hull', args: {} },
 }

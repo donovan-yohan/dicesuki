@@ -296,4 +296,107 @@ describe('SavedRollsPanel room execution', () => {
     expect(roll).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('spawns a d10tens + d10 pair per percentile die and records the pairing', async () => {
+    useSavedRollsStore.setState({
+      savedRolls: [{
+        id: 'roll-d100',
+        name: 'Percentile check',
+        flatBonus: 0,
+        createdAt: 1,
+        dice: [{
+          id: 'entry-d100',
+          type: 'd10',
+          quantity: 2,
+          perDieBonus: 3,
+          percentile: true,
+          sources: [{ kind: 'anonymous', quantity: 2 }],
+        }],
+      }],
+      currentlyEditing: null,
+    })
+
+    const spawned: string[] = []
+    const addGenericDie = vi.fn((type: string) => {
+      const id = `${type}-${spawned.length}`
+      spawned.push(type)
+      useMultiplayerStore.setState((state) => ({
+        dice: new Map([...state.dice, [id, roomDie(id)]]),
+      }))
+      return id
+    })
+    const roll = vi.fn(() => {
+      useMultiplayerStore.setState((state) => ({
+        rollStartedSequence: state.rollStartedSequence + 1,
+        lastRollStartedDiceIds: ['d10tens-0', 'd10-1', 'd10tens-2', 'd10-3'],
+      }))
+    })
+    const { onClose } = renderPanel({
+      clearAll: vi.fn(() => useMultiplayerStore.setState({ dice: new Map() })),
+      addGenericDie,
+      roll,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Roll Percentile check' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+    // Tens die first, then its ones half — twice, one pair per percentile die.
+    expect(spawned).toEqual(['d10tens', 'd10', 'd10tens', 'd10'])
+
+    const active = useDiceStore.getState().activeSavedRoll
+    expect(active?.percentilePairs).toEqual([
+      { tensDieId: 'd10tens-0', onesDieId: 'd10-1' },
+      { tensDieId: 'd10tens-2', onesDieId: 'd10-3' },
+    ])
+    // The per-die bonus lands ONCE per pair, on the ones half (it applies to the
+    // combined 1-100 value, not to each physical die).
+    expect(Array.from(active?.perDieBonuses.entries() ?? [])).toEqual([
+      ['d10-1', 3],
+      ['d10-3', 3],
+    ])
+  })
+
+  it('does not pair dice for an ordinary d10 entry', async () => {
+    useSavedRollsStore.setState({
+      savedRolls: [{
+        id: 'roll-d10',
+        name: 'Plain d10',
+        flatBonus: 0,
+        createdAt: 1,
+        dice: [{
+          id: 'entry-d10',
+          type: 'd10',
+          quantity: 1,
+          perDieBonus: 0,
+          sources: [{ kind: 'anonymous', quantity: 1 }],
+        }],
+      }],
+      currentlyEditing: null,
+    })
+
+    const spawned: string[] = []
+    const addGenericDie = vi.fn((type: string) => {
+      spawned.push(type)
+      useMultiplayerStore.setState((state) => ({
+        dice: new Map([...state.dice, ['plain-d10', roomDie('plain-d10')]]),
+      }))
+      return 'plain-d10'
+    })
+    const { onClose } = renderPanel({
+      clearAll: vi.fn(() => useMultiplayerStore.setState({ dice: new Map() })),
+      addGenericDie,
+      roll: vi.fn(() => {
+        useMultiplayerStore.setState((state) => ({
+          rollStartedSequence: state.rollStartedSequence + 1,
+          lastRollStartedDiceIds: ['plain-d10'],
+        }))
+      }),
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Roll Plain d10' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+    expect(spawned).toEqual(['d10'])
+    expect(useDiceStore.getState().activeSavedRoll?.percentilePairs).toBeUndefined()
+  })
 })

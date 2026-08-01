@@ -11,9 +11,14 @@ import {
   QuickPreset,
 } from '../types/savedRolls'
 import { getDiceEntrySourceQuantity, getSpecificDieIds } from './rollSources'
+import { isPercentileEntry, PERCENTILE_MAX, PERCENTILE_MIN } from './percentileRolls'
 
 /**
- * Get maximum value for a dice type
+ * Get maximum value for a dice type.
+ *
+ * `d10tens` is the percentile TENS half (faces 00–90); on its own its ceiling is
+ * 90. A whole percentile ENTRY tops out at 100 — see [`getEntryMax`], which is
+ * what range/validation math should use.
  */
 export function getDieMax(type: DiceShape): number {
   const maxValues: Record<DiceShape, number> = {
@@ -21,6 +26,7 @@ export function getDieMax(type: DiceShape): number {
     d6: 6,
     d8: 8,
     d10: 10,
+    d10tens: 90,
     d12: 12,
     d20: 20,
   }
@@ -33,6 +39,23 @@ export function getDieMax(type: DiceShape): number {
 export function getDieMin(type: DiceShape): number {
   void type
   return 1
+}
+
+/**
+ * Max value contributed by ONE die of this entry. A percentile entry is a
+ * tens+ones pair combined into a single 1–100 result, so it is 100 — not the
+ * 90 ceiling of its tens half.
+ */
+export function getEntryMax(entry: DiceEntry): number {
+  return isPercentileEntry(entry) ? PERCENTILE_MAX : getDieMax(entry.type)
+}
+
+/**
+ * Min value contributed by ONE die of this entry (1 for every die today,
+ * including a percentile pair — `00 + 0` reads 100, and `00 + 1` reads 1).
+ */
+export function getEntryMin(entry: DiceEntry): number {
+  return isPercentileEntry(entry) ? PERCENTILE_MIN : getDieMin(entry.type)
 }
 
 /**
@@ -63,7 +86,7 @@ export function validateDiceEntry(entry: DiceEntry): void {
 
   // Exploding validation
   if (entry.exploding) {
-    const maxValue = getDieMax(entry.type)
+    const maxValue = getEntryMax(entry)
     if (
       typeof entry.exploding.on === 'number' &&
       (entry.exploding.on < 1 || entry.exploding.on > maxValue)
@@ -74,7 +97,7 @@ export function validateDiceEntry(entry: DiceEntry): void {
 
   // Success counting validation
   if (entry.countSuccesses) {
-    const maxValue = getDieMax(entry.type)
+    const maxValue = getEntryMax(entry)
     if (entry.countSuccesses.targetNumber > maxValue + entry.perDieBonus) {
       throw new Error('Target number cannot exceed die maximum + bonus')
     }
@@ -184,17 +207,22 @@ export function formatBonus(bonus: number): string {
  * `4(d4+1)` reads as "four of (a d4, plus 1)" — i.e. roll 4d4 and add 1 to each.
  * A negative bonus renders the same way: `4(d4-1)`.
  * With no per-die bonus the plain form is kept: `4d4`.
+ *
+ * A percentile entry reads as its combined die, not its halves: `1d100`,
+ * `4(d100+1)`.
  */
 export function formatDiceEntry(entry: DiceEntry): string {
   let text = ''
 
   // Quantity and die type
   const rollCount = entry.rollCount || entry.quantity
+  // A percentile entry rolls a tens+ones pair but READS as a single d100.
+  const dieLabel = isPercentileEntry(entry) ? 'd100' : entry.type
 
   if (entry.perDieBonus !== 0) {
-    text += `${rollCount}(${entry.type}${formatBonus(entry.perDieBonus)})`
+    text += `${rollCount}(${dieLabel}${formatBonus(entry.perDieBonus)})`
   } else {
-    text += `${rollCount}${entry.type}`
+    text += `${rollCount}${dieLabel}`
   }
 
   // Keep/drop
@@ -256,8 +284,8 @@ export function formatSavedRoll(roll: SavedRoll): string {
  * Calculate expected value range for a dice entry
  */
 export function calculateDiceEntryRange(entry: DiceEntry): { min: number; max: number } {
-  const dieMin = getDieMin(entry.type)
-  const dieMax = getDieMax(entry.type)
+  const dieMin = getEntryMin(entry)
+  const dieMax = getEntryMax(entry)
   const quantity = entry.rollCount && entry.rollCount > entry.quantity
     ? entry.quantity
     : getDiceEntrySourceQuantity(entry)

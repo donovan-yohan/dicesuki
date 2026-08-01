@@ -380,7 +380,7 @@ impl AuthoritativeRollCompletion {
         if results.iter().any(|result| {
             result.dice_id.is_empty()
                 || result.dice_id.len() > 160
-                || result.face_value == 0
+                || result.face_value < minimum_face(result.dice_type)
                 || result.face_value > maximum_face(result.dice_type)
         }) {
             return Err(RollCompletionBuildError::InvalidResult);
@@ -475,12 +475,26 @@ fn valid_server_event_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
 }
 
+/// Lowest legal engine face value for a die type.
+///
+/// Most dice are labelled from 1, but the physical d10 reads `0..=9` and the
+/// percentile tens die reads `00..=90` — both can legitimately settle on 0, so a
+/// blanket `face_value == 0` rejection would silently drop those completions.
+const fn minimum_face(dice_type: DiceType) -> u32 {
+    match dice_type {
+        DiceType::D10 | DiceType::D10Tens => 0,
+        _ => 1,
+    }
+}
+
 const fn maximum_face(dice_type: DiceType) -> u32 {
     match dice_type {
         DiceType::D4 => 4,
         DiceType::D6 => 6,
         DiceType::D8 => 8,
         DiceType::D10 => 10,
+        // Percentile tens die: 00, 10, … 90.
+        DiceType::D10Tens => 90,
         DiceType::D12 => 12,
         DiceType::D20 => 20,
     }
@@ -492,6 +506,7 @@ const fn dice_type_name(dice_type: DiceType) -> &'static str {
         DiceType::D6 => "d6",
         DiceType::D8 => "d8",
         DiceType::D10 => "d10",
+        DiceType::D10Tens => "d10tens",
         DiceType::D12 => "d12",
         DiceType::D20 => "d20",
     }
@@ -801,6 +816,78 @@ mod tests {
         assert_eq!(
             mismatch.unwrap_err(),
             RollCompletionBuildError::TotalMismatch
+        );
+    }
+
+    #[test]
+    fn builder_accepts_percentile_pair_including_the_double_zero() {
+        // A d100 roll is one tens die + one ones d10. The room total is a PLAIN
+        // face sum, so "00 + 0" reports total 0 server-side even though the client
+        // displays 100 (see src/lib/percentileRolls.ts). Both zeros must survive
+        // validation — they are legal faces, not missing values.
+        let completion = AuthoritativeRollCompletion::new(
+            "instance".into(),
+            "room".into(),
+            "player".into(),
+            Uuid::nil(),
+            1,
+            OffsetDateTime::UNIX_EPOCH,
+            vec![
+                AuthoritativeRollResult {
+                    dice_id: "tens".into(),
+                    dice_type: DiceType::D10Tens,
+                    face_value: 0,
+                },
+                AuthoritativeRollResult {
+                    dice_id: "ones".into(),
+                    dice_type: DiceType::D10,
+                    face_value: 0,
+                },
+            ],
+            0,
+        );
+        assert!(completion.is_ok(), "00 + 0 must be a reportable percentile roll");
+
+        let ninety_nine = AuthoritativeRollCompletion::new(
+            "instance".into(),
+            "room".into(),
+            "player".into(),
+            Uuid::nil(),
+            2,
+            OffsetDateTime::UNIX_EPOCH,
+            vec![
+                AuthoritativeRollResult {
+                    dice_id: "tens".into(),
+                    dice_type: DiceType::D10Tens,
+                    face_value: 90,
+                },
+                AuthoritativeRollResult {
+                    dice_id: "ones".into(),
+                    dice_type: DiceType::D10,
+                    face_value: 9,
+                },
+            ],
+            99,
+        );
+        assert!(ninety_nine.is_ok());
+
+        let over_max = AuthoritativeRollCompletion::new(
+            "instance".into(),
+            "room".into(),
+            "player".into(),
+            Uuid::nil(),
+            3,
+            OffsetDateTime::UNIX_EPOCH,
+            vec![AuthoritativeRollResult {
+                dice_id: "tens".into(),
+                dice_type: DiceType::D10Tens,
+                face_value: 100,
+            }],
+            100,
+        );
+        assert_eq!(
+            over_max.unwrap_err(),
+            RollCompletionBuildError::InvalidResult
         );
     }
 

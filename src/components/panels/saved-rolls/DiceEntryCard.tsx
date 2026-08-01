@@ -3,6 +3,7 @@ import { DiceIconWithNumber } from '../../icons/DiceIconWithNumber'
 import type { DiceEntry } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
 import { formatDiceEntry } from '../../../lib/diceHelpers'
+import { isPercentileEntry } from '../../../lib/percentileRolls'
 import {
   getDiceEntrySourceQuantity,
   normalizeRollSources,
@@ -111,6 +112,9 @@ export function DiceEntryCard({
     return formatDiceEntry(entry)
   }
 
+  // A percentile entry rolls a d10tens+d10 PAIR but reads as a single d100 —
+  // every user-facing string (including assistive labels) uses that name.
+  const entryLabel = isPercentileEntry(entry) ? 'D100' : entry.type.toUpperCase()
   const sourceLabels = getSourceLabels(entry, inventoryDiceById)
   const quantity = getDiceEntrySourceQuantity(entry)
 
@@ -124,7 +128,12 @@ export function DiceEntryCard({
     >
       {/* Main row: dice icon, formula, controls */}
       <div className="flex items-center gap-3">
-        <DiceIconWithNumber type={entry.type} number={quantity} size={40} />
+        {/* A percentile entry is a d10tens+d10 PAIR — show the % die, not a plain d10. */}
+        <DiceIconWithNumber
+          type={isPercentileEntry(entry) ? 'd10tens' : entry.type}
+          number={quantity}
+          size={40}
+        />
 
         <div className="flex-1">
           <div className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
@@ -182,7 +191,7 @@ export function DiceEntryCard({
               color: 'var(--color-text-primary)',
               border: `1px solid ${isOverCapacity ? 'var(--color-error)' : 'var(--color-border)'}`,
             }}
-            aria-label={`${entry.type.toUpperCase()} quantity`}
+            aria-label={`${entryLabel} quantity`}
             aria-invalid={isOverCapacity ? true : undefined}
             aria-describedby={isOverCapacity ? capacityMessageId : undefined}
           />
@@ -247,7 +256,7 @@ export function DiceEntryCard({
             type="number"
             value={entry.perDieBonus}
             onChange={(e) => handleBonusChange(parseInt(e.target.value) || 0)}
-            aria-label={`${entry.type.toUpperCase()} bonus per die`}
+            aria-label={`${entryLabel} bonus per die`}
             className="field-focus-ring w-16 h-7 text-center rounded font-semibold"
             style={{
               backgroundColor: 'var(--color-background)',

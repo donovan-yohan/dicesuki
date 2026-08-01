@@ -6,6 +6,7 @@ import { useInventoryStore } from '../../../store/useInventoryStore'
 import { calculateSavedRollRange, formatSavedRoll } from '../../../lib/diceHelpers'
 import { parseInventoryDieDragPayload } from '../../../lib/inventoryDrag'
 import { ROLL_DICE_CAPACITY_MESSAGE, ROOM_DICE_CAPACITY } from '../../../config/roomCapacity'
+import { PERCENTILE_ONES_SHAPE } from '../../../lib/percentileRolls'
 import {
   createAnonymousRollSource,
   createSpecificDieRollSource,
@@ -69,6 +70,20 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
       type,
       quantity,
       perDieBonus: 0,
+    }, [createAnonymousRollSource(quantity)])
+    setDice([...dice, newEntry])
+  }
+
+  // Percentile (d100): each die is a d10tens + d10 PAIR combined to 1-100. The
+  // entry keeps `type: 'd10'` (the ones half) and carries the additive
+  // `percentile` flag — see src/lib/percentileRolls.ts.
+  const handleAddPercentile = (quantity = 1) => {
+    const newEntry: DiceEntry = withRollSources({
+      id: nanoid(),
+      type: PERCENTILE_ONES_SHAPE,
+      quantity,
+      perDieBonus: 0,
+      percentile: true,
     }, [createAnonymousRollSource(quantity)])
     setDice([...dice, newEntry])
   }
@@ -226,7 +241,7 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
           </div>
 
           {/* Dice Pool */}
-          <DicePool onDiceSelect={handleAddDice} />
+          <DicePool onDiceSelect={handleAddDice} onPercentileSelect={handleAddPercentile} />
 
           {/* Owned Dice */}
           <div

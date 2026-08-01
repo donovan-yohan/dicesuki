@@ -5,6 +5,7 @@ import {
   D6_FACE_NORMALS,
   D8_FACE_NORMALS,
   D10_FACE_NORMALS,
+  D10TENS_FACE_NORMALS,
   D12_FACE_NORMALS,
   D20_FACE_NORMALS,
   DiceFace,
@@ -125,6 +126,23 @@ export const FACE_MATERIAL_MAPS: Record<DiceShape, number[]> = {
     7,  // Face 9 → kite 7 (materials[7])
   ],
 
+  // D10TENS (percentile tens die): the same solid and the same kite mapping as
+  // the d10 — only the face LABEL differs (00, 10, … 90). This array is indexed
+  // by the TENS DIGIT (face value ÷ 10), not by the face value, so it stays a
+  // dense 10-entry table; `createFaceMaterialsArray` divides before indexing.
+  d10tens: [
+    0,  // Face 00 → kite 0 (materials[0])
+    6,  // Face 10 → kite 6 (materials[6])
+    1,  // Face 20 → kite 1 (materials[1])
+    5,  // Face 30 → kite 5 (materials[5])
+    2,  // Face 40 → kite 2 (materials[2])
+    9,  // Face 50 → kite 9 (materials[9])
+    3,  // Face 60 → kite 3 (materials[3])
+    8,  // Face 70 → kite 8 (materials[8])
+    4,  // Face 80 → kite 4 (materials[4])
+    7,  // Face 90 → kite 7 (materials[7])
+  ],
+
   // D12: 12 pentagonal faces (36 triangles total = 3 triangles per face)
   // Face normals extracted from DodecahedronGeometry(1, 0)
   // Each group of 3 consecutive triangles = 1 pentagonal face
@@ -189,6 +207,8 @@ export function getFaceNormals(shape: DiceShape): DiceFace[] {
       return D8_FACE_NORMALS
     case 'd10':
       return D10_FACE_NORMALS
+    case 'd10tens':
+      return D10TENS_FACE_NORMALS
     case 'd12':
       return D12_FACE_NORMALS
     case 'd20':
@@ -241,14 +261,17 @@ export function createFaceMaterialsArray(
     )
   }
 
-  // Special case: D10 has 10 kite faces (2 triangles each, grouped in geometry)
-  // Geometry groups reference material indices 0-9 (one per kite)
-  if (shape === 'd10') {
+  // Special case: D10 (and the percentile tens die, the same solid) has 10 kite
+  // faces (2 triangles each, grouped in geometry). Geometry groups reference
+  // material indices 0-9 (one per kite). The tens die's faces are 00..90, so the
+  // mapping table is indexed by the tens DIGIT.
+  if (shape === 'd10' || shape === 'd10tens') {
+    const step = shape === 'd10tens' ? 10 : 1
     const materials: THREE.Material[] = new Array(10)
 
-    for (let faceValue = 0; faceValue <= 9; faceValue++) {
-      const kiteIndex = mapping[faceValue]
-      materials[kiteIndex] = createMaterial(faceValue)
+    for (let digit = 0; digit <= 9; digit++) {
+      const kiteIndex = mapping[digit]
+      materials[kiteIndex] = createMaterial(digit * step)
     }
 
     return materials
@@ -320,8 +343,8 @@ export function createDebugMaterials(shape: DiceShape): THREE.Material[] {
     '#FFFFFF', // 19: White
   ]
 
-  // For D10, create 10 materials (1 per kite face, geometry groups handle pairing)
-  if (shape === 'd10') {
+  // For D10 / d10tens, create 10 materials (1 per kite face, geometry groups handle pairing)
+  if (shape === 'd10' || shape === 'd10tens') {
     return Array.from({ length: 10 }, (_, index) =>
       new THREE.MeshStandardMaterial({
         color: debugColors[index % debugColors.length],
@@ -361,12 +384,20 @@ export function validateFaceNormalRules(shape: DiceShape): {
   const errors: string[] = []
 
   // Only validate dice with opposite faces
-  if (shape !== 'd6' && shape !== 'd8' && shape !== 'd10' && shape !== 'd12' && shape !== 'd20') {
+  if (
+    shape !== 'd6' && shape !== 'd8' && shape !== 'd10'
+    && shape !== 'd10tens' && shape !== 'd12' && shape !== 'd20'
+  ) {
     return { valid: true, errors: [] }
   }
 
-  // Expected sum for opposite faces
-  const expectedSum = shape === 'd6' ? 7 : shape === 'd8' ? 9 : shape === 'd10' ? 9 : shape === 'd12' ? 13 : 21
+  // Expected sum for opposite faces (the percentile tens die is the d10 rule ×10)
+  const expectedSum = shape === 'd6' ? 7
+    : shape === 'd8' ? 9
+    : shape === 'd10' ? 9
+    : shape === 'd10tens' ? 90
+    : shape === 'd12' ? 13
+    : 21
 
   // Check each pair of opposite normals
   for (let i = 0; i < faceNormals.length; i++) {

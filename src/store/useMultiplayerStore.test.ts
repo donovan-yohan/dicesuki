@@ -879,6 +879,39 @@ describe('useMultiplayerStore', () => {
       // roll_complete is handled by room history store, not this one
       expect(useMultiplayerStore.getState().dice.size).toBe(0)
     })
+
+    it('should record a percentile 00 + 0 as 100 even though the room total is 0', () => {
+      useDiceStore.getState().reset()
+      useDiceStore.getState().setActiveSavedRoll({
+        name: 'Percentile',
+        flatBonus: 0,
+        perDieBonuses: new Map(),
+        percentilePairs: [{ tensDieId: 'tens', onesDieId: 'ones' }],
+      })
+      useMultiplayerStore.setState({
+        players: new Map([['p1', {
+          id: 'p1',
+          displayName: 'Player One',
+          color: '#ffffff',
+          isHost: true,
+        }]]) as never,
+      })
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'roll_complete',
+        playerId: 'p1',
+        results: [
+          { diceId: 'tens', diceType: 'd10tens', faceValue: 0 },
+          { diceId: 'ones', diceType: 'd10', faceValue: 0 },
+        ],
+        // The room reports a PLAIN face sum — the client corrects for display.
+        total: 0,
+      })
+
+      const [snapshot] = useDiceStore.getState().rollHistory
+      expect(snapshot.sum).toBe(100)
+      expect(snapshot.percentilePairs).toEqual([{ tensDieId: 'tens', onesDieId: 'ones' }])
+    })
   })
 
   describe('sendMessage', () => {

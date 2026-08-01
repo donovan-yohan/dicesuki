@@ -103,12 +103,33 @@ mod tests {
             (DiceType::D6, 6),
             (DiceType::D8, 8),
             (DiceType::D10, 9), // D10 values are 0-9
+            (DiceType::D10Tens, 90), // percentile tens die reads 00-90
             (DiceType::D12, 12),
             (DiceType::D20, 20),
         ];
         for (dice_type, max) in types_and_max {
             let value = detect_face_value([0.0, 0.0, 0.0, 1.0], dice_type);
             assert!(value <= max, "{dice_type:?} returned {value}, expected <= {max}");
+        }
+    }
+
+    #[test]
+    fn test_d10tens_reads_ten_times_the_d10_face() {
+        // Same solid, same detection algorithm: for any rotation the tens die must
+        // land on the same face index as the d10 and report 10× its digit. This is
+        // what makes `tens + ones` a valid percentile result.
+        let axes = [Vector3::x_axis(), Vector3::y_axis(), Vector3::z_axis()];
+        for (index, axis) in axes.into_iter().enumerate() {
+            for step in 0..12 {
+                #[allow(clippy::cast_precision_loss)]
+                let angle = (step as f32).mul_add(PI / 6.0, index as f32 * 0.37);
+                let quat = UnitQuaternion::from_axis_angle(&axis, angle);
+                let q = quat.quaternion();
+                let rotation = [q.i, q.j, q.k, q.w];
+                let ones = detect_face_value(rotation, DiceType::D10);
+                let tens = detect_face_value(rotation, DiceType::D10Tens);
+                assert_eq!(tens, ones * 10, "rotation {rotation:?}: {tens} != {ones}×10");
+            }
         }
     }
 }

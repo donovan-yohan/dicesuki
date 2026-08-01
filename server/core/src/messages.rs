@@ -168,6 +168,15 @@ pub enum DiceType {
     D6,
     D8,
     D10,
+    /// Percentile **tens** die: the d10 pentagonal trapezohedron (same geometry,
+    /// collider and settle contract as [`DiceType::D10`]) whose faces read
+    /// `00, 10, … 90` instead of `0..=9`. A d100 roll is one `D10Tens` + one
+    /// `D10`; the combined result is `tens + ones`, with `00 + 0` reading 100
+    /// on the client (see `src/lib/percentileRolls.ts`). The room total is a
+    /// plain face-value sum, so `00 + 0` totals 0 server-side — a display-only
+    /// divergence, deliberately kept so the server stays a dumb sum.
+    #[serde(rename = "d10tens")]
+    D10Tens,
     D12,
     D20,
 }

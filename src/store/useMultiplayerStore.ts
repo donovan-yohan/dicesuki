@@ -26,6 +26,7 @@ import { getWsServerUrl } from '../lib/multiplayerServer'
 import { createWorkerRoomTransport } from '../lib/workerRoomTransport'
 import { arenaDimensionsForViewport } from '../config/renderScale'
 import { triggerCollisionFeedback } from '../lib/collisionFeedback'
+import { percentileSumCorrection } from '../lib/percentileRolls'
 import { useDiceStore } from './useDiceStore'
 import {
   clearRoomSession,
@@ -780,12 +781,21 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             settledAt: now,
             presentation: r.presentation,
           }))
+          // The room total (`msg.total`) is a PLAIN face sum by design, which is
+          // already right for a percentile pair except `00 + 0` (server 0, player
+          // 100). Percentile pairing is client knowledge, so the correction is
+          // applied here — see src/lib/percentileRolls.ts.
+          const faces = new Map(dice.map((d) => [d.diceId, d.value]))
+          const percentilePairs = useDiceStore.getState().activeSavedRoll?.percentilePairs
+            ?.filter((pair) => faces.has(pair.tensDieId) && faces.has(pair.onesDieId))
           const sum = dice.reduce((acc, d) => acc + d.value, 0)
+            + percentileSumCorrection(faces, percentilePairs)
 
           useDiceStore.getState().addRollToHistory({
             dice,
             sum,
             timestamp: now,
+            ...(percentilePairs && percentilePairs.length > 0 ? { percentilePairs } : {}),
             player: {
               id: msg.playerId,
               displayName: player.displayName,

@@ -10,6 +10,7 @@ import {
   D6_FACE_NORMALS,
   D8_FACE_NORMALS,
   D10_FACE_NORMALS,
+  D10TENS_FACE_NORMALS,
   D12_FACE_NORMALS,
   D20_FACE_NORMALS,
 } from '../../lib/geometries'
@@ -22,6 +23,7 @@ const FACE_NORMALS_MAP: Record<DiceShape, import('../../lib/geometries').DiceFac
   d6: D6_FACE_NORMALS,
   d8: D8_FACE_NORMALS,
   d10: D10_FACE_NORMALS,
+  d10tens: D10TENS_FACE_NORMALS,
   d12: D12_FACE_NORMALS,
   d20: D20_FACE_NORMALS,
 }
