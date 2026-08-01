@@ -35,6 +35,7 @@ coverage/
 
 # Local ImageGen/Blender authoring outputs (never deployed)
 .artifacts/imagegen-uv/
+.artifacts/theme-workshop/
 .artifacts/cozy-forest-runtime/
 .artifacts/cyberpunk-runtime/
 .artifacts/dark-dungeon-runtime/
