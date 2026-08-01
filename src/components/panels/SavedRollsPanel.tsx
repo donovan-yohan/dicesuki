@@ -6,79 +6,17 @@
  */
 
 import { useRef, useState } from 'react'
-import { nanoid } from 'nanoid'
 import { BottomSheet } from './BottomSheet'
 import { SavedRollCard } from './saved-rolls/SavedRollCard'
 import { RollBuilder } from './saved-rolls/RollBuilder'
 import { useDiceBackend } from '../../contexts/DiceBackendContext'
 import type { TableDieSummary } from '../../types/tableDice'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
-import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
-import { useMultiplayerStore, type MultiplayerDie } from '../../store/useMultiplayerStore'
+import { useDiceStore } from '../../store/useDiceStore'
+import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { createClientId } from '../../lib/clientId'
-import { expandDiceEntrySpawns, getRollDiceCount } from '../../lib/rollSources'
-import { ROLL_DICE_CAPACITY_MESSAGE, ROOM_DICE_CAPACITY } from '../../config/roomCapacity'
-import {
-  isPercentileEntry,
-  percentileOnesPresentation,
-  percentileTensPresentation,
-  PERCENTILE_TENS_SHAPE,
-} from '../../lib/percentileRolls'
+import { executePhysicalSavedRoll } from '../../lib/savedRollExecution'
 import { SavedRoll } from '../../types/savedRolls'
-
-const ROOM_ACK_TIMEOUT_MS = 5_000
-
-function sameIdSet(actual: string[], expected: string[]): boolean {
-  return actual.length === expected.length && expected.every((id) => actual.includes(id))
-}
-
-function waitForRoomState(
-  description: string,
-  predicate: (state: ReturnType<typeof useMultiplayerStore.getState>) => boolean,
-  timeoutMs = ROOM_ACK_TIMEOUT_MS,
-): Promise<void> {
-  const evaluate = (state: ReturnType<typeof useMultiplayerStore.getState>) => {
-    if (state.roomActionError) throw new Error(state.roomActionError.message)
-    return predicate(state)
-  }
-
-  return new Promise((resolve, reject) => {
-    let settled = false
-    let unsubscribe = () => {}
-    const finish = (error?: Error) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      unsubscribe()
-      if (error) reject(error)
-      else resolve()
-    }
-    const check = (state: ReturnType<typeof useMultiplayerStore.getState>) => {
-      try {
-        if (evaluate(state)) finish()
-      } catch (error) {
-        finish(error instanceof Error ? error : new Error(String(error)))
-      }
-    }
-    const timeout = setTimeout(
-      () => finish(new Error(`Timed out waiting for the room to ${description}.`)),
-      timeoutMs,
-    )
-    unsubscribe = useMultiplayerStore.subscribe(check)
-    check(useMultiplayerStore.getState())
-  })
-}
-
-function waitForSavedRollSpawns(
-  requestedIds: string[],
-  ownerId: string,
-  timeoutMs = ROOM_ACK_TIMEOUT_MS,
-): Promise<void> {
-  return waitForRoomState('spawn every saved-roll die', (state) => requestedIds.every((id) => {
-    const die = state.dice.get(id)
-    return die !== undefined && die.ownerId === ownerId
-  }), timeoutMs)
-}
 
 interface SavedRollsPanelProps {
   isOpen: boolean
@@ -127,7 +65,13 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
 
   const allTags = getAllTags()
 
-  // Execute a saved roll
+  /**
+   * Execute a saved roll on the table.
+   *
+   * The latch is held for the whole sequence, not just the first wave: a roll
+   * with reroll or exploding dice keeps spawning after the panel has closed,
+   * and a second roll starting mid-sequence would corrupt its plan.
+   */
   async function handleRoll(roll: SavedRoll) {
     if (executingRef.current) return
     executingRef.current = true
@@ -143,118 +87,17 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
       return
     }
 
-    const existingOwnedIds = Array.from(room.dice.values())
-      .filter((die: MultiplayerDie) => die.ownerId === ownerId)
-      .map((die) => die.id)
-
-    // Capacity guard. `clearAll` only removes our own dice, so other players'
-    // dice keep occupying the room — budget against what will actually be free.
-    // Fail here with readable copy rather than clearing the table and taking a
-    // server-side DICE_LIMIT rejection mid-spawn.
-    const foreignDiceCount = room.dice.size - existingOwnedIds.length
-    const availableCapacity = Math.max(0, ROOM_DICE_CAPACITY - foreignDiceCount)
-    const requestedDiceCount = getRollDiceCount(roll.dice)
-    if (requestedDiceCount > availableCapacity) {
-      setExecutionError(
-        foreignDiceCount > 0
-          ? `Only ${availableCapacity} of the room's ${ROOM_DICE_CAPACITY} dice are free — "${roll.name}" needs ${requestedDiceCount}.`
-          : `${ROLL_DICE_CAPACITY_MESSAGE}. "${roll.name}" needs ${requestedDiceCount} — edit it to continue.`,
-      )
-      executingRef.current = false
-      setIsExecuting(false)
-      return
-    }
-
-    const requested: Array<{ id: string; bonus: number }> = []
-
     try {
-      room.clearRoomActionError()
-      useDiceStore.getState().clearAllDieStates()
-      backend.clearAll()
-      await waitForRoomState('clear the current table', (state) => (
-        existingOwnedIds.every((id) => !state.dice.has(id))
-      ))
-
-      for (const entry of roll.dice) {
-        const isPercentile = isPercentileEntry(entry)
-        // One pair id per percentile die, shared by its two halves.
-        const pairIds = new Map<number, string>()
-
-        // `expandDiceEntrySpawns` is the SAME expansion `getRollDiceCount` counts,
-        // so the capacity guard above and this loop can never disagree about how
-        // many dice a roll puts on the table.
-        for (const spawn of expandDiceEntrySpawns(entry)) {
-          const pair = spawn.percentile
-          let pairId: string | undefined
-          if (pair) {
-            pairId = pairIds.get(pair.pairIndex)
-            if (!pairId) {
-              pairId = `pct_${nanoid(10)}`
-              pairIds.set(pair.pairIndex, pairId)
-            }
-          }
-
-          // A d100 is a PAIR: the tens die (00-90) then its ones d10. Both are
-          // ordinary room dice; the pairing rides along in each die's
-          // `presentation` block so it survives table edits, reaches remote
-          // players and outlives a refresh (src/lib/percentileRolls.ts).
-          if (pair?.role === 'tens') {
-            const tensId = backend.addGenericDie(
-              PERCENTILE_TENS_SHAPE,
-              percentileTensPresentation(pairId as string),
-            )
-            if (!tensId) {
-              const actionError = useMultiplayerStore.getState().roomActionError
-              throw new Error(actionError?.message ?? 'Could not spawn D100.')
-            }
-            // The tens half carries no bonus — a per-die bonus applies once, to
-            // the COMBINED value, and is attached to the ones die below.
-            requested.push({ id: tensId, bonus: 0 })
-            continue
-          }
-
-          const presentation = pairId ? percentileOnesPresentation(pairId) : undefined
-          const id = spawn.source.kind === 'specific'
-            ? backend.addDie(entry.type, spawn.source.dieId, presentation)
-            : backend.addGenericDie(entry.type, presentation)
-          if (!id) {
-            const actionError = useMultiplayerStore.getState().roomActionError
-            throw new Error(
-              actionError?.message
-                ?? `Could not spawn ${isPercentile ? 'D100' : entry.type.toUpperCase()}.`,
-            )
-          }
-          requested.push({ id, bonus: entry.perDieBonus })
-        }
-      }
-
-      if (requested.length === 0) {
-        throw new Error('This saved roll has no dice to roll.')
-      }
-
-      const requestedIds = requested.map(({ id }) => id)
-      await waitForSavedRollSpawns(requestedIds, ownerId)
-
-      const perDieBonuses = new Map<string, number>()
-      requested.forEach(({ id, bonus }) => {
-        if (bonus !== 0) perDieBonuses.set(id, bonus)
+      await executePhysicalSavedRoll(roll, {
+        backend,
+        ownerId,
+        // Fired once the dice are actually rolling. Everything after this point
+        // reports through the HUD notice instead of this panel's inline error.
+        onBaseWaveStarted: () => {
+          markRollAsUsed(roll.id)
+          onClose()
+        },
       })
-      const activeSavedRoll: ActiveSavedRoll = {
-        name: roll.name,
-        flatBonus: roll.flatBonus,
-        perDieBonuses,
-      }
-      useDiceStore.getState().setActiveSavedRoll(activeSavedRoll)
-
-      const rollSequence = useMultiplayerStore.getState().rollStartedSequence
-      backend.roll()
-      await waitForRoomState('start the saved roll', (state) => (
-        state.rollStartedSequence > rollSequence
-        && sameIdSet(state.lastRollStartedDiceIds, requestedIds)
-      ))
-
-      markRollAsUsed(roll.id)
-      onClose()
     } catch (error) {
       useDiceStore.getState().clearActiveSavedRoll()
       setExecutionError(error instanceof Error ? error.message : 'Could not execute the saved roll.')

@@ -3,22 +3,26 @@
 > Part of the [Harness documentation system](../../CLAUDE.md). Edit this file for detailed saved rolls guidance.
 
 ## Overview
-The saved rolls feature allows users to save dice roll configurations with bonuses (flat bonuses and per-die bonuses). The system intelligently manages bonus state to ensure bonuses only apply when appropriate.
+The saved rolls feature allows users to save dice roll configurations with bonuses (flat bonuses and per-die bonuses) and advanced mechanics (keep/drop, exploding, reroll, min/max clamps, success counting). The system intelligently manages bonus state to ensure bonuses only apply when appropriate.
 
 ## Architecture
 
 ### Core Components
-1. **`useDiceStore.ts`**: Manages `activeSavedRoll` state with bonus tracking
-2. **`SavedRollsPanel.tsx`**: Executes clear/spawn/roll through `useDiceBackend()`
-3. **`useMultiplayerStore.ts`**: Owns authoritative room dice and protocol acknowledgements
-4. **`Scene.tsx`**: Reads room dice and displays results with bonuses
-5. **`diceHelpers.ts`**: Formats saved roll formulas
+1. **`useDiceStore.ts`**: Manages `activeSavedRoll` state with bonus + plan tracking
+2. **`savedRollPlan.ts`**: Maps a roll's mechanics onto physical room dice, and scores them
+3. **`savedRollExecution.ts`**: Runs the roll as spawn waves over the room protocol
+4. **`SavedRollsPanel.tsx`**: Thin wrapper — latch, inline errors, panel close
+5. **`useMultiplayerStore.ts`**: Owns authoritative room dice and protocol acknowledgements
+6. **`Scene.tsx`**: Reads room dice and displays results with bonuses and kept/dropped state
+7. **`diceHelpers.ts`**: Formats saved roll formulas, badges and ranges
 
 ### Bonus State Structure
 ```typescript
 activeSavedRoll: {
-  flatBonus: number              // Flat bonus added to total (e.g., +4)
-  perDieBonuses: Map<string, number>  // Per-die bonuses (dice ID → bonus)
+  name: string
+  flatBonus: number                    // Flat bonus added to total (e.g., +4)
+  perDieBonuses: Map<string, number>   // Per-die bonuses (dice ID → bonus), group roots only
+  plan?: SavedRollPlan                 // Advanced mechanics, mapped to room dice ids
 } | null
 ```
 
@@ -35,9 +39,41 @@ When user executes a saved roll (e.g., "6d6 + 4"):
 
 ### 2. Result Display
 Shows total with bonuses:
-- **Grand Total**: `diceSum + perDieBonusesTotal + flatBonus`
+- **Grand Total**: `diceSum + perDieBonusesTotal + flatBonus`, or the plan's aggregate when the roll uses advanced mechanics
 - **Individual Dice**: Shows the reconciled per-die bonus next to each face value
-- **Flat Bonus**: Shows a separate bonus chip when non-zero
+- **Flat Bonus**: Shows a separate bonus chip when non-zero (hidden in success-counting mode, which ignores it)
+- **Dropped dice**: Dimmed and struck through, with an `N dropped` hint
+- **Roll notice**: A transient line for follow-up waves that ran out of table
+
+## Advanced Mechanics (physical execution)
+
+There is no server-side notion of a saved roll. `roll_player_dice` (`server/core/src/room.rs`) applies an impulse to **every** die the player owns, and `roll_complete.total` is a plain face sum. So every mechanic is orchestrated client-side as physical spawn waves over the existing protocol — this slice added **no** server, core or protocol changes.
+
+### Waves (`savedRollExecution.ts`)
+
+1. **Base** — clear our dice, spawn `rollCount` dice per entry, send `roll`, wait for all to settle. This is the **only** wave that sends `roll`; a second `roll` would re-roll the dice that already landed.
+2. **Reroll** — dice matching the condition are `remove_dice`d and respawned. A spawned die falls from `SPAWN_HEIGHT` and settles on its own, so **for follow-up waves the spawn IS the roll**. Once only: the replacement's face is final. Owned dice are respawned as themselves (removal is awaited first, or `addDie` refuses the duplicate).
+3. **Explosions** — each die showing the trigger face spawns one more die whose face **adds** to it. Repeats while dice keep exploding, bounded by `MAX_EXPLOSION_WAVES` (3) and by free room capacity.
+
+The panel closes as soon as the base wave starts rolling, which splits error handling in two:
+- **Before** that point → the promise rejects and `SavedRollsPanel` renders its inline alert.
+- **After** → `useDiceStore.rollNotice`, rendered by the result HUD (the panel is gone).
+
+Either way `executingRef` is held for the whole sequence, so a second roll can never interleave with a half-finished plan, and `finishSavedRollWaves()` always runs so the history row closes and `savedRollWavesPending` never sticks.
+
+### Capacity budgeting
+`getRollDiceCount` counts `rollCount` (not `quantity`) toward the 30-die cap, so keep/drop is pre-validated in the builder and re-checked at execution. **Exploding is deliberately not pre-counted** — its worst case is unbounded. Each explosion wave is budgeted against whatever is actually free at that moment; anything that does not fit is skipped and reported through `rollNotice`.
+
+### Scoring (`savedRollPlan.ts`)
+A plan groups room dice into **chains** whose faces sum into one logical die result (an explosion joins its parent's chain; a reroll replaces the chain's member). Order of operations matches `rollEngine.ts`: clamp the chain total → add the per-die bonus → keep/drop on those values → sum, or count successes. A roll with any success-counting entry ignores the flat bonus. Dice that have not settled are ignored rather than counted as zero, so a partially settled table shows a running total.
+
+`keepMode` is optional on `DiceEntry` and nothing validates it at runtime, so it defaults to `KEEP_MODE_DEFAULT` (`'highest'`) in one place — `diceHelpers.ts` — and the notation, badges, `rollEngine` and the plan all read that same default.
+
+### Notation
+`formatDiceEntry` appends in a fixed order: exploding binds to the die (`4d6!`, `4d6!5`), then ` kh2`/` kl2`, ` r≤2`, ` ≥5`, ` [2 specific]`. Min/max clamps are a badge, not notation. `calculateDiceEntryRange` returns `{ min, max, open? }`; `open` marks an exploding entry, rendered as `Range: 4 - 12+`.
+
+### Known limitation — remote viewers
+The plan is **client-side only** and never crosses the wire. A remote viewer in a multiplayer room sees each die's raw face and a raw face sum: no keep/drop, clamps, success counting or bonuses. Their history row is attributed (`displayName`) and carries no saved-roll name, so nothing they see is a mislabelled combined total — it is simply the unadorned dice. Correcting remote totals would need the plan on the protocol, which is out of scope for this slice.
 
 ### 3. Clear Bonuses
 `activeSavedRoll` is automatically cleared when:
@@ -144,3 +180,8 @@ When testing saved rolls:
 8. For percentile rolls, cover all three ways the pairing must survive: a table
    edit that clears `activeSavedRoll`, a **remote** player's `roll_complete` with
    no local roll state, and `00 + 0` reading 100 rather than 0
+9. Wave orchestration is unit-tested against a fake room with scripted faces
+   (`src/lib/savedRollExecution.test.ts`) — real dice are random, so browser
+   coverage (`e2e/roll-advanced.spec.ts`, `npm run test:e2e:roll-advanced`)
+   asserts relationships that hold for every outcome (the kept d20 is the
+   higher of the two) rather than fixed numbers

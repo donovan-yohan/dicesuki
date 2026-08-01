@@ -181,13 +181,13 @@ export function rollDiceEntry(entry: DiceEntry): DiceEntryResult {
   // Sort and apply keep/drop logic
   if (rollCount > entry.quantity) {
     // Sort based on keep mode
-    const sorted = [...rolls].sort((a, b) => {
-      if (entry.keepMode === 'highest') {
-        return b.value - a.value // Descending
-      } else {
-        return a.value - b.value // Ascending
-      }
-    })
+    // An absent keepMode keeps the highest (KEEP_MODE_DEFAULT), matching
+    // `savedRollPlan` so the virtual and physical engines score alike.
+    const sorted = [...rolls].sort((a, b) => (
+      entry.keepMode === 'lowest'
+        ? a.value - b.value // Ascending
+        : b.value - a.value // Descending
+    ))
 
     // Mark kept dice
     for (let i = 0; i < entry.quantity; i++) {

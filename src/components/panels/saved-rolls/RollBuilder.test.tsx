@@ -4,6 +4,7 @@ import { INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload } from '../..
 import {
   createAnonymousRollSource,
   createSpecificDieRollSource,
+  getRollDiceCount,
   getSpecificDieIds,
 } from '../../../lib/rollSources'
 import { useInventoryStore } from '../../../store/useInventoryStore'
@@ -250,7 +251,7 @@ describe('RollBuilder', () => {
     expect(screen.getAllByText('4d6')).toHaveLength(2)
   })
 
-  it('clears keep/drop when the count is set by hand', () => {
+  it('keeps the keep/drop policy when the rolled count is set by hand', () => {
     // Arrange — a keep-highest entry: roll 4, keep 2
     const initialRoll = rollWithSources([createAnonymousRollSource(4)], {
       quantity: 2,
@@ -260,14 +261,37 @@ describe('RollBuilder', () => {
     const { onSave } = renderBuilder({ initialRoll })
     expect(screen.getAllByText('4d20 kh2').length).toBeGreaterThan(0)
 
-    // Act
+    // Act — the quantity field edits the ROLLED count
     setQuantity('D20 quantity', '3')
 
-    // Assert — a manual count cannot leave a stale rollCount behind
+    // Assert — keep/drop is editable in Advanced Options, so a count change
+    // moves the rolled count instead of throwing the policy away
+    expect(screen.getAllByText('3d20 kh2').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: /update roll/i }))
     const saved = onSave.mock.calls[0][0]
-    expect(saved.dice[0].quantity).toBe(3)
-    expect(saved.dice[0].rollCount).toBeUndefined()
+    expect(saved.dice[0].rollCount).toBe(3)
+    expect(saved.dice[0].quantity).toBe(2)
+    expect(saved.dice[0].keepMode).toBe('highest')
+    expect(getRollDiceCount(saved.dice)).toBe(3)
+  })
+
+  it('pulls the keep count down when the rolled count drops below it', () => {
+    // Arrange — roll 4, keep 2
+    const initialRoll = rollWithSources([createAnonymousRollSource(4)], {
+      quantity: 2,
+      rollCount: 4,
+      keepMode: 'highest',
+    })
+    const { onSave } = renderBuilder({ initialRoll })
+
+    // Act
+    setQuantity('D20 quantity', '1')
+
+    // Assert — an entry can never keep more dice than it rolls
+    fireEvent.click(screen.getByRole('button', { name: /update roll/i }))
+    const saved = onSave.mock.calls[0][0]
+    expect(saved.dice[0].rollCount).toBe(1)
+    expect(saved.dice[0].quantity).toBe(1)
   })
 
   it('keeps repeated increments as a single generic group', () => {
@@ -418,6 +442,25 @@ describe('RollBuilder', () => {
     expect(screen.getByRole('button', { name: /save roll/i })).toBeDisabled()
     expect(alertSpy).not.toHaveBeenCalled()
     alertSpy.mockRestore()
+  })
+
+  it('shows a closed range for a roll that cannot exceed its dice', () => {
+    // Arrange
+    renderBuilder({ initialRoll: rollWithSources([createAnonymousRollSource(1)]) })
+
+    // Assert
+    expect(screen.getByText('Range: 1 - 20')).toBeInTheDocument()
+  })
+
+  it('marks an exploding roll as open-ended at the top of its range', () => {
+    // Arrange — 1d20 that explodes on its maximum face
+    renderBuilder({
+      initialRoll: rollWithSources([createAnonymousRollSource(1)], { exploding: { on: 'max' } }),
+    })
+
+    // Assert — the maximum is a floor for the chain, not a ceiling
+    expect(screen.getByText('Range: 1 - 20+')).toBeInTheDocument()
+    expect(screen.queryByText('Range: 1 - 20')).not.toBeInTheDocument()
   })
 
   it('imports current table dice as grouped generic dice plus specific owned dice', () => {

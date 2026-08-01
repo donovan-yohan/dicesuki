@@ -27,6 +27,7 @@ import { createWorkerRoomTransport } from '../lib/workerRoomTransport'
 import { arenaDimensionsForViewport } from '../config/renderScale'
 import { triggerCollisionFeedback } from '../lib/collisionFeedback'
 import { percentileSumCorrection } from '../lib/percentileRolls'
+import { aggregateSavedRollPlan, facesFromSettled } from '../lib/savedRollPlan'
 import { useDiceStore } from './useDiceStore'
 import {
   clearRoomSession,
@@ -770,9 +771,16 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
 
       case 'roll_complete': {
-        const { players } = get()
+        const { players, localPlayerId } = get()
         const player = players.get(msg.playerId)
         if (player) {
+          const diceState = useDiceStore.getState()
+
+          // A saved roll with follow-up waves is not finished when the room
+          // says the *roll* is: reroll and explosion dice are still to come.
+          // `finishSavedRollWaves` writes the authoritative row instead.
+          if (msg.playerId === localPlayerId && diceState.savedRollWavesPending) break
+
           const now = Date.now()
           const dice = msg.results.map((r) => ({
             diceId: r.diceId,
@@ -781,15 +789,36 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             settledAt: now,
             presentation: r.presentation,
           }))
-          // The room total (`msg.total`) is a PLAIN face sum by design, which is
-          // already right for a percentile pair except `00 + 0` (server 0, player
-          // 100). The pairing rides on `presentation`, which the server echoes
-          // back on every result — so this is correct for REMOTE players' rolls
-          // too, not just rolls this client started. See percentileRolls.ts.
-          const sum = dice.reduce((acc, d) => acc + d.value, 0)
-            + percentileSumCorrection(dice)
 
-          useDiceStore.getState().addRollToHistory({
+
+          // The room's own `total` is a plain face sum — it has no concept of
+          // keep/drop, clamps, success counting or bonuses. Only the roller
+          // holds the saved-roll plan, so only the roller's row can be
+          // corrected; a remote viewer's row stays the raw sum by design
+          // (docs/guides/saved-rolls.md).
+          //
+          // The percentile correction applies to whatever the plan does NOT
+          // own: `msg.total` is a plain face sum, already right for a pair
+          // except `00 + 0` (room 0, player 100). The pairing rides on
+          // `presentation`, which the server echoes back on every result, so
+          // this is correct for REMOTE players' rolls too. A plan combines its
+          // own pairs, so correcting them again would double-count.
+          const plan = msg.playerId === localPlayerId ? diceState.activeSavedRoll?.plan : undefined
+          let sum: number
+          if (plan) {
+            const aggregate = aggregateSavedRollPlan(
+              plan,
+              facesFromSettled(dice.map((d) => [d.diceId, d])),
+            )
+            const unplanned = dice.filter((d) => !aggregate.dice.has(d.diceId))
+            sum = aggregate.total
+              + unplanned.reduce((acc, d) => acc + d.value, 0)
+              + percentileSumCorrection(unplanned)
+          } else {
+            sum = dice.reduce((acc, d) => acc + d.value, 0) + percentileSumCorrection(dice)
+          }
+
+          diceState.addRollToHistory({
             dice,
             sum,
             timestamp: now,

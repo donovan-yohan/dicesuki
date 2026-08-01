@@ -312,4 +312,72 @@ describe('getRollDiceCount', () => {
     // Arrange / Act / Assert
     expect(getRollDiceCount(undefined)).toBe(0)
   })
+
+  /**
+   * Keep/drop entries roll more dice than they score. The room cap bounds what
+   * is physically spawned, so the budget has to follow `rollCount`, not
+   * `quantity` — a 2d20-keep-1 entry occupies two slots, not one.
+   */
+  it('counts the rolled dice of a keep/drop entry, not the kept ones', () => {
+    // Arrange — advantage: roll 2, keep 1
+    const entry: DiceEntry = {
+      id: 'advantage',
+      type: 'd20',
+      quantity: 1,
+      rollCount: 2,
+      keepMode: 'highest',
+      perDieBonus: 0,
+      sources: [createAnonymousRollSource(2)],
+    }
+
+    // Act / Assert
+    expect(getRollDiceCount([entry])).toBe(2)
+    expect(getDiceEntrySourceQuantity(entry)).toBe(2)
+  })
+
+  it('stays equal to what expandDiceEntrySources actually spawns', () => {
+    // Arrange — a keep/drop entry mixing an owned die with generic ones
+    const dice: DiceEntry[] = [
+      {
+        id: 'elven-accuracy',
+        type: 'd20',
+        quantity: 1,
+        rollCount: 3,
+        keepMode: 'highest',
+        perDieBonus: 0,
+        sources: [createSpecificDieRollSource('my-lucky-d20'), createAnonymousRollSource(2)],
+      },
+      {
+        id: 'damage',
+        type: 'd6',
+        quantity: 4,
+        perDieBonus: 0,
+        sources: [createAnonymousRollSource(4)],
+      },
+    ]
+
+    // Act
+    const spawned = dice.flatMap((entry) => expandDiceEntrySources(entry))
+
+    // Assert — the guard and the executor agree on the physical dice count
+    expect(getRollDiceCount(dice)).toBe(spawned.length)
+    expect(spawned).toHaveLength(7)
+  })
+
+  it('reconciles a keep/drop entry whose persisted sources drifted', () => {
+    // Arrange — rollCount says 3 but only one source survived
+    const entry = {
+      id: 'drifted',
+      type: 'd20',
+      quantity: 1,
+      rollCount: 3,
+      keepMode: 'highest',
+      perDieBonus: 0,
+      sources: [createSpecificDieRollSource('my-lucky-d20')],
+    } as DiceEntry
+
+    // Act / Assert — padded back up to the rolled count
+    expect(getRollDiceCount([entry])).toBe(3)
+    expect(expandDiceEntrySources(entry)).toHaveLength(3)
+  })
 })

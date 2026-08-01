@@ -459,8 +459,10 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
               <div className="text-2xl font-bold break-words">
                 {formula}
               </div>
+              {/* Exploding leaves the top of the range open, so it is shown as
+                  `max+` rather than a bound the roll can never exceed. */}
               <div className="text-sm opacity-90">
-                Range: {preview.min} - {preview.max}
+                {`Range: ${preview.min} - ${preview.max}${preview.open ? '+' : ''}`}
               </div>
               <div className="text-xs opacity-90">
                 {totalDiceCount} of {ROOM_DICE_CAPACITY} dice
