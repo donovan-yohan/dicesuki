@@ -50,6 +50,27 @@ function roomDie(id: string, ownerId = 'player-1'): MultiplayerDie {
   }
 }
 
+/**
+ * Record every base-wave spawn regardless of which backend method took it.
+ *
+ * A PLAIN entry source spawns owned-first through `addDie(type)` now, so a test
+ * that only stubs `addGenericDie` would see nothing. Only the percentile TENS
+ * half and follow-up wave dice still take the deliberately-generic path.
+ */
+function recordSpawns(
+  spawn: (type: string, presentation?: PercentilePresentationFields) => string,
+) {
+  return {
+    addDie: vi.fn((
+      type: string,
+      _inventoryDieId?: string,
+      presentation?: PercentilePresentationFields,
+    ) => spawn(type, presentation)),
+    addGenericDie: vi.fn((type: string, presentation?: PercentilePresentationFields) =>
+      spawn(type, presentation)),
+  } as unknown as Partial<DiceBackendState>
+}
+
 function renderPanel(backendOverrides: Partial<DiceBackendState> = {}) {
   const onClose = vi.fn()
   const backend: DiceBackendState = {
@@ -99,23 +120,26 @@ describe('SavedRollsPanel room execution', () => {
       operations.push('clear')
       useMultiplayerStore.setState({ dice: new Map() })
     })
-    const addDie = vi.fn(() => {
-      operations.push('spawn-specific')
-      return 'spawn-specific'
+    // Both sources of the entry take `addDie` now: the specific one by id, the
+    // plain one owned-first (which falls back to a basic inside the real
+    // backend). The id distinguishes them here.
+    const addDie = vi.fn((_type: string, inventoryDieId?: string) => {
+      const id = inventoryDieId ? 'spawn-specific' : 'spawn-generic'
+      operations.push(id)
+      if (id === 'spawn-generic') {
+        setTimeout(() => {
+          useMultiplayerStore.setState({
+            dice: new Map([
+              ['unrelated', roomDie('unrelated', 'other-player')],
+              ['spawn-generic', roomDie('spawn-generic')],
+              ['spawn-specific', roomDie('spawn-specific')],
+            ]),
+          })
+        }, 0)
+      }
+      return id
     })
-    const addGenericDie = vi.fn(() => {
-      operations.push('spawn-generic')
-      setTimeout(() => {
-        useMultiplayerStore.setState({
-          dice: new Map([
-            ['unrelated', roomDie('unrelated', 'other-player')],
-            ['spawn-generic', roomDie('spawn-generic')],
-            ['spawn-specific', roomDie('spawn-specific')],
-          ]),
-        })
-      }, 0)
-      return 'spawn-generic'
-    })
+    const addGenericDie = vi.fn(() => 'never-used')
     const roll = vi.fn(() => {
       operations.push('roll')
       useMultiplayerStore.setState((state) => ({
@@ -129,10 +153,12 @@ describe('SavedRollsPanel room execution', () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
     expect(operations).toEqual(['clear', 'spawn-specific', 'spawn-generic', 'roll'])
-    // Third/second arg is the presentation extras slot: `undefined` for a plain
-    // entry, so an ordinary die still spawns with no presentation of its own.
+    // Last arg is the presentation-extras slot: `undefined` outside a percentile
+    // pair. The plain source passes no inventory die id, which is what makes it
+    // owned-first-then-basic rather than a named spawn.
     expect(addDie).toHaveBeenCalledWith('d6', 'inventory-d6', undefined)
-    expect(addGenericDie).toHaveBeenCalledWith('d6', undefined)
+    expect(addDie).toHaveBeenCalledWith('d6', undefined, undefined)
+    expect(addGenericDie).not.toHaveBeenCalled()
     const active = useDiceStore.getState().activeSavedRoll
     expect(active?.name).toBe('Room fireball')
     expect(active?.flatBonus).toBe(4)
@@ -241,18 +267,14 @@ describe('SavedRollsPanel room execution', () => {
     const clearAll = vi.fn(() => {
       useMultiplayerStore.setState({ dice: new Map(foreignDice) })
     })
-    const addDie = vi.fn(() => {
+    const addDie = vi.fn((_type: string, inventoryDieId?: string) => {
+      const id = inventoryDieId ? 'spawn-specific' : 'spawn-generic'
       useMultiplayerStore.setState((state) => ({
-        dice: new Map([...state.dice, ['spawn-specific', roomDie('spawn-specific')]]),
+        dice: new Map([...state.dice, [id, roomDie(id)]]),
       }))
-      return 'spawn-specific'
+      return id
     })
-    const addGenericDie = vi.fn(() => {
-      useMultiplayerStore.setState((state) => ({
-        dice: new Map([...state.dice, ['spawn-generic', roomDie('spawn-generic')]]),
-      }))
-      return 'spawn-generic'
-    })
+    const addGenericDie = vi.fn(() => 'never-used')
     const roll = vi.fn(() => {
       useMultiplayerStore.setState((state) => ({
         rollStartedSequence: state.rollStartedSequence + 1,
@@ -319,17 +341,16 @@ describe('SavedRollsPanel room execution', () => {
     })
 
     const spawnedIds: string[] = []
-    const addGenericDie = vi.fn((type: string) => {
-      const id = `${type}-${spawnedIds.length}`
-      spawnedIds.push(id)
-      useMultiplayerStore.setState((state) => ({
-        dice: new Map([...state.dice, [id, roomDie(id)]]),
-      }))
-      return id
-    })
     const { onClose } = renderPanel({
       clearAll: vi.fn(() => useMultiplayerStore.setState({ dice: new Map() })),
-      addGenericDie,
+      ...recordSpawns((type) => {
+        const id = `${type}-${spawnedIds.length}`
+        spawnedIds.push(id)
+        useMultiplayerStore.setState((state) => ({
+          dice: new Map([...state.dice, [id, roomDie(id)]]),
+        }))
+        return id
+      }),
       roll: vi.fn(() => {
         useMultiplayerStore.setState((state) => ({
           rollStartedSequence: state.rollStartedSequence + 1,
@@ -395,14 +416,6 @@ describe('SavedRollsPanel room execution', () => {
     })
 
     const spawned: Array<{ type: string; presentation?: PercentilePresentationFields }> = []
-    const addGenericDie = vi.fn((type: string, presentation?: PercentilePresentationFields) => {
-      const id = `${type}-${spawned.length}`
-      spawned.push({ type, presentation })
-      useMultiplayerStore.setState((state) => ({
-        dice: new Map([...state.dice, [id, roomDie(id)]]),
-      }))
-      return id
-    })
     const roll = vi.fn(() => {
       useMultiplayerStore.setState((state) => ({
         rollStartedSequence: state.rollStartedSequence + 1,
@@ -411,7 +424,14 @@ describe('SavedRollsPanel room execution', () => {
     })
     const { onClose } = renderPanel({
       clearAll: vi.fn(() => useMultiplayerStore.setState({ dice: new Map() })),
-      addGenericDie,
+      ...recordSpawns((type, presentation) => {
+        const id = `${type}-${spawned.length}`
+        spawned.push({ type, presentation })
+        useMultiplayerStore.setState((state) => ({
+          dice: new Map([...state.dice, [id, roomDie(id)]]),
+        }))
+        return id
+      }),
       roll,
     })
 
@@ -464,16 +484,15 @@ describe('SavedRollsPanel room execution', () => {
     })
 
     const spawned: Array<{ type: string; presentation?: PercentilePresentationFields }> = []
-    const addGenericDie = vi.fn((type: string, presentation?: PercentilePresentationFields) => {
-      spawned.push({ type, presentation })
-      useMultiplayerStore.setState((state) => ({
-        dice: new Map([...state.dice, ['plain-d10', roomDie('plain-d10')]]),
-      }))
-      return 'plain-d10'
-    })
     const { onClose } = renderPanel({
       clearAll: vi.fn(() => useMultiplayerStore.setState({ dice: new Map() })),
-      addGenericDie,
+      ...recordSpawns((type, presentation) => {
+        spawned.push({ type, presentation })
+        useMultiplayerStore.setState((state) => ({
+          dice: new Map([...state.dice, ['plain-d10', roomDie('plain-d10')]]),
+        }))
+        return 'plain-d10'
+      }),
       roll: vi.fn(() => {
         useMultiplayerStore.setState((state) => ({
           rollStartedSequence: state.rollStartedSequence + 1,
@@ -486,7 +505,9 @@ describe('SavedRollsPanel room execution', () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
     expect(spawned.map((die) => die.type)).toEqual(['d10'])
-    // A plain d10 spawns with NO presentation block at all (Shared-ADR-005).
+    // No percentile extras: an ordinary d10 is never half of a pair. (What it
+    // looks like — owned die or basic — is the backend's call, not the
+    // executor's; see `useMultiplayerDiceBackend.test.tsx`.)
     expect(spawned[0].presentation).toBeUndefined()
   })
 })

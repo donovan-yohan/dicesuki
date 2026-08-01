@@ -5,6 +5,7 @@ import {
   BASIC_DIE_BASE_COLOR,
   basicDieDisplayName,
   createBasicDicePresentation,
+  dieChipLabel,
   isBasicDiePresentation,
 } from './basicDice'
 import { INVENTORY_DICE_SHAPES } from '../types/diceShape'
@@ -66,5 +67,32 @@ describe('isBasicDiePresentation', () => {
   it('treats a missing or presentation-less die as not basic', () => {
     expect(isBasicDiePresentation(undefined)).toBe(false)
     expect(isBasicDiePresentation({})).toBe(false)
+  })
+})
+
+describe('dieChipLabel', () => {
+  it('reads a basic die as the bare shape, not "Basic D6"', () => {
+    // A player with no collection rolls nothing but basics; prefixing every
+    // result chip with BASIC would be noise on the most scannable surface.
+    expect(dieChipLabel('d6', createBasicDicePresentation('d6'))).toBe('D6')
+    expect(dieChipLabel('d20', createBasicDicePresentation('d20'))).toBe('D20')
+    // The name is still carried for surfaces that genuinely NAME a die.
+    expect(createBasicDicePresentation('d6').displayName).toBe('Basic D6')
+  })
+
+  it('keeps an owned die its own name', () => {
+    expect(dieChipLabel('d20', { inventoryDieId: 'die_1', displayName: 'Lucky d20' }))
+      .toBe('Lucky d20')
+  })
+
+  it('falls back to the shape label for an unnamed or absent presentation', () => {
+    expect(dieChipLabel('d12')).toBe('D12')
+    expect(dieChipLabel('d12', {})).toBe('D12')
+  })
+
+  it('never surfaces the raw engine shape for a stray tens die', () => {
+    expect(dieChipLabel('d10tens')).toBe('D100 (tens)')
+    expect(dieChipLabel('d10tens', createBasicDicePresentation('d10tens')))
+      .toBe('D100 (tens)')
   })
 })

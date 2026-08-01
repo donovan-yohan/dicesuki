@@ -88,3 +88,23 @@ export function isBasicDiePresentation(
 ): boolean {
   return presentation?.basic === true
 }
+
+/**
+ * The label for a die in a result chip or history row.
+ *
+ * A basic die reads as the bare shape — `D6`, not `Basic D6`. A player with no
+ * collection rolls nothing but basics, and prefixing every chip with "BASIC"
+ * would be noise on the one surface that has to stay scannable at a glance. The
+ * `displayName` is still carried in the presentation and still used wherever a
+ * die is genuinely NAMED (tooltips, spawn logs, protocol payloads), so the
+ * information is not lost — only the shouting.
+ */
+export function dieChipLabel(
+  // Deliberately `string`, matching `formatDiceShapeLabel`: settled dice and
+  // history rows carry the shape straight off the wire, unnarrowed.
+  shape: string,
+  presentation?: DicePresentationMetadata,
+): string {
+  if (isBasicDiePresentation(presentation)) return formatDiceShapeLabel(shape)
+  return presentation?.displayName ?? formatDiceShapeLabel(shape)
+}

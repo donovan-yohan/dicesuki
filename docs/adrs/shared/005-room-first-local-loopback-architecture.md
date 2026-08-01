@@ -4,6 +4,8 @@
 * Status: Accepted
 * Deciders: Donovan, Development Team
 * Supersedes: [ADR 001 - Dual Physics Architecture](001-dual-physics-architecture.md)
+* Amended: 2026/07/28 — see [Amendments](#amendments) (the anonymous-dice
+  presentation clause is superseded by infinite basic dice)
 
 ## Context
 
@@ -50,8 +52,11 @@ and multiplayer differ only in player count and server location, not in code pat
   metadata on spawn (`inventoryDieId`, `displayName`, `setId`, `rarity`, `baseColor`,
   `customAssetId`, `customAssetName`, and an `unsupportedReason` fallback field).
   The server treats gameplay physics as authoritative and `presentation` as
-  client-provided display metadata. Generic anonymous dice (e.g. `d20`, `2d6`) MUST
-  continue to spawn without any presentation block.
+  client-provided display metadata. ~~Generic anonymous dice (e.g. `d20`, `2d6`) MUST
+  continue to spawn without any presentation block.~~
+  **Superseded by [Amendment 1](#amendment-1---basic-dice-replace-presentation-less-anonymous-dice-2026-07-28):**
+  every die a client spawns MUST carry a presentation block; a die with no owned
+  identity spawns as a *basic* die (`basic: true`).
 
 ### Server-Authoritative Physics for Every Mode
 
@@ -116,9 +121,51 @@ implementation.
 - A browser smoke (`e2e/local-loopback-room.spec.ts`, run via
   `npm run test:e2e:local-room`) is required to guard the `/` -> solo-room-ready path.
 
+## Amendments
+
+### Amendment 1 - Basic dice replace presentation-less anonymous dice (2026-07-28)
+
+* Status: Accepted
+* Deciders: Donovan (PO decision (d), 2026-07-27), Development Team
+* Amends: the "Room Protocol Is the Single Dice Path" clause requiring generic
+  anonymous dice to spawn without any presentation block.
+
+**Context.** Every player now has an unlimited supply of *basic* dice — a plain
+white body with black numerals that never appears in the inventory and is the
+universal auto-fill whenever a roll wants more dice of a type than the player
+owns (`docs/exec-plans/active/2026-07-28-my-dice-rolls-rework.md`, decision (d)).
+The original clause is incompatible with that: a die spawned with NO presentation
+renders in its **owner's player colour** (`MultiplayerDie.tsx`,
+`presentation?.baseColor ?? color`). That fallback is right for a die originated
+by some other client we know nothing about, but wrong for a die *this* client
+deliberately chose to spawn — the player asked for a plain die and would get a
+purple one.
+
+**Decision.** Every die a client spawns MUST carry a presentation block.
+
+- A die with no owned identity MUST spawn as a **basic** die: `basic: true`, a
+  white `baseColor`, a black `accentColor`, and no `inventoryDieId`, `setId` or
+  `rarity`. The canonical block is `src/lib/basicDice.ts`.
+- `basic` is opaque to the room, mirrored on `DicePresentationMetadata` in
+  `server/core/src/messages.rs` under the ADR 002 manual-sync rule, and echoed
+  back on `dice_spawned` / `roll_complete` so remote and reconnecting clients see
+  a basic die as a basic die.
+- The owner-colour fallback in `MultiplayerDie` is retained, but is now reachable
+  only for dice originated by another (or an older) client.
+- Basic dice MUST stay invisible to every ownership-derived surface — the
+  toolbar's available count, set completion, selling and stats all key on
+  `inventoryDieId`, which basics do not carry.
+
+**Consequences.** Presentation-less spawns are no longer produced by any client
+path, so "anonymous" now means "not owned", not "not described". A player with an
+empty collection is still fully able to play, which is what let the seeded local
+starter inventory be retired in the same slice.
+
 ## References
 
 - Supersedes ADR 001 (Dual Physics Architecture).
+- Amendment 1 (2026-07-28) supersedes this ADR's anonymous-dice presentation
+  clause; see [Amendments](#amendments).
 - Builds on ADR 002 (WebSocket JSON Protocol), ADR 003 (Centralized Physics
   Configuration), and ADR 004 (Multiplayer Drag Interaction Architecture).
 - Epic #42 (room-first local loopback architecture follow-through); PR #52.

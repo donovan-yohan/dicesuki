@@ -144,10 +144,12 @@ test.describe('basic dice at 390x844', () => {
     await expect(room).toHaveAttribute('data-room-basic-dice-count', '2')
   })
 
-  test('a 6d4 roll with 4 owned dice lands 4 owned and 2 basic', async ({ page }) => {
+  test('a plain 6d4 roll with 4 owned dice lands 4 owned and 2 basic', async ({ page }) => {
     test.setTimeout(180_000)
     await seedStorage(page, {
       ownedD4Count: 4,
+      // A PLAIN entry — no die is named. Owned-first fill is what turns this
+      // into 4 styled + 2 basic (PO decision (d)).
       savedRoll: {
         id: 'roll-mixed',
         name: 'Mixed d4s',
@@ -158,13 +160,7 @@ test.describe('basic dice at 390x844', () => {
           type: 'd4',
           quantity: 6,
           perDieBonus: 0,
-          sources: [
-            { kind: 'specific', dieId: 'die_owned_d4_1' },
-            { kind: 'specific', dieId: 'die_owned_d4_2' },
-            { kind: 'specific', dieId: 'die_owned_d4_3' },
-            { kind: 'specific', dieId: 'die_owned_d4_4' },
-            { kind: 'anonymous', quantity: 2 },
-          ],
+          sources: [{ kind: 'anonymous', quantity: 6 }],
         }],
       },
     })
@@ -180,8 +176,9 @@ test.describe('basic dice at 390x844', () => {
     await expect(room).toHaveAttribute('data-room-dice-types', 'd4,d4,d4,d4,d4,d4')
     await expect(room).toHaveAttribute('data-room-basic-dice-count', '2')
 
-    // Nothing was lost, so nothing is reported.
-    await expect(page.getByTestId('roll-notice')).toHaveCount(0)
+    // The shortfall is stated — not as an error, the roll is complete.
+    await expect(page.getByText('You ran out of owned dice, so 2 basic dice filled in.'))
+      .toBeVisible()
     await expect(page.getByTestId('roll-grand-total'))
       .not.toHaveText('?', { timeout: 60_000 })
 
@@ -189,6 +186,36 @@ test.describe('basic dice at 390x844', () => {
       path: 'e2e/screenshots/basic-dice-mixed-owned-and-basic-roll.png',
       fullPage: false,
     })
+  })
+
+  test('a plain roll covered by owned dice uses them all and says nothing', async ({ page }) => {
+    test.setTimeout(180_000)
+    await seedStorage(page, {
+      ownedD4Count: 4,
+      savedRoll: {
+        id: 'roll-covered',
+        name: 'All mine',
+        flatBonus: 0,
+        createdAt: 1,
+        dice: [{
+          id: 'entry-1',
+          type: 'd4',
+          quantity: 4,
+          perDieBonus: 0,
+          sources: [{ kind: 'anonymous', quantity: 4 }],
+        }],
+      },
+    })
+
+    const room = await openSoloRoom(page)
+
+    await page.getByRole('button', { name: 'My Dice Rolls' }).click()
+    await page.getByRole('button', { name: 'Roll All mine' }).click()
+
+    await expect(room).toHaveAttribute('data-room-dice-count', '4', { timeout: 60_000 })
+    // Not one basic: the owned pool covered the whole roll.
+    await expect(room).toHaveAttribute('data-room-basic-dice-count', '0')
+    await expect(page.getByTestId('roll-notice')).toHaveCount(0)
   })
 
   test('a roll naming a die you no longer own degrades to a basic with a notice', async ({ page }) => {

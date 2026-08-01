@@ -778,9 +778,9 @@ describe('executePhysicalSavedRoll', () => {
       expect(useDiceStore.getState().rollNotice).toBeNull()
     })
 
-    it('does not count plain anonymous dice as substitutions', async () => {
-      // Arrange — anonymous entries are basics BY DESIGN, not by fallback, so
-      // rolling them must not accuse the player of losing a die.
+    it('rolls a plain entry entirely as basics when the player owns none', async () => {
+      // Arrange — an empty collection is the DEFAULT, not a shortfall, so this
+      // must not accuse the player of running out of anything.
       const spawned = stubRealRoomTransport([2, 5])
       const { result } = renderHook(() => useMultiplayerDiceBackend())
       const roll = makeRoll({
@@ -793,6 +793,148 @@ describe('executePhysicalSavedRoll', () => {
       await executePhysicalSavedRoll(roll, { backend: result.current, ownerId: OWNER })
 
       // Assert
+      expect(spawned.every((die) => die.presentation?.basic === true)).toBe(true)
+      expect(useDiceStore.getState().rollNotice).toBeNull()
+    })
+  })
+
+  /**
+   * PO decision (d), 2026-07-28: a PLAIN entry fills owned-first, then basics.
+   * A roll for 6d4 by a player who owns 4 puts their 4 on the table and makes up
+   * the difference with basics — it is never short and never refuses.
+   */
+  describe('owned-first fill for plain entries', () => {
+    function stubRealRoomTransport() {
+      let nextId = 0
+      const spawned: Array<{ id: string; presentation?: DicePresentationMetadata }> = []
+      useMultiplayerStore.setState({
+        spawnDice: ((type: DiceShape, presentation?: DicePresentationMetadata) => {
+          const id = `real-${++nextId}`
+          spawned.push({ id, presentation })
+          useMultiplayerStore.setState((state) => ({
+            dice: new Map(state.dice).set(id, { ...roomDie(id, type), presentation }),
+          }))
+          setTimeout(() => useDiceStore.getState().recordDieSettled(id, 1, type), 0)
+          return id
+        }) as never,
+        roll: (() => {
+          const mine = Array.from(useMultiplayerStore.getState().dice.values())
+            .filter((die) => die.ownerId === OWNER).map((die) => die.id)
+          useMultiplayerStore.setState((state) => ({
+            rollStartedSequence: state.rollStartedSequence + 1,
+            lastRollStartedDiceIds: mine,
+          }))
+          useDiceStore.getState().markDiceRolling(mine)
+        }) as never,
+      })
+      return spawned
+    }
+
+    function ownD4s(count: number): string[] {
+      return Array.from({ length: count }, (_, index) => (
+        useInventoryStore.getState().addDie({
+          id: `owned-d4-${index}`,
+          type: 'd4',
+          setId: 'test-set',
+          rarity: 'common',
+          appearance: { baseColor: '#2563eb', accentColor: '#fff', material: 'plastic' },
+          vfx: {},
+          name: `Blue d4 #${index}`,
+          isFavorite: false,
+          isLocked: false,
+          source: 'gacha_standard',
+        }).id
+      ))
+    }
+
+    /** Which owned die (if any) each spawn used, in spawn order. */
+    const ownedIdsOf = (spawned: Array<{ presentation?: DicePresentationMetadata }>) =>
+      spawned.map((die) => die.presentation?.inventoryDieId)
+
+    const plainD4Roll = (quantity: number, id = 'entry-1') => ({
+      ...makeRoll({ type: 'd4', quantity, sources: [{ kind: 'anonymous', quantity }] }),
+      dice: [{
+        id,
+        type: 'd4' as const,
+        quantity,
+        perDieBonus: 0,
+        sources: [{ kind: 'anonymous' as const, quantity }],
+      }],
+    })
+
+    beforeEach(() => {
+      useInventoryStore.getState().reset()
+    })
+
+    it('uses only owned dice when the player owns enough, and says nothing', async () => {
+      const ownedIds = ownD4s(4)
+      const spawned = stubRealRoomTransport()
+      const { result } = renderHook(() => useMultiplayerDiceBackend())
+
+      await executePhysicalSavedRoll(plainD4Roll(4), { backend: result.current, ownerId: OWNER })
+
+      expect(spawned).toHaveLength(4)
+      expect(spawned.every((die) => die.presentation?.basic !== true)).toBe(true)
+      // Each owned die is used exactly once — never twice in one roll.
+      expect(ownedIdsOf(spawned).sort()).toEqual([...ownedIds].sort())
+      expect(useDiceStore.getState().rollNotice).toBeNull()
+    })
+
+    it('fills the shortfall with basics and reports the count', async () => {
+      const ownedIds = ownD4s(4)
+      const spawned = stubRealRoomTransport()
+      const { result } = renderHook(() => useMultiplayerDiceBackend())
+
+      await executePhysicalSavedRoll(plainD4Roll(6), { backend: result.current, ownerId: OWNER })
+
+      // 6 dice on the table: the 4 owned plus 2 basics. The roll is never short.
+      expect(spawned).toHaveLength(6)
+      const owned = spawned.filter((die) => die.presentation?.basic !== true)
+      const basics = spawned.filter((die) => die.presentation?.basic === true)
+      expect(owned).toHaveLength(4)
+      expect(basics).toHaveLength(2)
+      expect(ownedIdsOf(owned).sort()).toEqual([...ownedIds].sort())
+      expect(useDiceStore.getState().rollNotice)
+        .toBe('You ran out of owned dice, so 2 basic dice filled in.')
+    })
+
+    it('does not let two entries of the same type claim the same owned die', async () => {
+      // Two 2d4 entries against a pool of 3: the first entry takes two, the
+      // second gets the last owned die and one basic. A die spawned earlier in
+      // the SAME roll counts as in use, before the room has acknowledged it.
+      const ownedIds = ownD4s(3)
+      const spawned = stubRealRoomTransport()
+      const { result } = renderHook(() => useMultiplayerDiceBackend())
+      const roll = {
+        ...plainD4Roll(2),
+        dice: [...plainD4Roll(2, 'entry-a').dice, ...plainD4Roll(2, 'entry-b').dice],
+      }
+
+      await executePhysicalSavedRoll(roll, { backend: result.current, ownerId: OWNER })
+
+      expect(spawned).toHaveLength(4)
+      const usedOwnedIds = ownedIdsOf(spawned).filter((id): id is string => id !== undefined)
+      expect(usedOwnedIds.sort()).toEqual([...ownedIds].sort())
+      expect(new Set(usedOwnedIds).size).toBe(3)
+      expect(spawned.filter((die) => die.presentation?.basic === true)).toHaveLength(1)
+      expect(useDiceStore.getState().rollNotice)
+        .toBe('You ran out of owned dice, so 1 basic die filled in.')
+    })
+
+    it('leaves a type the player owns nothing of entirely basic and silent', async () => {
+      ownD4s(2)
+      const spawned = stubRealRoomTransport()
+      const { result } = renderHook(() => useMultiplayerDiceBackend())
+      // d6, not d4: the player owns d4s but no d6s at all.
+      const roll = makeRoll({
+        type: 'd6',
+        quantity: 3,
+        sources: [{ kind: 'anonymous', quantity: 3 }],
+      })
+
+      await executePhysicalSavedRoll(roll, { backend: result.current, ownerId: OWNER })
+
+      expect(spawned).toHaveLength(3)
       expect(spawned.every((die) => die.presentation?.basic === true)).toBe(true)
       expect(useDiceStore.getState().rollNotice).toBeNull()
     })
@@ -865,17 +1007,14 @@ describe('executePhysicalSavedRoll', () => {
       // Arrange — the explosion's spawn is rejected by the room
       const room = createFakeRoom([6, 6])
       const roll = makeRoll({ quantity: 1, exploding: { on: 'max' } })
-      const originalAdd = room.backend.addGenericDie
-      let spawns = 0
-      room.backend.addGenericDie = vi.fn((type) => {
-        spawns += 1
-        if (spawns === 2) {
-          useMultiplayerStore.setState({
-            roomActionError: { code: 'DICE_LIMIT', message: 'Table is full' },
-          })
-          return null
-        }
-        return originalAdd(type)
+      // Only follow-up wave dice take the generic path now — the base wave's
+      // plain source spawns owned-first through `addDie` — so the FIRST generic
+      // spawn is the explosion.
+      room.backend.addGenericDie = vi.fn(() => {
+        useMultiplayerStore.setState({
+          roomActionError: { code: 'DICE_LIMIT', message: 'Table is full' },
+        })
+        return null
       })
 
       // Act — the base wave already started, so this must not reject

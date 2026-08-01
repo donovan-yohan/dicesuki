@@ -131,10 +131,10 @@ test('leaves an ordinary d10 roll unchanged (0-9, one die, no pairing)', async (
   await expect(room).toHaveAttribute('data-room-dice-types', 'd10')
   await expect(page.locator('span[title="D100"]')).toHaveCount(0)
 
-  // A plain entry spawns one of the infinite basic dice (`src/lib/basicDice.ts`),
-  // which name themselves "Basic D10" — the point of the assertion is that it is
-  // ONE ordinary d10 chip, not half of a pair.
-  const chip = page.locator('span[title="Basic D10"]')
+  // A basic die reads as its bare shape in a result chip, so this stays "D10" —
+  // the point of the assertion is that it is ONE ordinary d10 chip, not half of
+  // a pair.
+  const chip = page.locator('span[title="D10"]')
   await expect(chip).toBeVisible({ timeout: 30_000 })
   const face = await chip.locator('xpath=following-sibling::div[1]').textContent()
   const value = Number(face)
