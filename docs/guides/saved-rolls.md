@@ -61,7 +61,13 @@ The panel closes as soon as the base wave starts rolling, which splits error han
 - **Before** that point → the promise rejects and `SavedRollsPanel` renders its inline alert.
 - **After** → `useDiceStore.rollNotice`, rendered by the result HUD (the panel is gone).
 
-Either way `executingRef` is held for the whole sequence, so a second roll can never interleave with a half-finished plan, and `finishSavedRollWaves()` always runs so the history row closes and `savedRollWavesPending` never sticks.
+Either way `executingRef` is held for the whole sequence, so a second roll can never interleave with a half-finished plan.
+
+**Releasing `savedRollWavesPending` is the sequence's hard obligation.** `beginSavedRollWaves()` is claimed *before* `roll` is sent (so the settle handler already knows to hold the history row open), which means every path from that point on has to close it:
+- the follow-up waves run inside `try/finally`, so they release it however they end;
+- the base roll's `publishPlan` → `roll()` → ack window is wrapped in its own `try/catch` that releases it and rethrows.
+
+That second guard is not theoretical: an ack timeout, a socket drop (`SEND_FAILED`), a room rejection, or a spawn-id mismatch all abort between "claimed" and "waves running". A flag left set there is a session-wide lockout — every saved roll and the HUD's Roll button stay disabled, `recordDieSettled` never closes a cycle, and `roll_complete` stays suppressed until the page is reloaded.
 
 While `savedRollWavesPending` is true:
 - the HUD's Roll button is disabled (`roll` impulses **every** die the player owns, so it would re-roll dice that already landed and invalidate the plan);
@@ -75,7 +81,7 @@ While `savedRollWavesPending` is true:
 
 Both are pinned by `src/lib/savedRollExecution.test.ts`: the fake room's spawn reproduces the `clearActiveSavedRoll` side effect, and one test drives the real `useMultiplayerDiceBackend` with only the protocol send stubbed.
 
-A wait started mid-sequence only fails on a room error raised **after** it began (identity comparison against the error present at wait start) — a stale error from before the roll must not abort a wave that is doing nothing wrong.
+**Error scoping is per wave, not per wait.** Each wave opens with `beginWave()`, which clears `roomActionError`; every wait then fails on any error it sees, because that error can only have been raised by the wave in flight. Scoping *inside* the wait instead — ignoring an error that was already present when the wait began — looks equivalent but is not: an action and the error it raises are synchronous, so `backend.roll()` sets `roomActionError` *before* the ack wait starts, and such a wait would be blind to the very rejection it is waiting on.
 
 ### Capacity budgeting
 `getRollDiceCount` counts `rollCount` (not `quantity`) toward the 30-die cap, so keep/drop is pre-validated in the builder and re-checked at execution. **Exploding is deliberately not pre-counted** — its worst case is unbounded. Each explosion wave is budgeted against whatever is actually free at that moment; anything that does not fit is skipped and reported through `rollNotice`.
@@ -91,7 +97,8 @@ A plan groups room dice into **chains** whose faces sum into one logical die res
 ### Percentile (d100) entries
 A d100 is a `d10tens` + `d10` PAIR combined into one 1-100 result, which changes what the mechanics can mean:
 
-- **Gated off in the builder**: keep/drop, exploding and reroll are hidden for a percentile entry, with an inline explanation. You cannot reroll or explode half a pair, and the room has no way to express "keep whole pairs". `selectRerollTargets`/`selectExplosionTargets` also skip percentile groups, so a legacy roll carrying those configs is ignored rather than half-applied.
+- **Gated off in the builder**: exploding and reroll are hidden for a percentile entry, with an inline explanation — you cannot reroll or explode half a pair. `createSavedRollPlan` strips both, `formatDiceEntry`/`getDiceEntryBadges` omit them, and `selectRerollTargets`/`selectExplosionTargets` skip percentile groups, so a legacy row carrying those configs is dropped rather than half-applied or falsely advertised. The reroll-based quick presets (Great Weapon Fighting, Halfling Luck) are hidden for the same reason.
+- **Keep/drop IS supported**: keep/drop operates on whole pairs, which the plan expresses natively (each pair is one group), so the section and the Advantage / Disadvantage / Elven Accuracy presets stay available and `2d100 kh1` scores correctly.
 - **Still available**: min/max clamps and success counting, applied to the **combined** value. Their ceiling is `getEntryMax` (100), not the 90 of the tens half.
 - **One plan group per pair**, `memberIds: [tensDieId, onesDieId]`, flagged `percentile`. The group's value is `combinePercentile(tens, ones)` — `00 + 0` is 100 — not a sum. A half-settled pair scores nothing rather than reporting the tens face alone.
 - **The per-die bonus rides on the ones die** (`bonusMemberId`): the tens half is anonymous engine scaffolding that can never be an owned die.

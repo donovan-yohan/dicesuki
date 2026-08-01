@@ -158,6 +158,42 @@ for (const viewport of VIEWPORTS) {
   })
 }
 
+test.describe('percentile entries at 390x844', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('offers keep/drop for a d100 but not exploding or reroll', async ({ page }) => {
+    test.setTimeout(180_000)
+    await openBuilder(page)
+    await page.getByLabel('Roll name').fill('Percentile advantage')
+    await page.getByRole('button', { name: /Add 1 D100 die/i }).click()
+    await page.getByRole('button', { name: /Advanced Options/ }).click()
+
+    // ── The mechanics a tens+ones pair genuinely cannot run are gone ─────
+    await expect(page.getByTestId('percentile-advanced-notice')).toBeVisible()
+    await expect(page.getByLabel('Exploding D100 dice')).toHaveCount(0)
+    await expect(page.getByLabel('Reroll low D100 dice')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Apply Great Weapon Fighting/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Apply Halfling Luck/ })).toHaveCount(0)
+
+    // ── Keep/drop works on whole pairs, so it stays ─────────────────────
+    await page.getByRole('button', { name: 'Apply Advantage to D100' }).click()
+    await expect(page.getByText('2d100 kh1').first()).toBeVisible()
+    await expect(page.getByText('Roll 2, keep best 1')).toBeVisible()
+    await expect(page.getByText('⬆️ ADV').first()).toBeVisible()
+
+    // A pair is TWO physical dice, so 2 d100s occupy 4 of the 30 slots
+    await expect(page.getByText('4 of 30 dice')).toBeVisible()
+
+    // ── Clamps use the entry's 1-100 range, not the d10 half's ──────────
+    await page.getByLabel('D100 maximum value').fill('95')
+    await page.getByLabel('D100 maximum value').blur()
+    await expect(page.getByLabel('D100 maximum value')).toHaveValue('95')
+    await expect(page.getByText(/Range: 1 - 95/)).toBeVisible()
+
+    await expectNoSidewaysScroll(page)
+  })
+})
+
 test.describe('physical execution at 390x844', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 

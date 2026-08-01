@@ -398,8 +398,12 @@ export function calculateDiceEntryRange(entry: DiceEntry): DiceRange {
   const max = (highFace + entry.perDieBonus) * quantity
 
   // Exploding is only open-ended while nothing caps the die total. A maximum
-  // clamp applies to the whole chain, so the range closes again.
-  const isOpen = entry.exploding !== undefined && entry.maximum === undefined
+  // clamp applies to the whole chain, so the range closes again — and a
+  // percentile entry never explodes at all (`createSavedRollPlan` strips it),
+  // so a legacy row carrying the config must not advertise an open top end.
+  const isOpen = entry.exploding !== undefined
+    && entry.maximum === undefined
+    && !isPercentileEntry(entry)
   return isOpen ? { min, max, open: true } : { min, max }
 }
 

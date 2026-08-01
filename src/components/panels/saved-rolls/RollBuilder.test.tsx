@@ -212,14 +212,17 @@ describe('RollBuilder', () => {
     // Act
     setQuantity('D20 quantity', '2')
 
-    // Assert — the owned die survives and nothing is reported as removed
+    // Assert — the owned die survives; only the generics are given up, and the
+    // notice says so rather than discarding three dice silently.
     fireEvent.click(screen.getByRole('button', { name: /update roll/i }))
     const saved = onSave.mock.calls[0][0]
     expect(saved.dice[0].sources).toEqual([
       createSpecificDieRollSource(steel.id),
       createAnonymousRollSource(1),
     ])
-    expect(screen.queryByText(/Removed from this roll/i)).not.toBeInTheDocument()
+    const notice = screen.getByText(/Removed from this roll/i)
+    expect(notice).toHaveTextContent('3 generic dice')
+    expect(notice).not.toHaveTextContent('Steel d20')
   })
 
   it('names the owned dice a shrink had to remove', () => {

@@ -60,6 +60,7 @@ function createFakeRoom(faceQueue: number[]) {
   const removed: string[] = []
   let nextId = 0
   let failNextSpawn: string | null = null
+  let failRollWith: string | null = null
 
   function settle(id: string) {
     if (activeRoomToken !== token) return
@@ -127,6 +128,13 @@ function createFakeRoom(faceQueue: number[]) {
       })
     }),
     roll: vi.fn(() => {
+      if (failRollWith) {
+        useMultiplayerStore.setState({
+          roomActionError: { code: 'SEND_FAILED', message: failRollWith },
+        })
+        failRollWith = null
+        return
+      }
       const mine = Array.from(useMultiplayerStore.getState().dice.values())
         .filter((die) => die.ownerId === OWNER)
         .map((die) => die.id)
@@ -166,6 +174,7 @@ function createFakeRoom(faceQueue: number[]) {
     removed,
     quiesce,
     failSpawnWith: (message: string) => { failNextSpawn = message },
+    failRollAckWith: (message: string) => { failRollWith = message },
   }
 }
 
@@ -614,7 +623,7 @@ describe('executePhysicalSavedRoll', () => {
       // protocol send, so the production side effects are all present.
       const spawned: string[] = []
       let nextId = 0
-      const faces = [1, 6]
+      const faces = [6, 2]
       useMultiplayerStore.setState({
         spawnDice: ((type: DiceShape) => {
           const id = `real-${++nextId}`
@@ -650,10 +659,10 @@ describe('executePhysicalSavedRoll', () => {
       })
 
       const { result } = renderHook(() => useMultiplayerDiceBackend())
-      const roll = makeRoll({
-        quantity: 1,
-        reroll: { condition: 'equals', value: 1, maxRerolls: 1 },
-      })
+      // Exploding, not reroll: an explosion wave spawns a SECOND follow-up die,
+      // so the plan must survive two rounds of the backend clearing it — which
+      // is exactly the teardown this block exists to pin.
+      const roll = makeRoll({ quantity: 1, exploding: { on: 'max' } })
 
       // Act
       await executePhysicalSavedRoll(roll, { backend: result.current, ownerId: OWNER })
@@ -666,7 +675,8 @@ describe('executePhysicalSavedRoll', () => {
       expect(useDiceStore.getState().activeSavedRoll?.plan).toBeDefined()
       expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
       expect(useDiceStore.getState().rollHistory).toHaveLength(1)
-      expect(useDiceStore.getState().rollHistory[0].sum).toBe(6)
+      // 6 exploded into a 2: one logical die worth 8 across two physical dice.
+      expect(useDiceStore.getState().rollHistory[0].sum).toBe(8)
     })
   })
 
@@ -695,6 +705,44 @@ describe('executePhysicalSavedRoll', () => {
       expect(room.backend.clearAll).not.toHaveBeenCalled()
     })
 
+    it('releases the wave latch when the base roll never starts', async () => {
+      // Arrange — a roll WITH follow-up waves, whose `roll` is rejected by the
+      // room (socket drop, room error, ack timeout, spawn-id mismatch).
+      const room = createFakeRoom([6, 6])
+      room.failRollAckWith('Could not reach the room.')
+      const roll = makeRoll({ quantity: 1, exploding: { on: 'max' } })
+
+      // Act
+      await expect(run(roll, room.backend)).rejects.toThrow('Could not reach the room')
+
+      // Assert — the wave sequence opened before `roll` must not stay open, or
+      // every later roll is locked out for the rest of the session.
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+    })
+
+    it('still rolls normally after a failed base-roll acknowledgement', async () => {
+      // Arrange — first attempt fails at the roll ack
+      const failing = createFakeRoom([6, 6])
+      failing.failRollAckWith('Could not reach the room.')
+      const roll = makeRoll({ quantity: 1, exploding: { on: 'max' } })
+      await expect(run(roll, failing.backend)).rejects.toThrow()
+      useMultiplayerStore.setState({ roomActionError: null })
+      // The lockout would show up here: a stuck flag disables every saved roll
+      // and the HUD Roll button before the second attempt is even possible.
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+
+      // Act — a second, healthy attempt
+      const room = createFakeRoom([6, 2])
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      // Assert — the lockout is gone: waves ran and history recorded one row
+      expect(room.spawnLog).toHaveLength(2)
+      expect(activeTotal()).toBe(8)
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    })
+
     it('reports a follow-up wave failure as a notice and leaves no stuck state', async () => {
       // Arrange — the explosion's spawn is rejected by the room
       const room = createFakeRoom([6, 6])
@@ -719,6 +767,7 @@ describe('executePhysicalSavedRoll', () => {
       expect(useDiceStore.getState().rollNotice).toContain('Follow-up dice stopped early')
       expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
       expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      // Only the base die landed — the explosion it earned was never spawned.
       expect(useDiceStore.getState().rollHistory[0].sum).toBe(6)
     })
   })

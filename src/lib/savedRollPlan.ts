@@ -246,7 +246,11 @@ export function addGroup(plan: SavedRollPlan, entryId: string, diceId: string): 
 
 /**
  * Record a d100 as ONE logical die backed by its two physical halves.
- * Order matters: the tens die is the group root and carries the per-die bonus.
+ *
+ * Order matters: `memberIds` is always `[tens, ones]`, which is how
+ * `resolveGroups` knows which face is which. The per-die bonus rides on the
+ * ONES die (see {@link bonusMemberId}) — the tens half is anonymous engine
+ * scaffolding that can never be an owned die.
  */
 export function addPercentileGroup(
   plan: SavedRollPlan,

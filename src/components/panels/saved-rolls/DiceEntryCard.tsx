@@ -1,6 +1,6 @@
 import { type KeyboardEvent, useState } from 'react'
 import { DiceIconWithNumber } from '../../icons/DiceIconWithNumber'
-import type { DiceEntry, KeepMode, QuickPreset } from '../../../types/savedRolls'
+import type { DiceEntry, KeepMode, QuickPreset, RollSource } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
 import {
   KEEP_MODE_DEFAULT,
@@ -14,6 +14,7 @@ import { isPercentileEntry } from '../../../lib/percentileRolls'
 import { MAX_EXPLOSION_WAVES, getExplodeFace } from '../../../lib/savedRollPlan'
 import {
   getDiceEntrySourceQuantity,
+  getRollSourceQuantity,
   normalizeRollSources,
   resizeRollSources,
 } from '../../../lib/rollSources'
@@ -29,6 +30,20 @@ const QUICK_PRESETS: ReadonlyArray<{ preset: QuickPreset; label: string }> = [
   { preset: 'gwf', label: 'Great Weapon Fighting' },
   { preset: 'luck', label: 'Halfling Luck' },
 ]
+
+/**
+ * The presets that only move the rolled/kept counts.
+ *
+ * These are exactly the presets a percentile entry can honour: `gwf` and `luck`
+ * set a REROLL, which `createSavedRollPlan` strips from a percentile entry
+ * (you cannot reroll half a pair), so offering them there would be a button
+ * that silently does nothing.
+ */
+const KEEP_DROP_PRESETS: ReadonlySet<QuickPreset> = new Set<QuickPreset>([
+  'advantage',
+  'disadvantage',
+  'elvenAccuracy',
+])
 
 const SECTION_CLASS = 'flex flex-col gap-2 p-2 rounded min-w-0'
 const SECTION_STYLE = {
@@ -50,6 +65,19 @@ const INLINE_LABEL_STYLE = { color: 'var(--color-text-secondary)' } as const
 function clampToRange(value: number, min: number, max: number): number {
   const ceiling = Math.max(min, max)
   return Math.min(Math.max(Math.floor(value), min), ceiling)
+}
+
+/** How many GENERIC dice a source list holds; owned dice are counted by name. */
+function countGenericDice(sources: readonly RollSource[]): number {
+  return sources.reduce(
+    (total, source) => total + (source.kind === 'anonymous' ? getRollSourceQuantity(source) : 0),
+    0,
+  )
+}
+
+/** "1 generic die" / "3 generic dice" — a count the notice can read out loud. */
+function formatGenericLoss(count: number): string {
+  return `${count} generic ${count === 1 ? 'die' : 'dice'}`
 }
 
 interface AdvancedNumberFieldProps {
@@ -185,12 +213,19 @@ export function DiceEntryCard({
   // typing "12" pass through 1, and each pass-through would permanently drop
   // sources the user never asked to remove.
   const [quantityDraft, setQuantityDraft] = useState<string | null>(null)
-  const [droppedDieNames, setDroppedDieNames] = useState<string[]>([])
+  // What the last commit removed from the entry, already phrased for the notice:
+  // owned dice by name, then the generic dice as a single tallied phrase.
+  const [removedDiceLabels, setRemovedDiceLabels] = useState<string[]>([])
 
   // A percentile entry rolls a d10tens+d10 PAIR but reads as a single d100 —
   // every user-facing string (including assistive labels) uses that name.
   const isPercentile = isPercentileEntry(entry)
   const typeLabel = isPercentile ? 'D100' : entry.type.toUpperCase()
+  // A percentile entry keeps only the presets it can actually honour, so no
+  // button on this card is ever a no-op (see KEEP_DROP_PRESETS).
+  const visiblePresets = isPercentile
+    ? QUICK_PRESETS.filter(({ preset }) => KEEP_DROP_PRESETS.has(preset))
+    : QUICK_PRESETS
   // Per-ENTRY ceiling: a d100 tops out at 100, not the 90 of its tens half.
   const dieMax = getEntryMax(entry)
   const sourceLabels = getSourceLabels(entry, inventoryDiceById)
@@ -216,13 +251,21 @@ export function DiceEntryCard({
    */
   const commitEntry = (next: DiceEntry) => {
     const rolled = Math.max(1, Math.floor(next.rollCount ?? next.quantity))
-    const { sources, droppedDieIds } = resizeRollSources(normalizeRollSources(entry), rolled)
+    const before = normalizeRollSources(entry)
+    const { sources, droppedDieIds } = resizeRollSources(before, rolled)
     const keepsSome = next.rollCount !== undefined
     const keep = keepsSome ? clampToRange(next.quantity, 1, rolled) : rolled
 
-    setDroppedDieNames(droppedDieIds.map(
-      (dieId) => inventoryDiceById?.get(dieId)?.name ?? 'an owned die',
-    ))
+    // `resizeRollSources` only reports the SPECIFIC owned dice it had to drop,
+    // so the generic loss is measured here by comparing the two source lists.
+    // Shedding four generic dice is no less of a surprise than shedding a named
+    // one — applying Advantage to a 6-dice entry must not silently bin four.
+    const genericLoss = countGenericDice(before) - countGenericDice(sources)
+
+    setRemovedDiceLabels([
+      ...droppedDieIds.map((dieId) => inventoryDiceById?.get(dieId)?.name ?? 'an owned die'),
+      ...(genericLoss > 0 ? [formatGenericLoss(genericLoss)] : []),
+    ])
 
     onUpdate({
       ...next,
@@ -289,8 +332,8 @@ export function DiceEntryCard({
   const handleBonusChange = (bonus: number) => {
     // Clear any "Removed from this roll" notice: it described a previous count
     // change, and leaving it up next to an unrelated edit reads as if THIS edit
-    // dropped an owned die.
-    setDroppedDieNames([])
+    // dropped dice.
+    setRemovedDiceLabels([])
     onUpdate({ ...entry, perDieBonus: bonus })
   }
 
@@ -523,9 +566,10 @@ export function DiceEntryCard({
         </button>
       </div>
 
-      {/* Owned dice dropped by a shrink. Not an alert: the edit succeeded, but
-          losing a specific die is destructive enough to have to be named. */}
-      {droppedDieNames.length > 0 && (
+      {/* Dice a shrink had to give up — owned ones by name, generic ones by
+          count. Not an alert: the edit succeeded, but losing dice the user did
+          not ask to lose is destructive enough to have to be spelled out. */}
+      {removedDiceLabels.length > 0 && (
         <p
           role="status"
           className="text-xs px-2 py-1 rounded"
@@ -535,7 +579,7 @@ export function DiceEntryCard({
             border: '1px solid rgba(249, 135, 151, 0.25)',
           }}
         >
-          Removed from this roll: {droppedDieNames.join(', ')}
+          Removed from this roll: {removedDiceLabels.join(', ')}
         </p>
       )}
 
@@ -597,11 +641,12 @@ export function DiceEntryCard({
           className="flex flex-col gap-3 p-2 rounded"
           style={{ backgroundColor: 'var(--color-background)' }}
         >
-          {/* A d100 is a d10tens+d10 PAIR combined into one 1-100 result, so
-              the mechanics that add or drop PHYSICAL dice cannot apply to it:
-              you cannot reroll or explode half a pair, and keep/drop would have
-              to keep whole pairs the room has no way to express. Clamps and
-              success counting work on the combined value, so they stay. */}
+          {/* A d100 is a d10tens+d10 PAIR combined into one 1-100 result, so the
+              mechanics that add or replace HALF a pair cannot apply to it: there
+              is no such thing as exploding or rerolling a lone tens die. Keep/
+              drop is different — it keeps and drops whole PAIRS, which the
+              scoring plan already does — and clamps and success counting work on
+              the combined value, so all three stay. */}
           {isPercentile && (
             <p
               data-testid="percentile-advanced-notice"
@@ -612,14 +657,15 @@ export function DiceEntryCard({
                 border: '1px solid rgba(249, 135, 151, 0.25)',
               }}
             >
-              A d100 rolls as a tens + ones pair, so keep/drop, exploding and reroll
-              are not available for it. Min/max and success counting apply to the
-              combined 1-100 result.
+              A d100 rolls as a tens + ones pair, so exploding and reroll are not
+              available for it — there is no way to explode or reroll half a pair.
+              Keep/drop, min/max and success counting all apply to the combined
+              1-100 result.
             </p>
           )}
 
-          {/* Quick presets */}
-          {!isPercentile && (
+          {/* Quick presets. A percentile entry only gets the keep/drop ones —
+              the reroll-based presets would be stripped by the scoring plan. */}
           <div className="flex flex-col gap-1.5">
             <span
               className="text-[11px] font-semibold uppercase tracking-wide"
@@ -628,7 +674,7 @@ export function DiceEntryCard({
               Quick presets
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {QUICK_PRESETS.map(({ preset, label }) => (
+              {visiblePresets.map(({ preset, label }) => (
                 <button
                   key={preset}
                   type="button"
@@ -646,11 +692,10 @@ export function DiceEntryCard({
               ))}
             </div>
           </div>
-          )}
 
           <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-            {!isPercentile && (<>
-            {/* Keep / drop */}
+            {/* Keep / drop. Available for a percentile entry too: the plan keeps
+                and drops whole tens+ones PAIRS. */}
             <div className={SECTION_CLASS} style={SECTION_STYLE}>
               <label className={CHECKBOX_LABEL_CLASS} style={{ color: 'var(--color-text-primary)' }}>
                 <input
@@ -699,6 +744,10 @@ export function DiceEntryCard({
               )}
             </div>
 
+            {/* Exploding and reroll both replace or add HALF a percentile pair,
+                which is not a result — hidden there, and stripped by
+                `createSavedRollPlan` if a legacy entry carries them. */}
+            {!isPercentile && (<>
             {/* Exploding */}
             <div className={SECTION_CLASS} style={SECTION_STYLE}>
               <label className={CHECKBOX_LABEL_CLASS} style={{ color: 'var(--color-text-primary)' }}>

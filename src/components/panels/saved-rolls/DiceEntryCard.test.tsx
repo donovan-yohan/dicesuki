@@ -3,7 +3,12 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { BottomSheet } from '../BottomSheet'
 import { DiceEntryCard } from './DiceEntryCard'
-import { createAnonymousRollSource, getDiceEntrySourceQuantity } from '../../../lib/rollSources'
+import {
+  createAnonymousRollSource,
+  createSpecificDieRollSource,
+  getDiceEntrySourceQuantity,
+} from '../../../lib/rollSources'
+import type { InventoryDie } from '../../../types/inventory'
 import type { DiceEntry } from '../../../types/savedRolls'
 
 function makeEntry(overrides: Partial<DiceEntry> = {}): DiceEntry {
@@ -39,7 +44,7 @@ function renderInSheet(entry = makeEntry()) {
  * in as the next `entry` prop and the card's own display updates with it.
  * Advanced Options starts expanded because every mechanics control lives there.
  */
-function renderAdvanced(entry = makeEntry()) {
+function renderAdvanced(entry = makeEntry(), inventoryDiceById?: Map<string, InventoryDie>) {
   const updates: DiceEntry[] = []
 
   function Harness() {
@@ -52,6 +57,7 @@ function renderAdvanced(entry = makeEntry()) {
           setCurrent(next)
         }}
         onRemove={vi.fn()}
+        inventoryDiceById={inventoryDiceById}
       />
     )
   }
@@ -92,6 +98,37 @@ function setAdvanced(label: string, value: string) {
   fireEvent.change(field, { target: { value } })
   fireEvent.blur(field)
   return field
+}
+
+/** Type into the main quantity field and commit it — it commits on blur too. */
+function setQuantity(label: string, value: string) {
+  const field = screen.getByLabelText(label)
+  fireEvent.change(field, { target: { value } })
+  fireEvent.blur(field)
+  return field
+}
+
+/**
+ * A named owned die, for the notice that has to say which die a shrink took.
+ * Only the name is read, but the whole shape is built so the fixture cannot
+ * drift away from what the card is actually handed.
+ */
+function ownedDie(id: string, name: string): InventoryDie {
+  return {
+    id,
+    type: 'd20',
+    setId: 'starter-devil',
+    rarity: 'rare',
+    appearance: { baseColor: '#b91c1c', accentColor: '#ffffff', material: 'plastic' },
+    vfx: {},
+    name,
+    isFavorite: false,
+    isLocked: false,
+    acquiredAt: 0,
+    source: 'starter',
+    stats: { timesRolled: 0, totalValue: 0, critsRolled: 0, failsRolled: 0 },
+    assignedToRolls: [],
+  }
 }
 
 /** A d20 entry that rolls a single die, the shape presets act on. */
@@ -244,6 +281,103 @@ describe('DiceEntryCard quick presets', () => {
     // Assert
     expect(latest().reroll).toEqual({ condition: 'equals', value: 1, maxRerolls: 1 })
     expect(getDiceEntrySourceQuantity(latest())).toBe(1)
+  })
+})
+
+describe('DiceEntryCard removed-dice notice', () => {
+  /** A d20 entry backed by two named owned dice plus some generic ones. */
+  const steel = ownedDie('die-steel', 'Steel d20')
+  const lucky = ownedDie('die-lucky', 'Lucky d20')
+  const inventory = new Map([[steel.id, steel], [lucky.id, lucky]])
+
+  it('names the generic dice a hand-typed shrink threw away', () => {
+    // Arrange — six generic d6s
+    renderAdvanced(makeEntry({ quantity: 6, sources: [createAnonymousRollSource(6)] }))
+
+    // Act
+    setQuantity('D6 quantity', '2')
+
+    // Assert — four dice left the roll, so four dice are accounted for
+    expect(screen.getByRole('status'))
+      .toHaveTextContent('Removed from this roll: 4 generic dice')
+  })
+
+  it('says "die" when a shrink gives up exactly one generic die', () => {
+    // Arrange
+    renderAdvanced(makeEntry({ quantity: 6, sources: [createAnonymousRollSource(6)] }))
+
+    // Act
+    setQuantity('D6 quantity', '5')
+
+    // Assert
+    expect(screen.getByRole('status'))
+      .toHaveTextContent('Removed from this roll: 1 generic die')
+  })
+
+  it('names the generic dice a quick preset threw away', () => {
+    // Arrange — a preset shrinks through the SAME commit path as the field
+    renderAdvanced(makeEntry({ quantity: 6, sources: [createAnonymousRollSource(6)] }))
+
+    // Act — advantage rolls two dice, so the entry has to shed four
+    fireEvent.click(screen.getByLabelText('Apply Advantage to D6'))
+
+    // Assert
+    expect(screen.getByRole('status'))
+      .toHaveTextContent('Removed from this roll: 4 generic dice')
+  })
+
+  it('stays quiet when the count only grows', () => {
+    // Arrange
+    renderAdvanced(makeEntry({ quantity: 2, sources: [createAnonymousRollSource(2)] }))
+
+    // Act
+    setQuantity('D6 quantity', '6')
+
+    // Assert — nothing was given up, so nothing is claimed to have been
+    expect(screen.queryByText(/Removed from this roll/i)).not.toBeInTheDocument()
+  })
+
+  it('still names an owned die a shrink had to remove', () => {
+    // Arrange — two owned dice, no generics to give up
+    renderAdvanced(
+      makeEntry({
+        type: 'd20',
+        quantity: 2,
+        sources: [createSpecificDieRollSource(steel.id), createSpecificDieRollSource(lucky.id)],
+      }),
+      inventory,
+    )
+
+    // Act
+    setQuantity('D20 quantity', '1')
+
+    // Assert — destructive, so it is named rather than silent
+    expect(screen.getByRole('status'))
+      .toHaveTextContent('Removed from this roll: Lucky d20')
+    expect(screen.getByRole('status')).not.toHaveTextContent(/generic/i)
+  })
+
+  it('names both kinds when a shrink runs out of generic dice to give up', () => {
+    // Arrange — 2 owned + 3 generic, shrunk past the generics into the owned
+    renderAdvanced(
+      makeEntry({
+        type: 'd20',
+        quantity: 5,
+        sources: [
+          createSpecificDieRollSource(steel.id),
+          createSpecificDieRollSource(lucky.id),
+          createAnonymousRollSource(3),
+        ],
+      }),
+      inventory,
+    )
+
+    // Act
+    setQuantity('D20 quantity', '1')
+
+    // Assert — owned dice by name, generic dice by count, in that order
+    expect(screen.getByRole('status'))
+      .toHaveTextContent('Removed from this roll: Lucky d20, 3 generic dice')
   })
 })
 
@@ -625,7 +759,7 @@ describe('DiceEntryCard advanced fields inside the sheet', () => {
 })
 
 describe('DiceEntryCard percentile (d100) advanced options', () => {
-  it('explains why keep / drop, exploding and reroll are unavailable', () => {
+  it('names exploding and reroll as the only mechanics a d100 gives up', () => {
     // Arrange
     renderAdvanced(percentileEntry())
 
@@ -635,28 +769,74 @@ describe('DiceEntryCard percentile (d100) advanced options', () => {
     // Assert — the notice names both halves of the rule: what is gone, and
     // what still applies to the combined result
     expect(notice).toBeInTheDocument()
-    expect(notice).toHaveTextContent(/keep\/drop, exploding and reroll/i)
-    expect(notice).toHaveTextContent(/not available/i)
-    expect(notice).toHaveTextContent(/min\/max and success counting/i)
-    expect(notice).toHaveTextContent(/combined 1-100 result/i)
+    expect(notice).toHaveTextContent(/exploding and reroll are not\s+available/i)
+    expect(notice).toHaveTextContent(/keep\/drop, min\/max and success counting all apply/i)
+    expect(notice).toHaveTextContent(/combined\s+1-100 result/i)
+
+    // Assert — and never claims keep/drop is gone. It is not: the scoring plan
+    // keeps and drops whole tens+ones pairs (see savedRollPlan.test.ts).
+    expect(notice).not.toHaveTextContent(/keep\/drop[^.]*not available/i)
   })
 
-  it('hides the presets, keep / drop, exploding and reroll controls entirely', () => {
+  it('offers working keep / drop controls for a d100', () => {
+    // Arrange — three d100s, so there is something to drop
+    const { latest } = renderAdvanced(percentileEntry({
+      quantity: 3,
+      sources: [createAnonymousRollSource(3)],
+    }))
+
+    // Act — the plan keeps and drops WHOLE pairs, so this is a real mechanic
+    fireEvent.click(screen.getByLabelText('Keep only some D100 dice'))
+
+    // Assert
+    expect(latest()).toMatchObject({ rollCount: 3, quantity: 2, keepMode: 'highest' })
+    expect(screen.getByLabelText('D100 keep mode')).toBeInTheDocument()
+    expect(screen.getByLabelText('D100 dice to keep')).toHaveValue(2)
+    expect(screen.getByText('3d100 kh2')).toBeInTheDocument()
+  })
+
+  it('turns a d100 into advantage: roll two pairs, keep the better result', () => {
+    // Arrange
+    const { latest } = renderAdvanced(percentileEntry())
+
+    // Act
+    fireEvent.click(screen.getByLabelText('Apply Advantage to D100'))
+
+    // Assert — keep, roll and sources all agree, and the formula says so
+    const entry = latest()
+    expect(entry).toMatchObject({ rollCount: 2, quantity: 1, keepMode: 'highest' })
+    expect(getDiceEntrySourceQuantity(entry)).toBe(2)
+    expect(screen.getByText('2d100 kh1')).toBeInTheDocument()
+  })
+
+  it('offers only the keep/drop presets, never the reroll-based ones', () => {
+    // Arrange
+    renderAdvanced(percentileEntry())
+
+    // Assert — the three that only move the rolled and kept counts
+    expect(screen.getByText('Quick presets')).toBeInTheDocument()
+    expect(screen.getByLabelText('Apply Advantage to D100')).toBeInTheDocument()
+    expect(screen.getByLabelText('Apply Disadvantage to D100')).toBeInTheDocument()
+    expect(screen.getByLabelText('Apply Elven Accuracy to D100')).toBeInTheDocument()
+
+    // Assert — and not the two that set a reroll `createSavedRollPlan` strips,
+    // which would leave the player pressing a button that does nothing
+    expect(screen.queryByLabelText('Apply Great Weapon Fighting to D100')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Apply Halfling Luck to D100')).not.toBeInTheDocument()
+    expect(screen.queryAllByLabelText(/^Apply /)).toHaveLength(3)
+  })
+
+  it('hides the exploding and reroll controls entirely', () => {
     // Arrange
     renderAdvanced(percentileEntry())
 
     // Assert — gone under the d100 name...
-    expect(screen.queryByLabelText('Apply Advantage to D100')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Keep only some D100 dice')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Exploding D100 dice')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Reroll low D100 dice')).not.toBeInTheDocument()
 
     // ...and gone under ANY name, so a merely relabelled control still fails
-    expect(screen.queryAllByLabelText(/^Apply /)).toHaveLength(0)
-    expect(screen.queryByLabelText(/^Keep only some /)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^Exploding /)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^Reroll low /)).not.toBeInTheDocument()
-    expect(screen.queryByText('Quick presets')).not.toBeInTheDocument()
   })
 
   it('still offers min / max and success counting', () => {
@@ -737,8 +917,15 @@ describe('DiceEntryCard percentile (d100) advanced options', () => {
     // Arrange
     renderAdvanced()
 
-    // Assert — every mechanic the d100 loses is still here
+    // Assert — all five presets, not just the keep/drop three
     expect(screen.getByLabelText('Apply Advantage to D6')).toBeInTheDocument()
+    expect(screen.getByLabelText('Apply Disadvantage to D6')).toBeInTheDocument()
+    expect(screen.getByLabelText('Apply Elven Accuracy to D6')).toBeInTheDocument()
+    expect(screen.getByLabelText('Apply Great Weapon Fighting to D6')).toBeInTheDocument()
+    expect(screen.getByLabelText('Apply Halfling Luck to D6')).toBeInTheDocument()
+    expect(screen.queryAllByLabelText(/^Apply /)).toHaveLength(5)
+
+    // Assert — and every section, including the two the d100 loses
     expect(screen.getByLabelText('Keep only some D6 dice')).toBeInTheDocument()
     expect(screen.getByLabelText('Exploding D6 dice')).toBeInTheDocument()
     expect(screen.getByLabelText('Reroll low D6 dice')).toBeInTheDocument()

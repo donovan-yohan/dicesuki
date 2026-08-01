@@ -498,14 +498,26 @@ export async function executePhysicalSavedRoll(
   // Claim the roll cycle before `roll_started` lands, so the settle handler
   // already knows this is a multi-wave roll and holds the history row open.
   if (hasWaves) useDiceStore.getState().beginSavedRollWaves()
-  publishPlan(plan, roll)
 
-  const rollSequence = useMultiplayerStore.getState().rollStartedSequence
-  backend.roll()
-  await waitForRoom('start the saved roll', (state) => (
-    state.rollStartedSequence > rollSequence
-    && sameIdSet(state.lastRollStartedDiceIds, baseIds)
-  ))
+  try {
+    publishPlan(plan, roll)
+
+    const rollSequence = useMultiplayerStore.getState().rollStartedSequence
+    backend.roll()
+    await waitForRoom('start the saved roll', (state) => (
+      state.rollStartedSequence > rollSequence
+      && sameIdSet(state.lastRollStartedDiceIds, baseIds)
+    ))
+  } catch (error) {
+    // The base roll never started, so the wave sequence opened above will never
+    // run and nothing else would ever close it. Leaving the flag set is a
+    // session-wide lockout: every saved roll and the HUD's Roll button stay
+    // disabled, `recordDieSettled` never closes a cycle, and `roll_complete`
+    // stays suppressed until the page is reloaded. Reachable from an ack
+    // timeout, a socket drop, a room rejection, or a spawn-id mismatch.
+    useDiceStore.getState().finishSavedRollWaves()
+    throw error
+  }
 
   onBaseWaveStarted?.()
 
