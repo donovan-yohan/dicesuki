@@ -4,7 +4,6 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import {
   type DiceShape,
-  getDiceFaceValue,
   createDiceGeometry,
   D4_FACE_NORMALS,
   D6_FACE_NORMALS,
@@ -64,6 +63,17 @@ function DieAtOrientation({
   )
 }
 
+/**
+ * `/test/dice-faces` — a RENDERING harness, not a detection harness.
+ *
+ * It parks a die at a known rotation (face `?face=` turned toward the camera
+ * axis) and publishes the numeral that face is supposed to carry, so an e2e
+ * spec can sample the real pixels. It deliberately does not ask the client
+ * "which face is up?" — that is `dicesuki-core`'s answer (Shared-ADR-005), and
+ * asking it here would only re-confirm the face-normal table against itself.
+ *
+ * Live consumer: `e2e/basic-dice.spec.ts` (`npm run test:e2e:basic-dice`).
+ */
 export default function DiceFaceTestHarness() {
   const [searchParams] = useSearchParams()
   const shape = (searchParams.get('type') || 'd6') as DiceShape
@@ -78,7 +88,6 @@ export default function DiceFaceTestHarness() {
 
   const face = isValidFaceIndex ? faceNormals[faceIndex] : null
   const quaternion = face ? computeAlignmentQuaternion(face.normal, shape) : null
-  const reportedValue = quaternion ? getDiceFaceValue(quaternion, shape) : null
 
   // Use textured materials for visual validation
   const materials = useDiceMaterials({
@@ -87,7 +96,7 @@ export default function DiceFaceTestHarness() {
     faceRenderer: getFaceRendererForShape(shape, faceStyle),
   })
 
-  if (!face || !quaternion || reportedValue === null) {
+  if (!face || !quaternion) {
     return <div data-testid="dice-test-harness">Invalid params</div>
   }
 
@@ -98,7 +107,6 @@ export default function DiceFaceTestHarness() {
         <div data-testid="face-style">{faceStyle}</div>
         <div data-testid="face-index">{faceIndex}</div>
         <div data-testid="expected-value">{face.value}</div>
-        <div data-testid="reported-value">{reportedValue}</div>
       </div>
       <Canvas camera={{ position: [0.8, 3, 0.8], fov: 50, near: 0.1, far: 100 }}>
         <ambientLight intensity={1.2} />

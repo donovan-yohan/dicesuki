@@ -8,7 +8,6 @@ import {
 import { generateMaterialMapping } from './geometryFaceMapper'
 import {
   DiceShape,
-  getDiceFaceValue,
   createD4Geometry,
   createD6Geometry,
   createD8Geometry,
@@ -312,25 +311,6 @@ describe('Face Material Mapping', () => {
         expect(dot).toBeLessThan(-0.5)
       }
     })
-  })
-
-  describe('getDiceFaceValue consistency for all dice types', () => {
-    for (const shape of DICE_TYPES) {
-      const faceNormals = getFaceNormals(shape)
-      const target = shape === 'd4'
-        ? new THREE.Vector3(0, -1, 0)
-        : new THREE.Vector3(0, 1, 0)
-
-      for (const face of faceNormals) {
-        it(`${shape} face ${face.value}: detected correctly when aligned with target`, () => {
-          const quaternion = new THREE.Quaternion()
-          quaternion.setFromUnitVectors(face.normal.clone().normalize(), target)
-
-          const detected = getDiceFaceValue(quaternion, shape)
-          expect(detected).toBe(face.value)
-        })
-      }
-    }
   })
 
   describe('Each face value maps to a unique material index', () => {

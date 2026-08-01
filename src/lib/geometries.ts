@@ -203,77 +203,15 @@ export const D20_FACE_NORMALS: DiceFace[] = [
 ]
 
 /**
- * Determines which face of a dice is facing up based on its rotation
- * @param quaternion - The rotation quaternion of the dice
- * @param shape - The dice shape
- * @param customFaceNormals - Optional custom face normals for custom dice models
- * @returns The value of the face that is facing up
+ * Face detection deliberately does NOT live here.
+ *
+ * Shared-ADR-005 / Frontend-ADR-001: which face is up is decided by
+ * `dicesuki-core` (`server/core/src/face_detection.rs`) and arrives on the
+ * `die_settled` room message. The client's job is to RENDER — the tables above
+ * exist so a numeral can be painted on the right physical face
+ * (`faceMaterialMapping.ts`), not so the client can re-derive a value the room
+ * already owns.
  */
-export function getDiceFaceValue(
-  quaternion: THREE.Quaternion,
-  shape: DiceShape = 'd6',
-  customFaceNormals?: DiceFace[]
-): number {
-  // Use custom face normals if provided, otherwise use defaults based on shape
-  let faceNormals: DiceFace[]
-
-  if (customFaceNormals) {
-    faceNormals = customFaceNormals
-  } else {
-    // Select default face normals based on shape
-    switch (shape) {
-      case 'd4':
-        faceNormals = D4_FACE_NORMALS
-        break
-      case 'd6':
-        faceNormals = D6_FACE_NORMALS
-        break
-      case 'd8':
-        faceNormals = D8_FACE_NORMALS
-        break
-      case 'd10':
-        faceNormals = D10_FACE_NORMALS
-        break
-      case 'd10tens':
-        faceNormals = D10TENS_FACE_NORMALS
-        break
-      case 'd12':
-        faceNormals = D12_FACE_NORMALS
-        break
-      case 'd20':
-        faceNormals = D20_FACE_NORMALS
-        break
-      default:
-        throw new Error(`Unknown shape: ${shape}`)
-    }
-  }
-
-  // D4 dice work differently - the value is determined by the face touching the ground
-  // (pointing down), not the face pointing up like other dice
-  const targetVector = shape === 'd4'
-    ? new THREE.Vector3(0, -1, 0)  // Down vector for D4
-    : new THREE.Vector3(0, 1, 0)   // Up vector for all other dice
-
-  let maxDot = -Infinity
-  let faceValue = 1
-
-  // Find which face normal is most aligned with the target vector
-  for (const face of faceNormals) {
-    // Rotate the face normal by the dice's quaternion
-    const rotatedNormal = face.normal.clone().applyQuaternion(quaternion)
-
-    // Calculate dot product with target vector
-    const dot = rotatedNormal.dot(targetVector)
-
-    // Track the face with maximum alignment
-    if (dot > maxDot) {
-      maxDot = dot
-      faceValue = face.value
-    }
-  }
-
-  return faceValue
-}
 
 /**
  * Creates a D4 (tetrahedron) geometry with appropriate size
