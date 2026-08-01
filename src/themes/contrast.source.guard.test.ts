@@ -188,9 +188,27 @@ describe('accent label scanner', () => {
     expect(scan(`<b style={{ color: 'var(--color-accent)' }}>x</b>`)).toEqual([])
   })
 
-  it('does not treat accent-adjacent identifiers as the accent token', () => {
+  // Deliberately over-matches. A word-bounded `\baccent\b` skipped
+  // DiceToolbar's quick slots, which fill from an `accentColor` local — so any
+  // accent-named identifier counts as an accent fill. The cost is a spurious
+  // pairing to declare; the cost of the narrow version was a missed control.
+  it('treats accent-named identifiers as an accent fill', () => {
     expect(
-      scan(`<b style={{ backgroundColor: accentWash, color: colors.text.primary }}>x</b>`),
+      scan(`<b style={{ backgroundColor: accentColor, color: colors.text.primary }}>x</b>`),
+    ).toHaveLength(1)
+    expect(
+      scan(`<b style={{ backgroundColor: themeAccent, color: colors.text.primary }}>x</b>`),
+    ).toHaveLength(1)
+  })
+
+  // DiceToolbar.tsx:256 inverts on purpose — a surface-coloured glyph punched
+  // out of an accent chip. Gated by the `surface on accent fill` pairing.
+  it('accepts a surface-coloured label on an accent fill', () => {
+    expect(
+      scan(`<b style={{ backgroundColor: accentColor, color: surfaceColor }}>x</b>`),
+    ).toEqual([])
+    expect(
+      scan(`<b style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-surface)' }}>x</b>`),
     ).toEqual([])
   })
 

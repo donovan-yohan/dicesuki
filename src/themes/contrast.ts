@@ -292,7 +292,12 @@ export const CONTRAST_PAIRINGS: readonly ContrastPairing[] = [
   { name: 'accent text on accent wash', fg: 'accent', bg: BACKDROPS.accentWash, threshold: 'normal', usedBy: 'SettingsPanel row chevrons, DiceEntryCard source chip' },
 
   // ── the label on an accent-filled control ────────────────────────────────
-  { name: 'onAccent on accent fill', fg: 'onAccent', bg: BACKDROPS.accentFill, threshold: 'normal', usedBy: 'CenterRollButton.tsx:51, PullBannerScreen.tsx:634 x10 CTA, PullRevealOverlay.tsx:221, PullProgressOverlay.tsx:125, InventoryPanel.tsx:389/518/675/730, ShopPanel.tsx:337/451, LunarPassCard.tsx:327, HeroDieInspector.tsx:200, RoomBrowser.tsx:211, RoomThemePicker.tsx:128, TableHud.tsx:135' },
+  { name: 'onAccent on accent fill', fg: 'onAccent', bg: BACKDROPS.accentFill, threshold: 'normal', usedBy: '16 accent-filled controls — CenterRollButton.tsx:50, TableHud.tsx:136, PullBannerScreen.tsx:632 x10 CTA, PullRevealOverlay.tsx:221, PullProgressOverlay.tsx:124, InventoryPanel.tsx:389/518/675/730, ShopPanel.tsx:337/451, LunarPassCard.tsx:327, HeroDieInspector.tsx:200, RoomBrowser.tsx:212, RoomThemePicker.tsx:128, SoloRoom.tsx:117' },
+  // A deliberate inversion, not an oversight: the toolbar quick slots are
+  // accent chips with a surface-coloured glyph, which reads as a punched-out
+  // hole in the chip. It clears AA on every theme (6.07-15.34:1), so it is
+  // declared and gated rather than normalised to onAccent.
+  { name: 'surface on accent fill', fg: 'surface', bg: BACKDROPS.accentFill, threshold: 'normal', usedBy: 'DiceToolbar.tsx:256 quick-slot add buttons (accentColor fill, surfaceColor glyph)' },
 
   // ── destructive / validation ─────────────────────────────────────────────
   { name: 'error text on background', fg: 'error', bg: BACKDROPS.background, threshold: 'normal', usedBy: 'PullProgressOverlay.tsx:114 and PullRevealOverlay.tsx:233 role="alert" copy on the full-screen overlay' },

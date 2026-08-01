@@ -24,11 +24,24 @@ export interface AccentLabelViolation {
   readonly snippet: string
 }
 
-/** A value references the accent token. */
-const REFERENCES_ACCENT = /--color-accent|\baccent\b/
+/**
+ * A value references the accent token.
+ *
+ * Deliberately substring-matched and case-insensitive rather than word-bounded:
+ * components routinely alias the token (`accentColor`, `themeAccent`), and a
+ * `\baccent\b` match silently skipped `DiceToolbar.tsx`'s quick-slot buttons,
+ * which style themselves from an `accentColor` local. Over-matching here costs
+ * a declared pairing; under-matching costs an illegible control.
+ */
+const REFERENCES_ACCENT = /--color-accent|accent/i
 
-/** A label colour is acceptable only if it resolves to the onAccent token. */
-const ON_ACCENT = /onAccent|--color-on-accent|text-theme-on-accent/
+/**
+ * A label colour is acceptable on an accent fill if it resolves to `onAccent`,
+ * or to `surface` — `DiceToolbar`'s quick slots deliberately invert to a
+ * surface-coloured glyph on an accent chip, which is declared in the manifest
+ * as `surface on accent fill` and gated there.
+ */
+const ON_ACCENT = /onAccent|--color-on-accent|text-theme-on-accent|surfaceColor|colors\.surface|--color-surface|theme-surface/
 
 /**
  * Split an object-literal body into its top-level `key: value` properties.
