@@ -217,10 +217,10 @@ import { useState } from 'react'
 import * as THREE from 'three'
 
 // 2. Internal utilities
-import { getDiceFaceValue } from '../lib/geometries'
+import { createDiceGeometry } from '../lib/geometries'
 
 // 3. Internal hooks
-import { useFaceDetection } from '../hooks/useFaceDetection'
+import { useDiceMaterials } from '../hooks/useDiceMaterials'
 
 // 4. Internal components
 import { RollButton } from './RollButton'

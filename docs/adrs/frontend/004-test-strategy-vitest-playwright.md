@@ -3,6 +3,8 @@
 * Date: 2026/02/15
 * Status: Accepted
 * Deciders: Donovan, Development Team
+* Amended: 2026/08/01 — see [Amendments](#amendments) (the per-face dice-faces
+  specs are removed; E2E no longer validates face detection)
 
 ## Context
 
@@ -45,16 +47,26 @@ The project MUST use a two-tier testing strategy:
 
 **Framework:** Playwright, configured in `playwright.config.ts`.
 
-**Scope:** Visual verification tests that require actual WebGL rendering in a real browser. Currently used for dice face detection validation.
+**Scope:** Visual and behavioural verification that requires actual WebGL rendering in a real browser.
+
+~~Currently used for dice face detection validation.~~
+**Superseded by [Amendment 1](#amendment-1---e2e-no-longer-validates-face-detection-2026-08-01):**
+face detection is `dicesuki-core`'s, not the client's, and the specs that
+"validated" it only round-tripped one table through itself.
 
 **Structure:**
 - E2E tests live in `e2e/` directory
 - Excluded from Vitest via `exclude: ['e2e/**']` in vite config
-- Run against dev server (`localhost:3000`)
-- Screenshot-based assertions stored in `e2e/screenshots/`
-- Helper utilities shared via `e2e/dice-faces.helpers.ts`
+- Run against a dev server on a per-spec port (`PLAYWRIGHT_TEST_PORT`)
+- Each spec is wired to its own `npm run test:e2e:*` script
+- Screenshots written to `e2e/screenshots/` are artifacts; assertions that read
+  pixels sample the composited frame in-page rather than diffing a baseline
+- ~~Helper utilities shared via `e2e/dice-faces.helpers.ts`~~ (deleted 2026-08-01)
 
-**Current coverage:** Per-face screenshot tests for all six die types (d4, d6, d8, d10, d12, d20) verifying correct face-value-to-orientation mapping.
+**Current coverage:** ~~Per-face screenshot tests for all six die types (d4, d6, d8, d10, d12, d20) verifying correct face-value-to-orientation mapping.~~
+Solo wasm room, runtime dice assets, HUD layout, roll builder/picker/advanced,
+d100 percentile pairing, and basic-dice rendering (which samples real pixels
+through the `/test/dice-faces` harness). See [Amendment 1](#amendment-1---e2e-no-longer-validates-face-detection-2026-08-01).
 
 ### Test Targets
 
@@ -87,7 +99,7 @@ npx playwright test   # E2E tests (requires dev server)
 
 - Vitest's Vite integration means zero configuration drift between dev/build/test transform pipelines
 - Fast TDD feedback loop: unit tests run in <2 seconds
-- Playwright catches visual regressions that unit tests cannot (dice face orientation, rendering correctness)
+- Playwright catches visual regressions that unit tests cannot (~~dice face orientation~~ rendering correctness, real pixels — see [Amendment 1](#amendment-1---e2e-no-longer-validates-face-detection-2026-08-01))
 - Colocated test files make it easy to find and maintain tests alongside source code
 - Comprehensive test setup in `src/test/setup.ts` provides a reusable foundation for all R3F-related tests
 
@@ -98,3 +110,52 @@ npx playwright test   # E2E tests (requires dev server)
 - Playwright tests require a running dev server and real browser, making them slower and unsuitable for the TDD inner loop
 - The 3 known failing haptic throttle tests indicate a gap in the timing mock strategy that needs investigation
 - No integration tests currently exist for the full component + store + physics pipeline; this is a gap between unit tests and E2E
+
+## Amendments
+
+### Amendment 1 - E2E no longer validates face detection (2026-08-01)
+
+* Status: Accepted
+* Deciders: Donovan (PO approval, 2026-08-01), Development Team
+* Amends: the Tier 2 scope and "Current coverage" clauses describing the
+  per-face dice-faces screenshot grid as current E2E coverage.
+
+**Context.** This ADR's Tier 2 premise was that "visual correctness of dice face
+detection cannot be verified through unit tests alone". Two things have since
+changed. First, face detection left the client entirely: Shared-ADR-005 and
+Frontend-ADR-001 put it in `dicesuki-core` (`server/core/src/face_detection.rs`),
+delivered on `die_settled`, and forbid reintroducing the client-side path.
+Second, a test-suite audit showed the `e2e/dice-faces-*.spec.ts` specs never
+verified anything visual. `validateDiceFace` compared two DOM readouts that the
+harness derived from the *same* `D<shape>_FACE_NORMALS` array — the expected
+value read straight off the table, the "reported" value obtained by feeding that
+table's normal back through `getDiceFaceValue()`, which is an argmax over the
+same table. No pixel was ever read. The companion `generate <type> screenshot
+grid` tests wrote PNGs with no comparison, so they passed unless they threw; the
+numerals were only ever checked by a human looking at the grid.
+
+**Decision.** The per-shape dice-faces specs and `e2e/dice-faces.helpers.ts` are
+removed, together with the client's `getDiceFaceValue()`. E2E MUST NOT be used to
+re-verify a value the room already owns.
+
+- The numeral-to-physical-face binding — the real client invariant, since core
+  detects indices while the client paints textures — is proven by unit tests
+  that do not call any detection function: `faceMaterialMapping.test.ts`
+  ("Mapping matches geometry triangle normals") checks each declared
+  `FACE_MATERIAL_MAPS` entry against triangle normals independently recomputed
+  from the mesh by `geometryFaceMapper.generateMaterialMapping()`, backed by the
+  hard-coded d6 axis table in `geometries.test.ts`, the independently
+  hand-written d10tens 00-90 table in `diceShape.guard.test.ts`,
+  `textureRendering.test.ts`, and `percentileRolls.test.ts`.
+- The `/test/dice-faces` route and `DiceFaceTestHarness` are RETAINED in slimmed
+  form. They no longer report a detected face; they park a die at a known
+  rotation and publish the expected numeral, which `e2e/basic-dice.spec.ts`
+  (`npm run test:e2e:basic-dice`) uses to sample real composited pixels.
+- Every E2E spec MUST be reachable from an `npm run test:e2e:*` script. The
+  deleted specs were not, which is why their decay went unnoticed.
+
+**Consequences.** E2E is now reserved for what only a real browser can show —
+rendered pixels and full user flows — and is no longer a second home for logic
+the Rust core owns. The `D<shape>_FACE_NORMALS` tables remain in
+`src/lib/geometries.ts`: they are rendering data (which numeral goes on which
+facet), not detection data.

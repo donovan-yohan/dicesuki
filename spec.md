@@ -39,9 +39,10 @@ Dicesuki is a web-based physics dice simulator with realistic 3D dice rolling me
 ### Implemented Modules
 
 #### 1. **Core Geometry & Math** (`src/lib/geometries.ts`)
-- D6 face normals definition with pre-computed vectors
+- Per-shape face normal tables with pre-computed vectors, used to paint the
+  right numeral on the right facet (`faceMaterialMapping.ts`) — face *detection*
+  belongs to `dicesuki-core` (Shared-ADR-005, Frontend-ADR-001)
 - `createD6Geometry()` - Creates rounded cube geometry for D6
-- `getDiceFaceValue()` - Face detection using dot product algorithm
 - Quaternion-based rotation calculations
 
 #### 2. **Face Detection Hook** (`src/hooks/useFaceDetection.ts`)
