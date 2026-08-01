@@ -25,7 +25,7 @@ and after it is scripted and deterministic.
 | 3 | Register atlases | `npm run register:theme-atlases` | island-snapped, edge-bled `*-imagegen-atlas.png` |
 | 4 | Derive normal maps | `npm run generate:theme-normal-maps` | `*-normal.png` |
 | 5 | Bake GLBs | `npm run bake:theme-dice-sets` | `source-root/public/dice/<setId>/…` |
-| 6 | Capture proofs | `npm run capture:theme-proofs` | 720px proof render per die |
+| 6 | Capture proofs | `npm run capture:theme-proofs` | 720px proof per die + all-faces contact sheet |
 | 7 | Release + lock | manual `tar` + `gh release` + lock file | checksum-locked archive |
 | 8 | Promote to runtime | `npm run build:runtime-dice-assets` | `public/dice/<setId>/` |
 | 9 | Catalog edition | `npm run prepare:collectible-edition` | catalog + migration |
@@ -54,6 +54,7 @@ to redirect the workshop root (handy for smoke runs).
       <themeId>-<shape>-imagegen-atlas-raw.png   # <- YOU SAVE THIS (step 2)
       <themeId>-<shape>-imagegen-atlas.png       # generated (step 3)
       <themeId>-<shape>-normal.png               # generated (step 4)
+    proofs/<diceId>-all-faces.png     # generated (step 6); review only, not released
     source-root/                      # generated (steps 5-6); shaped like a repo
       public/dice/<setId>/{set.json,<diceId>/{model.glb,metadata.json}}
       public/artist-resources/imagegen-uv/screenshots/theme-workshop/*.png
@@ -125,8 +126,10 @@ For **each** of the six shapes `d4 d6 d8 d10 d12 d20`:
    .artifacts/theme-workshop/<themeId>/<shape>/<themeId>-<shape>-imagegen-atlas-raw.png
    ```
 
-   The filename is load-bearing: steps 3–5 look for that exact name. Keep the
-   `-raw` file forever; it is the re-registerable original.
+   The filename is load-bearing: step 3 reads that exact name and refuses to
+   guess (pass `--promote-legacy` only to adopt a pre-`-raw` atlas). Steps 4–5
+   then consume what registration writes, not this file. Keep the `-raw` file
+   forever — it is the re-registerable original.
 
 5. *(Optional)* Repeat for the three environment textures described in
    `.artifacts/theme-workshop/<themeId>/environment/imagegen-prompts.md`, saving
@@ -201,9 +204,18 @@ npm run capture:theme-proofs -- --theme fantasy-earth
 ```
 
 Renders each baked GLB at 720×720 in headless Chromium with the proof face
-square to the camera and its numeral rolled upright. These are both the
-review artifact and the source `capture-thumbnails.mjs` crops into the 320px
-runtime thumbnails, so check them before releasing.
+square to the camera and its numeral rolled upright, opaque on `#0f172a` and
+framed to the same fill as the released sets. `capture-thumbnails.mjs` crops
+these into the 320px runtime thumbnails and does no flattening, so the proof
+must already be opaque.
+
+It also writes an **all-faces contact sheet** per die to
+`.artifacts/theme-workshop/<themeId>/proofs/<diceId>-all-faces.png` (labelled
+with each expected value). **Review every sheet before releasing** — this is
+the only step that surfaces a missing value, a duplicated value, a numeral
+rotated the wrong way, or art that crossed an island gap. A single-face proof
+cannot show any of those. Pass `--skip-contact-sheets` to skip it when
+iterating on framing only.
 
 ## Step 7 — Release archive + lock
 
@@ -221,9 +233,25 @@ gh release create imagegen-fantasy-earth-authoring-v1 \
 Then add `scripts/runtime-dice-assets/sources/fantasy-earth-v1.lock.json`
 following the shape of `cozy-forest-v1.lock.json`: `sourceCommit`, the release
 `{tag, assetName, url, bytes, sha256}`, and a `files[]` entry with a `sha256`
-for every `model.glb` and proof PNG. Register a matching profile in
-`scripts/runtime-dice-assets/runtime-asset-profiles.mjs` with the six
-`{diceId, diceType, proofFace, scale}` rows.
+for every `model.glb` and proof PNG.
+
+Register a matching profile in
+`scripts/runtime-dice-assets/runtime-asset-profiles.mjs`. Every field is
+required:
+
+| Field | Value |
+|---|---|
+| *(key)* | Profile id passed to `--profile`, e.g. `fantasy-earth-v1` |
+| `displayName` | Human label used in CLI output, e.g. `Fantasy Earth` |
+| `setId` | Must equal the workshop entry's `setId` (`fantasy-earth-imagegen-set`) — it is the `public/dice/<setId>/` directory name |
+| `proofPrefix` | **The workshop *theme* id, not the set id.** Proof filenames are `<themeId>-<diceId>-face-<n>.png`, so this is `fantasy-earth` (compare: the cyberpunk profile is keyed `cyberpunk-v1`, its `setId` is `cyberpunk-imagegen-set`, and its `proofPrefix` is `cyberpunk-box`) |
+| `sourceLockFile` | Primary lock filename, e.g. `fantasy-earth-v1.lock.json` |
+| `sourceLockSupplementFiles` | Frozen array of additional locks that must share the same `sourceCommit` and set `supplements` to the primary lock; use `[]` when there are none |
+| `dice` | Frozen array of six `{diceId, diceType, proofFace, scale}` rows |
+| `appearance` | *(optional)* merged into `set.json` on promotion; only `dark-dungeon-v1` uses it |
+
+Getting `proofPrefix` wrong is the easy mistake — `optimize.mjs` fails with a
+missing-proof `ENOENT` rather than a naming error.
 
 > Lock files and published `runtime-assets.json` manifests are **immutable
 > history** — `npm run check:immutable-imagegen-history` fails any edit. Append
@@ -262,6 +290,20 @@ npm run validate:theme-workshop             # generated kit matches its source o
 npm run check:runtime-dice-assets           # runtime manifests match bytes on disk
 npm run check:immutable-imagegen-history    # locks/manifests/fixtures unchanged
 ```
+
+## Known gaps
+
+- **Art correctness is reviewed, not asserted.** The all-faces contact sheets
+  (step 6) make a wrong, missing, or mis-rotated numeral obvious, but nothing
+  fails a build over it — there is no OCR or template-diff check. Registration
+  does hard-fail on moved d20 islands via its coverage gate, which is the one
+  automated art check that exists.
+- **Environment textures are optional and unused at runtime.** The workshop
+  emits prompts and derives normals for floor/wall/skybox, but no runtime code
+  consumes `.artifacts/theme-workshop/<themeId>/environment/` yet.
+- **Proof lighting is fixed.** The neutral three-point rig is not the in-app
+  scene lighting, so thumbnails will not match a screenshot of the table
+  exactly.
 
 ## Adding another theme
 

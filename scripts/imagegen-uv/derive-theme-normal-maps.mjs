@@ -25,11 +25,13 @@ import { fileURLToPath } from 'node:url'
 
 import { deriveNormalMaps } from './normal-map-utils.mjs'
 import {
+  getEnvironmentNormalStrength,
   getEnvironmentTexturePaths,
   getThemeAtlasPaths,
   selectThemes,
   THEME_WORKSHOP_ROOT,
   THEME_WORKSHOP_SHAPES,
+  resolveWorkshopRoot,
 } from './theme-workshop-data.mjs'
 
 /** Albedo-to-relief gain. `strength = normalScale * this`. */
@@ -37,13 +39,14 @@ export const DICE_NORMAL_STRENGTH_PER_SCALE = 11
 
 export function planNormalMapEntries(theme, root = THEME_WORKSHOP_ROOT) {
   const environment = getEnvironmentTexturePaths(theme.id, root)
+  const environmentStrength = getEnvironmentNormalStrength(theme)
   const entries = [
     {
       label: `${theme.id}/environment/floor`,
       inputPath: environment.floorAlbedo,
       outputPath: environment.floorNormal,
       profile: 'surface',
-      strength: theme.id === 'dark-dungeon' ? 9 : 7,
+      strength: environmentStrength.floor,
       blur: 1.25,
       tileable: true,
     },
@@ -52,7 +55,7 @@ export function planNormalMapEntries(theme, root = THEME_WORKSHOP_ROOT) {
       inputPath: environment.wallAlbedo,
       outputPath: environment.wallNormal,
       profile: 'surface',
-      strength: theme.id === 'dark-dungeon' ? 10 : 7.5,
+      strength: environmentStrength.wall,
       blur: 1.15,
       tileable: true,
     },
@@ -99,7 +102,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--theme') options.themes.push(argv[++index])
-    else if (argument === '--out') options.root = argv[++index]
+    else if (argument === '--out') options.root = resolveWorkshopRoot(argv[++index])
     else if (argument === '--help') options.help = true
     else throw new Error(`Unknown argument: ${argument}`)
   }

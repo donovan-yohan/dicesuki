@@ -21,6 +21,7 @@
 import path from 'node:path'
 
 import { SUPPORTED_DICE_SHAPES } from './canonical-dice-contract.mjs'
+import { assertSafeOutputDirectory } from './generate-authoring-kit.mjs'
 
 /** Root for every generated workshop artifact. Gitignored; never deployed. */
 export const THEME_WORKSHOP_ROOT = '.artifacts/theme-workshop'
@@ -55,6 +56,37 @@ const BAKE_RARITIES = Object.freeze({
 })
 
 export const THEME_WORKSHOP_ARTIST = 'Codex ImageGen via Daisu UV Workflow'
+
+/**
+ * Default relief gain for the tileable environment textures. Themes override it
+ * via `environmentNormalStrength` when their surfaces need deeper relief.
+ */
+export const DEFAULT_ENVIRONMENT_NORMAL_STRENGTH = Object.freeze({ floor: 7, wall: 7.5 })
+
+/**
+ * Opaque field every proof render and runtime thumbnail sits on. Sampled from
+ * the corner pixel of the released thumbnails under
+ * `public/dice/cozy-forest-imagegen-set` — slate-900, `#0f172a`.
+ *
+ * `capture-thumbnails.mjs` performs no flatten, so the proof PNG must already be
+ * opaque or runtime thumbnails would ship with an alpha channel the released
+ * sets do not have.
+ */
+export const PROOF_BACKGROUND_RGB = Object.freeze({ r: 15, g: 23, b: 42 })
+
+/**
+ * Fraction of the 720px proof frame the subject's longest axis spans.
+ *
+ * The runtime thumbnail is a 512px crop of the 720px proof, so a subject
+ * spanning `f` of the proof frame fills `f * 720 / 512` of the thumbnail.
+ *
+ * Calibrated against the released sets, whose thumbnails fill 0.86–1.00 of the
+ * 320px frame (mean 0.939; the d10 and d12 reach 1.00 because they are clipped
+ * by the crop). 0.667 puts every shape at 0.938 — mean parity within 0.1%, and
+ * consistent across shapes rather than reproducing the released spread, which
+ * came from a fixed-camera scene rather than a fitted frame.
+ */
+export const PROOF_SUBJECT_FILL = 0.667
 
 export const THEME_WORKSHOP = Object.freeze([
   {
@@ -94,6 +126,8 @@ export const THEME_WORKSHOP = Object.freeze([
     tags: ['dark-dungeon', 'stone', 'iron', 'gothic', 'codex-imagegen'],
     materialPrompt: 'chipped black basalt and gunmetal edge cages around dark oxblood enamel face panels, tarnished iron corner rivets, sparse fortress and chain filigree, deeply engraved pale silver gothic Arabic numerals with dark recesses, weighty premium dungeon dice, grim and legible without skull icons',
     material: { roughness: 0.62, metalness: 0.5, normalScale: 0.82 },
+    // Rough basalt and forged iron need deeper relief than the other themes.
+    environmentNormalStrength: { floor: 9, wall: 10 },
     physics: { density: 0.62, restitution: 0.24, friction: 0.76 },
     environment: {
       floorPrompt: 'seamless square top-down material texture of an ancient dungeon dice box floor built from uneven charcoal basalt flagstones, narrow iron drainage channels, hairline cracks, faint dried rust and restrained ember-red rune inlay; physically plausible rough stone, even lighting, orthographic, no horizon, no objects, no dice, no text, tileable edges',
@@ -290,6 +324,18 @@ export function getThemeBakePaths(themeId, shape, root = THEME_WORKSHOP_ROOT) {
   }
 }
 
+/**
+ * All-faces contact sheet for one die.
+ *
+ * Deliberately outside `source-root/` — it is a review artifact, not release
+ * payload, so it stays out of the archive and out of the source lock.
+ */
+export function getThemeProofSheetPath(themeId, shape, root = THEME_WORKSHOP_ROOT) {
+  const theme = getThemeWorkshopEntry(themeId)
+  const die = theme.dice[assertWorkshopShape(shape)]
+  return path.join(root, theme.id, 'proofs', `${die.id}-all-faces.png`)
+}
+
 export function getProofFace(shape) {
   return PROOF_FACES[assertWorkshopShape(shape)]
 }
@@ -300,4 +346,24 @@ export function getBakeRadius(shape) {
 
 export function getBakeRarity(shape) {
   return BAKE_RARITIES[assertWorkshopShape(shape)]
+}
+
+/** Environment relief gain for a theme, falling back to the shared default. */
+export function getEnvironmentNormalStrength(theme) {
+  return {
+    ...DEFAULT_ENVIRONMENT_NORMAL_STRENGTH,
+    ...(theme.environmentNormalStrength ?? {}),
+  }
+}
+
+/**
+ * Validate a `--out` override before anything writes through it.
+ *
+ * Reuses the authoring-kit guard so every workshop step inherits the same rule:
+ * output inside the repo must stay under `.artifacts/`, and `public/`, `src/`,
+ * `scripts/`, and `.git/` are never writable.
+ */
+export function resolveWorkshopRoot(root) {
+  if (root === undefined) return THEME_WORKSHOP_ROOT
+  return assertSafeOutputDirectory(root)
 }

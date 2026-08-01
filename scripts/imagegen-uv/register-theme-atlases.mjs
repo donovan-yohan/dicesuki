@@ -32,6 +32,7 @@ import {
   selectThemes,
   THEME_WORKSHOP_ROOT,
   THEME_WORKSHOP_SHAPES,
+  resolveWorkshopRoot,
 } from './theme-workshop-data.mjs'
 
 /** Near-black background written outside every island. */
@@ -59,7 +60,7 @@ export async function registerThemeAtlases(options = {}) {
         const manifestPath = getTemplatePaths(shape, root).manifest
         await access(manifestPath)
 
-        const rawAtlasPath = await resolveRawAtlas(paths)
+        const rawAtlasPath = await resolveRawAtlas(paths, Boolean(options.promoteLegacy))
         if (!rawAtlasPath) {
           skipped.push(`${theme.id}/${shape}`)
           continue
@@ -87,25 +88,36 @@ export async function registerThemeAtlases(options = {}) {
 /**
  * Find the raw ImageGen output for one shape.
  *
- * Preferred input is the explicit `-raw.png`. For compatibility with the
- * archived flow, an atlas saved directly as `-imagegen-atlas.png` with no raw
- * sibling is promoted to `-raw.png` once, so re-running registration stays
- * idempotent instead of re-registering an already-registered image.
+ * The `-imagegen-atlas-raw.png` filename is the contract every prompt states, so
+ * it is the only input accepted by default. If only a registered-looking
+ * `-imagegen-atlas.png` exists we fail loudly rather than guessing: silently
+ * promoting it would re-register an already-registered image (double bleed,
+ * drifted islands) and would make the documented filename decorative.
+ *
+ * `--promote-legacy` opts into the archived flow's behaviour for sets authored
+ * before the `-raw` convention existed.
  */
-async function resolveRawAtlas(paths) {
-  try {
-    await access(paths.rawAtlas)
-    return paths.rawAtlas
-  } catch {
-    // fall through to the compatibility promotion below
-  }
-  try {
-    await access(paths.atlas)
-  } catch {
-    return null
+async function resolveRawAtlas(paths, promoteLegacy) {
+  if (await exists(paths.rawAtlas)) return paths.rawAtlas
+  if (!await exists(paths.atlas)) return null
+  if (!promoteLegacy) {
+    throw new Error(
+      `Expected ${paths.rawAtlas} but only found ${paths.atlas}.\n`
+      + 'Save the ImageGen output under the -raw name (see the shape prompt), or pass '
+      + '--promote-legacy to adopt an already-registered atlas as the raw source.',
+    )
   }
   await copyFile(paths.atlas, paths.rawAtlas)
   return paths.rawAtlas
+}
+
+async function exists(filePath) {
+  try {
+    await access(filePath)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function registerThemeAtlas(page, source, manifest) {
@@ -509,7 +521,8 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--theme') options.themes.push(argv[++index])
-    else if (argument === '--out') options.root = argv[++index]
+    else if (argument === '--out') options.root = resolveWorkshopRoot(argv[++index])
+    else if (argument === '--promote-legacy') options.promoteLegacy = true
     else if (argument === '--help') options.help = true
     else throw new Error(`Unknown argument: ${argument}`)
   }
@@ -519,7 +532,7 @@ function parseArgs(argv) {
 async function main() {
   const options = parseArgs(process.argv.slice(2))
   if (options.help) {
-    console.log('Usage: node scripts/imagegen-uv/register-theme-atlases.mjs [--theme ID] [--out DIR]')
+    console.log('Usage: node scripts/imagegen-uv/register-theme-atlases.mjs [--theme ID] [--out DIR] [--promote-legacy]')
     return
   }
   const result = await registerThemeAtlases(options)

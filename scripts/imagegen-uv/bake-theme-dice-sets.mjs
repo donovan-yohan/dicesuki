@@ -37,6 +37,7 @@ import {
   THEME_WORKSHOP_ARTIST,
   THEME_WORKSHOP_ROOT,
   THEME_WORKSHOP_SHAPES,
+  resolveWorkshopRoot,
 } from './theme-workshop-data.mjs'
 
 export async function bakeThemeDiceSets(options = {}) {
@@ -152,7 +153,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--theme') options.themes.push(argv[++index])
-    else if (argument === '--out') options.root = argv[++index]
+    else if (argument === '--out') options.root = resolveWorkshopRoot(argv[++index])
     else if (argument === '--allow-partial') options.allowPartial = true
     else if (argument === '--help') options.help = true
     else throw new Error(`Unknown argument: ${argument}`)

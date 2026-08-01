@@ -36,6 +36,7 @@ import {
   selectThemes,
   THEME_WORKSHOP_ROOT,
   THEME_WORKSHOP_SHAPES,
+  resolveWorkshopRoot,
 } from './theme-workshop-data.mjs'
 
 export async function generateThemeWorkshop(options = {}) {
@@ -138,7 +139,7 @@ Materials/textures: ${theme.materialPrompt}.
 Constraints: Keep trim, face panel, ornament, and numeral entirely inside each island. Maintain generous seam bleed to the island edge. Use lighting-free material detail suitable for a PBR base-color map. Keep the outside background near-black and visually quiet.${d10Rules}
 Avoid: missing values, duplicated values, wrong values, Roman numerals, pips, extra letters, runes replacing numbers, symbols that resemble numbers, moved islands, resized islands, altered outlines, cropped islands, art crossing island gaps, perspective, a photographed die, cast shadows, watermark, signature.
 
-Save the result as \`${theme.id}-${manifest.shape}-imagegen-atlas-raw.png\` beside this prompt. Registration, normal-map derivation, and the GLB bake all read that exact filename.
+Save the result as \`${theme.id}-${manifest.shape}-imagegen-atlas-raw.png\` beside this prompt. \`register:theme-atlases\` reads that exact filename; the normal-map and bake steps then consume what registration writes.
 `
 }
 
@@ -247,7 +248,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--theme') options.themes.push(argv[++index])
-    else if (argument === '--out') options.root = argv[++index]
+    else if (argument === '--out') options.root = resolveWorkshopRoot(argv[++index])
     else if (argument === '--rasterize') options.rasterize = true
     else if (argument === '--validate-only') options.validateOnly = true
     else if (argument === '--help') options.help = true

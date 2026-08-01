@@ -17,10 +17,15 @@ import {
   faceNumeralBaselinesFromManifest,
 } from './themed-polyhedral-glb.mjs'
 import {
+  DEFAULT_ENVIRONMENT_NORMAL_STRENGTH,
   getProofFace,
   getThemeAtlasPaths,
   getThemeBakePaths,
+  getThemeProofSheetPath,
   getThemeWorkshopEntry,
+  PROOF_BACKGROUND_RGB,
+  PROOF_SUBJECT_FILL,
+  resolveWorkshopRoot,
   selectThemes,
   THEME_WORKSHOP,
   THEME_WORKSHOP_SHAPES,
@@ -45,6 +50,13 @@ test('every theme defines a complete, uniquely-identified polyhedral set', () =>
     }
     for (const key of ['roughness', 'metalness', 'normalScale']) {
       assert.ok(theme.material[key] > 0 && theme.material[key] <= 1, `${theme.id}.${key} out of range`)
+    }
+    // Rapier reads these straight off metadata.json; out-of-range values give
+    // dice that float, tunnel, or never settle.
+    for (const [key, min, max] of [['density', 0.05, 5], ['restitution', 0, 1], ['friction', 0, 2]]) {
+      const value = theme.physics[key]
+      assert.equal(typeof value, 'number', `${theme.id}.physics.${key} must be a number`)
+      assert.ok(value >= min && value <= max, `${theme.id}.physics.${key}=${value} outside [${min}, ${max}]`)
     }
     for (const shape of THEME_WORKSHOP_SHAPES) {
       const die = theme.dice[shape]
@@ -84,6 +96,15 @@ test('selectThemes defaults to every theme and rejects unknown ids', () => {
   assert.equal(selectThemes().length, THEME_WORKSHOP.length)
   assert.deepEqual(selectThemes([FANTASY]).map((theme) => theme.id), [FANTASY])
   assert.throws(() => selectThemes(['not-a-theme']), /Unknown workshop theme/)
+})
+
+test('resolveWorkshopRoot refuses to let --out escape into the repo', () => {
+  assert.equal(resolveWorkshopRoot(undefined), '.artifacts/theme-workshop')
+  assert.throws(() => resolveWorkshopRoot('public/dice'), /cannot be written under public/)
+  assert.throws(() => resolveWorkshopRoot('src'), /cannot be written under src/)
+  assert.throws(() => resolveWorkshopRoot('scripts/imagegen-uv'), /cannot be written under scripts/)
+  assert.throws(() => resolveWorkshopRoot('docs/guides'), /must stay under \.artifacts/)
+  assert.ok(path.isAbsolute(resolveWorkshopRoot('.artifacts/theme-workshop-smoke')))
 })
 
 test('workshop paths stay inside .artifacts and never touch public/', () => {
@@ -139,6 +160,52 @@ test('dice normal-map strength is derived from the theme normalScale', () => {
   const floor = entries.find((entry) => entry.label === `${FANTASY}/environment/floor`)
   assert.equal(floor.profile, 'surface')
   assert.equal(floor.tileable, true)
+})
+
+test('environment normal strength comes from the theme entry, not the script', () => {
+  // The dark-dungeon override used to be an `id === 'dark-dungeon'` branch in
+  // derive-theme-normal-maps; set definitions must live in one place.
+  const dungeon = planNormalMapEntries(getThemeWorkshopEntry('dark-dungeon'))
+  assert.equal(dungeon.find((entry) => entry.label.endsWith('/floor')).strength, 9)
+  assert.equal(dungeon.find((entry) => entry.label.endsWith('/wall')).strength, 10)
+  const fantasy = planNormalMapEntries(getThemeWorkshopEntry(FANTASY))
+  assert.equal(fantasy.find((entry) => entry.label.endsWith('/floor')).strength, DEFAULT_ENVIRONMENT_NORMAL_STRENGTH.floor)
+  assert.equal(fantasy.find((entry) => entry.label.endsWith('/wall')).strength, DEFAULT_ENVIRONMENT_NORMAL_STRENGTH.wall)
+})
+
+test('every pipeline module parses and exports its CLI entry point', async () => {
+  // capture-theme-proofs embeds a browser page in a template literal; a stray
+  // backtick in that string is a syntax error no other test would reach.
+  const modules = await Promise.all([
+    import('./capture-theme-proofs.mjs'),
+    import('./register-theme-atlases.mjs'),
+    import('./bake-theme-dice-sets.mjs'),
+    import('./derive-theme-normal-maps.mjs'),
+    import('./generate-theme-workshop.mjs'),
+  ])
+  const [proofs, register, bake, normals, workshop] = modules
+  assert.equal(typeof proofs.captureThemeProofs, 'function')
+  assert.equal(typeof register.registerThemeAtlases, 'function')
+  assert.equal(typeof bake.bakeThemeDiceSets, 'function')
+  assert.equal(typeof normals.deriveThemeNormalMaps, 'function')
+  assert.equal(typeof workshop.generateThemeWorkshop, 'function')
+})
+
+test('proof rendering matches the released thumbnail convention', () => {
+  // Sampled from public/dice/cozy-forest-imagegen-set/*/thumbnail.png.
+  assert.deepEqual({ ...PROOF_BACKGROUND_RGB }, { r: 15, g: 23, b: 42 })
+  // Released subjects fill 0.86-1.00 of the 320px thumbnail, which is a 512px
+  // crop of the 720px proof.
+  const thumbnailFill = PROOF_SUBJECT_FILL * 720 / 512
+  assert.ok(thumbnailFill > 0.86 && thumbnailFill < 1.0, `thumbnail fill ${thumbnailFill} outside released range`)
+})
+
+test('contact sheets stay out of the release source root', () => {
+  const sheet = getThemeProofSheetPath(FANTASY, 'd20')
+  const bake = getThemeBakePaths(FANTASY, 'd20')
+  assert.ok(sheet.endsWith(path.join('proofs', 'aurelian-d20-all-faces.png')))
+  assert.equal(sheet.includes('source-root'), false, 'review artifacts must not enter the archive')
+  assert.ok(bake.proof.includes('source-root'), 'the thumbnail source must stay in the archive')
 })
 
 test('the ornament height profile favours metal trim over flat luminance', () => {
