@@ -21,7 +21,8 @@ import roomSrc from '../../server/core/src/room.rs?raw'
 describe('ROOM_DICE_CAPACITY drift guard', () => {
   it('matches MAX_DICE in server/core/src/room.rs', () => {
     // Arrange / Act
-    const match = roomSrc.match(/pub const MAX_DICE:\s*usize\s*=\s*(\d+)\s*;/)
+    // Anchored per-line so a commented-out declaration cannot satisfy the guard.
+    const match = roomSrc.match(/^pub const MAX_DICE:\s*usize\s*=\s*(\d+)\s*;/m)
 
     // Assert — a rename or removal must fail here, not silently pass
     expect(match, 'MAX_DICE declaration not found in server/core/src/room.rs').not.toBeNull()

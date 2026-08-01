@@ -87,8 +87,17 @@ export function DiceEntryCard({
     if (event.key === 'Enter') {
       event.preventDefault()
       commitQuantityDraft()
-    } else if (event.key === 'Escape') {
+      return
+    }
+
+    // Escape is only ours while a draft is in flight, where it means "abandon
+    // what I typed". The panel listens for Escape on `document` to close the
+    // sheet, so swallowing it unconditionally would trap the user in the
+    // builder; letting it bubble when there is no draft keeps sheet-close the
+    // expected behaviour.
+    if (event.key === 'Escape' && quantityDraft !== null) {
       event.preventDefault()
+      event.stopPropagation()
       setQuantityDraft(null)
     }
   }

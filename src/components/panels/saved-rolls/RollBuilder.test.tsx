@@ -270,6 +270,24 @@ describe('RollBuilder', () => {
     expect(saved.dice[0].rollCount).toBeUndefined()
   })
 
+  it('keeps repeated increments as a single generic group', () => {
+    // Arrange
+    const { onSave } = renderBuilder()
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d6 die/i }))
+
+    // Act — five presses of the entry's "+" control
+    const increment = screen.getAllByRole('button', { name: '+' })[0]
+    for (let i = 0; i < 5; i++) fireEvent.click(increment)
+
+    // Assert — one chip and one source, not six of each
+    expect(screen.getAllByText(/generic$/)).toHaveLength(1)
+    expect(screen.getByText('6 generic')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText(/roll name/i), { target: { value: 'Six d6' } })
+    fireEvent.click(screen.getByRole('button', { name: /save roll/i }))
+    expect(onSave.mock.calls[0][0].dice[0].sources).toEqual([createAnonymousRollSource(6)])
+  })
+
   it('caps the quantity field at three digits', () => {
     // Arrange
     renderBuilder()

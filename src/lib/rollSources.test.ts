@@ -163,12 +163,16 @@ describe('rollSources', () => {
 })
 
 
+function getTotalQuantity(sources: ReturnType<typeof createAnonymousRollSource>[]) {
+  return sources.reduce((total, source) => total + (source.kind === 'anonymous' ? source.quantity : 1), 0)
+}
+
 describe('resizeRollSources', () => {
   const a = createSpecificDieRollSource('die-a')
   const b = createSpecificDieRollSource('die-b')
   const c = createSpecificDieRollSource('die-c')
 
-  it('appends generic dice when growing', () => {
+  it('appends generic dice when growing past owned dice', () => {
     // Arrange / Act
     const result = resizeRollSources([a, b], 5)
 
@@ -177,7 +181,39 @@ describe('resizeRollSources', () => {
     expect(result.droppedDieIds).toEqual([])
   })
 
-  it('returns the list untouched when the target already matches', () => {
+  it('grows a trailing generic group in place instead of appending a new one', () => {
+    // Arrange / Act
+    const result = resizeRollSources([a, createAnonymousRollSource(2)], 6)
+
+    // Assert — one merged group, not [.., anon(2), anon(3)]
+    expect(result.sources).toEqual([a, createAnonymousRollSource(5)])
+  })
+
+  it('keeps repeated single increments collapsed into one generic group', () => {
+    // Arrange
+    let sources = [createAnonymousRollSource(1)]
+
+    // Act — five presses of "+"
+    for (let i = 0; i < 5; i++) {
+      sources = resizeRollSources(sources, getTotalQuantity(sources) + 1).sources
+    }
+
+    // Assert — one source of 6, not six sources of 1
+    expect(sources).toEqual([createAnonymousRollSource(6)])
+  })
+
+  it('does not merge plain growth into a skinned generic group', () => {
+    // Arrange — merging would silently relabel the new dice with that skin
+    const skinned = createAnonymousRollSource(2, 'neon')
+
+    // Act
+    const result = resizeRollSources([skinned], 4)
+
+    // Assert
+    expect(result.sources).toEqual([skinned, createAnonymousRollSource(2)])
+  })
+
+  it('returns a copy when the target already matches, never the input array', () => {
     // Arrange
     const sources = [a, createAnonymousRollSource(2)]
 
@@ -185,8 +221,8 @@ describe('resizeRollSources', () => {
     const result = resizeRollSources(sources, 3)
 
     // Assert
-    expect(result.sources).toBe(sources)
-    expect(result.droppedDieIds).toEqual([])
+    expect(result.sources).not.toBe(sources)
+    expect(result.sources).toEqual(sources)
   })
 
   it('gives up generic dice before touching owned dice when shrinking', () => {

@@ -153,11 +153,26 @@ export function resizeRollSources(
   const target = clampQuantity(targetQuantity)
   const total = getTotalSourceQuantity(sources)
 
-  if (target === total) return { sources, droppedDieIds: [] }
+  if (target === total) return { sources: [...sources], droppedDieIds: [] }
 
   if (target > total) {
+    const growth = target - total
+    const last = sources[sources.length - 1]
+
+    // Grow a trailing generic group in place rather than appending a new one:
+    // repeated increments would otherwise accumulate one source per click, and
+    // that bloat renders as a row of "1 generic" chips and persists to storage.
+    // Only a skin-less group can absorb plain dice without relabelling them.
+    if (last?.kind === 'anonymous' && last.skinId === undefined) {
+      const merged = [...sources]
+      merged[merged.length - 1] = createAnonymousRollSource(
+        getRollSourceQuantity(last) + growth,
+      )
+      return { sources: merged, droppedDieIds: [] }
+    }
+
     return {
-      sources: [...sources, createAnonymousRollSource(target - total)],
+      sources: [...sources, createAnonymousRollSource(growth)],
       droppedDieIds: [],
     }
   }
