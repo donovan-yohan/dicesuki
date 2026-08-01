@@ -128,8 +128,10 @@ describe('SavedRollsPanel room execution', () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
     expect(operations).toEqual(['clear', 'spawn-specific', 'spawn-generic', 'roll'])
-    expect(addDie).toHaveBeenCalledWith('d6', 'inventory-d6')
-    expect(addGenericDie).toHaveBeenCalledWith('d6')
+    // Third/second arg is the presentation extras slot: `undefined` for a plain
+    // entry, so an ordinary die still spawns with no presentation of its own.
+    expect(addDie).toHaveBeenCalledWith('d6', 'inventory-d6', undefined)
+    expect(addGenericDie).toHaveBeenCalledWith('d6', undefined)
     const active = useDiceStore.getState().activeSavedRoll
     expect(active?.name).toBe('Room fireball')
     expect(active?.flatBonus).toBe(4)
@@ -316,10 +318,10 @@ describe('SavedRollsPanel room execution', () => {
       currentlyEditing: null,
     })
 
-    const spawned: string[] = []
-    const addGenericDie = vi.fn((type: string) => {
+    const spawned: Array<{ type: string; presentation?: Record<string, unknown> }> = []
+    const addGenericDie = vi.fn((type: string, presentation?: Record<string, unknown>) => {
       const id = `${type}-${spawned.length}`
-      spawned.push(type)
+      spawned.push({ type, presentation })
       useMultiplayerStore.setState((state) => ({
         dice: new Map([...state.dice, [id, roomDie(id)]]),
       }))
@@ -341,13 +343,24 @@ describe('SavedRollsPanel room execution', () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
     // Tens die first, then its ones half — twice, one pair per percentile die.
-    expect(spawned).toEqual(['d10tens', 'd10', 'd10tens', 'd10'])
+    expect(spawned.map((die) => die.type)).toEqual(['d10tens', 'd10', 'd10tens', 'd10'])
+
+    // The pairing is stamped onto the DICE (presentation), never into local roll
+    // state: that is what makes it survive table edits, reach remote players and
+    // outlive a refresh. Each pair shares one id with opposite roles, and the two
+    // pairs must not share an id.
+    const [tensA, onesA, tensB, onesB] = spawned
+    expect(tensA.presentation?.percentileRole).toBe('tens')
+    expect(onesA.presentation?.percentileRole).toBe('ones')
+    expect(tensA.presentation?.percentilePairId).toBe(onesA.presentation?.percentilePairId)
+    expect(tensB.presentation?.percentileRole).toBe('tens')
+    expect(onesB.presentation?.percentileRole).toBe('ones')
+    expect(tensB.presentation?.percentilePairId).toBe(onesB.presentation?.percentilePairId)
+    expect(tensA.presentation?.percentilePairId).not.toBe(tensB.presentation?.percentilePairId)
 
     const active = useDiceStore.getState().activeSavedRoll
-    expect(active?.percentilePairs).toEqual([
-      { tensDieId: 'd10tens-0', onesDieId: 'd10-1' },
-      { tensDieId: 'd10tens-2', onesDieId: 'd10-3' },
-    ])
+    expect(active).not.toBeNull()
+    expect('percentilePairs' in (active ?? {})).toBe(false)
     // The per-die bonus lands ONCE per pair, on the ones half (it applies to the
     // combined 1-100 value, not to each physical die).
     expect(Array.from(active?.perDieBonuses.entries() ?? [])).toEqual([
@@ -374,9 +387,9 @@ describe('SavedRollsPanel room execution', () => {
       currentlyEditing: null,
     })
 
-    const spawned: string[] = []
-    const addGenericDie = vi.fn((type: string) => {
-      spawned.push(type)
+    const spawned: Array<{ type: string; presentation?: Record<string, unknown> }> = []
+    const addGenericDie = vi.fn((type: string, presentation?: Record<string, unknown>) => {
+      spawned.push({ type, presentation })
       useMultiplayerStore.setState((state) => ({
         dice: new Map([...state.dice, ['plain-d10', roomDie('plain-d10')]]),
       }))
@@ -396,7 +409,8 @@ describe('SavedRollsPanel room execution', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Roll Plain d10' }))
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
-    expect(spawned).toEqual(['d10'])
-    expect(useDiceStore.getState().activeSavedRoll?.percentilePairs).toBeUndefined()
+    expect(spawned.map((die) => die.type)).toEqual(['d10'])
+    // A plain d10 spawns with NO presentation block at all (Shared-ADR-005).
+    expect(spawned[0].presentation).toBeUndefined()
   })
 })

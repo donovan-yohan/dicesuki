@@ -8,15 +8,28 @@
  * - the ONES die (`d10`) reads `0 … 9`
  * - the combined result is `tens + ones`, except `00 + 0` which reads **100**.
  *
+ * ## Where the pairing lives: on the DICE, not on the roll
+ * Which tens die belongs to which ones die is carried in each die's
+ * `presentation` block (`percentilePairId` + `percentileRole`) — the
+ * client→server display channel that Shared-ADR-005 already echoes back on
+ * `dice_spawned` and `roll_complete.results[].presentation`.
+ *
+ * That placement is load-bearing, not incidental. Pairing held in transient
+ * local roll state would be lost the moment the table is edited (adding a die
+ * clears the active saved roll), would never reach REMOTE players, and would not
+ * survive a refresh or reconnect — in all three cases the pair silently degrades
+ * into two uncorrected halves. Because the pairing travels with the dice, every
+ * client that can see the dice can reconstruct it.
+ *
  * ## Server-total divergence (deliberate, display-only)
  * The room's `RollComplete.total` (`take_completed_rolls` in
  * `server/core/src/room.rs`) is a PLAIN sum of raw face values, and it stays that
- * way — the server must not need to know which dice were paired. For every
- * percentile result except `00 + 0` the plain sum already equals the combined
- * value, so the server total is correct. Only the `00 + 0` case diverges: the
- * server reports 0 while the player sees 100. The +100 correction lives here and
- * is applied in the CLIENT aggregation paths (result HUD + roll history), never
- * server-side.
+ * way — the server treats `presentation` as opaque display metadata and must not
+ * need to interpret it. For every percentile result except `00 + 0` the plain sum
+ * already equals the combined value, so the server total is correct. Only the
+ * `00 + 0` case diverges: the server reports 0 while the player sees 100. The
+ * +100 correction lives here and is applied in the CLIENT aggregation paths
+ * (result HUD + roll history), never server-side.
  */
 
 import type { DiceEntry } from '../types/savedRolls'
@@ -33,14 +46,82 @@ export const PERCENTILE_MIN = 1
 /** Highest possible percentile result (`00 + 0`). */
 export const PERCENTILE_MAX = 100
 
+/** Which half of a percentile pair a die is. */
+export type PercentileRole = 'tens' | 'ones'
+
 /**
- * A percentile pairing recorded at spawn time: which tens die belongs to which
- * ones die. Without it a table holding several d100 rolls could not tell which
- * `0` ones die belongs to the `00` tens die.
+ * The percentile fields carried on a die's `presentation` block. Kept structural
+ * so spawned dice, settled dice and history records all satisfy it without the
+ * modules having to import each other.
  */
+export interface PercentilePresentationFields {
+  percentilePairId?: string
+  percentileRole?: PercentileRole
+}
+
+/** Minimum shape this module needs to identify a die on the table. */
+export interface PercentileDieRef {
+  diceId: string
+  presentation?: PercentilePresentationFields | null
+}
+
+/** A settled die: an identified die plus its face value. */
+export interface PercentileSettledDie extends PercentileDieRef {
+  value: number
+}
+
+/** A reconstructed percentile pairing. */
 export interface PercentilePair {
   tensDieId: string
   onesDieId: string
+}
+
+/** Presentation fields marking a die as the TENS half of pair `pairId`. */
+export function percentileTensPresentation(pairId: string): Required<PercentilePresentationFields> {
+  return { percentilePairId: pairId, percentileRole: 'tens' }
+}
+
+/** Presentation fields marking a die as the ONES half of pair `pairId`. */
+export function percentileOnesPresentation(pairId: string): Required<PercentilePresentationFields> {
+  return { percentilePairId: pairId, percentileRole: 'ones' }
+}
+
+/**
+ * Reconstruct the percentile pairings among `dice` from their presentation
+ * blocks. A pairing only counts when BOTH halves are present with distinct
+ * roles, so a half-visible pair (per-player filtering, a removed die, a stray
+ * tens die) is simply not a pair: left uncorrected and ungrouped rather than
+ * guessed at.
+ *
+ * Pairs are returned in the order their first half appears in `dice`.
+ */
+export function derivePercentilePairs(dice: readonly PercentileDieRef[]): PercentilePair[] {
+  const byPairId = new Map<string, { tens?: string; ones?: string }>()
+  const order: string[] = []
+
+  for (const die of dice) {
+    const pairId = die.presentation?.percentilePairId
+    const role = die.presentation?.percentileRole
+    if (!pairId || (role !== 'tens' && role !== 'ones')) continue
+
+    let slot = byPairId.get(pairId)
+    if (!slot) {
+      slot = {}
+      byPairId.set(pairId, slot)
+      order.push(pairId)
+    }
+    // First writer wins, so a duplicated role can never silently re-pair a die.
+    if (slot[role] === undefined) slot[role] = die.diceId
+  }
+
+  const pairs: PercentilePair[] = []
+  for (const pairId of order) {
+    const slot = byPairId.get(pairId)
+    if (slot?.tens !== undefined && slot.ones !== undefined) {
+      pairs.push({ tensDieId: slot.tens, onesDieId: slot.ones })
+    }
+  }
+  return pairs
 }
 
 /**
@@ -53,57 +134,53 @@ export function combinePercentile(tensFace: number, onesFace: number): number {
 }
 
 /**
- * The correction to add to a PLAIN face-value sum so paired percentile dice read
- * 1–100. Every pair except `00 + 0` already sums correctly, so this is
+ * The correction to add to a PLAIN face-value sum of `dice` so paired percentile
+ * dice read 1–100. Every pair except `00 + 0` already sums correctly, so this is
  * `+100` per double-zero pair and 0 otherwise.
- *
- * @param faceValues - face value by die id, for the dice being summed
- * @param pairs - percentile pairings for the active roll (may reference dice
- *   that are not in `faceValues`, e.g. filtered out per player — those are skipped)
  */
-export function percentileSumCorrection(
-  faceValues: ReadonlyMap<string, number>,
-  pairs: readonly PercentilePair[] | undefined,
-): number {
-  if (!pairs || pairs.length === 0) return 0
+export function percentileSumCorrection(dice: readonly PercentileSettledDie[]): number {
+  const pairs = derivePercentilePairs(dice)
+  if (pairs.length === 0) return 0
 
+  const faces = new Map(dice.map((die) => [die.diceId, die.value]))
   let correction = 0
   for (const pair of pairs) {
-    const tens = faceValues.get(pair.tensDieId)
-    const ones = faceValues.get(pair.onesDieId)
-    // Both halves must be present and settled; a half-visible pair is left alone.
+    const tens = faces.get(pair.tensDieId)
+    const ones = faces.get(pair.onesDieId)
+    /* c8 ignore next -- unreachable: pairs only reference dice from this list */
     if (tens === undefined || ones === undefined) continue
     correction += combinePercentile(tens, ones) - (tens + ones)
   }
   return correction
 }
 
-/**
- * Group settled dice into percentile pairs and loose dice, preserving order.
- * Used by the result HUD so a d100 shows as ONE `1d100` chip instead of two
- * meaningless halves.
- */
-export function groupPercentileResults<T extends { diceId: string; value: number }>(
-  dice: readonly T[],
-  pairs: readonly PercentilePair[] | undefined,
-): Array<
+/** A settled die, or a percentile pair collapsed into one combined result. */
+export type PercentileResultGroup<T> =
   | { kind: 'die'; die: T }
   | { kind: 'percentile'; tens: T; ones: T; value: number }
-> {
+
+/**
+ * Group settled dice into percentile pairs and loose dice, preserving order.
+ * Used by the result HUD and the history breakdown so a d100 shows as ONE
+ * combined result instead of two meaningless halves.
+ */
+export function groupPercentileResults<T extends PercentileSettledDie>(
+  dice: readonly T[],
+): Array<PercentileResultGroup<T>> {
+  const pairs = derivePercentilePairs(dice)
+  if (pairs.length === 0) {
+    return dice.map((die) => ({ kind: 'die', die }))
+  }
+
   const byId = new Map(dice.map((die) => [die.diceId, die]))
   const pairedIds = new Map<string, PercentilePair>()
-
-  for (const pair of pairs ?? []) {
-    if (!byId.has(pair.tensDieId) || !byId.has(pair.onesDieId)) continue
+  for (const pair of pairs) {
     pairedIds.set(pair.tensDieId, pair)
     pairedIds.set(pair.onesDieId, pair)
   }
 
   const emitted = new Set<string>()
-  const grouped: Array<
-    | { kind: 'die'; die: T }
-    | { kind: 'percentile'; tens: T; ones: T; value: number }
-  > = []
+  const grouped: Array<PercentileResultGroup<T>> = []
 
   for (const die of dice) {
     if (emitted.has(die.diceId)) continue
@@ -117,7 +194,7 @@ export function groupPercentileResults<T extends { diceId: string; value: number
 
     const tens = byId.get(pair.tensDieId)
     const ones = byId.get(pair.onesDieId)
-    /* c8 ignore next 4 -- unreachable: pairedIds only holds fully-present pairs */
+    /* c8 ignore next 5 -- unreachable: pairs only reference dice from this list */
     if (!tens || !ones) {
       grouped.push({ kind: 'die', die })
       emitted.add(die.diceId)
@@ -146,4 +223,15 @@ export function formatDieFaceLabel(shape: string, faceValue: number): string {
   return shape === PERCENTILE_TENS_SHAPE
     ? faceValue.toString().padStart(2, '0')
     : faceValue.toString()
+}
+
+/**
+ * Human label for a die SHAPE in result/history chips.
+ *
+ * `d10tens` must NEVER surface raw: an unpaired stray tens die (partner removed,
+ * filtered out by the per-player view, or spawned alone) still has to read as
+ * something a player understands. Everything else is the uppercased shape.
+ */
+export function formatDiceShapeLabel(shape: string): string {
+  return shape === PERCENTILE_TENS_SHAPE ? 'D100 (tens)' : shape.toUpperCase()
 }

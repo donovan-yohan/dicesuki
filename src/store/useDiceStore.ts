@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { DicePresentationMetadata } from '../lib/multiplayerMessages'
-import { percentileSumCorrection, type PercentilePair } from '../lib/percentileRolls'
+import { percentileSumCorrection } from '../lib/percentileRolls'
 
 /**
  * Represents a single die that has settled with a face value
@@ -26,13 +26,6 @@ export interface RollSnapshot {
    */
   sum: number
   timestamp: number
-  /**
-   * Percentile (d100) pairings in this roll, so the breakdown can show one
-   * combined 1–100 result instead of two loose halves. Absent on snapshots
-   * recorded before d100 shipped and on rolls with no percentile dice.
-   * Plain data — safe to persist.
-   */
-  percentilePairs?: PercentilePair[]
   /** Multiplayer-only: who rolled. Null/undefined in local mode. */
   player?: {
     id: string
@@ -50,13 +43,6 @@ export interface ActiveSavedRoll {
   name: string
   flatBonus: number
   perDieBonuses: Map<string, number> // dice instance ID → per-die bonus
-  /**
-   * Percentile (d100) pairings spawned by this roll: which tens die belongs to
-   * which ones die. Needed because `tens + ones` is a plain sum for every result
-   * EXCEPT `00 + 0`, which reads 100 — and with several d100s on the table only
-   * the pairing says which zeros go together.
-   */
-  percentilePairs?: PercentilePair[]
 }
 
 /**
@@ -144,21 +130,17 @@ export const useDiceStore = create<DiceStore>()(
             }
 
             if (cycleDice.length > 0) {
-              // Percentile pairs from the active saved roll that are fully inside
-              // THIS cycle. `00 + 0` reads 100, so the plain face sum needs the
-              // correction (the room's own total stays a plain sum by design —
+              // `00 + 0` reads 100, so the plain face sum needs the percentile
+              // correction. The pairing is read off the dice's own presentation
+              // blocks, so it holds regardless of what happened to the active
+              // saved roll (the room's own total stays a plain sum by design —
               // see src/lib/percentileRolls.ts).
-              const cycleFaces = new Map(cycleDice.map((d) => [d.diceId, d.value]))
-              const percentilePairs = state.activeSavedRoll?.percentilePairs?.filter(
-                (pair) => cycleFaces.has(pair.tensDieId) && cycleFaces.has(pair.onesDieId),
-              )
               const sum = cycleDice.reduce((acc, d) => acc + d.value, 0)
-                + percentileSumCorrection(cycleFaces, percentilePairs)
+                + percentileSumCorrection(cycleDice)
               const snapshot: RollSnapshot = {
                 dice: cycleDice,
                 sum,
                 timestamp: Date.now(),
-                ...(percentilePairs && percentilePairs.length > 0 ? { percentilePairs } : {}),
               }
 
               return {

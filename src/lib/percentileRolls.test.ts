@@ -1,15 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import {
   combinePercentile,
+  derivePercentilePairs,
+  formatDiceShapeLabel,
   formatDieFaceLabel,
   groupPercentileResults,
   isPercentileEntry,
+  percentileOnesPresentation,
   percentileSumCorrection,
+  percentileTensPresentation,
   PERCENTILE_MAX,
   PERCENTILE_MIN,
   PERCENTILE_ONES_SHAPE,
   PERCENTILE_TENS_SHAPE,
-  type PercentilePair,
 } from './percentileRolls'
 import {
   calculateDiceEntryRange,
@@ -26,6 +29,22 @@ import { createFaceMaterialsArray, validateFaceNormalRules } from './faceMateria
 import { parseInventoryDieDragPayload, serializeInventoryDieDragPayload, INVENTORY_DIE_DRAG_TYPE } from './inventoryDrag'
 import type { DiceEntry, SavedRoll } from '../types/savedRolls'
 import * as THREE from 'three'
+
+/**
+ * Pairing lives on the DICE (their presentation blocks), never in roll state —
+ * that is what makes it survive table edits, remote views and refreshes.
+ */
+function tensDie(diceId: string, pairId: string) {
+  return { diceId, presentation: percentileTensPresentation(pairId) }
+}
+
+function onesDie(diceId: string, pairId: string) {
+  return { diceId, presentation: percentileOnesPresentation(pairId) }
+}
+
+function plainDie(diceId: string) {
+  return { diceId, presentation: undefined }
+}
 
 function percentileEntry(overrides: Partial<DiceEntry> = {}): DiceEntry {
   return {
@@ -62,67 +81,123 @@ describe('combinePercentile', () => {
   })
 })
 
-describe('percentileSumCorrection', () => {
-  const pair: PercentilePair = { tensDieId: 'tens', onesDieId: 'ones' }
+describe('derivePercentilePairs', () => {
+  it('pairs the two halves that share a percentilePairId', () => {
+    expect(derivePercentilePairs([tensDie('t', 'p1'), onesDie('o', 'p1')]))
+      .toEqual([{ tensDieId: 't', onesDieId: 'o' }])
+  })
 
-  it('is zero without percentile pairs', () => {
-    expect(percentileSumCorrection(new Map([['a', 5]]), undefined)).toBe(0)
-    expect(percentileSumCorrection(new Map([['a', 5]]), [])).toBe(0)
+  it('ignores dice with no percentile presentation', () => {
+    expect(derivePercentilePairs([plainDie('a'), plainDie('b')])).toEqual([])
+  })
+
+  it('refuses to pair halves from different rolls', () => {
+    expect(derivePercentilePairs([tensDie('t', 'p1'), onesDie('o', 'p2')])).toEqual([])
+  })
+
+  it('refuses a half-visible pair (per-player filtering, removed partner)', () => {
+    expect(derivePercentilePairs([tensDie('t', 'p1')])).toEqual([])
+    expect(derivePercentilePairs([onesDie('o', 'p1')])).toEqual([])
+  })
+
+  it('refuses to pair two dice claiming the same role', () => {
+    expect(derivePercentilePairs([tensDie('t1', 'p1'), tensDie('t2', 'p1')])).toEqual([])
+  })
+
+  it('keeps pairs in first-half order and survives interleaving', () => {
+    expect(derivePercentilePairs([
+      tensDie('t1', 'p1'),
+      tensDie('t2', 'p2'),
+      onesDie('o2', 'p2'),
+      onesDie('o1', 'p1'),
+    ])).toEqual([
+      { tensDieId: 't1', onesDieId: 'o1' },
+      { tensDieId: 't2', onesDieId: 'o2' },
+    ])
+  })
+})
+
+describe('percentileSumCorrection', () => {
+  it('is zero when no dice are paired', () => {
+    expect(percentileSumCorrection([{ ...plainDie('a'), value: 5 }])).toBe(0)
+    expect(percentileSumCorrection([])).toBe(0)
   })
 
   it('is zero for any pair that already sums correctly', () => {
-    const faces = new Map([['tens', 30], ['ones', 4]])
-    expect(percentileSumCorrection(faces, [pair])).toBe(0)
+    expect(percentileSumCorrection([
+      { ...tensDie('t', 'p1'), value: 30 },
+      { ...onesDie('o', 'p1'), value: 4 },
+    ])).toBe(0)
   })
 
   it('adds 100 for a 00 + 0 pair', () => {
-    const faces = new Map([['tens', 0], ['ones', 0]])
-    expect(percentileSumCorrection(faces, [pair])).toBe(100)
+    expect(percentileSumCorrection([
+      { ...tensDie('t', 'p1'), value: 0 },
+      { ...onesDie('o', 'p1'), value: 0 },
+    ])).toBe(100)
   })
 
   it('corrects each double-zero pair independently', () => {
-    const faces = new Map([
-      ['tens-a', 0], ['ones-a', 0],
-      ['tens-b', 0], ['ones-b', 3],
-      ['tens-c', 0], ['ones-c', 0],
-    ])
-    const pairs: PercentilePair[] = [
-      { tensDieId: 'tens-a', onesDieId: 'ones-a' },
-      { tensDieId: 'tens-b', onesDieId: 'ones-b' },
-      { tensDieId: 'tens-c', onesDieId: 'ones-c' },
-    ]
-    expect(percentileSumCorrection(faces, pairs)).toBe(200)
+    expect(percentileSumCorrection([
+      { ...tensDie('ta', 'a'), value: 0 }, { ...onesDie('oa', 'a'), value: 0 },
+      { ...tensDie('tb', 'b'), value: 0 }, { ...onesDie('ob', 'b'), value: 3 },
+      { ...tensDie('tc', 'c'), value: 0 }, { ...onesDie('oc', 'c'), value: 0 },
+    ])).toBe(200)
   })
 
-  it('skips pairs whose halves are not both present (per-player filtering)', () => {
-    expect(percentileSumCorrection(new Map([['tens', 0]]), [pair])).toBe(0)
-    expect(percentileSumCorrection(new Map([['ones', 0]]), [pair])).toBe(0)
+  it('skips a pair whose other half is not in view (per-player filtering)', () => {
+    expect(percentileSumCorrection([{ ...tensDie('t', 'p1'), value: 0 }])).toBe(0)
+    expect(percentileSumCorrection([{ ...onesDie('o', 'p1'), value: 0 }])).toBe(0)
+  })
+
+  it('is unaffected by unrelated dice joining the table (table-edit safety)', () => {
+    const pair = [
+      { ...tensDie('t', 'p1'), value: 0 },
+      { ...onesDie('o', 'p1'), value: 0 },
+    ]
+    expect(percentileSumCorrection([...pair, { ...plainDie('d6'), value: 4 }])).toBe(100)
   })
 })
 
 describe('groupPercentileResults', () => {
-  const tens = { diceId: 'tens', value: 0 }
-  const ones = { diceId: 'ones', value: 0 }
-  const loose = { diceId: 'loose', value: 6 }
+  const tens = { ...tensDie('t', 'p1'), value: 0 }
+  const ones = { ...onesDie('o', 'p1'), value: 0 }
+  const loose = { ...plainDie('loose'), value: 6 }
 
   it('leaves unpaired dice alone', () => {
-    expect(groupPercentileResults([loose], undefined)).toEqual([{ kind: 'die', die: loose }])
+    expect(groupPercentileResults([loose])).toEqual([{ kind: 'die', die: loose }])
   })
 
   it('collapses a pair into one combined result at the first half position', () => {
-    const grouped = groupPercentileResults(
-      [tens, ones, loose],
-      [{ tensDieId: 'tens', onesDieId: 'ones' }],
-    )
-    expect(grouped).toEqual([
+    expect(groupPercentileResults([tens, ones, loose])).toEqual([
       { kind: 'percentile', tens, ones, value: 100 },
       { kind: 'die', die: loose },
     ])
   })
 
-  it('ignores a pairing whose other half is missing', () => {
-    const grouped = groupPercentileResults([tens], [{ tensDieId: 'tens', onesDieId: 'ones' }])
-    expect(grouped).toEqual([{ kind: 'die', die: tens }])
+  it('still groups after an unrelated die is added to the table', () => {
+    expect(groupPercentileResults([tens, ones, loose, { ...plainDie('extra'), value: 2 }]))
+      .toEqual([
+        { kind: 'percentile', tens, ones, value: 100 },
+        { kind: 'die', die: loose },
+        { kind: 'die', die: { ...plainDie('extra'), value: 2 } },
+      ])
+  })
+
+  it('leaves a stray half as a plain die', () => {
+    expect(groupPercentileResults([tens])).toEqual([{ kind: 'die', die: tens }])
+  })
+})
+
+describe('formatDiceShapeLabel', () => {
+  it('never surfaces the raw engine shape for a stray tens die', () => {
+    expect(formatDiceShapeLabel('d10tens')).toBe('D100 (tens)')
+    expect(formatDiceShapeLabel('d10tens')).not.toContain('d10tens')
+  })
+
+  it('uppercases every other shape', () => {
+    expect(formatDiceShapeLabel('d10')).toBe('D10')
+    expect(formatDiceShapeLabel('d20')).toBe('D20')
   })
 })
 
@@ -243,4 +318,18 @@ describe('d10tens engine shape', () => {
       name: 'Ones',
     })
   })
+})
+
+describe('roll-wide dice cap (cross-slice with S1 feat/roll-builder-core)', () => {
+  /**
+   * S1 adds `getRollDiceCount(entries)` — the roll-wide 30-dice cap, defined as
+   * the number of expanded roll sources. A percentile entry expands to ONE source
+   * but spawns TWO physical dice, so an uncorrected count lets a 30-source roll
+   * request up to 60 spawns and the room rejects the whole roll with DICE_LIMIT.
+   *
+   * `.todo` because `getRollDiceCount` is not on `origin/main` yet (verified at
+   * the time of writing). Implement at rebase time, once S1 has landed: each
+   * percentile die must count 2 toward the cap.
+   */
+  it.todo('counts each percentile die as 2 dice toward the 30-dice room cap')
 })

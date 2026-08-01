@@ -51,6 +51,64 @@ The `formatSavedRoll()` function properly handles operators:
 - **Positive bonus**: `6d6 + 4` (not `6d6 + +4`)
 - **Negative bonus**: `6d6 - 4` (not `6d6 + -4`)
 
+## Percentile (d100) Entries
+
+A d100 is **not** a hundred-sided die. It is a pair of physical dice:
+
+| Half | Engine shape | Faces |
+|------|--------------|-------|
+| Tens | `d10tens` | `00, 10, … 90` |
+| Ones | `d10` | `0 … 9` |
+
+The result is `tens + ones`, with `00 + 0` reading **100** — so the range is
+1–100. Per-die bonus applies once, to the combined value.
+
+### Entry model
+
+A percentile entry keeps `type: 'd10'` (the ones half) and adds one additive
+marker, `DiceEntry.percentile?: true` (`src/types/savedRolls.ts`).
+
+`'d100'` is deliberately **not** a `DiceShape`. Keeping `type` a real shape means
+persistence, `rollSources` normalization, per-die bonus and keep/drop all keep
+working untouched, and a roll saved before d100 shipped (no flag) still means
+"an ordinary d10 entry" — so **no store migration is required**. Notation renders
+`1d100` via `formatDiceEntry`; range math goes through `getEntryMin`/`getEntryMax`.
+
+`d10tens` is an **engine-only** shape: it is never minted, owned, pulled, themed
+or dragged out of the inventory. Anything that must be player-ownable uses
+`INVENTORY_DICE_SHAPES` / `isInventoryDiceShape` from `src/types/diceShape.ts`.
+
+### Pairing lives on the dice, not on the roll
+
+At spawn, both halves get the same `presentation.percentilePairId` with opposite
+`presentation.percentileRole` (`'tens'` / `'ones'`). `presentation` is the
+client→server display channel of Shared-ADR-005, echoed back on `dice_spawned`
+and `roll_complete.results[].presentation`; the room never interprets it.
+
+This is load-bearing. Pairing kept in local roll state (`activeSavedRoll`) would
+be lost the moment the table is edited — adding a die clears the saved-roll
+context — would never reach **remote** players, and would not survive a refresh
+or reconnect. In each of those cases the pair silently degrades into two
+uncorrected halves. Because the pairing travels with the dice, every client that
+can see the dice reconstructs it via `derivePercentilePairs`.
+
+All three aggregation paths derive pairs from the dice themselves:
+`ResultDisplay` (HUD), `useDiceStore.recordDieSettled` (history snapshot) and
+`useMultiplayerStore` `roll_complete` (including other players' rolls).
+
+### Deliberate server-total divergence
+
+`RollComplete.total` (`take_completed_rolls`, `server/core/src/room.rs`) is a
+**plain sum of raw face values** and stays that way — the server must not need to
+know which dice were paired. For every percentile outcome except `00 + 0` that
+plain sum already equals the combined value.
+
+Only `00 + 0` diverges: the **server reports 0** while the **client displays
+100**. The `+100` correction lives in `percentileSumCorrection`
+(`src/lib/percentileRolls.ts`) and is applied client-side only. Do not "fix" the
+server total to match — it is intentional, and both values are correct for their
+own purpose.
+
 ## Common Issues
 
 ### Issue: Bonuses Not Displaying
@@ -83,3 +141,6 @@ When testing saved rolls:
 5. Test manual add/remove behavior clears bonuses
 6. Test formula formatting with positive and negative bonuses
 7. Extend the wasm-room browser smoke whenever the execution protocol changes
+8. For percentile rolls, cover all three ways the pairing must survive: a table
+   edit that clears `activeSavedRoll`, a **remote** player's `roll_complete` with
+   no local roll state, and `00 + 0` reading 100 rather than 0

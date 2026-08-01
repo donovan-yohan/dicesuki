@@ -10,7 +10,7 @@ import { useInventoryStore } from '../../store/useInventoryStore'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload } from '../../lib/inventoryDrag'
 import { getRarityColor } from '../../lib/rarityColor'
-import type { DiceShape } from '../../types/diceShape'
+import { INVENTORY_DICE_SHAPES, type DiceShape } from '../../types/diceShape'
 import type { DieRarity, InventoryDie } from '../../types/inventory'
 import { useTheme } from '../../contexts/ThemeContext'
 import type { Theme } from '../../themes/tokens'
@@ -29,7 +29,7 @@ interface InventoryPanelProps {
 type StatusFilter = 'all' | 'favorites' | 'recent'
 type SortOption = 'date' | 'name' | 'rarity' | 'set' | 'rolls'
 
-const DICE_SHAPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
+const DICE_SHAPES = INVENTORY_DICE_SHAPES
 const RARITY_DISPLAY: DieRarity[] = ['mythic', 'legendary', 'epic', 'rare', 'uncommon', 'common']
 const VISIBLE_DICE_BATCH_SIZE = 24
 const RECENT_ROLL_WINDOW_MS = 14 * 24 * 60 * 60 * 1000

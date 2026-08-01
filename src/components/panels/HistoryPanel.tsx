@@ -7,7 +7,7 @@
 
 import { FlyoutPanel } from './FlyoutPanel'
 import { useDiceStore, type RollSnapshot } from '../../store/useDiceStore'
-import { groupPercentileResults } from '../../lib/percentileRolls'
+import { formatDiceShapeLabel, groupPercentileResults } from '../../lib/percentileRolls'
 
 interface HistoryPanelProps {
   isOpen: boolean
@@ -148,7 +148,7 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
 
       {/* Dice breakdown — a percentile pair collapses into one D100 row */}
       <div className="space-y-1.5">
-        {groupPercentileResults(roll.dice, roll.percentilePairs).map((group, idx) => {
+        {groupPercentileResults(roll.dice).map((group, idx) => {
           const isPercentile = group.kind === 'percentile'
           const key = isPercentile ? `d100-${group.tens.diceId}-${idx}` : `${group.die.diceId}-${idx}`
           const value = isPercentile ? group.value : group.die.value
@@ -198,5 +198,7 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
 }
 
 function getHistoryDieLabel(die: RollSnapshot['dice'][number]) {
-  return die.presentation?.displayName ?? die.type.toUpperCase()
+  // `formatDiceShapeLabel` keeps a stray, unpaired tens die from surfacing as the
+  // raw engine shape `d10tens`.
+  return die.presentation?.displayName ?? formatDiceShapeLabel(die.type)
 }

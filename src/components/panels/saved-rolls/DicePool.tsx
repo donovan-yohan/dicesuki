@@ -1,5 +1,6 @@
 import { DiceIcon } from '../../icons/DiceIcon'
 import type { DiceShape } from '../../../lib/geometries'
+import { INVENTORY_DICE_SHAPES } from '../../../types/diceShape'
 
 interface DicePoolProps {
   onDiceSelect?: (type: DiceShape, quantity?: number) => void
@@ -15,7 +16,7 @@ interface DicePoolProps {
  * Dice palette - shows all available dice types
  */
 export function DicePool({ onDiceSelect, onPercentileSelect }: DicePoolProps) {
-  const diceTypes: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
+  const diceTypes = INVENTORY_DICE_SHAPES
   const quickQuantities = [1, 4, 8]
 
   return (

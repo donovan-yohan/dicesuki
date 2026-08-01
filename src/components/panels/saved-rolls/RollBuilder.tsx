@@ -17,6 +17,7 @@ import {
 import type { DiceEntry, SavedRoll } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
 import type { DiceShape } from '../../../lib/geometries'
+import { INVENTORY_DICE_SHAPES } from '../../../types/diceShape'
 import type { TableDieSummary } from '../../../types/tableDice'
 
 interface RollBuilderProps {
@@ -145,7 +146,7 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
 
   const preview = calculateSavedRollRange(previewRoll)
   const formula = formatSavedRoll(previewRoll)
-  const diceTypes: Array<DiceShape | 'all'> = ['all', 'd4', 'd6', 'd8', 'd10', 'd12', 'd20']
+  const diceTypes: Array<DiceShape | 'all'> = ['all', ...INVENTORY_DICE_SHAPES]
 
   // Validation. The roll-wide dice total is what the room actually spawns, so it
   // is the value bounded by ROOM_DICE_CAPACITY (per-entry counts are unbounded).

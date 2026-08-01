@@ -16,6 +16,7 @@ import {
   FILE_SIZE_LIMITS,
 } from '../types/customDice'
 import { DiceShape } from './geometries'
+import { INVENTORY_DICE_SHAPES, type InventoryDiceShape } from '../types/diceShape'
 
 /** Target size for dice (1 unit = standard dice size) */
 const TARGET_DICE_SIZE = 1.0
@@ -124,8 +125,10 @@ export function validateMetadata(metadata: unknown): ValidationResult {
   }
 
   // Dice type validation
-  const validDiceTypes: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
-  if (!validDiceTypes.includes(meta.diceType as DiceShape)) {
+  // Custom dice are INVENTORY dice: the engine-only percentile tens die is not
+  // an authorable type, so it is absent from this list by construction.
+  const validDiceTypes = INVENTORY_DICE_SHAPES
+  if (!validDiceTypes.includes(meta.diceType as InventoryDiceShape)) {
     errors.push(`diceType must be one of: ${validDiceTypes.join(', ')}`)
   }
 

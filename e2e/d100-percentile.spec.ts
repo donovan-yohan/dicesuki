@@ -58,10 +58,55 @@ test('rolls a d100 as a tens+ones pair and reports one 1-100 result', async ({ p
   // out as `<tens padded> + <ones>` (the HUD chip keeps its own D100 label).
   const historyRow = page.getByText(/^\d{2} \+ \d$/).first()
   await expect(historyRow).toBeVisible()
-  expect(await page.getByText('D100', { exact: true }).count()).toBeGreaterThanOrEqual(2)
+  // Exactly three D100 labels: the HUD chip plus BOTH history entries. The roll
+  // is written to history twice (the useDiceStore settle drain and the room's
+  // roll_complete each push a snapshot) — that duplicate double-write is a
+  // pre-existing behavior filed as its own issue and deliberately NOT fixed in
+  // this slice; this asserts the CURRENT exact behavior so the fix has to update
+  // it consciously.
+  await expect(page.getByText('D100', { exact: true })).toHaveCount(3)
   await expect(page.getByText(String(value), { exact: true }).first()).toBeVisible()
 
   await page.screenshot({ path: 'e2e/screenshots/d100-percentile-history.png', fullPage: true })
+})
+
+test('keeps the pair combined after a table edit clears the saved-roll context', async ({ page }) => {
+  test.setTimeout(90_000)
+
+  await page.goto('/')
+  const room = page.getByTestId('solo-room')
+  await expect(room).toHaveAttribute('data-connection-status', 'connected', { timeout: 30_000 })
+
+  await page.getByRole('button', { name: 'My Dice Rolls' }).click()
+  await page.getByRole('button', { name: /create new roll/i }).click()
+  await page.getByPlaceholder(/roll name/i).fill('Percentile edit')
+  await page.getByRole('button', { name: 'Add 1 D100 roll' }).click()
+  await page.getByRole('button', { name: 'Save Roll' }).click()
+  await page.getByRole('button', { name: 'Roll Percentile edit' }).click()
+
+  await expect(room).toHaveAttribute('data-room-dice-count', '2')
+  const chip = page.locator('span[title="D100"]')
+  await expect(chip).toBeVisible({ timeout: 30_000 })
+  const before = Number(await chip.locator('xpath=following-sibling::div[1]').textContent())
+
+  // Adding a die from the toolbar deliberately clears `activeSavedRoll`. The
+  // pairing lives on the dice's presentation, so the pair must STILL read as one
+  // D100 — this is the regression that motivated moving it off roll state. Under
+  // the old model the HUD degraded here to two raw halves (and 00+0 read 0).
+  await page.getByRole('button', { name: 'Manage Dice' }).click()
+  await page.getByTestId('dice-quick-slot-d6').click()
+  await expect(room).toHaveAttribute('data-room-dice-count', '3')
+
+  // The saved-roll context is gone (its name no longer labels the result)...
+  await expect(page.getByText('PERCENTILE EDIT')).toHaveCount(0)
+  // ...but the percentile pair is still one combined chip with the same value.
+  await expect(page.locator('span[title="D100"]')).toHaveCount(1)
+  await expect(page.locator('span[title="D100"]').locator('xpath=following-sibling::div[1]'))
+    .toHaveText(String(before))
+  // The engine-only shape must never surface raw.
+  await expect(page.getByText('D10TENS')).toHaveCount(0)
+
+  await page.screenshot({ path: 'e2e/screenshots/d100-table-edit.png', fullPage: true })
 })
 
 test('leaves an ordinary d10 roll unchanged (0-9, one die, no pairing)', async ({ page }) => {

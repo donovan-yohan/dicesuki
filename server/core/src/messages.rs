@@ -153,6 +153,21 @@ pub struct DicePresentationMetadata {
     pub custom_asset_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unsupported_reason: Option<String>,
+    /// Percentile (d100) pairing. Both halves of one d100 carry the SAME
+    /// `percentilePairId` with opposite `percentileRole`s (`"tens"` / `"ones"`).
+    ///
+    /// The room NEVER interprets these — like the rest of `presentation` they are
+    /// opaque client display metadata that the server merely echoes back on
+    /// `dice_spawned` and `roll_complete` (Shared-ADR-005). Carrying the pairing
+    /// on the dice is what lets remote players and reconnecting clients rebuild
+    /// the pair; see `src/lib/percentileRolls.ts`.
+    ///
+    /// INVARIANT: mirrored on `DicePresentationMetadata` in
+    /// `src/lib/multiplayerMessages.ts` (Shared-ADR-002 manual sync).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub percentile_pair_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub percentile_role: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

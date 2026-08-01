@@ -18,6 +18,7 @@ import {
 } from '../types/inventory'
 import { CraftingRecipe, CraftingResult } from '../types/crafting'
 import { DiceShape } from '../lib/geometries'
+import { INVENTORY_DICE_SHAPES } from '../types/diceShape'
 import { getDieMax } from '../lib/diceHelpers'
 import { getDieSetById } from '../config/dieSets'
 import { STARTER_DICE } from '../config/starterDice'
@@ -660,7 +661,7 @@ export const useInventoryStore = create<InventoryStore>()(
         }
 
         const ownedDice = get().getDiceBySet(setId)
-        const dieTypes: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
+        const dieTypes = INVENTORY_DICE_SHAPES
         const rarities = Object.keys(set.rarityVariants) as DieRarity[]
 
         const allPossible: Array<{ type: DiceShape; rarity: DieRarity }> = []

@@ -880,14 +880,50 @@ describe('useMultiplayerStore', () => {
       expect(useMultiplayerStore.getState().dice.size).toBe(0)
     })
 
-    it('should record a percentile 00 + 0 as 100 even though the room total is 0', () => {
+    it('should record a REMOTE percentile 00 + 0 as 100 with no local roll state', () => {
+      // The regression this guards: pairing used to live in the LOCAL
+      // `activeSavedRoll`, so a roll_complete for another player's d100 — or for
+      // this client after a refresh — was aggregated as an uncorrected 0. The
+      // pairing now arrives on `presentation`, which the room echoes back.
       useDiceStore.getState().reset()
-      useDiceStore.getState().setActiveSavedRoll({
-        name: 'Percentile',
-        flatBonus: 0,
-        perDieBonuses: new Map(),
-        percentilePairs: [{ tensDieId: 'tens', onesDieId: 'ones' }],
+      expect(useDiceStore.getState().activeSavedRoll).toBeNull()
+      useMultiplayerStore.setState({
+        players: new Map([['p2', {
+          id: 'p2',
+          displayName: 'Remote Player',
+          color: '#ffffff',
+          isHost: false,
+        }]]) as never,
       })
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'roll_complete',
+        playerId: 'p2',
+        results: [
+          {
+            diceId: 'tens',
+            diceType: 'd10tens',
+            faceValue: 0,
+            presentation: { percentilePairId: 'p1', percentileRole: 'tens' },
+          },
+          {
+            diceId: 'ones',
+            diceType: 'd10',
+            faceValue: 0,
+            presentation: { percentilePairId: 'p1', percentileRole: 'ones' },
+          },
+        ],
+        // The room reports a PLAIN face sum — the client corrects for display.
+        total: 0,
+      })
+
+      const [snapshot] = useDiceStore.getState().rollHistory
+      expect(snapshot.sum).toBe(100)
+      expect(snapshot.player?.displayName).toBe('Remote Player')
+    })
+
+    it('should not pair two loose d10s in a roll_complete', () => {
+      useDiceStore.getState().reset()
       useMultiplayerStore.setState({
         players: new Map([['p1', {
           id: 'p1',
@@ -901,16 +937,13 @@ describe('useMultiplayerStore', () => {
         type: 'roll_complete',
         playerId: 'p1',
         results: [
-          { diceId: 'tens', diceType: 'd10tens', faceValue: 0 },
-          { diceId: 'ones', diceType: 'd10', faceValue: 0 },
+          { diceId: 'a', diceType: 'd10', faceValue: 0 },
+          { diceId: 'b', diceType: 'd10', faceValue: 0 },
         ],
-        // The room reports a PLAIN face sum — the client corrects for display.
         total: 0,
       })
 
-      const [snapshot] = useDiceStore.getState().rollHistory
-      expect(snapshot.sum).toBe(100)
-      expect(snapshot.percentilePairs).toEqual([{ tensDieId: 'tens', onesDieId: 'ones' }])
+      expect(useDiceStore.getState().rollHistory[0].sum).toBe(0)
     })
   })
 

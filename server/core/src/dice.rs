@@ -529,22 +529,72 @@ mod tests {
     }
 
     #[test]
-    fn test_d10tens_normals_match_d10_exactly() {
-        // The tens die MUST be the same solid as the d10 — same face planes, same
-        // ordering — with only the value scaled ×10. If this drifts, the client
-        // texture→face mapping (shared with the d10) silently mislabels faces.
-        let ones = get_face_normals(DiceType::D10);
-        let tens = get_face_normals(DiceType::D10Tens);
-        assert_eq!(ones.len(), tens.len());
+    fn test_d10tens_matches_an_independent_expected_table() {
+        // INDEPENDENTLY WRITTEN expectation — deliberately NOT derived from
+        // `get_face_normals(D10)`. Comparing the tens table against the ones table
+        // ×10 would be tautological: it re-states the implementation, so a wrong
+        // kite→value assignment in the shared source table would satisfy it. These
+        // literals are the client's `createD10Geometry` kite normals in geometry
+        // order (`src/lib/geometries.ts`) with the percentile labels written out
+        // by hand, so a reordered or rescaled table fails here.
+        let expected: [(u32, [f32; 3]); 10] = [
+            (0,  [-0.741_629,  0.670_810,  0.0]),
+            (20, [-0.229_176,  0.670_810, -0.705_331]),
+            (40, [ 0.599_991,  0.670_810, -0.435_919]),
+            (60, [ 0.599_991,  0.670_810,  0.435_919]),
+            (80, [-0.229_176,  0.670_810,  0.705_331]),
+            (30, [-0.599_991, -0.670_810, -0.435_919]),
+            (10, [ 0.229_176, -0.670_810, -0.705_331]),
+            (90, [ 0.741_629, -0.670_810,  0.0]),
+            (70, [ 0.229_176, -0.670_810,  0.705_331]),
+            (50, [-0.599_991, -0.670_810,  0.435_919]),
+        ];
 
-        for (one, ten) in ones.iter().zip(tens.iter()) {
+        let faces = get_face_normals(DiceType::D10Tens);
+        assert_eq!(faces.len(), expected.len());
+
+        for (index, (value, normal)) in expected.into_iter().enumerate() {
+            let face = &faces[index];
+            assert_eq!(face.value, value, "kite {index} should be labelled {value}");
+            let expected_normal = Vector3::new(normal[0], normal[1], normal[2]).normalize();
             assert!(
-                (one.normal - ten.normal).magnitude() < 1e-6,
-                "d10tens normal {:?} should equal d10 normal {:?}",
-                ten.normal,
-                one.normal
+                (face.normal - expected_normal).magnitude() < 1e-5,
+                "kite {index} normal {:?} should be {expected_normal:?}",
+                face.normal
             );
-            assert_eq!(ten.value, one.value * 10);
+        }
+    }
+
+    #[test]
+    fn test_d10_matches_an_independent_expected_table() {
+        // The ones-die counterpart of the table above, written out the same way so
+        // a change to the shared normal table cannot quietly pass by moving BOTH
+        // dice together. Guards the d10 regression the percentile work risks.
+        let expected: [(u32, [f32; 3]); 10] = [
+            (0, [-0.741_629,  0.670_810,  0.0]),
+            (2, [-0.229_176,  0.670_810, -0.705_331]),
+            (4, [ 0.599_991,  0.670_810, -0.435_919]),
+            (6, [ 0.599_991,  0.670_810,  0.435_919]),
+            (8, [-0.229_176,  0.670_810,  0.705_331]),
+            (3, [-0.599_991, -0.670_810, -0.435_919]),
+            (1, [ 0.229_176, -0.670_810, -0.705_331]),
+            (9, [ 0.741_629, -0.670_810,  0.0]),
+            (7, [ 0.229_176, -0.670_810,  0.705_331]),
+            (5, [-0.599_991, -0.670_810,  0.435_919]),
+        ];
+
+        let faces = get_face_normals(DiceType::D10);
+        assert_eq!(faces.len(), expected.len());
+
+        for (index, (value, normal)) in expected.into_iter().enumerate() {
+            let face = &faces[index];
+            assert_eq!(face.value, value, "kite {index} should be labelled {value}");
+            let expected_normal = Vector3::new(normal[0], normal[1], normal[2]).normalize();
+            assert!(
+                (face.normal - expected_normal).magnitude() < 1e-5,
+                "kite {index} normal {:?} should be {expected_normal:?}",
+                face.normal
+            );
         }
     }
 

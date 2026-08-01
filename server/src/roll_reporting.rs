@@ -380,8 +380,7 @@ impl AuthoritativeRollCompletion {
         if results.iter().any(|result| {
             result.dice_id.is_empty()
                 || result.dice_id.len() > 160
-                || result.face_value < minimum_face(result.dice_type)
-                || result.face_value > maximum_face(result.dice_type)
+                || !is_valid_face(result.dice_type, result.face_value)
         }) {
             return Err(RollCompletionBuildError::InvalidResult);
         }
@@ -475,28 +474,27 @@ fn valid_server_event_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
 }
 
-/// Lowest legal engine face value for a die type.
+/// Whether `face` is a value this die type can physically settle on.
 ///
-/// Most dice are labelled from 1, but the physical d10 reads `0..=9` and the
-/// percentile tens die reads `00..=90` — both can legitimately settle on 0, so a
-/// blanket `face_value == 0` rejection would silently drop those completions.
-const fn minimum_face(dice_type: DiceType) -> u32 {
+/// Deliberately tighter than a min/max range, because the two zero-based dice
+/// have shapes a range cannot express:
+/// - `D10` reads `0..=9`. It can never show 10 — the virtual d10 (1–10) is a
+///   separate client-side mapping, not an engine face.
+/// - `D10Tens` reads `00, 10, … 90`: only multiples of ten are legal faces, so a
+///   corrupt 45 is rejected rather than silently reported.
+/// - every other die is labelled `1..=N`.
+///
+/// A blanket `face == 0` rejection would have been wrong for both zero-based
+/// dice, silently dropping those completions.
+const fn is_valid_face(dice_type: DiceType, face: u32) -> bool {
     match dice_type {
-        DiceType::D10 | DiceType::D10Tens => 0,
-        _ => 1,
-    }
-}
-
-const fn maximum_face(dice_type: DiceType) -> u32 {
-    match dice_type {
-        DiceType::D4 => 4,
-        DiceType::D6 => 6,
-        DiceType::D8 => 8,
-        DiceType::D10 => 10,
-        // Percentile tens die: 00, 10, … 90.
-        DiceType::D10Tens => 90,
-        DiceType::D12 => 12,
-        DiceType::D20 => 20,
+        DiceType::D10 => face <= 9,
+        DiceType::D10Tens => face <= 90 && face % 10 == 0,
+        DiceType::D4 => face >= 1 && face <= 4,
+        DiceType::D6 => face >= 1 && face <= 6,
+        DiceType::D8 => face >= 1 && face <= 8,
+        DiceType::D12 => face >= 1 && face <= 12,
+        DiceType::D20 => face >= 1 && face <= 20,
     }
 }
 
@@ -889,6 +887,80 @@ mod tests {
             over_max.unwrap_err(),
             RollCompletionBuildError::InvalidResult
         );
+    }
+
+    /// Build a one-die completion so face validity can be probed directly.
+    fn completion_with_face(
+        dice_type: DiceType,
+        face_value: u32,
+    ) -> Result<AuthoritativeRollCompletion, RollCompletionBuildError> {
+        AuthoritativeRollCompletion::new(
+            "instance".into(),
+            "room".into(),
+            "player".into(),
+            Uuid::nil(),
+            1,
+            OffsetDateTime::UNIX_EPOCH,
+            vec![AuthoritativeRollResult {
+                dice_id: "die".into(),
+                dice_type,
+                face_value,
+            }],
+            face_value,
+        )
+    }
+
+    #[test]
+    fn face_validity_matches_what_each_die_can_physically_show() {
+        // The percentile tens die reads 00, 10, … 90 — nothing between.
+        for face in 0..=9 {
+            assert!(
+                completion_with_face(DiceType::D10Tens, face * 10).is_ok(),
+                "d10tens must accept {}",
+                face * 10
+            );
+        }
+        for bad in [1, 5, 45, 89, 91, 100] {
+            assert_eq!(
+                completion_with_face(DiceType::D10Tens, bad).unwrap_err(),
+                RollCompletionBuildError::InvalidResult,
+                "d10tens must reject {bad}"
+            );
+        }
+
+        // The physical d10 reads 0..=9 and can NEVER show 10 (the 1-10 virtual
+        // d10 is a client-side mapping, not an engine face).
+        for face in 0..=9 {
+            assert!(completion_with_face(DiceType::D10, face).is_ok(), "d10 must accept {face}");
+        }
+        assert_eq!(
+            completion_with_face(DiceType::D10, 10).unwrap_err(),
+            RollCompletionBuildError::InvalidResult,
+            "d10 must reject 10"
+        );
+
+        // Every other die stays 1..=N — zero is still not a face for them.
+        for (dice_type, max) in [
+            (DiceType::D4, 4),
+            (DiceType::D6, 6),
+            (DiceType::D8, 8),
+            (DiceType::D12, 12),
+            (DiceType::D20, 20),
+        ] {
+            assert_eq!(
+                completion_with_face(dice_type, 0).unwrap_err(),
+                RollCompletionBuildError::InvalidResult,
+                "{dice_type:?} must reject 0"
+            );
+            assert!(completion_with_face(dice_type, 1).is_ok(), "{dice_type:?} must accept 1");
+            assert!(completion_with_face(dice_type, max).is_ok(), "{dice_type:?} must accept {max}");
+            assert_eq!(
+                completion_with_face(dice_type, max + 1).unwrap_err(),
+                RollCompletionBuildError::InvalidResult,
+                "{dice_type:?} must reject {}",
+                max + 1
+            );
+        }
     }
 
     #[test]

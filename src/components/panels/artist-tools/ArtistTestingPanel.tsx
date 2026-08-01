@@ -20,6 +20,7 @@ import { useInventoryStore } from '../../../store/useInventoryStore'
 import { saveCustomDiceModel } from '../../../lib/customDiceDB'
 import { devLog } from '../../../lib/debug'
 import { DiceShape } from '../../../lib/geometries'
+import { INVENTORY_DICE_SHAPES } from '../../../types/diceShape'
 import {
   CustomDiceAsset,
   FaceNormal,
@@ -394,7 +395,7 @@ export function ArtistTestingPanel({ onDiceLoaded, onClose }: ArtistTestingPanel
         <h3 className="text-lg font-semibold mb-3">2. Select Dice Type</h3>
 
         <div className="grid grid-cols-6 gap-2">
-          {(['d4', 'd6', 'd8', 'd10', 'd12', 'd20'] as DiceShape[]).map((type) => (
+          {INVENTORY_DICE_SHAPES.map((type) => (
             <button
               key={type}
               onClick={() => setSelectedDiceType(type)}

@@ -21,7 +21,11 @@ import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
 
 // Utilities
 import { formatBonus } from '../lib/diceHelpers'
-import { groupPercentileResults, percentileSumCorrection } from '../lib/percentileRolls'
+import {
+  formatDiceShapeLabel,
+  groupPercentileResults,
+  percentileSumCorrection,
+} from '../lib/percentileRolls'
 import { detectRenderDeviceTier } from '../lib/deviceDetection'
 import {
   type DiceRenderContext,
@@ -801,12 +805,11 @@ function ResultDisplay() {
 
   // Percentile (d100) pairs read `tens + ones`, except `00 + 0` which is 100.
   // The room total stays a plain face sum by design, so the correction is applied
-  // here, client-side (see src/lib/percentileRolls.ts).
-  const percentileCorrection = percentileSumCorrection(
-    new Map(settledArray.map((die) => [die.diceId, die.value])),
-    activeSavedRoll?.percentilePairs,
-  )
-  const resultGroups = groupPercentileResults(settledArray, activeSavedRoll?.percentilePairs)
+  // here, client-side. Both are read off the dice's own presentation blocks, so a
+  // table edit, a remote player's roll or a post-refresh view all stay correct
+  // (see src/lib/percentileRolls.ts).
+  const percentileCorrection = percentileSumCorrection(settledArray)
+  const resultGroups = groupPercentileResults(settledArray)
 
   // Calculate grand total with bonuses
   const perDieBonusTotal = activeSavedRoll
@@ -915,14 +918,16 @@ function ResultDisplay() {
 }
 
 function getResultDieLabel(die: DieSettledState) {
-  return die.presentation?.displayName ?? die.type.toUpperCase()
+  // `formatDiceShapeLabel` keeps a stray, unpaired tens die from surfacing as the
+  // raw engine shape `d10tens`.
+  return die.presentation?.displayName ?? formatDiceShapeLabel(die.type)
 }
 
 function getRollingDieLabel(die: MultiplayerDieState, inventoryDiceById: Map<string, InventoryDie>) {
   const inventoryDieId = die.presentation?.inventoryDieId
   return die.presentation?.displayName
     ?? (inventoryDieId ? inventoryDiceById.get(inventoryDieId)?.name : undefined)
-    ?? die.diceType.toUpperCase()
+    ?? formatDiceShapeLabel(die.diceType)
 }
 
 export default Scene

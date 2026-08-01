@@ -11,20 +11,22 @@
  * collectible or dragged out of the inventory. Use `INVENTORY_DICE_SHAPES` /
  * `isInventoryDiceShape` wherever a shape must be player-ownable.
  */
-export type DiceShape = 'd4' | 'd6' | 'd8' | 'd10' | 'd10tens' | 'd12' | 'd20'
+export const DICE_SHAPES = ['d4', 'd6', 'd8', 'd10', 'd10tens', 'd12', 'd20'] as const
+
+/**
+ * Every engine dice shape. Derived from {@link DICE_SHAPES} so the type and the
+ * runtime list can never disagree — `diceShape.guard.test.ts` compares that one
+ * list against the Rust `DiceType` serde names, which only works because the
+ * list IS the type.
+ */
+export type DiceShape = typeof DICE_SHAPES[number]
 
 /** The shapes a player can actually own (excludes the engine-only tens die). */
 export type InventoryDiceShape = Exclude<DiceShape, 'd10tens'>
 
 /** Ordered list of ownable shapes — the inventory/shop/toolbar surface. */
-export const INVENTORY_DICE_SHAPES: readonly InventoryDiceShape[] = [
-  'd4',
-  'd6',
-  'd8',
-  'd10',
-  'd12',
-  'd20',
-] as const
+export const INVENTORY_DICE_SHAPES: readonly InventoryDiceShape[] = DICE_SHAPES
+  .filter((shape): shape is InventoryDiceShape => shape !== 'd10tens')
 
 /** True when `shape` is a shape a player can own, drag and equip. */
 export function isInventoryDiceShape(shape: DiceShape): shape is InventoryDiceShape {

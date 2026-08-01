@@ -27,6 +27,19 @@ export interface DicePresentationMetadata {
   customAssetVersionId?: string
   customAssetName?: string
   unsupportedReason?: string
+  /**
+   * Percentile (d100) pairing. Both halves of one d100 carry the SAME
+   * `percentilePairId` with opposite `percentileRole`s, so any client that can
+   * see the dice can reconstruct the pair — including remote players and a
+   * client that just refreshed. See `src/lib/percentileRolls.ts` for why the
+   * pairing lives on the dice rather than in local roll state.
+   *
+   * INVARIANT: mirrored on `DicePresentationMetadata` in
+   * `server/core/src/messages.rs` (Shared-ADR-002 manual sync). The server never
+   * interprets these fields; it echoes them like the rest of `presentation`.
+   */
+  percentilePairId?: string
+  percentileRole?: 'tens' | 'ones'
 }
 
 export interface SpawnDiceEntry {

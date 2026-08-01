@@ -6,6 +6,7 @@
  */
 
 import { useRef, useState } from 'react'
+import { nanoid } from 'nanoid'
 import { BottomSheet } from './BottomSheet'
 import { SavedRollCard } from './saved-rolls/SavedRollCard'
 import { RollBuilder } from './saved-rolls/RollBuilder'
@@ -19,8 +20,9 @@ import { expandDiceEntrySources, getRollDiceCount } from '../../lib/rollSources'
 import { ROLL_DICE_CAPACITY_MESSAGE, ROOM_DICE_CAPACITY } from '../../config/roomCapacity'
 import {
   isPercentileEntry,
+  percentileOnesPresentation,
+  percentileTensPresentation,
   PERCENTILE_TENS_SHAPE,
-  type PercentilePair,
 } from '../../lib/percentileRolls'
 import { SavedRoll } from '../../types/savedRolls'
 
@@ -164,7 +166,6 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
     }
 
     const requested: Array<{ id: string; bonus: number }> = []
-    const percentilePairs: PercentilePair[] = []
 
     try {
       room.clearRoomActionError()
@@ -179,11 +180,16 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
 
         for (const source of expandDiceEntrySources(entry)) {
           // A percentile die is really a PAIR: one tens die (00-90) spawned
-          // first, then the ones d10. Both are ordinary room dice; only the
-          // client knows they belong together (`percentilePairs`).
-          let tensId: string | null = null
-          if (isPercentile) {
-            tensId = backend.addGenericDie(PERCENTILE_TENS_SHAPE)
+          // first, then the ones d10. Both are ordinary room dice; the pairing
+          // rides along in each die's `presentation` block so it survives table
+          // edits, reaches remote players and outlives a refresh
+          // (src/lib/percentileRolls.ts).
+          const pairId = isPercentile ? `pct_${nanoid(10)}` : null
+          if (pairId) {
+            const tensId = backend.addGenericDie(
+              PERCENTILE_TENS_SHAPE,
+              percentileTensPresentation(pairId),
+            )
             if (!tensId) {
               const actionError = useMultiplayerStore.getState().roomActionError
               throw new Error(actionError?.message ?? 'Could not spawn D100.')
@@ -193,9 +199,10 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
             requested.push({ id: tensId, bonus: 0 })
           }
 
+          const onesPresentation = pairId ? percentileOnesPresentation(pairId) : undefined
           const id = source.kind === 'specific'
-            ? backend.addDie(entry.type, source.dieId)
-            : backend.addGenericDie(entry.type)
+            ? backend.addDie(entry.type, source.dieId, onesPresentation)
+            : backend.addGenericDie(entry.type, onesPresentation)
           if (!id) {
             const actionError = useMultiplayerStore.getState().roomActionError
             throw new Error(
@@ -204,10 +211,6 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
             )
           }
           requested.push({ id, bonus: entry.perDieBonus })
-
-          if (tensId) {
-            percentilePairs.push({ tensDieId: tensId, onesDieId: id })
-          }
         }
       }
 
@@ -226,7 +229,6 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
         name: roll.name,
         flatBonus: roll.flatBonus,
         perDieBonuses,
-        ...(percentilePairs.length > 0 ? { percentilePairs } : {}),
       }
       useDiceStore.getState().setActiveSavedRoll(activeSavedRoll)
 
