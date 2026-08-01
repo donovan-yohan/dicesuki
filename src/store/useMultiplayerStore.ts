@@ -291,6 +291,19 @@ const JOIN_ERROR_CODES = new Set([
   'RECONNECT_UNAUTHORIZED',
 ])
 
+/**
+ * Do these name the same dice, order aside?
+ *
+ * Used to match a `roll_complete` against the roll a wave sequence claimed. The
+ * room sorts its results by dice id and the claim is recorded in spawn order, so
+ * comparison has to be set-wise.
+ */
+function sameDiceIdSet(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false
+  const seen = new Set(left)
+  return right.every((id) => seen.has(id))
+}
+
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
 /** Timestamp (performance.now) of the last sent motion field, for throttling.
@@ -673,12 +686,24 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       case 'dice_removed': {
         const { dice } = get()
         const newDice = new Map(dice)
+        const { players: removalPlayers, localPlayerId: removalLocalId } = get()
+        const remover = removalLocalId ? removalPlayers.get(removalLocalId) : undefined
         for (const id of msg.diceIds) {
           newDice.delete(id)
           // Mirror the removal into the roll-result store so the top-of-screen
           // total and per-die chips drop the deleted die's face — otherwise its
           // settled value lingers and later rolls appear to add to a stale sum.
-          useDiceStore.getState().removeDieState(id)
+          //
+          // The player is passed so that a removal which cancels a roll still in
+          // flight can record an attributed partial row: the room drops its
+          // `pending_roll` when a tracked die is removed, so no `roll_complete`
+          // follows and the roll would otherwise leave no trace.
+          useDiceStore.getState().removeDieState(
+            id,
+            remover && removalLocalId
+              ? { id: removalLocalId, displayName: remover.displayName, color: remover.color }
+              : undefined,
+          )
         }
         set({ dice: newDice })
         break
@@ -782,13 +807,27 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           // it. The row covers `pending.dice_ids` — the same dice the local
           // cycle tracked — so nothing is lost by it being the only one.
           //
-          // The one exception: a saved roll with follow-up waves is not
-          // finished when the room says the *roll* is — reroll and explosion
-          // dice are still to come. That row is suppressed here and
-          // `finishSavedRollWaves` writes the authoritative, attributed one
-          // once the waves land. Only the base wave is ever an explicit roll,
-          // so this suppresses at most one row per saved roll.
-          if (msg.playerId === localPlayerId && diceState.savedRollWavesPending) break
+          // The one exception: a saved roll with follow-up waves is not finished
+          // when the room says the *roll* is — reroll and explosion dice are
+          // still to come — so it claims this message up front and
+          // `finishSavedRollWaves` writes the attributed row once the waves land.
+          //
+          // The claim is matched on the roll's DICE, not on "are waves running
+          // right now". A saved roll that configures reroll or exploding but
+          // triggers neither closes its wave sequence in the same task its dice
+          // settle in, which is before this message crosses the socket; a latch
+          // check would find it already cleared and write the duplicate row all
+          // over again. Only the base wave is ever an explicit roll, so exactly
+          // one message per saved roll is ever dropped.
+          const suppressed = diceState.suppressedRollDiceIds
+          if (
+            msg.playerId === localPlayerId
+            && suppressed !== null
+            && sameDiceIdSet(suppressed, msg.results.map((r) => r.diceId))
+          ) {
+            diceState.clearSuppressedRollComplete()
+            break
+          }
 
           const now = Date.now()
           const dice = msg.results.map((r) => ({

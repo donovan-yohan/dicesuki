@@ -74,6 +74,12 @@ function createFakeRoom(faceQueue: number[]) {
   let nextId = 0
   let failNextSpawn: string | null = null
   let failRollWith: string | null = null
+  /**
+   * The dice of the explicit roll the room is tracking, mirroring
+   * `Player::pending_roll`. Removing any of them cancels the roll, so no
+   * `roll_complete` is ever broadcast for it (`remove_dice` in room.rs).
+   */
+  let pendingRollIds: string[] | null = null
 
   function settle(id: string) {
     if (activeRoomToken !== token) return
@@ -92,28 +98,41 @@ function createFakeRoom(faceQueue: number[]) {
    *
    * This is the room's ONLY history write for an ordinary roll (issue #211), so
    * a harness that skipped it could not tell a single row from a double one.
+   *
+   * Delivered on its OWN task, never inline with the last `die_settled`. The
+   * real message crosses a socket and lands in a later task, which is the whole
+   * reason a wave sequence can be over before it arrives; delivering it
+   * synchronously hid that ordering and with it the duplicate row for a saved
+   * roll whose reroll/explosion never triggers.
    */
   function completeRoll(ids: string[]) {
-    if (activeRoomToken !== token) return
-    const roomDice = useMultiplayerStore.getState().dice
-    const results = ids
-      .map((id) => ({ id, die: roomDice.get(id) }))
-      .filter((entry): entry is { id: string; die: MultiplayerDie } => entry.die !== undefined)
-      .map(({ id, die }) => ({
-        diceId: id,
-        diceType: die.diceType,
-        faceValue: faceById.get(id) ?? 1,
-        presentation: die.presentation,
-      }))
-    if (results.length === 0) return
-    useMultiplayerStore.getState().handleServerMessage({
-      type: 'roll_complete',
-      playerId: OWNER,
-      results,
-      // The room reports a PLAIN face sum; the client applies the plan and the
-      // percentile correction on top.
-      total: results.reduce((acc, result) => acc + result.faceValue, 0),
-    } as never)
+    setTimeout(() => {
+      if (activeRoomToken !== token) return
+      // A removal cancelled the roll server-side, so nothing is announced.
+      if (pendingRollIds === null) return
+      pendingRollIds = null
+      const roomDice = useMultiplayerStore.getState().dice
+      const results = ids
+        .map((id) => ({ id, die: roomDice.get(id) }))
+        .filter((entry): entry is { id: string; die: MultiplayerDie } => entry.die !== undefined)
+        .map(({ id, die }) => ({
+          diceId: id,
+          diceType: die.diceType,
+          faceValue: faceById.get(id) ?? 1,
+          presentation: die.presentation,
+        }))
+        // `take_completed_rolls` sorts by dice id before broadcasting.
+        .sort((left, right) => left.diceId.localeCompare(right.diceId))
+      if (results.length === 0) return
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'roll_complete',
+        playerId: OWNER,
+        results,
+        // The room reports a PLAIN face sum; the client applies the plan and the
+        // percentile correction on top.
+        total: results.reduce((acc, result) => acc + result.faceValue, 0),
+      } as never)
+    }, 0)
   }
 
   function spawn(
@@ -158,6 +177,9 @@ function createFakeRoom(faceQueue: number[]) {
       spawn(type, undefined, presentation)),
     removeDie: vi.fn((id: string) => {
       removed.push(id)
+      // Removing a die the pending roll tracked invalidates that roll, exactly
+      // as `remove_dice` does server-side.
+      if (pendingRollIds?.includes(id)) pendingRollIds = null
       useMultiplayerStore.setState((state) => {
         const dice = new Map(state.dice)
         dice.delete(id)
@@ -166,6 +188,8 @@ function createFakeRoom(faceQueue: number[]) {
       useDiceStore.getState().removeDieState(id)
     }),
     clearAll: vi.fn(() => {
+      // Clearing the table removes tracked dice, which cancels the roll.
+      pendingRollIds = null
       const mine = Array.from(useMultiplayerStore.getState().dice.values())
         .filter((die) => die.ownerId === OWNER)
         .map((die) => die.id)
@@ -192,6 +216,7 @@ function createFakeRoom(faceQueue: number[]) {
       }))
       // `roll_started` wipes the faces of every die it launches.
       useDiceStore.getState().markDiceRolling(mine)
+      pendingRollIds = [...mine]
       let outstanding = mine.length
       for (const id of mine) {
         setTimeout(() => {
@@ -216,6 +241,9 @@ function createFakeRoom(faceQueue: number[]) {
         const { settledDice } = useDiceStore.getState()
         const roomDice = useMultiplayerStore.getState().dice
         const done = spawnLog.every(({ id }) => settledDice.has(id) || !roomDice.has(id))
+          // `roll_complete` now lands a task after the last settle, so waiting
+          // only for settled dice would return before the room has spoken.
+          && pendingRollIds === null
         if (done) return resolve()
         if (Date.now() > deadline) return reject(new Error('dice never settled'))
         setTimeout(poll, 1)
@@ -601,6 +629,39 @@ describe('executePhysicalSavedRoll', () => {
       // not the room's raw `total: 7`.
       expect(history[0].player?.displayName).toBe('Solo')
       expect(history[0].sum).toBe(12)
+    })
+
+    it('records ONE row when a configured explosion never triggers', async () => {
+      // The nastiest shape of issue #211: `exploding` makes this a wave roll, so
+      // `roll_complete` is claimed — but nothing explodes, so the sequence is
+      // over in the same task the die settles, BEFORE the room announces the
+      // roll. Suppression keyed on "are waves running now" finds the latch
+      // already cleared and writes the duplicate row.
+      const room = createFakeRoom([3])
+      const roll = makeRoll({ quantity: 1, exploding: { on: 'max' } })
+
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].sum).toBe(3)
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+    })
+
+    it('records ONE row when a configured reroll never triggers', async () => {
+      const room = createFakeRoom([5])
+      const roll = makeRoll({
+        quantity: 1,
+        reroll: { condition: 'equals', value: 1, maxRerolls: 1 },
+      })
+
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].sum).toBe(5)
     })
 
     it('leaves a remote player\'s roll_complete row as the raw face sum', async () => {

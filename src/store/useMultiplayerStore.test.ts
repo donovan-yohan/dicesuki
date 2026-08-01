@@ -922,6 +922,49 @@ describe('useMultiplayerStore', () => {
       expect(snapshot.player?.displayName).toBe('Remote Player')
     })
 
+    it('drops the roll_complete a wave sequence claimed, even once the latch has cleared', () => {
+      // Issue #211: a saved roll whose reroll/explosion never triggers finishes
+      // its waves before this message arrives, so suppression cannot key on
+      // `savedRollWavesPending`. The claim names the roll's dice instead.
+      useDiceStore.getState().reset()
+      useMultiplayerStore.setState({
+        localPlayerId: 'p1',
+        players: new Map([['p1', {
+          id: 'p1', displayName: 'Me', color: '#f00', isHost: true,
+        }]]) as never,
+      })
+
+      useDiceStore.getState().beginSavedRollWaves(['a', 'b'])
+      useDiceStore.getState().markDiceRolling(['a', 'b'])
+      useDiceStore.getState().recordDieSettled('a', 2, 'd6')
+      useDiceStore.getState().recordDieSettled('b', 3, 'd6')
+      useDiceStore.getState().finishSavedRollWaves({
+        id: 'p1', displayName: 'Me', color: '#f00',
+      })
+
+      // The wave row is written and the latch is down, but the claim stands.
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+
+      // The room finally speaks — in the room's own sorted order, which the
+      // claim must match set-wise, not positionally.
+      const message = {
+        type: 'roll_complete' as const,
+        playerId: 'p1',
+        total: 5,
+        results: [
+          { diceId: 'a', diceType: 'd6', faceValue: 2 },
+          { diceId: 'b', diceType: 'd6', faceValue: 3 },
+        ],
+      }
+      useMultiplayerStore.getState().handleServerMessage(message as never)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+
+      // One-shot: the claim is consumed, so a later roll of the same dice records.
+      useMultiplayerStore.getState().handleServerMessage(message as never)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(2)
+    })
+
     it('should not pair two loose d10s in a roll_complete', () => {
       useDiceStore.getState().reset()
       useMultiplayerStore.setState({

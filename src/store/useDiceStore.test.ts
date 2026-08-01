@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { useDiceStore, type RollSnapshot } from './useDiceStore'
 
 /**
@@ -434,6 +434,122 @@ describe('useDiceStore', () => {
     })
   })
 
+  describe('wave sequence that gives up before the table is still', () => {
+    it('records what HAS settled rather than losing the roll', () => {
+      // A wave failure or a timed-out wait ends the sequence with dice still in
+      // the air. This used to bail out recording nothing while the roll's
+      // `roll_complete` stayed claimed — the roll vanished from history.
+      useDiceStore.getState().beginSavedRollWaves(['die-1', 'die-2'])
+      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
+      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+
+      useDiceStore.getState().finishSavedRollWaves()
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].dice.map((d) => d.diceId)).toEqual(['die-1'])
+      expect(history[0].sum).toBe(4)
+      // The latch must always be released — holding it locks out every later roll.
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+    })
+
+    it('hands the roll back to roll_complete when nothing settled at all', () => {
+      useDiceStore.getState().beginSavedRollWaves(['die-1'])
+      useDiceStore.getState().markDiceRolling(['die-1'])
+
+      useDiceStore.getState().finishSavedRollWaves()
+
+      // No row to write, so the claim is released and the room's own
+      // `roll_complete` records the roll instead of being swallowed.
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+      expect(useDiceStore.getState().suppressedRollDiceIds).toBeNull()
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+    })
+  })
+
+  describe('suppression ticket', () => {
+    it('survives the wave latch clearing, so a late roll_complete is still claimed', () => {
+      // Waves that never trigger close in the same task the dice settle in —
+      // before `roll_complete` crosses the socket. The claim has to outlive the
+      // latch or that message writes a duplicate row.
+      useDiceStore.getState().beginSavedRollWaves(['die-1'])
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')
+      useDiceStore.getState().finishSavedRollWaves()
+
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+      expect(useDiceStore.getState().suppressedRollDiceIds).toEqual(['die-1'])
+    })
+
+    it('is dropped when a new cycle opens, so an unchanged table can re-roll', () => {
+      useDiceStore.getState().beginSavedRollWaves(['die-1'])
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')
+      useDiceStore.getState().finishSavedRollWaves()
+      expect(useDiceStore.getState().suppressedRollDiceIds).toEqual(['die-1'])
+
+      // Rolling the same table again presents the SAME dice ids; an unclaimed
+      // stale ticket would swallow this roll's row.
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      expect(useDiceStore.getState().suppressedRollDiceIds).toBeNull()
+    })
+
+    it('is consumed by clearSuppressedRollComplete', () => {
+      useDiceStore.getState().beginSavedRollWaves(['die-1'])
+      useDiceStore.getState().clearSuppressedRollComplete()
+      expect(useDiceStore.getState().suppressedRollDiceIds).toBeNull()
+    })
+  })
+
+  describe('a removal that cancels the roll in flight', () => {
+    const PLAYER = { id: 'p1', displayName: 'Me', color: '#f00' }
+
+    it('records what settled, because no roll_complete is coming', () => {
+      // The room drops `pending_roll` when a die it tracked is removed, so the
+      // roll is never announced and would otherwise leave no trace at all.
+      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
+      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+
+      useDiceStore.getState().removeDieState('die-2', PLAYER)
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].dice.map((d) => d.diceId)).toEqual(['die-1'])
+      expect(history[0].sum).toBe(4)
+      expect(history[0].player?.displayName).toBe('Me')
+      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(0)
+    })
+
+    it('records nothing when the die leaves an already-settled table', () => {
+      // The common case: the cycle closed on drain and `roll_complete` already
+      // wrote the row, so tidying the table must not add a second one.
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+
+      useDiceStore.getState().removeDieState('die-1', PLAYER)
+
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+    })
+
+    it('leaves wave removals alone — a reroll drops its own dice on purpose', () => {
+      useDiceStore.getState().beginSavedRollWaves(['die-1'])
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      useDiceStore.getState().recordDieSettled('die-1', 1, 'd6')
+
+      useDiceStore.getState().removeDieState('die-1', PLAYER)
+
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+    })
+
+    it('records nothing when the removed die was the only one that settled', () => {
+      useDiceStore.getState().markDiceRolling(['die-1'])
+
+      useDiceStore.getState().removeDieState('die-1', PLAYER)
+
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+    })
+  })
+
   describe('history row identity', () => {
     it('gives every row a unique id, whichever writer recorded it', () => {
       // Same-millisecond rolls used to collide as duplicate React keys because
@@ -450,6 +566,56 @@ describe('useDiceStore', () => {
       expect(ids).toHaveLength(3)
       expect(ids.every((id) => typeof id === 'string' && id.length > 0)).toBe(true)
       expect(new Set(ids).size).toBe(3)
+    })
+  })
+
+  describe('persist migration to v1', () => {
+    async function rehydrateFrom(stored: unknown) {
+      window.localStorage.setItem('dicesuki-dice-rolls', JSON.stringify(stored))
+      await useDiceStore.persist.rehydrate()
+    }
+
+    afterEach(() => {
+      window.localStorage.removeItem('dicesuki-dice-rolls')
+    })
+
+    it('backfills a unique id on every id-less stored row', async () => {
+      // v0 rows have no `id`; the list keyed on `timestamp`, so two rows written
+      // in the same millisecond collided as duplicate React keys.
+      await rehydrateFrom({
+        version: 0,
+        state: {
+          rollHistory: [
+            { dice: [], sum: 1, timestamp: 1_700_000_000_000 },
+            { dice: [], sum: 2, timestamp: 1_700_000_000_000 },
+          ],
+        },
+      })
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(2)
+      expect(history.map((roll) => roll.sum)).toEqual([1, 2])
+      expect(history.every((roll) => typeof roll.id === 'string' && roll.id.length > 0)).toBe(true)
+      expect(new Set(history.map((roll) => roll.id)).size).toBe(2)
+    })
+
+    it('keeps ids that are already present', async () => {
+      await rehydrateFrom({
+        version: 0,
+        state: { rollHistory: [{ id: 'roll_kept', dice: [], sum: 3, timestamp: 1 }] },
+      })
+
+      expect(useDiceStore.getState().rollHistory[0].id).toBe('roll_kept')
+    })
+
+    it('survives a null payload', async () => {
+      await rehydrateFrom({ version: 0, state: null })
+      expect(useDiceStore.getState().rollHistory).toEqual([])
+    })
+
+    it('survives an empty payload', async () => {
+      await rehydrateFrom({ version: 0, state: {} })
+      expect(useDiceStore.getState().rollHistory).toEqual([])
     })
   })
 

@@ -127,6 +127,22 @@ interface DiceStore {
    */
   savedRollWavesPending: boolean
   /**
+   * The dice of the ONE explicit roll whose `roll_complete` row a wave sequence
+   * stands in for — a ticket naming the roll, not a "suppress the next one" flag.
+   *
+   * Identity, not timing. `savedRollWavesPending` says only that waves are in
+   * flight RIGHT NOW, and a saved roll that configures reroll/exploding but
+   * triggers neither finishes its waves in the same task the base dice settle
+   * in — before `roll_complete` has crossed the socket. Keying suppression off
+   * the latch therefore let that message arrive to a cleared latch and write a
+   * second row (issue #211 again). Matching on the roll's dice-id set drops
+   * exactly the spoken-for roll, whenever it lands.
+   *
+   * One-shot: consumed on match, and dropped when a new cycle opens so a later
+   * roll of an unchanged table can never inherit it.
+   */
+  suppressedRollDiceIds: readonly string[] | null
+  /**
    * Inventory dice a roll being spawned has PINNED by id but has not put on the
    * table yet.
    *
@@ -152,12 +168,19 @@ interface DiceStore {
   recordDieSettled: (diceId: string, value: number, type: string, presentation?: DicePresentationMetadata) => void
   /** Record a finished roll. The row's `id` is minted here, not by the caller. */
   addRollToHistory: (snapshot: Omit<RollSnapshot, 'id'>) => void
-  removeDieState: (diceId: string) => void
+  /**
+   * Drop a die. `player` attributes the compensating row written when the die
+   * belonged to a roll still in flight — see the implementation.
+   */
+  removeDieState: (diceId: string, player?: RollSnapshot['player']) => void
   clearAllDieStates: () => void
   setActiveSavedRoll: (roll: ActiveSavedRoll) => void
   clearActiveSavedRoll: () => void
-  beginSavedRollWaves: () => void
+  /** `rollDiceIds` claims that roll's `roll_complete`. See `suppressedRollDiceIds`. */
+  beginSavedRollWaves: (rollDiceIds?: readonly string[]) => void
   finishSavedRollWaves: (player?: RollSnapshot['player']) => void
+  /** Consume the suppression ticket (the spoken-for `roll_complete` arrived). */
+  clearSuppressedRollComplete: () => void
   reserveInventoryDice: (dieIds: readonly string[]) => void
   clearInventoryDiceReservations: () => void
   setRollNotice: (notice: string | null) => void
@@ -210,6 +233,7 @@ export const useDiceStore = create<DiceStore>()(
       rollHistory: [],
       activeSavedRoll: null,
       savedRollWavesPending: false,
+      suppressedRollDiceIds: null,
       reservedInventoryDieIds: new Set(),
       rollNotice: null,
 
@@ -217,12 +241,17 @@ export const useDiceStore = create<DiceStore>()(
         set((state) => {
           const newSettled = new Map(state.settledDice)
           const wasEmpty = state.rollingDice.size === 0
+          // A brand-new cycle means a brand-new explicit roll, so any unclaimed
+          // ticket is stale. Without this, re-rolling an unchanged table after a
+          // saved roll whose waves never triggered would present the SAME dice
+          // ids and be swallowed as the already-recorded roll.
+          const startsFreshCycle = wasEmpty && !state.savedRollWavesPending
           const newRolling = new Set(state.rollingDice)
           // A saved roll's follow-up waves join the cycle that is already in
           // flight instead of starting a new one: the first wave's dice have
           // all settled by then, so without this each explosion wave would
           // become its own history row with its own partial total.
-          const newCycleDice = wasEmpty && !state.savedRollWavesPending
+          const newCycleDice = startsFreshCycle
             ? new Set<string>()
             : new Set(state.currentRollCycleDice)
 
@@ -236,6 +265,7 @@ export const useDiceStore = create<DiceStore>()(
             settledDice: newSettled,
             rollingDice: newRolling,
             currentRollCycleDice: newCycleDice,
+            ...(startsFreshCycle ? { suppressedRollDiceIds: null } : {}),
           }
         })
       },
@@ -256,22 +286,28 @@ export const useDiceStore = create<DiceStore>()(
 
           // Draining the cycle CLOSES it; it does not record it.
           //
-          // `roll_complete` is the single writer for an ordinary roll's history
-          // row (issue #211). A cycle is only ever opened by `roll_started`,
-          // which the room emits solely from `roll_player_dice` — and that
-          // always registers a pending roll the room later completes. So every
-          // cycle already has a `roll_complete` coming, and snapshotting here
-          // too wrote the same roll twice: one unattributed row from this drain
-          // and one attributed row from the handler ("Roll #1 / 85" next to
-          // "You / 85"). The `roll_complete` row is the one that survives — it
-          // is attributed, it is the only row a remote player's roll ever had,
-          // and it covers the identical dice set (`pending.dice_ids`).
+          // Snapshotting here as well as in the `roll_complete` handler wrote
+          // the same roll twice — one unattributed row from this drain beside
+          // one attributed row from the handler ("Roll #1 / 85" next to
+          // "You / 85"), issue #211. The handler's row is the better survivor:
+          // it is attributed, it is the only row a remote player's roll ever
+          // had, and it covers the identical dice set (`pending.dice_ids`).
           //
-          // The sole path that still snapshots the cycle is a saved roll with
-          // follow-up waves, where `roll_complete` is deliberately suppressed
-          // and `finishSavedRollWaves` writes the attributed row instead. That
-          // is why the close is gated on the same latch: the cycle must stay
-          // open across the waves for that snapshot to see every die.
+          // A cycle only opens on `roll_started`, which the room emits solely
+          // from `roll_player_dice`, and that always registers a pending roll.
+          // Every cycle therefore has exactly one of three ends — and each one
+          // records the roll somewhere, which is what makes recording nothing
+          // here safe:
+          //
+          //  1. `roll_complete` arrives → the handler writes the row.
+          //  2. A saved roll with follow-up waves claimed it → the handler drops
+          //     that one message by ticket (`suppressedRollDiceIds`) and
+          //     `finishSavedRollWaves` writes the attributed row instead. The
+          //     close below is gated on the same latch so the cycle stays open
+          //     across the waves and that snapshot sees every die.
+          //  3. A die of the roll is REMOVED → the room cancels `pending_roll`
+          //     and no `roll_complete` ever comes. `removeDieState` compensates
+          //     by recording what had settled.
           //
           // Clearing the cycle here is also what stops a later knock and
           // re-settle from resurrecting a finished roll (`dice_knocked` never
@@ -301,7 +337,7 @@ export const useDiceStore = create<DiceStore>()(
         }))
       },
 
-      removeDieState: (diceId: string) => {
+      removeDieState: (diceId: string, player?: RollSnapshot['player']) => {
         set((state) => {
           const newSettled = new Map(state.settledDice)
           newSettled.delete(diceId)
@@ -311,6 +347,39 @@ export const useDiceStore = create<DiceStore>()(
 
           const newCycleDice = new Set(state.currentRollCycleDice)
           newCycleDice.delete(diceId)
+
+          // Removing a die the room is still tracking for an explicit roll
+          // CANCELS that roll server-side (`remove_dice` drops `pending_roll` in
+          // `server/core/src/room.rs`), so no `roll_complete` is ever coming and
+          // the roll would leave no trace at all. Record what settled — a
+          // partial row, the way the old settle-drain behaved — rather than lose
+          // it. Compensation only; the real fix is the room completing or
+          // explicitly cancelling the roll, which is a core change for both
+          // targets and is tracked separately.
+          //
+          // Only for a cycle that is genuinely OPEN mid-roll. A die removed from
+          // a settled table has already been recorded (the cycle closed on
+          // drain), and the wave path removes rerolled dice on purpose, which is
+          // its own business — hence the latch check.
+          const cancelsRollInFlight = state.currentRollCycleDice.has(diceId)
+            && !state.savedRollWavesPending
+
+          if (cancelsRollInFlight) {
+            const snapshot = newCycleDice.size > 0
+              ? buildCycleSnapshot(newSettled, newCycleDice, state.activeSavedRoll)
+              : null
+            if (snapshot) {
+              return {
+                settledDice: newSettled,
+                rollingDice: newRolling,
+                currentRollCycleDice: new Set<string>(),
+                rollHistory: [
+                  ...state.rollHistory,
+                  player ? { ...snapshot, player } : snapshot,
+                ],
+              }
+            }
+          }
 
           return {
             settledDice: newSettled,
@@ -350,8 +419,11 @@ export const useDiceStore = create<DiceStore>()(
         set({ activeSavedRoll: null })
       },
 
-      beginSavedRollWaves: () => {
-        set({ savedRollWavesPending: true })
+      beginSavedRollWaves: (rollDiceIds?: readonly string[]) => {
+        set({
+          savedRollWavesPending: true,
+          ...(rollDiceIds ? { suppressedRollDiceIds: [...rollDiceIds] } : {}),
+        })
       },
 
       /**
@@ -361,31 +433,52 @@ export const useDiceStore = create<DiceStore>()(
        * abandoned sequence must still record what landed and must never leave
        * `savedRollWavesPending` stuck true, which would suppress every later
        * roll's history entry.
+       *
+       * Two outcomes, and never zero rows between them:
+       * - Anything from the cycle has settled → record it, partial or complete.
+       *   A sequence that gives up while dice are still in the air (a wave
+       *   failure, a wait that timed out) used to bail out here and record
+       *   NOTHING while its `roll_complete` stayed spoken for — the roll simply
+       *   vanished. `buildCycleSnapshot` already takes only the cycle dice that
+       *   have settled, so the partial roll is recorded instead of lost.
+       * - Nothing settled at all → hand the roll back to `roll_complete` by
+       *   releasing the ticket, rather than swallowing a row nobody wrote.
+       *
+       * The latch is released either way: leaving it set is a session-wide
+       * lockout of every later roll's history entry.
        */
       finishSavedRollWaves: (player?: RollSnapshot['player']) => {
         set((state) => {
           if (!state.savedRollWavesPending) return state
-          if (state.rollingDice.size > 0 || state.currentRollCycleDice.size === 0) {
-            return { savedRollWavesPending: false }
-          }
 
-          const snapshot = buildCycleSnapshot(
-            state.settledDice,
-            state.currentRollCycleDice,
-            state.activeSavedRoll,
-          )
+          const snapshot = state.currentRollCycleDice.size > 0
+            ? buildCycleSnapshot(
+              state.settledDice,
+              state.currentRollCycleDice,
+              state.activeSavedRoll,
+            )
+            : null
+
+          if (!snapshot) {
+            return { savedRollWavesPending: false, suppressedRollDiceIds: null }
+          }
 
           return {
             savedRollWavesPending: false,
             currentRollCycleDice: new Set<string>(),
-            rollHistory: snapshot
-              // This row stands in for the `roll_complete` row the wave path
-              // suppresses, so it carries the same attribution — otherwise a
-              // multiplayer wave roll would land in history with no player.
-              ? [...state.rollHistory, player ? { ...snapshot, player } : snapshot]
-              : state.rollHistory,
+            // This row stands in for the `roll_complete` row the wave path
+            // suppresses, so it carries the same attribution — otherwise a
+            // multiplayer wave roll would land in history with no player. The
+            // ticket stays until that message arrives and is dropped.
+            rollHistory: [...state.rollHistory, player ? { ...snapshot, player } : snapshot],
           }
         })
+      },
+
+      clearSuppressedRollComplete: () => {
+        set((state) => (
+          state.suppressedRollDiceIds === null ? state : { suppressedRollDiceIds: null }
+        ))
       },
 
       /**
@@ -422,6 +515,7 @@ export const useDiceStore = create<DiceStore>()(
           rollHistory: [],
           activeSavedRoll: null,
           savedRollWavesPending: false,
+          suppressedRollDiceIds: null,
           reservedInventoryDieIds: new Set(),
           rollNotice: null,
         })
@@ -436,10 +530,11 @@ export const useDiceStore = create<DiceStore>()(
        * before that have none, and the list used to key on `timestamp`, so
        * backfill an id per row rather than leaving the UI to collide on ties.
        */
-      migrate: (persistedState, version) => {
+      migrate: (persistedState) => {
+        // No version check: `persist` only calls this when the stored version is
+        // BELOW the current one, so v0 is the only input this can ever see.
         const state = persistedState as { rollHistory?: RollSnapshot[] } | null | undefined
         if (!state) return { rollHistory: [] } as unknown as DiceStore
-        if (version >= 1) return state as unknown as DiceStore
         return {
           ...state,
           rollHistory: (state.rollHistory ?? []).map((roll) => (
