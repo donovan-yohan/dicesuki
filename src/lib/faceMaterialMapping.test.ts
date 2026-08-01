@@ -22,11 +22,13 @@ const GEOMETRY_CREATORS: Record<DiceShape, (size?: number) => THREE.BufferGeomet
   d6: createD6Geometry,
   d8: createD8Geometry,
   d10: createD10Geometry,
+  // percentile tens die: the SAME solid as the d10
+  d10tens: createD10Geometry,
   d12: createD12Geometry,
   d20: createD20Geometry,
 }
 
-const DICE_TYPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
+const DICE_TYPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd10tens', 'd12', 'd20']
 
 /**
  * Extract the actual face normals from geometry by computing triangle normals
@@ -88,6 +90,7 @@ describe('Face Material Mapping', () => {
       d6: 12,
       d8: 8,
       d10: 20,
+      d10tens: 20,
       d12: 36,
       d20: 20,
     }

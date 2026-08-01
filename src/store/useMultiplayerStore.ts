@@ -26,6 +26,7 @@ import { getWsServerUrl } from '../lib/multiplayerServer'
 import { createWorkerRoomTransport } from '../lib/workerRoomTransport'
 import { arenaDimensionsForViewport } from '../config/renderScale'
 import { triggerCollisionFeedback } from '../lib/collisionFeedback'
+import { percentileSumCorrection } from '../lib/percentileRolls'
 import { useDiceStore } from './useDiceStore'
 import {
   clearRoomSession,
@@ -780,7 +781,13 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             settledAt: now,
             presentation: r.presentation,
           }))
+          // The room total (`msg.total`) is a PLAIN face sum by design, which is
+          // already right for a percentile pair except `00 + 0` (server 0, player
+          // 100). The pairing rides on `presentation`, which the server echoes
+          // back on every result — so this is correct for REMOTE players' rolls
+          // too, not just rolls this client started. See percentileRolls.ts.
           const sum = dice.reduce((acc, d) => acc + d.value, 0)
+            + percentileSumCorrection(dice)
 
           useDiceStore.getState().addRollToHistory({
             dice,

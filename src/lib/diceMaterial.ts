@@ -91,7 +91,7 @@ export function buildDiceFaceMaterial(params: {
     // When a mask is present it governs per-texel, so the scalars go to 1.
     roughness: materialMaskRenderer ? 1 : roughness,
     metalness: materialMaskRenderer ? 1 : metalness,
-    flatShading: shape === 'd10',
+    flatShading: shape === 'd10' || shape === 'd10tens',
     transparent: extras?.transparent ?? false,
     opacity: extras?.opacity ?? 1,
   })

@@ -1,6 +1,7 @@
 import { useMemo, useEffect } from 'react'
 import * as THREE from 'three'
 import { DiceShape } from '../lib/geometries'
+import { getDiceFaceValues } from '../types/diceShape'
 import { createFaceMaterialsArray, createDebugMaterials } from '../lib/faceMaterialMapping'
 import {
   renderDiceFaceToTexture,
@@ -216,13 +217,8 @@ export function usePreRenderedTextures(
   const textures = useMemo(() => {
     const textureMap: Record<number, THREE.CanvasTexture> = {}
 
-    // Determine face range
-    const faceCount = parseInt(shape.substring(1))
-    const startValue = shape === 'd10' ? 0 : 1
-    const endValue = shape === 'd10' ? 9 : faceCount
-
-    // Render all faces
-    for (let faceValue = startValue; faceValue <= endValue; faceValue++) {
+    // Render all faces (d10 reads 0-9, d10tens reads 00-90, others 1-N)
+    for (const faceValue of getDiceFaceValues(shape)) {
       textureMap[faceValue] = renderDiceFaceToTexture(faceValue, color, faceRenderer, resolvedTextureSize)
     }
 

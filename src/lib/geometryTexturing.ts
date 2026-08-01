@@ -15,7 +15,7 @@
  * ## Dice Type Summary
  * - d4, d8, d20: 1 triangle per face, non-indexed. Simple equilateral triangle UVs.
  * - d6: BoxGeometry already has groups and per-face UVs. No changes needed.
- * - d10: Indexed geometry, 20 triangles, 10 kite faces. Convert to non-indexed.
+ * - d10 / d10tens: Indexed geometry, 20 triangles, 10 kite faces. Convert to non-indexed.
  * - d12: 36 triangles, 12 pentagonal faces (3 triangles each). Projected UVs.
  */
 
@@ -43,8 +43,9 @@ export function prepareGeometryForTexturing(
     return geometry
   }
 
-  // d10 is indexed - convert to non-indexed for per-face UVs
-  if (shape === 'd10') {
+  // d10 (and the percentile tens die, the same solid) is indexed - convert to
+  // non-indexed for per-face UVs
+  if (shape === 'd10' || shape === 'd10tens') {
     return prepareD10Geometry(geometry)
   }
 

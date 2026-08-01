@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { getDiceFaceValues, type DiceShape } from '../types/diceShape'
 
 /**
  * Texture Rendering Utilities
@@ -256,20 +257,14 @@ function roundRect(
  * ```
  */
 export function preRenderDiceFaces(
-  diceType: 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20',
+  diceType: DiceShape,
   backgroundColor: string,
   renderer: FaceRenderer = renderSimpleNumber,
   size: number = DEFAULT_TEXTURE_SIZE
 ): Record<number, THREE.CanvasTexture> {
-  const faceCount = parseInt(diceType.substring(1)) // Extract number from 'd6' → 6
-
   const textures: Record<number, THREE.CanvasTexture> = {}
 
-  // D10 uses 0-9, others use 1-N
-  const startValue = diceType === 'd10' ? 0 : 1
-  const endValue = diceType === 'd10' ? 9 : faceCount
-
-  for (let faceValue = startValue; faceValue <= endValue; faceValue++) {
+  for (const faceValue of getDiceFaceValues(diceType)) {
     textures[faceValue] = renderDiceFaceToTexture(faceValue, backgroundColor, renderer, size)
   }
 

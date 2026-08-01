@@ -1,4 +1,4 @@
-import type { DiceShape } from '../types/diceShape'
+import { INVENTORY_DICE_SHAPES, type DiceShape } from '../types/diceShape'
 
 export const INVENTORY_DIE_DRAG_TYPE = 'application/dicesuki-inventory-die'
 
@@ -31,11 +31,12 @@ export function parseInventoryDieDragPayload(dataTransfer: DataTransfer): Invent
   }
 }
 
+/**
+ * Only OWNABLE shapes can be dragged out of the inventory. The percentile tens
+ * die (`d10tens`) is an engine-only shape — it is never minted or owned — so it
+ * is deliberately absent here (see `INVENTORY_DICE_SHAPES`).
+ */
 function isDiceShape(value: unknown): value is DiceShape {
-  return value === 'd4' ||
-    value === 'd6' ||
-    value === 'd8' ||
-    value === 'd10' ||
-    value === 'd12' ||
-    value === 'd20'
+  return typeof value === 'string'
+    && (INVENTORY_DICE_SHAPES as readonly string[]).includes(value)
 }

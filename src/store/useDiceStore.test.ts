@@ -314,6 +314,77 @@ describe('useDiceStore', () => {
     })
   })
 
+  describe('percentile (d100) history snapshots', () => {
+    // Pairing travels on each die's presentation block, NOT in roll state, so
+    // these snapshots stay correct no matter what happened to the saved roll.
+    const TENS = { percentilePairId: 'p1', percentileRole: 'tens' as const }
+    const ONES = { percentilePairId: 'p1', percentileRole: 'ones' as const }
+
+    it('sums a normal pair as tens + ones', () => {
+      useDiceStore.getState().markDiceRolling(['tens', 'ones'])
+      useDiceStore.getState().recordDieSettled('tens', 30, 'd10tens', TENS)
+      useDiceStore.getState().recordDieSettled('ones', 4, 'd10', ONES)
+
+      const [snapshot] = useDiceStore.getState().rollHistory
+      expect(snapshot.sum).toBe(34)
+    })
+
+    it('records 00 + 0 as 100, not 0 (the server total stays a plain sum)', () => {
+      useDiceStore.getState().markDiceRolling(['tens', 'ones'])
+      useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
+      useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
+
+      const [snapshot] = useDiceStore.getState().rollHistory
+      // Raw faces are still both 0 — only the aggregate is corrected.
+      expect(snapshot.dice.map((die) => die.value)).toEqual([0, 0])
+      expect(snapshot.sum).toBe(100)
+    })
+
+    it('stays correct with NO active saved roll (refresh / remote-view path)', () => {
+      // The regression this guards: pairing used to live in `activeSavedRoll`, so
+      // any client without it — a reconnected client, a remote viewer — saw 0.
+      expect(useDiceStore.getState().activeSavedRoll).toBeNull()
+      useDiceStore.getState().markDiceRolling(['tens', 'ones'])
+      useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
+      useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
+
+      expect(useDiceStore.getState().rollHistory[0].sum).toBe(100)
+    })
+
+    it('survives a table edit that clears the active saved roll', () => {
+      useDiceStore.getState().setActiveSavedRoll({
+        name: 'Percentile',
+        flatBonus: 0,
+        perDieBonuses: new Map(),
+      })
+      useDiceStore.getState().markDiceRolling(['tens', 'ones', 'added-d6'])
+      useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
+      // Adding a die to the table clears the active saved roll (backend behavior).
+      useDiceStore.getState().clearActiveSavedRoll()
+      useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
+      useDiceStore.getState().recordDieSettled('added-d6', 5, 'd6')
+
+      expect(useDiceStore.getState().rollHistory[0].sum).toBe(105)
+    })
+
+    it('adds a percentile pair alongside ordinary dice', () => {
+      useDiceStore.getState().markDiceRolling(['tens', 'ones', 'plain'])
+      useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
+      useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
+      useDiceStore.getState().recordDieSettled('plain', 5, 'd6')
+
+      expect(useDiceStore.getState().rollHistory[0].sum).toBe(105)
+    })
+
+    it('does not pair two loose d10s that were never spawned as a d100', () => {
+      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
+      useDiceStore.getState().recordDieSettled('die-1', 0, 'd10')
+      useDiceStore.getState().recordDieSettled('die-2', 0, 'd10')
+
+      expect(useDiceStore.getState().rollHistory[0].sum).toBe(0)
+    })
+  })
+
   describe('reset', () => {
     it('should clear everything including activeSavedRoll', () => {
       useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')

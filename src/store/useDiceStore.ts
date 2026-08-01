@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { DicePresentationMetadata } from '../lib/multiplayerMessages'
+import { percentileSumCorrection } from '../lib/percentileRolls'
 
 /**
  * Represents a single die that has settled with a face value
@@ -18,6 +19,11 @@ export interface DieSettledState {
  */
 export interface RollSnapshot {
   dice: DieSettledState[]
+  /**
+   * Roll total. Percentile pairs are already combined here (`00 + 0` = 100), so
+   * this can differ from a plain sum of `dice[].value` — see
+   * `percentileSumCorrection`.
+   */
   sum: number
   timestamp: number
   /** Multiplayer-only: who rolled. Null/undefined in local mode. */
@@ -124,7 +130,13 @@ export const useDiceStore = create<DiceStore>()(
             }
 
             if (cycleDice.length > 0) {
+              // `00 + 0` reads 100, so the plain face sum needs the percentile
+              // correction. The pairing is read off the dice's own presentation
+              // blocks, so it holds regardless of what happened to the active
+              // saved roll (the room's own total stays a plain sum by design —
+              // see src/lib/percentileRolls.ts).
               const sum = cycleDice.reduce((acc, d) => acc + d.value, 0)
+                + percentileSumCorrection(cycleDice)
               const snapshot: RollSnapshot = {
                 dice: cycleDice,
                 sum,

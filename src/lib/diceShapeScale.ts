@@ -15,6 +15,7 @@ const DICE_SHAPE_SIZE_SCALE: Record<DiceShape, number> = {
   d6: 1.1, // d6 is the everyday die — rendered 10% larger by default (collider matches: cuboid half 0.55 in dice.rs)
   d8: 1,
   d10: 1,
+  d10tens: 1, // percentile tens die — the d10 solid, so the same scale
   d12: 0.9,
   d20: 1,
 }

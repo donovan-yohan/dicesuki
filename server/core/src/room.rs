@@ -1916,6 +1916,8 @@ mod tests {
             custom_asset_version_id: None,
             custom_asset_name: None,
             unsupported_reason: None,
+            percentile_pair_id: None,
+            percentile_role: None,
         }
     }
 

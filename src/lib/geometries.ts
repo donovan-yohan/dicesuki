@@ -119,6 +119,17 @@ export const D10_FACE_NORMALS: DiceFace[] = (() => {
 })()
 
 /**
+ * Percentile TENS die face normals — the d10 solid with every face value ×10
+ * (00, 10, … 90). Derived from {@link D10_FACE_NORMALS} so the two dice cannot
+ * drift apart; the Rust engine builds its table the same way
+ * (`get_face_normals(DiceType::D10Tens)` in `server/core/src/dice.rs`).
+ */
+export const D10TENS_FACE_NORMALS: DiceFace[] = D10_FACE_NORMALS.map((face) => ({
+  value: face.value * 10,
+  normal: face.normal,
+}))
+
+/**
  * D12 (dodecahedron) face normals in world space
  * Dodecahedron: 12 pentagonal faces (36 triangles, 3 per face)
  *
@@ -222,6 +233,9 @@ export function getDiceFaceValue(
         break
       case 'd10':
         faceNormals = D10_FACE_NORMALS
+        break
+      case 'd10tens':
+        faceNormals = D10TENS_FACE_NORMALS
         break
       case 'd12':
         faceNormals = D12_FACE_NORMALS
@@ -422,7 +436,10 @@ export function createDiceGeometry(shape: DiceShape, size: number = 1): THREE.Bu
       return createD6Geometry(scaledSize)
     case 'd8':
       return createD8Geometry(scaledSize)
+    // The percentile tens die is the SAME solid as the d10 — only its face
+    // labels differ (Shared-ADR-007: one geometry, one collider, two labellings).
     case 'd10':
+    case 'd10tens':
       return createD10Geometry(scaledSize)
     case 'd12':
       return createD12Geometry(scaledSize)

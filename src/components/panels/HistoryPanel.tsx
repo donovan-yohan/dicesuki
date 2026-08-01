@@ -7,6 +7,7 @@
 
 import { FlyoutPanel } from './FlyoutPanel'
 import { useDiceStore, type RollSnapshot } from '../../store/useDiceStore'
+import { formatDiceShapeLabel, groupPercentileResults } from '../../lib/percentileRolls'
 
 interface HistoryPanelProps {
   isOpen: boolean
@@ -145,46 +146,59 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
         </div>
       </div>
 
-      {/* Dice breakdown */}
+      {/* Dice breakdown — a percentile pair collapses into one D100 row */}
       <div className="space-y-1.5">
-        {roll.dice.map((die, idx) => (
-          <div
-            key={`${die.diceId}-${idx}`}
-            className="flex items-center justify-between p-2 rounded"
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            }}
-          >
-            <div className="min-w-0">
-              <div
-                className="truncate text-sm font-medium"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                {getHistoryDieLabel(die)}
-              </div>
-              {die.presentation?.inventoryDieId && (
-                <div
-                  className="truncate text-xs"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  {die.type.toUpperCase()}
-                  {die.presentation.rarity ? ` · ${die.presentation.rarity}` : ''}
-                </div>
-              )}
-            </div>
-            <span
-              className="text-sm font-bold"
-              style={{ color: 'var(--color-text-primary)' }}
+        {groupPercentileResults(roll.dice).map((group, idx) => {
+          const isPercentile = group.kind === 'percentile'
+          const key = isPercentile ? `d100-${group.tens.diceId}-${idx}` : `${group.die.diceId}-${idx}`
+          const value = isPercentile ? group.value : group.die.value
+          const label = isPercentile ? 'D100' : getHistoryDieLabel(group.die)
+          const subLabel = isPercentile
+            ? `${group.tens.value.toString().padStart(2, '0')} + ${group.ones.value}`
+            : group.die.presentation?.inventoryDieId
+              ? `${group.die.type.toUpperCase()}${group.die.presentation.rarity ? ` · ${group.die.presentation.rarity}` : ''}`
+              : null
+
+          return (
+            <div
+              key={key}
+              className="flex items-center justify-between p-2 rounded"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              }}
             >
-              {die.value}
-            </span>
-          </div>
-        ))}
+              <div className="min-w-0">
+                <div
+                  className="truncate text-sm font-medium"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
+                  {label}
+                </div>
+                {subLabel && (
+                  <div
+                    className="truncate text-xs"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    {subLabel}
+                  </div>
+                )}
+              </div>
+              <span
+                className="text-sm font-bold"
+                style={{ color: 'var(--color-text-primary)' }}
+              >
+                {value}
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
 
 function getHistoryDieLabel(die: RollSnapshot['dice'][number]) {
-  return die.presentation?.displayName ?? die.type.toUpperCase()
+  // `formatDiceShapeLabel` keeps a stray, unpaired tens die from surfacing as the
+  // raw engine shape `d10tens`.
+  return die.presentation?.displayName ?? formatDiceShapeLabel(die.type)
 }

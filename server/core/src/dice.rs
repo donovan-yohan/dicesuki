@@ -36,7 +36,7 @@ pub const D6_HALF_EXTENT: f32 = DICE_SIZE * 1.1;
 fn dice_circumradius(dice_type: DiceType) -> f32 {
     match dice_type {
         DiceType::D12 => 0.9,
-        // d4, d8, d10, d20 render at THREE radius 1.0.
+        // d4, d8, d10, d10tens, d20 render at THREE radius 1.0.
         _ => 1.0,
     }
 }
@@ -296,10 +296,12 @@ fn get_dice_vertices(dice_type: DiceType) -> Vec<Point<f32>> {
                 point![0.0, 0.0, -a],
             ]
         }
-        DiceType::D10 => {
+        DiceType::D10 | DiceType::D10Tens => {
             // Match the client pentagonal trapezohedron vertices in
             // src/lib/geometries.ts so the server collider rests on the same
-            // face planes the client renders and labels.
+            // face planes the client renders and labels. The percentile tens die
+            // is the SAME solid as the d10 — only its face labels/values differ —
+            // so both share this hull.
             let mut verts = vec![point![0.0, s, 0.0], point![0.0, -s, 0.0]];
             let altitude = (std::f32::consts::PI / 10.0).tan().powi(2) * s;
             for i in 0..10_i32 {
@@ -394,23 +396,31 @@ pub fn get_face_normals(dice_type: DiceType) -> Vec<DiceFace> {
                 DiceFace { value: 6, normal: Vector3::new(-s, s, s) },
             ]
         }
-        DiceType::D10 => {
+        DiceType::D10 | DiceType::D10Tens => {
             // Normals extracted from client Three.js D10 geometry (createD10Geometry)
             // to ensure perfect alignment with rendered faces.
-            // Upper kites (0-4): values [0, 2, 4, 6, 8]
-            // Lower kites (5-9): values [3, 1, 9, 7, 5]
-            vec![
-                DiceFace { value: 0, normal: Vector3::new(-0.741_629, 0.670_810, 0.0).normalize() },
-                DiceFace { value: 2, normal: Vector3::new(-0.229_176, 0.670_810, -0.705_331).normalize() },
-                DiceFace { value: 4, normal: Vector3::new(0.599_991, 0.670_810, -0.435_919).normalize() },
-                DiceFace { value: 6, normal: Vector3::new(0.599_991, 0.670_810, 0.435_919).normalize() },
-                DiceFace { value: 8, normal: Vector3::new(-0.229_176, 0.670_810, 0.705_331).normalize() },
-                DiceFace { value: 3, normal: Vector3::new(-0.599_991, -0.670_810, -0.435_919).normalize() },
-                DiceFace { value: 1, normal: Vector3::new(0.229_176, -0.670_810, -0.705_331).normalize() },
-                DiceFace { value: 9, normal: Vector3::new(0.741_629, -0.670_810, 0.0).normalize() },
-                DiceFace { value: 7, normal: Vector3::new(0.229_176, -0.670_810, 0.705_331).normalize() },
-                DiceFace { value: 5, normal: Vector3::new(-0.599_991, -0.670_810, 0.435_919).normalize() },
+            // Upper kites (0-4): digits [0, 2, 4, 6, 8]
+            // Lower kites (5-9): digits [3, 1, 9, 7, 5]
+            //
+            // The percentile TENS die is the same solid with the same normals; only
+            // the face VALUE is scaled ×10 (00, 10, … 90). One table, so the two
+            // dice can never drift apart (Shared-ADR-007: fix it once in core).
+            let step: u32 = if matches!(dice_type, DiceType::D10Tens) { 10 } else { 1 };
+            [
+                (0_u32, Vector3::new(-0.741_629, 0.670_810, 0.0)),
+                (2, Vector3::new(-0.229_176, 0.670_810, -0.705_331)),
+                (4, Vector3::new(0.599_991, 0.670_810, -0.435_919)),
+                (6, Vector3::new(0.599_991, 0.670_810, 0.435_919)),
+                (8, Vector3::new(-0.229_176, 0.670_810, 0.705_331)),
+                (3, Vector3::new(-0.599_991, -0.670_810, -0.435_919)),
+                (1, Vector3::new(0.229_176, -0.670_810, -0.705_331)),
+                (9, Vector3::new(0.741_629, -0.670_810, 0.0)),
+                (7, Vector3::new(0.229_176, -0.670_810, 0.705_331)),
+                (5, Vector3::new(-0.599_991, -0.670_810, 0.435_919)),
             ]
+            .into_iter()
+            .map(|(digit, normal)| DiceFace { value: digit * step, normal: normal.normalize() })
+            .collect()
         }
         DiceType::D12 => {
             let a: f32 = 0.525_731_1;
@@ -506,6 +516,111 @@ mod tests {
     fn test_d12_has_12_faces() {
         let faces = get_face_normals(DiceType::D12);
         assert_eq!(faces.len(), 12);
+    }
+
+    #[test]
+    fn test_d10tens_has_10_faces_labelled_00_to_90() {
+        let faces = get_face_normals(DiceType::D10Tens);
+        assert_eq!(faces.len(), 10);
+
+        let mut values: Vec<u32> = faces.iter().map(|face| face.value).collect();
+        values.sort_unstable();
+        assert_eq!(values, vec![0, 10, 20, 30, 40, 50, 60, 70, 80, 90]);
+    }
+
+    #[test]
+    fn test_d10tens_matches_an_independent_expected_table() {
+        // INDEPENDENTLY WRITTEN expectation — deliberately NOT derived from
+        // `get_face_normals(D10)`. Comparing the tens table against the ones table
+        // ×10 would be tautological: it re-states the implementation, so a wrong
+        // kite→value assignment in the shared source table would satisfy it. These
+        // literals are the client's `createD10Geometry` kite normals in geometry
+        // order (`src/lib/geometries.ts`) with the percentile labels written out
+        // by hand, so a reordered or rescaled table fails here.
+        let expected: [(u32, [f32; 3]); 10] = [
+            (0,  [-0.741_629,  0.670_810,  0.0]),
+            (20, [-0.229_176,  0.670_810, -0.705_331]),
+            (40, [ 0.599_991,  0.670_810, -0.435_919]),
+            (60, [ 0.599_991,  0.670_810,  0.435_919]),
+            (80, [-0.229_176,  0.670_810,  0.705_331]),
+            (30, [-0.599_991, -0.670_810, -0.435_919]),
+            (10, [ 0.229_176, -0.670_810, -0.705_331]),
+            (90, [ 0.741_629, -0.670_810,  0.0]),
+            (70, [ 0.229_176, -0.670_810,  0.705_331]),
+            (50, [-0.599_991, -0.670_810,  0.435_919]),
+        ];
+
+        let faces = get_face_normals(DiceType::D10Tens);
+        assert_eq!(faces.len(), expected.len());
+
+        for (index, (value, normal)) in expected.into_iter().enumerate() {
+            let face = &faces[index];
+            assert_eq!(face.value, value, "kite {index} should be labelled {value}");
+            let expected_normal = Vector3::new(normal[0], normal[1], normal[2]).normalize();
+            assert!(
+                (face.normal - expected_normal).magnitude() < 1e-5,
+                "kite {index} normal {:?} should be {expected_normal:?}",
+                face.normal
+            );
+        }
+    }
+
+    #[test]
+    fn test_d10_matches_an_independent_expected_table() {
+        // The ones-die counterpart of the table above, written out the same way so
+        // a change to the shared normal table cannot quietly pass by moving BOTH
+        // dice together. Guards the d10 regression the percentile work risks.
+        let expected: [(u32, [f32; 3]); 10] = [
+            (0, [-0.741_629,  0.670_810,  0.0]),
+            (2, [-0.229_176,  0.670_810, -0.705_331]),
+            (4, [ 0.599_991,  0.670_810, -0.435_919]),
+            (6, [ 0.599_991,  0.670_810,  0.435_919]),
+            (8, [-0.229_176,  0.670_810,  0.705_331]),
+            (3, [-0.599_991, -0.670_810, -0.435_919]),
+            (1, [ 0.229_176, -0.670_810, -0.705_331]),
+            (9, [ 0.741_629, -0.670_810,  0.0]),
+            (7, [ 0.229_176, -0.670_810,  0.705_331]),
+            (5, [-0.599_991, -0.670_810,  0.435_919]),
+        ];
+
+        let faces = get_face_normals(DiceType::D10);
+        assert_eq!(faces.len(), expected.len());
+
+        for (index, (value, normal)) in expected.into_iter().enumerate() {
+            let face = &faces[index];
+            assert_eq!(face.value, value, "kite {index} should be labelled {value}");
+            let expected_normal = Vector3::new(normal[0], normal[1], normal[2]).normalize();
+            assert!(
+                (face.normal - expected_normal).magnitude() < 1e-5,
+                "kite {index} normal {:?} should be {expected_normal:?}",
+                face.normal
+            );
+        }
+    }
+
+    #[test]
+    fn test_d10tens_uses_the_d10_hull() {
+        // Collider parity: the percentile pair must tumble identically.
+        let ones = get_dice_vertices(DiceType::D10);
+        let tens = get_dice_vertices(DiceType::D10Tens);
+        assert_eq!(ones.len(), tens.len());
+        for (one, ten) in ones.iter().zip(tens.iter()) {
+            assert!((one.coords - ten.coords).norm() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_d10tens_opposite_faces_sum_to_90() {
+        let faces = get_face_normals(DiceType::D10Tens);
+        for face in &faces {
+            let opposite = faces.iter().find(|f| {
+                (f.normal + face.normal).magnitude() < 0.01
+            });
+            if let Some(opp) = opposite {
+                assert_eq!(face.value + opp.value, 90,
+                    "D10Tens opposite faces {} and {} should sum to 90", face.value, opp.value);
+            }
+        }
     }
 
     #[test]

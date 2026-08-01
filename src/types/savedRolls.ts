@@ -100,6 +100,21 @@ export interface DiceEntry {
 
   // Legacy/default specific dice skin/texture to use. Preserved for migration.
   skinId?: string
+
+  /**
+   * Percentile (d100) entry. When set, EACH die of this entry is rolled as a
+   * PAIR — one `d10tens` (00–90) plus one `d10` (0–9) — and the two faces are
+   * combined into a single 1–100 result (`00 + 0` = 100).
+   *
+   * `type` stays `'d10'` (the ones half) so every legacy consumer — persistence,
+   * source normalization, per-die bonus, keep/drop — keeps working unchanged on
+   * a real `DiceShape`; the flag is purely additive. Absent (the only value in
+   * every roll saved before d100 shipped) means "an ordinary d10 entry", so no
+   * store migration is required.
+   *
+   * See `src/lib/percentileRolls.ts`.
+   */
+  percentile?: true
 }
 
 /**

@@ -1,6 +1,10 @@
 import { memo } from 'react'
 
-export type DiceType = 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20'
+/**
+ * `d10tens` is the percentile tens die — the d10 silhouette marked with `%`, so
+ * a d100 entry reads as "the percentile pair" rather than a second plain d10.
+ */
+export type DiceType = 'd4' | 'd6' | 'd8' | 'd10' | 'd10tens' | 'd12' | 'd20'
 
 interface DiceIconProps {
   type: DiceType
@@ -78,8 +82,8 @@ const DiceIconImpl = ({ type, className = '', size = 24 }: DiceIconProps) => {
         </g>
       )}
 
-      {type === 'd10' && (
-        // D10 - elongated gem shape
+      {(type === 'd10' || type === 'd10tens') && (
+        // D10 (and the percentile tens die, the same solid) - elongated gem shape
         <g>
           <defs>
             <linearGradient id={`${gradientId}-d10`} x1="0%" y1="0%" x2="100%" y2="100%">
@@ -93,6 +97,19 @@ const DiceIconImpl = ({ type, className = '', size = 24 }: DiceIconProps) => {
             d="M 50 12 L 72 38 L 70 62 L 50 88 L 30 62 L 28 38 Z"
             fill={`url(#${gradientId}-d10)`}
           />
+          {type === 'd10tens' && (
+            <text
+              x="50"
+              y="54"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize="30"
+              fontWeight="bold"
+              fill="#f8fafc"
+            >
+              %
+            </text>
+          )}
         </g>
       )}
 
