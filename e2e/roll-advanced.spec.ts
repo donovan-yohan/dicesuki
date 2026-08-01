@@ -165,7 +165,7 @@ test.describe('percentile entries at 390x844', () => {
     test.setTimeout(180_000)
     await openBuilder(page)
     await page.getByLabel('Roll name').fill('Percentile advantage')
-    await page.getByRole('button', { name: /Add 1 D100 die/i }).click()
+    await page.getByRole('button', { name: 'Add 1 D100 roll' }).click()
     await page.getByRole('button', { name: /Advanced Options/ }).click()
 
     // ── The mechanics a tens+ones pair genuinely cannot run are gone ─────
