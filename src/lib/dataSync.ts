@@ -59,6 +59,15 @@ export interface SyncTarget {
   getPayload: () => Record<string, unknown>
   /** Apply a remote snapshot into the local store. */
   applyPayload: (data: unknown) => void
+  /**
+   * Optional repair that runs only AFTER every target has applied its payload.
+   *
+   * `applyPayload` runs per target inside the hydrate loop, so anything it
+   * writes into ANOTHER domain's store is clobbered the moment that domain's
+   * own target applies its (un-repaired) remote blob. Cross-domain fixes
+   * therefore have to be deferred to here.
+   */
+  finalizeHydration?: () => void
   /** Subscribe to local store changes; returns an unsubscribe fn. */
   subscribe: (listener: () => void) => () => void
 }
@@ -69,6 +78,12 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 /** Build the real sync targets bound to the live Zustand stores. */
 export function createRealTargets(): SyncTarget[] {
+  // Starter rows dropped while applying the inventory blob. Held until every
+  // target has hydrated: the saved-rolls target applies its own remote snapshot
+  // wholesale a moment later, so repairing saved rolls from inside the inventory
+  // target's `applyPayload` would simply be overwritten.
+  let pendingStarterRemovals: string[] = []
+
   return [
     {
       table: 'inventory',
@@ -100,7 +115,18 @@ export function createRealTargets(): SyncTarget[] {
           currency: asRecord(migrated.currency) as never,
           assignments: asRecord(migrated.assignments) as never,
         })
-        pruneSavedRollsForRemovedDice(removedStarterDieIds)
+        // Deferred, NOT applied here: `saved_rolls` hydrates after this target
+        // and would overwrite the repair with the un-repaired remote blob.
+        pendingStarterRemovals = removedStarterDieIds
+      },
+      finalizeHydration: () => {
+        // Runs once every domain has applied its remote snapshot, so this is the
+        // last word on the saved rolls. Keyed on the ids the migration actually
+        // dropped — deriving "which dice are gone?" from the current inventory
+        // instead would wipe references to authenticated server copies, which
+        // are never persisted and are absent until the copy read lands.
+        pruneSavedRollsForRemovedDice(pendingStarterRemovals)
+        pendingStarterRemovals = []
       },
       subscribe: (listener) => useInventoryStore.subscribe(listener),
     },
@@ -316,6 +342,18 @@ async function startSyncGeneration(
       )
     })
     unsubscribers.push(unsub)
+  }
+
+  if (!isCurrent()) return
+
+  // Cross-domain repairs, once every target has applied its own remote snapshot.
+  // Deliberately after the whole loop: a fix one domain makes to another during
+  // `applyPayload` is undone when that domain hydrates. Running after the
+  // subscriptions are wired is also intentional — a repair is a real local
+  // change and should push back up, so the server stops serving the bad blob.
+  for (const target of targets) {
+    if (!isCurrent()) return
+    target.finalizeHydration?.()
   }
 
   if (!isCurrent()) return

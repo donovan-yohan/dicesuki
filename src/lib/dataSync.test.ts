@@ -308,11 +308,30 @@ describe('dataSync', () => {
       expect(inv.getPayload().v).toBe(5)
     })
 
-    it('repairs saved rolls when a remote v4 blob still carries starter dice', async () => {
-      // A device that has not synced since the starter cleanup can push a v4
-      // blob back. Applying it must drop the starter rows AND rewrite the saved
-      // rolls that pinned them — otherwise a dangling reference rides back in
-      // from the other device and never gets repaired again.
+    it('repairs saved rolls across the FULL target sequence, not just the inventory step', async () => {
+      // A device that has not synced since the starter cleanup pushes back BOTH
+      // a v4 inventory blob carrying starter dice AND a saved-rolls blob that
+      // still pins one of them.
+      //
+      // The repair cannot live in the inventory target's `applyPayload`: the
+      // saved_rolls target hydrates immediately after and applies its own
+      // un-repaired remote snapshot wholesale, clobbering it. So this drives the
+      // REAL target sequence through `startSync` — inventory, saved_rolls,
+      // settings — and asserts the roll is still repaired once all of them have
+      // landed. Hydrating the inventory target alone would pass either way.
+      const pinnedRoll = {
+        id: 'roll-remote',
+        name: 'Pinned to a starter',
+        flatBonus: 0,
+        createdAt: 1,
+        dice: [{
+          id: 'entry-1',
+          type: 'd4' as const,
+          quantity: 1,
+          perDieBonus: 0,
+          sources: [{ kind: 'specific' as const, dieId: 'die_starter_remote' }],
+        }],
+      }
       const starter = {
         id: 'die_starter_remote',
         type: 'd4',
@@ -322,22 +341,8 @@ describe('dataSync', () => {
         stats: {},
         assignedToRolls: [],
       }
-      useSavedRollsStore.setState({
-        savedRolls: [{
-          id: 'roll-remote',
-          name: 'Pinned to a starter',
-          flatBonus: 0,
-          createdAt: 1,
-          dice: [{
-            id: 'entry-1',
-            type: 'd4',
-            quantity: 1,
-            perDieBonus: 0,
-            sources: [{ kind: 'specific', dieId: 'die_starter_remote' }],
-          }],
-        }],
-        currentlyEditing: null,
-      })
+      useSavedRollsStore.setState({ savedRolls: [pinnedRoll], currentlyEditing: null })
+      const updated_at = new Date().toISOString()
       const { client } = makeFakeClient({
         inventory: {
           data: {
@@ -347,14 +352,24 @@ describe('dataSync', () => {
             currency: { coins: 0, gems: 0, standardTokens: 0, premiumTokens: 0 },
             assignments: {},
           },
-          updated_at: new Date().toISOString(),
+          updated_at,
         },
+        // The blob that used to overwrite the repair.
+        saved_rolls: { data: { v: 1, savedRolls: [pinnedRoll] }, updated_at },
       })
 
-      const inv = createRealTargets().find((t) => t.table === 'inventory')!
-      await hydrateTarget(client, 'user-1', inv)
+      await startSync('user-1', {
+        client,
+        targets: createRealTargets(),
+        starterTimeoutMs: 0,
+      })
 
+      const targetTables = createRealTargets().map((t) => t.table)
+      expect(targetTables).toEqual(['inventory', 'saved_rolls', 'settings'])
+      // The starter row is gone…
       expect(useInventoryStore.getState().dice).toHaveLength(0)
+      // …and the roll that pinned it survived BOTH hydrations, repaired.
+      expect(useSavedRollsStore.getState().savedRolls).toHaveLength(1)
       expect(useSavedRollsStore.getState().savedRolls[0].dice[0].sources)
         .toEqual([{ kind: 'anonymous', quantity: 1 }])
 

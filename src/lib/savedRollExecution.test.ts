@@ -1,5 +1,5 @@
 import { renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMultiplayerDiceBackend } from '../hooks/useMultiplayerDiceBackend'
 
@@ -230,6 +230,12 @@ describe('executePhysicalSavedRoll', () => {
       dice: new Map(),
       roomActionError: null,
     })
+  })
+
+  afterEach(() => {
+    // The determinism cases spy on `Math.random`; leaving one installed would
+    // silently fix the RNG for every test that runs after them in this file.
+    vi.restoreAllMocks()
   })
 
   describe('keep/drop', () => {
