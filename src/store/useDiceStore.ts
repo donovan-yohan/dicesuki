@@ -181,13 +181,14 @@ interface DiceStore {
   recordDieSettled: (diceId: string, value: number, type: string, presentation?: DicePresentationMetadata) => void
   /** Record a finished roll. The row's `id` is minted here, not by the caller. */
   addRollToHistory: (snapshot: Omit<RollSnapshot, 'id'>) => void
+  /** Drop a single die. Does NOT decide roll cancellation — see `applyDiceRemoval`. */
   removeDieState: (diceId: string) => void
   /**
-   * Note that one `dice_removed` message cancelled the open roll, attributing
-   * the eventual row to `player` (the roll's owner, who may be a remote player).
-   * Call ONCE per message, before the dice are removed. See `orphanedCycle`.
+   * Apply one whole `dice_removed` message, attributing any row it produces to
+   * `player` (the roll's owner, who may be a remote player). Must be called with
+   * the message's ENTIRE id set — see the implementation.
    */
-  orphanRollCycleForRemoval: (
+  applyDiceRemoval: (
     removedIds: readonly string[],
     player?: RollSnapshot['player'],
   ) => void
@@ -243,16 +244,20 @@ function buildCycleSnapshot(
 }
 
 /**
- * Close the roll cycle if the table has gone still, and record it if it was
- * orphaned. Returns null when the roll is still running.
+ * Close the roll cycle if the table has gone still, and record it if the roll
+ * was orphaned. Returns null when the roll is still running.
  *
- * Stillness is reached two ways — the last die SETTLES, or the last rolling die
- * is REMOVED — so both mutations ask this rather than only the settle path. A
- * removal that takes the last die in the air off the table is precisely the
- * cancelled-roll case, and no further settle would ever arrive to close it.
+ * Stillness is reached two ways — the last die SETTLES, or the last die in the
+ * air is REMOVED — so the settle path and the removal path both ask this. A
+ * removal that empties the table is precisely the cancelled-roll case, and no
+ * further settle would ever arrive to close it.
+ *
+ * `orphan` is passed rather than read off `state` because the removal path
+ * decides it in the same update that applies the removal.
  */
 function closeCycleIfStill(
   state: DiceStore,
+  orphan: DiceStore['orphanedCycle'],
   newSettled: Map<string, DieSettledState>,
   newRolling: Set<string>,
   newCycleDice: Set<string>,
@@ -262,7 +267,6 @@ function closeCycleIfStill(
   // `finishSavedRollWaves` closes and records it.
   if (state.savedRollWavesPending) return null
 
-  const orphan = state.orphanedCycle
   if (!orphan) return { currentRollCycleDice: new Set<string>() }
 
   // No `roll_complete` is coming for this roll, so the row is written here from
@@ -371,6 +375,7 @@ export const useDiceStore = create<DiceStore>()(
           // reopens a cycle, so the re-settle lands with an empty cycle set).
           const closed = closeCycleIfStill(
             state,
+            state.orphanedCycle,
             newSettled,
             newRolling,
             state.currentRollCycleDice,
@@ -401,33 +406,33 @@ export const useDiceStore = create<DiceStore>()(
           const newCycleDice = new Set(state.currentRollCycleDice)
           newCycleDice.delete(diceId)
 
-          // Taking the last die in the air off the table ends the roll just as
-          // surely as it settling would have, and no settle will follow to
-          // notice — so the close is checked here too.
-          const closed = closeCycleIfStill(state, newSettled, newRolling, newCycleDice)
-
           return {
             settledDice: newSettled,
             rollingDice: newRolling,
             currentRollCycleDice: newCycleDice,
-            ...(closed ?? {}),
           }
         })
       },
 
       /**
+       * Apply one whole `dice_removed` message.
+       *
        * Removing a die the room is still tracking for an explicit roll CANCELS
        * that roll server-side (`remove_dice` drops `pending_roll` in
        * `server/core/src/room.rs`), so no `roll_complete` is ever broadcast and
-       * the roll would leave no trace. Mark the cycle so the drain records it.
+       * the roll would leave no trace. This marks the cycle and, if the table is
+       * now still, records what landed.
        *
        * Compensation only; the real fix is the room completing the roll from the
        * survivors or emitting an explicit cancellation, which is a core change
        * affecting both targets and is tracked separately.
        *
-       * Decided ONCE for the whole message. Asking per die id would make the
-       * answer depend on the order ids happen to appear in: the first id could
-       * empty the cycle, leaving the rest to find nothing to cancel.
+       * BOTH decisions — does this cancel the roll, and is the roll now over —
+       * are taken ONCE for the whole id set, which is why the message cannot be
+       * applied one die at a time. Per-id, the answer depended on the order the
+       * ids happened to appear in: removing an already-settled die last emptied
+       * the cycle a moment before the close was evaluated, and the row was
+       * dropped; the reverse order recorded it.
        *
        * Two cases are deliberately NOT orphaned:
        * - no removed die is in the cycle → either no roll is in flight or the
@@ -437,20 +442,47 @@ export const useDiceStore = create<DiceStore>()(
        *   is the reroll wave discarding its own dice, and `finishSavedRollWaves`
        *   owns that row. A remote player's roll being trashed is still orphaned
        *   even while we hold a claim, since our claim says nothing about theirs.
+       *
+       * And a removal that takes away the roll ENTIRELY records nothing: the
+       * player swept the table (Clear All), so there is no roll left to report.
+       * Only a roll with survivors is written.
        */
-      orphanRollCycleForRemoval: (
+      applyDiceRemoval: (
         removedIds: readonly string[],
         player?: RollSnapshot['player'],
       ) => {
         set((state) => {
-          if (state.orphanedCycle !== null) return state
+          const newSettled = new Map(state.settledDice)
+          const newRolling = new Set(state.rollingDice)
+          const newCycleDice = new Set(state.currentRollCycleDice)
+
           const cancelled = removedIds.filter((id) => state.currentRollCycleDice.has(id))
-          if (cancelled.length === 0) return state
+          for (const id of removedIds) {
+            newSettled.delete(id)
+            newRolling.delete(id)
+            newCycleDice.delete(id)
+          }
 
           const claim = state.suppressedRollDiceIds
-          if (claim !== null && cancelled.some((id) => claim.includes(id))) return state
+          const claimOwnsThese = claim !== null && cancelled.some((id) => claim.includes(id))
+          const orphan = state.orphanedCycle
+            ?? (cancelled.length > 0 && !claimOwnsThese ? { player } : null)
 
-          return { orphanedCycle: { player } }
+          const removed = {
+            settledDice: newSettled,
+            rollingDice: newRolling,
+            currentRollCycleDice: newCycleDice,
+            orphanedCycle: orphan,
+          }
+
+          // The roll is gone rather than finished — nothing to report, and no
+          // mark left to fire on some later roll.
+          if (orphan && newCycleDice.size === 0 && !state.savedRollWavesPending) {
+            return { ...removed, orphanedCycle: null }
+          }
+
+          const closed = closeCycleIfStill(state, orphan, newSettled, newRolling, newCycleDice)
+          return { ...removed, ...(closed ?? {}) }
         })
       },
 

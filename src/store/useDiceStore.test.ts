@@ -505,10 +505,9 @@ describe('useDiceStore', () => {
   describe('a removal that cancels the roll in flight', () => {
     const PLAYER = { id: 'p1', displayName: 'Me', color: '#f00' }
 
-    /** What the `dice_removed` handler does: mark once, then remove each die. */
+    /** One whole `dice_removed` message, the way the handler applies it. */
     function removeDice(ids: string[], player?: typeof PLAYER) {
-      useDiceStore.getState().orphanRollCycleForRemoval(ids, player)
-      for (const id of ids) useDiceStore.getState().removeDieState(id)
+      useDiceStore.getState().applyDiceRemoval(ids, player)
     }
 
     it('records the roll once the SURVIVORS settle, not at removal time', () => {
@@ -549,17 +548,47 @@ describe('useDiceStore', () => {
       expect(history[0].sum).toBe(6)
     })
 
-    it('is decided once per message, so batch removal order cannot change it', () => {
+    /**
+     * Sweep away a whole 2-die roll, one die settled and one still in the air,
+     * in the given id order. This is the shape that diverged: applied per die,
+     * removing the SETTLED one last emptied the cycle a moment before the close
+     * was evaluated and the row was dropped, while the reverse order recorded
+     * it — and which order a `dice_removed` batch arrives in is a coin flip.
+     */
+    function sweepBothDice(ids: string[]) {
+      useDiceStore.getState().reset()
+      useDiceStore.getState().markDiceRolling(['settled', 'airborne'])
+      useDiceStore.getState().recordDieSettled('settled', 4, 'd6')
+      removeDice(ids, PLAYER)
+      return useDiceStore.getState()
+    }
+
+    it('records nothing when the message sweeps the whole roll away, either order', () => {
+      // The chosen semantics, matching what Clear All always did: a roll the
+      // player deliberately swept off the table is not a roll to report. What
+      // matters most is that BOTH orders agree.
+      const settledLast = sweepBothDice(['airborne', 'settled'])
+      const settledFirst = sweepBothDice(['settled', 'airborne'])
+
+      expect(settledLast.rollHistory).toHaveLength(0)
+      expect(settledFirst.rollHistory).toHaveLength(0)
+      expect(settledLast.orphanedCycle).toBeNull()
+      expect(settledFirst.orphanedCycle).toBeNull()
+      expect(settledLast.currentRollCycleDice.size).toBe(0)
+      expect(settledFirst.currentRollCycleDice.size).toBe(0)
+    })
+
+    it('records the survivors whatever order the removed ids arrive in', () => {
       const order = (ids: string[]) => {
         useDiceStore.getState().reset()
         useDiceStore.getState().markDiceRolling(['die-1', 'die-2', 'die-3'])
+        // die-2 has landed, die-3 has not — a mixed batch, like Clear All.
+        useDiceStore.getState().recordDieSettled('die-2', 5, 'd6')
         removeDice(ids, PLAYER)
         useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')
         return useDiceStore.getState().rollHistory
       }
 
-      // Removing die-2 first empties nothing, but a per-id decision taken after
-      // the cycle had already lost its members would see nothing left to cancel.
       const forwards = order(['die-2', 'die-3'])
       const backwards = order(['die-3', 'die-2'])
 

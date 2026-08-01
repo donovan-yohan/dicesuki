@@ -700,20 +700,19 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           ? undefined
           : dice.get(cancelledId)?.ownerId
         const rollOwner = rollOwnerId ? removalPlayers.get(rollOwnerId) : undefined
-        useDiceStore.getState().orphanRollCycleForRemoval(
+
+        for (const id of msg.diceIds) newDice.delete(id)
+
+        // One call for the whole message, not one per die. This also mirrors the
+        // removal into the roll-result store so the top-of-screen total and
+        // per-die chips drop the deleted faces — otherwise a settled value
+        // lingers and later rolls appear to add to a stale sum.
+        useDiceStore.getState().applyDiceRemoval(
           msg.diceIds,
           rollOwnerId && rollOwner
             ? { id: rollOwnerId, displayName: rollOwner.displayName, color: rollOwner.color }
             : undefined,
         )
-
-        for (const id of msg.diceIds) {
-          newDice.delete(id)
-          // Mirror the removal into the roll-result store so the top-of-screen
-          // total and per-die chips drop the deleted die's face — otherwise its
-          // settled value lingers and later rolls appear to add to a stale sum.
-          useDiceStore.getState().removeDieState(id)
-        }
         set({ dice: newDice })
         break
       }
