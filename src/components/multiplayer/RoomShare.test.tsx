@@ -38,11 +38,13 @@ describe('RoomShare', () => {
     useMultiplayerStore.getState().reset()
   })
 
-  it('renders copy, share, and QR-toggle controls', () => {
+  // The three controls are each proven present by the behavioural test that
+  // uses it below — `getByTestId` throws when the node is missing.
+
+  it('labels the share button for clipboard when native share is missing', () => {
+    // `beforeEach` deletes `navigator.share`, so this is the desktop path.
     renderShare()
-    expect(screen.getByTestId('room-share-copy')).toBeInTheDocument()
-    expect(screen.getByTestId('room-share-share')).toBeInTheDocument()
-    expect(screen.getByTestId('room-share-qr-toggle')).toBeInTheDocument()
+    expect(screen.getByTestId('room-share-share')).toHaveTextContent('Copy to share')
   })
 
   it('renders nothing when there is no room id', () => {

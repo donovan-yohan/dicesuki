@@ -51,16 +51,8 @@ describe('haptics', () => {
       expect(() => vibrate(100)).not.toThrow()
     })
 
-    it('should accept number patterns', () => {
-      const vibrateMock = vi.fn()
-      vi.stubGlobal('navigator', {
-        vibrate: vibrateMock
-      })
-
-      vibrate(50)
-
-      expect(vibrateMock).toHaveBeenCalledWith(50)
-    })
+    // 'should accept number patterns' repeated the first test with 50 instead
+    // of 100; `vibrate` has no numeric branching, so it walked the same path.
 
     it('should accept array patterns', () => {
       const vibrateMock = vi.fn()
@@ -96,9 +88,7 @@ describe('haptics', () => {
       expect(HAPTIC_PATTERNS.strong).toBeLessThanOrEqual(100)
     })
 
-    it('should have patterns in ascending order', () => {
-      expect(HAPTIC_PATTERNS.light).toBeLessThan(HAPTIC_PATTERNS.medium)
-      expect(HAPTIC_PATTERNS.medium).toBeLessThan(HAPTIC_PATTERNS.strong)
-    })
+    // Ascending order is already asserted, inverted, by the two tests above
+    // (`medium > light`, `strong > medium`).
   })
 })

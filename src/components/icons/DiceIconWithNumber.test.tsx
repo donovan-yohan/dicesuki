@@ -57,6 +57,7 @@ describe('DiceIconWithNumber', () => {
 
         // Assert
         const count = container.querySelector('span')
+        expect(count).toHaveClass('flex')
         expect(count).toHaveClass('items-center')
         expect(count).toHaveClass('justify-center')
         expect(container.querySelector('text')).toBeNull()
@@ -89,10 +90,9 @@ describe('DiceIconWithNumber', () => {
   })
 
   describe('number display', () => {
-    it('should display single digit numbers', () => {
-      render(<DiceIconWithNumber type="d6" number={4} />)
-      expect(screen.getByText('4')).toBeInTheDocument()
-    })
+    // Single digits are already rendered by 'should render dice icon with
+    // number' and by the every-type case above; only the multi-digit path
+    // below exercises anything new.
 
     it('should display double digit numbers', () => {
       render(<DiceIconWithNumber type="d20" number={20} />)
@@ -144,13 +144,8 @@ describe('DiceIconWithNumber', () => {
       expect(numberSpan).toHaveClass('absolute')
     })
 
-    it('should center number within icon', () => {
-      const { container } = render(<DiceIconWithNumber type="d6" number={5} />)
-      const numberSpan = container.querySelector('span')
-      expect(numberSpan).toHaveClass('flex')
-      expect(numberSpan).toHaveClass('items-center')
-      expect(numberSpan).toHaveClass('justify-center')
-    })
+    // Centring (`flex items-center justify-center`) is asserted for every
+    // non-percentile type by 'should keep the %s count centred' above.
   })
 
   describe('accessibility', () => {

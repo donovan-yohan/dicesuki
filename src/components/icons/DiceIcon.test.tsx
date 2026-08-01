@@ -46,15 +46,9 @@ describe('DiceIcon', () => {
   })
 
   describe('sizing', () => {
-    it('should use default size of 24', () => {
-      // Arrange / Act
-      const { container } = render(<DiceIcon type="d6" />)
-
-      // Assert
-      const svg = container.querySelector('svg')
-      expect(svg).toHaveAttribute('width', '24')
-      expect(svg).toHaveAttribute('height', '24')
-    })
+    // The default size of 24 is asserted for *every* type by the
+    // 'should render %s as a scalable svg' case above, which renders with no
+    // `size` prop.
 
     it('should accept custom size', () => {
       // Arrange / Act

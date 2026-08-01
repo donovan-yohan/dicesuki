@@ -39,11 +39,11 @@ describe('useHapticFeedback', () => {
   })
 
   describe('initialization', () => {
-    it('should start with haptics enabled by default', () => {
-      const { result } = renderHook(() => useHapticFeedback())
-
-      expect(result.current.isEnabled).toBe(true)
-    })
+    // Two one-directional cases used to sit here, each asserting the value
+    // `beforeEach` had just set — so both passed for a hook that hardcoded its
+    // answer. They are folded into the both-directions cases below: asserting
+    // only `false` would ship a hardcoded-`false` regression green, which hides
+    // the haptics toggle in Settings entirely.
 
     it('should restore enabled state from localStorage', () => {
       localStorage.setItem('hapticFeedbackEnabled', 'false')
@@ -54,18 +54,19 @@ describe('useHapticFeedback', () => {
       expect(result.current.isEnabled).toBe(false)
     })
 
-    it('should check if haptics are supported', () => {
-      const { result } = renderHook(() => useHapticFeedback())
+    it('should mirror navigator.vibrate support in both directions', () => {
+      // Arrange / Act — supported (the value `beforeEach` installs)
+      const supported = renderHook(() => useHapticFeedback())
 
-      expect(result.current.isSupported).toBe(true)
-    })
+      // Assert
+      expect(supported.result.current.isSupported).toBe(true)
 
-    it('should return false for isSupported when navigator.vibrate is not available', () => {
+      // Arrange / Act — unsupported
       isHapticsSupportedMock.mockReturnValue(false)
+      const unsupported = renderHook(() => useHapticFeedback())
 
-      const { result } = renderHook(() => useHapticFeedback())
-
-      expect(result.current.isSupported).toBe(false)
+      // Assert — a hook hardcoding either answer fails one of these
+      expect(unsupported.result.current.isSupported).toBe(false)
     })
   })
 

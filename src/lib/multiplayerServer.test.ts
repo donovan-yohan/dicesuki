@@ -51,29 +51,10 @@ describe('checkRoomServerReadiness', () => {
     expect(fetchImpl).toHaveBeenCalledWith('http://localhost:8080/health', expect.objectContaining({ method: 'GET' }))
   })
 
-  it('reports a port conflict when another service answers on the port', async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ status: 'ok' }),
-    } as Response)
-
-    await expect(checkRoomServerReadiness(config, { fetchImpl })).resolves.toMatchObject({
-      ok: false,
-      state: 'port-conflict',
-      command: null,
-    })
-  })
-
-  it('reports unavailable when the server cannot be reached', async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'))
-
-    await expect(checkRoomServerReadiness(config, { fetchImpl, maxRetries: 0 })).resolves.toMatchObject({
-      ok: false,
-      state: 'unavailable',
-      command: null,
-    })
-  })
+  // Port-conflict and unreachable each had a second, weaker copy here that
+  // asserted the same state without the call-count. They were merged into the
+  // retry suite below, which pins both the state and the number of attempts;
+  // their one unique assertion (`command: null`) travelled with them.
 
   it('does not retry when maxRetries is 0 (fast-fail, #109)', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'))
@@ -81,6 +62,7 @@ describe('checkRoomServerReadiness', () => {
     await expect(checkRoomServerReadiness(config, { fetchImpl, maxRetries: 0 })).resolves.toMatchObject({
       ok: false,
       state: 'unavailable',
+      command: null,
     })
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
@@ -162,6 +144,7 @@ describe('checkRoomServerReadiness retry through cold starts (#109)', () => {
     await expect(checkRoomServerReadiness(publicConfig, { fetchImpl })).resolves.toMatchObject({
       ok: false,
       state: 'port-conflict',
+      command: null,
     })
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })

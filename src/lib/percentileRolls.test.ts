@@ -25,7 +25,6 @@ import {
 import { getDiceFaceValues } from '../types/diceShape'
 import { expandDiceEntrySpawns, getRollDiceCount } from './rollSources'
 import { ROOM_DICE_CAPACITY } from '../config/roomCapacity'
-import { D10_FACE_NORMALS, D10TENS_FACE_NORMALS } from './geometries'
 import { getFaceRendererForShape } from './faceRenderers'
 import { createFaceMaterialsArray, validateFaceNormalRules } from './faceMaterialMapping'
 import { INVENTORY_DICE_SHAPES, isInventoryDiceShape } from '../types/diceShape'
@@ -260,13 +259,12 @@ describe('d10tens engine shape', () => {
     expect(getDieMax('d10')).toBe(10)
   })
 
-  it('uses the d10 face normals with values scaled x10', () => {
-    expect(D10TENS_FACE_NORMALS).toHaveLength(D10_FACE_NORMALS.length)
-    D10TENS_FACE_NORMALS.forEach((face, index) => {
-      expect(face.value).toBe(D10_FACE_NORMALS[index].value * 10)
-      expect(face.normal.equals(D10_FACE_NORMALS[index].normal)).toBe(true)
-    })
-  })
+  // A test asserting `D10TENS_FACE_NORMALS[i].value === D10_FACE_NORMALS[i].value * 10`
+  // used to sit here. It could not fail: `geometries.ts` *builds* the table with
+  // `D10_FACE_NORMALS.map(f => ({ value: f.value * 10, normal: f.normal }))`, so
+  // `.map` guarantees the length, the value is the product by construction, and
+  // `normal` is the same object reference. `diceShape.guard.test.ts` carries the
+  // independently-written 00-90 expectation that actually pins this table.
 
   it('keeps opposite faces summing to 90', () => {
     expect(validateFaceNormalRules(PERCENTILE_TENS_SHAPE)).toEqual({ valid: true, errors: [] })

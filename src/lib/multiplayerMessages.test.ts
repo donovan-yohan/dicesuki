@@ -135,17 +135,6 @@ describe('multiplayerMessages', () => {
       }
     })
 
-    it('should parse presence and removal lifecycle messages', () => {
-      const presence: ServerMessage = JSON.parse(
-        '{"type":"player_presence_changed","playerId":"p2","connected":false}',
-      )
-      expect(presence.type).toBe('player_presence_changed')
-      const removed: ServerMessage = JSON.parse(
-        '{"type":"removed_from_room","reason":"The host removed you."}',
-      )
-      expect(removed.type).toBe('removed_from_room')
-    })
-
     it('should parse a settings_updated message with unknown forward-compat fields', () => {
       const json = '{"type":"settings_updated","settings":{"version":2,"physicsMode":"arcade","theme":"neon"}}'
       const msg: ServerMessage = JSON.parse(json)
@@ -168,17 +157,15 @@ describe('multiplayerMessages', () => {
       expect(snapshot.dice[0].r).toEqual([0, 0, 0, 1])
     })
 
-    it('should parse an error message', () => {
-      const json = '{"type":"error","code":"ROOM_FULL","message":"Room is full (8/8 players)"}'
-      const msg: ServerMessage = JSON.parse(json)
-      expect(msg.type).toBe('error')
-    })
-
-    it('should parse a die_settled message', () => {
-      const json = '{"type":"die_settled","diceId":"d1","faceValue":6,"position":[1,0,0],"rotation":[0,0,0,1]}'
-      const msg: ServerMessage = JSON.parse(json)
-      expect(msg.type).toBe('die_settled')
-    })
+    // Four cases ('presence and removal lifecycle', 'error', 'die_settled',
+    // 'roll_complete' — the lifecycle one covering both
+    // `player_presence_changed` and `removed_from_room`) did nothing but
+    // `JSON.parse` a literal and read `.type` back out of it. `JSON.parse`
+    // returns `any`, so the `: ServerMessage` annotation checks nothing at
+    // compile time either, and `.type` exists on every variant — so no
+    // narrowing was proven. The surviving cases in this block all reach past
+    // `.type` into variant-specific fields, which `tsc` *does* verify against
+    // the union (`tsconfig.json` includes `src`).
 
     it('should parse a dice_knocked message', () => {
       const json = '{"type":"dice_knocked","diceId":"d1","position":[1,0.5,2],"impactSpeed":6.4}'
@@ -188,12 +175,6 @@ describe('multiplayerMessages', () => {
       expect(knocked.diceId).toBe('d1')
       expect(knocked.position).toEqual([1, 0.5, 2])
       expect(knocked.impactSpeed).toBeCloseTo(6.4)
-    })
-
-    it('should parse a roll_complete message', () => {
-      const json = '{"type":"roll_complete","playerId":"p1","results":[{"diceId":"d1","diceType":"d20","faceValue":17}],"total":17}'
-      const msg: ServerMessage = JSON.parse(json)
-      expect(msg.type).toBe('roll_complete')
     })
 
     it('should parse dice presentation metadata from server messages', () => {
