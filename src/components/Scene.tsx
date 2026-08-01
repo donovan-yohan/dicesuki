@@ -1,7 +1,7 @@
 // External libraries
 import { Environment } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
@@ -49,6 +49,7 @@ import { isPaymentsEnabled } from '../lib/paymentsConfig'
 
 // Components
 import { TableHud } from './layout/TableHud'
+import { SceneAssetErrorBoundary } from './SceneAssetErrorBoundary'
 import { MultiplayerArena } from './multiplayer/MultiplayerArena'
 import { MultiplayerDie } from './multiplayer/MultiplayerDie'
 import { PlayerPanel } from './multiplayer/PlayerPanel'
@@ -60,6 +61,9 @@ import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, Settin
 import type { TableDieSummary } from '../types/tableDice'
 
 const LOD_DEBUG_NAMESPACE = 'RenderLOD'
+
+/** drei HDR preset used for image-based lighting. See {@link ThemedEnvironmentMap}. */
+const ENVIRONMENT_PRESET = 'night' as const
 
 function isRenderLodDebugEnabled(): boolean {
   try {
@@ -285,9 +289,37 @@ function ThemedLighting() {
         </>
       )}
 
-      {/* HDR Environment lighting with city preset */}
-      <Environment preset="night" />
+      {/* HDR Environment lighting with the night preset */}
+      <ThemedEnvironmentMap />
     </>
+  )
+}
+
+/**
+ * HDR image-based lighting for the table.
+ *
+ * The preset map is fetched from drei's asset CDN at runtime, which makes it the
+ * one piece of the scene that depends on a third party — so it is isolated on
+ * BOTH failure axes (issue #210):
+ *
+ * - `Suspense`, because `<Canvas>` puts every child in a single Suspense
+ *   boundary: an unguarded suspend here also suspends {@link SceneReadySignal},
+ *   so a slow, blocked, or offline request left the startup splash mounted with
+ *   nothing on screen to explain it.
+ * - {@link SceneAssetErrorBoundary}, because a *rejected* request re-throws out
+ *   of the Canvas into the DOM tree, where nothing catches it and the app blanks.
+ *
+ * Both fallbacks are `null`: the table is already lit by `ThemedLighting`'s own
+ * ambient/directional/point lights, so losing the HDR costs some reflection
+ * richness and nothing else. Decorative, never load-bearing.
+ */
+function ThemedEnvironmentMap() {
+  return (
+    <SceneAssetErrorBoundary resetKey={ENVIRONMENT_PRESET} fallback={null}>
+      <Suspense fallback={null}>
+        <Environment preset={ENVIRONMENT_PRESET} />
+      </Suspense>
+    </SceneAssetErrorBoundary>
   )
 }
 
@@ -386,6 +418,17 @@ interface SceneProps {
   onReady?: () => void
 }
 
+/**
+ * Fires `onReady` on the first frame the renderer actually draws — the signal
+ * that lets the startup splash uncover the table (`StartupGate`).
+ *
+ * MUST stay outside the scene-content `Suspense` boundary below. `<Canvas>`
+ * renders its children inside ONE boundary of its own, so a sibling that
+ * suspends on an asset also unmounts this subscriber and the splash waits on
+ * that asset instead of on the renderer (issue #210). Keeping the signal above
+ * a boundary that owns everything else makes the handoff depend only on the
+ * frame loop, which starts as soon as the WebGL context exists.
+ */
 function SceneReadySignal({ onReady }: SceneProps) {
   const didSignalRef = useRef(false)
 
@@ -585,23 +628,33 @@ function SceneContent({ onReady }: SceneProps) {
           left: 0
         }}
       >
+        {/* Outside the boundary below on purpose — see SceneReadySignal. */}
         <SceneReadySignal onReady={onReady} />
         {/* Camera already configured via Canvas props */}
 
-        {/* Themed Background */}
-        <ThemedBackground />
+        {/* Backstop boundary for the scene's assets. Each loader already owns a
+            nearer `Suspense` + `SceneAssetErrorBoundary` pair (the dice GLBs in
+            `MultiplayerDie`, the HDR map in `ThemedEnvironmentMap`), so this one
+            should never actually catch a suspend. It exists so that if a future
+            child DOES load an asset unguarded, it stalls only the scene content
+            — never the ready signal above it, and never the whole app through
+            `<Canvas>`'s own boundary, which re-throws into the DOM tree. */}
+        <Suspense fallback={null}>
+          {/* Themed Background */}
+          <ThemedBackground />
 
-        {/* Themed Lighting */}
-        <ThemedLighting />
+          {/* Themed Lighting */}
+          <ThemedLighting />
 
-        {/* Room dice: positioned meshes driven by snapshot interpolation. */}
-        <MultiplayerCamera />
-        <MultiplayerArena />
-        <MultiplayerDiceRenderer renderDeviceTier={renderDeviceTier} />
-        <MultiplayerMotionController />
+          {/* Room dice: positioned meshes driven by snapshot interpolation. */}
+          <MultiplayerCamera />
+          <MultiplayerArena />
+          <MultiplayerDiceRenderer renderDeviceTier={renderDeviceTier} />
+          <MultiplayerMotionController />
 
-        {/* Performance monitoring */}
-        <PerformanceOverlay />
+          {/* Performance monitoring */}
+          <PerformanceOverlay />
+        </Suspense>
       </Canvas>
 
       <TableHud

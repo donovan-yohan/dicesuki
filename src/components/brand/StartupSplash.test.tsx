@@ -56,4 +56,41 @@ describe('StartupSplash', () => {
     expect(screen.getByTestId('startup-splash')).toHaveAttribute('data-phase', 'engine')
     expect(screen.queryByRole('button', { name: 'Scene mounted' })).not.toBeInTheDocument()
   })
+
+  it('reports the handover to the host on both edges', () => {
+    vi.useFakeTimers()
+    const onRevealChange = vi.fn()
+
+    const renderGate = (ready: boolean) => (
+      <StartupGate
+        ready={ready}
+        phase="engine"
+        revealDelayMs={220}
+        onRevealChange={onRevealChange}
+      >
+        {(onContentReady) => (
+          <button type="button" onClick={onContentReady}>
+            Scene mounted
+          </button>
+        )}
+      </StartupGate>
+    )
+
+    const { rerender } = render(renderGate(false))
+    expect(onRevealChange).toHaveBeenLastCalledWith(false)
+
+    rerender(renderGate(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Scene mounted' }))
+    // Content is mounted but the completion beat has not elapsed — the splash is
+    // still covering it, so the host must not report a handover yet.
+    expect(onRevealChange).toHaveBeenLastCalledWith(false)
+
+    act(() => vi.advanceTimersByTime(220))
+    expect(onRevealChange).toHaveBeenLastCalledWith(true)
+    expect(screen.queryByTestId('startup-splash')).not.toBeInTheDocument()
+
+    // Losing the room puts the splash back, and the host is told to withdraw it.
+    rerender(renderGate(false))
+    expect(onRevealChange).toHaveBeenLastCalledWith(false)
+  })
 })

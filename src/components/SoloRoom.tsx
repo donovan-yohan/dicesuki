@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Scene from './Scene'
 import { DiceBackendProvider } from '../contexts/DiceBackendProvider'
 import { useMultiplayerDiceBackend } from '../hooks/useMultiplayerDiceBackend'
@@ -43,6 +43,7 @@ export function SoloRoom() {
   const rememberedName = usePlayerIdentityStore((s) => s.displayName)
   const rememberedColor = usePlayerIdentityStore((s) => s.color)
 
+  const [tableRevealed, setTableRevealed] = useState(false)
   const didSeedDefaultRef = useRef(false)
   const backend = useMultiplayerDiceBackend()
   const { addDie } = backend
@@ -143,9 +144,15 @@ export function SoloRoom() {
       data-room-dice-types={Array.from(roomDice.values()).map((die) => die.diceType).sort().join(',')}
       data-room-basic-dice-count={basicDiceCount}
       data-roll-started-sequence={rollStartedSequence}
+      // `true` the moment the startup splash hands the screen to the table — the
+      // room is connected AND the renderer has drawn its first frame. Everything
+      // else about the boot is already a data attribute here; without this one,
+      // "the table is up" is observable only as the splash's absence, which
+      // leaves watchers polling against a guessed budget (issue #210).
+      data-table-revealed={tableRevealed ? 'true' : 'false'}
       style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden' }}
     >
-      <StartupGate ready={roomIsReady} phase={startupPhase}>
+      <StartupGate ready={roomIsReady} phase={startupPhase} onRevealChange={setTableRevealed}>
         {(onContentReady) => (
           <DiceBackendProvider value={backend}>
             <Scene onReady={onContentReady} />

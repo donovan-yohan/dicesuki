@@ -13,7 +13,7 @@ import type { DicePresentationMetadata } from '../../lib/multiplayerMessages'
 import { getBundledCustomDiceAsset } from '../../lib/collectibleCatalog'
 import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
 import type { CustomDiceAsset } from '../../types/customDice'
-import { DiceAssetErrorBoundary } from './DiceAssetErrorBoundary'
+import { SceneAssetErrorBoundary } from '../SceneAssetErrorBoundary'
 
 /**
  * Owner-attribution ring dimensions. A flat torus encircling the die in its
@@ -170,7 +170,7 @@ export function MultiplayerDie({
         onPointerLeave={handlePointerLeave}
       >
         {bundledAsset ? (
-          <DiceAssetErrorBoundary
+          <SceneAssetErrorBoundary
             resetKey={bundledAsset.modelUrl}
             fallback={(
               <ProceduralDieVisual
@@ -195,7 +195,7 @@ export function MultiplayerDie({
                 receiveShadow={lodPolicy.receiveShadow}
               />
             </Suspense>
-          </DiceAssetErrorBoundary>
+          </SceneAssetErrorBoundary>
         ) : (
           <ProceduralDieVisual
             geometry={geometry}
