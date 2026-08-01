@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { type KeyboardEvent, useState } from 'react'
 import { DiceIconWithNumber } from '../../icons/DiceIconWithNumber'
 import type { DiceEntry } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
@@ -6,33 +6,61 @@ import { formatDiceEntry } from '../../../lib/diceHelpers'
 import {
   getDiceEntrySourceQuantity,
   normalizeRollSources,
-  withNormalizedRollSources,
+  resizeRollSources,
 } from '../../../lib/rollSources'
+
+/** Widest count the quantity field accepts; the room cap is 30. */
+const MAX_QUANTITY_DIGITS = 3
 
 interface DiceEntryCardProps {
   entry: DiceEntry
   onUpdate: (entry: DiceEntry) => void
   onRemove: () => void
   inventoryDiceById?: Map<string, InventoryDie>
+  /** True when the roll as a whole exceeds the room dice capacity. */
+  isOverCapacity?: boolean
+  /** Id of the builder's capacity message, for aria-describedby. */
+  capacityMessageId?: string
 }
 
 /**
  * Card showing a single dice entry in the roll builder
  * Allows editing quantity, bonuses, and advanced options
  */
-export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: DiceEntryCardProps) {
+export function DiceEntryCard({
+  entry,
+  onUpdate,
+  onRemove,
+  inventoryDiceById,
+  isOverCapacity = false,
+  capacityMessageId,
+}: DiceEntryCardProps) {
   const [showAdvanced, setShowAdvanced] = useState(false)
-  // While the numeric field is being typed into it owns the displayed text, so
-  // partial input ("" on its way to "12") is not clobbered by the clamp.
+  // The draft owns the displayed text while the field is being typed into, and
+  // is only committed on blur or Enter. Committing per keystroke would make
+  // typing "12" pass through 1, and each pass-through would permanently drop
+  // sources the user never asked to remove.
   const [quantityDraft, setQuantityDraft] = useState<string | null>(null)
+  const [droppedDieNames, setDroppedDieNames] = useState<string[]>([])
 
   // Per-entry floor is 1; the roll-wide ROOM_DICE_CAPACITY ceiling is validated
   // in RollBuilder, which is the only place that can see every entry's total.
   const commitQuantity = (nextQuantity: number) => {
-    onUpdate(withNormalizedRollSources({
+    const target = Math.max(1, Math.floor(nextQuantity))
+    const { sources, droppedDieIds } = resizeRollSources(normalizeRollSources(entry), target)
+
+    setDroppedDieNames(droppedDieIds.map(
+      (dieId) => inventoryDiceById?.get(dieId)?.name ?? 'an owned die',
+    ))
+
+    onUpdate({
       ...entry,
-      quantity: Math.max(1, Math.floor(nextQuantity)),
-    }))
+      quantity: target,
+      // Keep/drop is not editable here; a manual count change resets it so the
+      // entry cannot keep a stale rollCount that outranks the new quantity.
+      rollCount: undefined,
+      sources,
+    })
   }
 
   const handleQuantityChange = (delta: number) => {
@@ -41,23 +69,28 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
   }
 
   const handleQuantityInput = (rawValue: string) => {
-    const digits = rawValue.replace(/[^0-9]/g, '')
-    setQuantityDraft(digits)
+    setQuantityDraft(rawValue.replace(/[^0-9]/g, '').slice(0, MAX_QUANTITY_DIGITS))
+  }
 
-    const parsed = Number.parseInt(digits, 10)
+  /** Commit the draft, or revert to the committed value if it is unusable. */
+  const commitQuantityDraft = () => {
+    if (quantityDraft === null) return
+
+    const parsed = Number.parseInt(quantityDraft, 10)
     if (Number.isInteger(parsed) && parsed >= 1) {
       commitQuantity(parsed)
     }
+    setQuantityDraft(null)
   }
 
-  const handleQuantityBlur = () => {
-    if (quantityDraft !== null) {
-      const parsed = Number.parseInt(quantityDraft, 10)
-      if (!Number.isInteger(parsed) || parsed < 1) {
-        commitQuantity(1)
-      }
+  const handleQuantityKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commitQuantityDraft()
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      setQuantityDraft(null)
     }
-    setQuantityDraft(null)
   }
 
   const handleBonusChange = (bonus: number) => {
@@ -128,17 +161,21 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
+            maxLength={MAX_QUANTITY_DIGITS}
             value={quantityDraft ?? String(quantity)}
             onChange={(event) => handleQuantityInput(event.target.value)}
             onFocus={(event) => event.currentTarget.select()}
-            onBlur={handleQuantityBlur}
+            onBlur={commitQuantityDraft}
+            onKeyDown={handleQuantityKeyDown}
             className="field-focus-ring w-12 h-8 text-center rounded font-semibold"
             style={{
               backgroundColor: 'var(--color-background)',
               color: 'var(--color-text-primary)',
-              border: '1px solid var(--color-border)',
+              border: `1px solid ${isOverCapacity ? 'var(--color-error)' : 'var(--color-border)'}`,
             }}
             aria-label={`${entry.type.toUpperCase()} quantity`}
+            aria-invalid={isOverCapacity ? true : undefined}
+            aria-describedby={isOverCapacity ? capacityMessageId : undefined}
           />
           <button
             onClick={() => handleQuantityChange(1)}
@@ -164,6 +201,22 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
           🗑️
         </button>
       </div>
+
+      {/* Owned dice dropped by a shrink. Not an alert: the edit succeeded, but
+          losing a specific die is destructive enough to have to be named. */}
+      {droppedDieNames.length > 0 && (
+        <p
+          role="status"
+          className="text-xs px-2 py-1 rounded"
+          style={{
+            backgroundColor: 'rgba(249, 135, 151, 0.12)',
+            color: 'var(--color-text-secondary)',
+            border: '1px solid rgba(249, 135, 151, 0.25)',
+          }}
+        >
+          Removed from this roll: {droppedDieNames.join(', ')}
+        </p>
+      )}
 
       {/* Per-die bonus */}
       <div className="flex items-center gap-2">

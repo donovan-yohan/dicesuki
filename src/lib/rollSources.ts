@@ -134,6 +134,68 @@ export function getDiceEntrySourceQuantity(entry: DiceEntry): number {
 }
 
 /**
+ * Resize a source list to an exact dice count.
+ *
+ * Growing appends generic dice. Shrinking removes generic dice first (from the
+ * end) and only then specific owned dice (also from the end), so reducing a
+ * count never discards an owned die while generic ones are still available to
+ * give up. Dropped owned dice are reported back so the UI can name them —
+ * losing a specific die is a destructive edit and must not happen silently.
+ *
+ * This is deliberately separate from `reconcileSourcesToEntryQuantity`, which
+ * repairs already-persisted entries in declaration order; this is the policy
+ * for a deliberate, user-driven quantity change.
+ */
+export function resizeRollSources(
+  sources: RollSource[],
+  targetQuantity: number,
+): { sources: RollSource[]; droppedDieIds: string[] } {
+  const target = clampQuantity(targetQuantity)
+  const total = getTotalSourceQuantity(sources)
+
+  if (target === total) return { sources, droppedDieIds: [] }
+
+  if (target > total) {
+    return {
+      sources: [...sources, createAnonymousRollSource(target - total)],
+      droppedDieIds: [],
+    }
+  }
+
+  let surplus = total - target
+  const next = [...sources]
+  const droppedDieIds: string[] = []
+
+  // 1. Give up generic dice first, from the end.
+  for (let i = next.length - 1; i >= 0 && surplus > 0; i--) {
+    const source = next[i]
+    if (source.kind !== 'anonymous') continue
+
+    const quantity = getRollSourceQuantity(source)
+    const removed = Math.min(quantity, surplus)
+    surplus -= removed
+
+    if (removed === quantity) {
+      next.splice(i, 1)
+    } else {
+      next[i] = createAnonymousRollSource(quantity - removed, source.skinId)
+    }
+  }
+
+  // 2. Only then drop specific owned dice, from the end.
+  for (let i = next.length - 1; i >= 0 && surplus > 0; i--) {
+    const source = next[i]
+    if (source.kind !== 'specific') continue
+
+    droppedDieIds.unshift(source.dieId)
+    next.splice(i, 1)
+    surplus -= 1
+  }
+
+  return { sources: next, droppedDieIds }
+}
+
+/**
  * Total physical dice a roll spawns on the table.
  *
  * Sums every entry's source quantity, which is exactly the number of dice

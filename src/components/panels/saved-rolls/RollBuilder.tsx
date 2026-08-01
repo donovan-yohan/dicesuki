@@ -43,6 +43,7 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
   const nameFieldId = `${fieldPrefix}-name`
   const nameErrorId = `${fieldPrefix}-name-error`
   const descriptionFieldId = `${fieldPrefix}-description`
+  const capacityMessageId = `${fieldPrefix}-capacity`
 
   const inventoryDiceById = useMemo(() => {
     const map = new Map<string, InventoryDie>()
@@ -329,9 +330,17 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
               Your Roll
             </h3>
 
+            {/* Announced once, when the roll crosses the cap. The changing
+                count is deliberately kept out of the live region so typing a
+                quantity does not interrupt a screen reader on every keystroke. */}
+            <p className="sr-only" aria-live="polite">
+              {isOverCapacity ? ROLL_DICE_CAPACITY_MESSAGE : ''}
+            </p>
+
             {capacityError && (
               <p
-                role="alert"
+                id={capacityMessageId}
+                data-testid="roll-capacity-error"
                 className="text-sm px-3 py-2 rounded-lg"
                 style={{
                   backgroundColor: 'rgba(239, 68, 68, 0.14)',
@@ -351,6 +360,8 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
                   onUpdate={(updated) => handleUpdateDice(index, updated)}
                   onRemove={() => handleRemoveDice(index)}
                   inventoryDiceById={inventoryDiceById}
+                  isOverCapacity={isOverCapacity}
+                  capacityMessageId={isOverCapacity ? capacityMessageId : undefined}
                 />
               ))
             ) : (
@@ -460,6 +471,7 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
             <button
               onClick={handleSave}
               disabled={!canSave}
+              aria-describedby={isOverCapacity ? capacityMessageId : undefined}
               className="flex-1 py-3 px-4 rounded-lg font-semibold transition-all disabled:opacity-50"
               style={{
                 backgroundColor: 'var(--color-accent)',

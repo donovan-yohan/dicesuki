@@ -54,7 +54,6 @@
      computed-value time and therefore rendered no border at all. Neutral
      translucent values that read correctly on every theme surface. */
   --color-border: rgba(255, 255, 255, 0.14);
-  --color-border-strong: rgba(255, 255, 255, 0.28);
   --color-error: #ef4444;
 
   --startup-splash-bg: #f3ebe2;

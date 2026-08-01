@@ -188,6 +188,84 @@ describe('SavedRollsPanel room execution', () => {
     expect(useDiceStore.getState().activeSavedRoll).toBeNull()
   })
 
+  it('budgets the capacity against dice clearAll will not remove', async () => {
+    // Arrange — 25 foreign dice stay on the table; clearAll only clears our own,
+    // so only 5 of the room's 30 slots will actually be free.
+    const foreignDice = new Map(
+      Array.from({ length: 25 }, (_, i) => [`foreign-${i}`, roomDie(`foreign-${i}`, 'player-2')] as const),
+    )
+    useMultiplayerStore.setState({
+      dice: new Map([...foreignDice, ['old-die', roomDie('old-die')]]),
+    })
+    useSavedRollsStore.setState({
+      savedRolls: [{
+        ...savedRoll,
+        name: 'Six dice',
+        dice: [{
+          id: 'entry-six',
+          type: 'd6',
+          quantity: 6,
+          perDieBonus: 0,
+          sources: [{ kind: 'anonymous', quantity: 6 }],
+        }],
+      }],
+      currentlyEditing: null,
+    })
+    const clearAll = vi.fn()
+    const roll = vi.fn()
+    const { onClose } = renderPanel({ clearAll, roll })
+
+    // Act — 6 dice fits the 30-die room but not the 5 free slots
+    fireEvent.click(screen.getByRole('button', { name: 'Roll Six dice' }))
+
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "Only 5 of the room's 30 dice are free",
+    )
+    expect(clearAll).not.toHaveBeenCalled()
+    expect(roll).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('still executes a roll that fits the free capacity beside foreign dice', async () => {
+    // Arrange — 24 foreign dice leave 6 free; the roll needs 2
+    const foreignDice = new Map(
+      Array.from({ length: 24 }, (_, i) => [`foreign-${i}`, roomDie(`foreign-${i}`, 'player-2')] as const),
+    )
+    useMultiplayerStore.setState({
+      dice: new Map([...foreignDice, ['old-die', roomDie('old-die')]]),
+    })
+    const clearAll = vi.fn(() => {
+      useMultiplayerStore.setState({ dice: new Map(foreignDice) })
+    })
+    const addDie = vi.fn(() => {
+      useMultiplayerStore.setState((state) => ({
+        dice: new Map([...state.dice, ['spawn-specific', roomDie('spawn-specific')]]),
+      }))
+      return 'spawn-specific'
+    })
+    const addGenericDie = vi.fn(() => {
+      useMultiplayerStore.setState((state) => ({
+        dice: new Map([...state.dice, ['spawn-generic', roomDie('spawn-generic')]]),
+      }))
+      return 'spawn-generic'
+    })
+    const roll = vi.fn(() => {
+      useMultiplayerStore.setState((state) => ({
+        rollStartedSequence: state.rollStartedSequence + 1,
+        lastRollStartedDiceIds: ['spawn-specific', 'spawn-generic'],
+      }))
+    })
+    const { onClose } = renderPanel({ clearAll, addDie, addGenericDie, roll })
+
+    // Act
+    fireEvent.click(screen.getByRole('button', { name: 'Roll Room fireball' }))
+
+    // Assert
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+    expect(roll).toHaveBeenCalledOnce()
+  })
+
   it('refuses an over-capacity legacy roll without clearing the table', async () => {
     // Arrange — a roll saved before the 30-dice cap existed
     useSavedRollsStore.setState({

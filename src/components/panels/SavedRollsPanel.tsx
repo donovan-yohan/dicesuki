@@ -127,19 +127,6 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
     setExecutionError(null)
     setIsExecuting(true)
 
-    // Capacity guard. Rolls saved before the cap existed can exceed it; fail
-    // here with readable copy rather than clearing the table and taking a
-    // server-side DICE_LIMIT rejection mid-spawn.
-    const requestedDiceCount = getRollDiceCount(roll.dice)
-    if (requestedDiceCount > ROOM_DICE_CAPACITY) {
-      setExecutionError(
-        `${ROLL_DICE_CAPACITY_MESSAGE}. "${roll.name}" needs ${requestedDiceCount} — edit it to continue.`,
-      )
-      executingRef.current = false
-      setIsExecuting(false)
-      return
-    }
-
     const room = useMultiplayerStore.getState()
     const ownerId = backend.multiplayer?.localPlayerId ?? room.localPlayerId
     if (!ownerId || room.connectionStatus !== 'connected') {
@@ -152,6 +139,25 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
     const existingOwnedIds = Array.from(room.dice.values())
       .filter((die: MultiplayerDie) => die.ownerId === ownerId)
       .map((die) => die.id)
+
+    // Capacity guard. `clearAll` only removes our own dice, so other players'
+    // dice keep occupying the room — budget against what will actually be free.
+    // Fail here with readable copy rather than clearing the table and taking a
+    // server-side DICE_LIMIT rejection mid-spawn.
+    const foreignDiceCount = room.dice.size - existingOwnedIds.length
+    const availableCapacity = Math.max(0, ROOM_DICE_CAPACITY - foreignDiceCount)
+    const requestedDiceCount = getRollDiceCount(roll.dice)
+    if (requestedDiceCount > availableCapacity) {
+      setExecutionError(
+        foreignDiceCount > 0
+          ? `Only ${availableCapacity} of the room's ${ROOM_DICE_CAPACITY} dice are free — "${roll.name}" needs ${requestedDiceCount}.`
+          : `${ROLL_DICE_CAPACITY_MESSAGE}. "${roll.name}" needs ${requestedDiceCount} — edit it to continue.`,
+      )
+      executingRef.current = false
+      setIsExecuting(false)
+      return
+    }
+
     const requested: Array<{ id: string; bonus: number }> = []
 
     try {
