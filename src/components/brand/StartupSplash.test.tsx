@@ -93,4 +93,41 @@ describe('StartupSplash', () => {
     rerender(renderGate(false))
     expect(onRevealChange).toHaveBeenLastCalledWith(false)
   })
+
+  it('reports edges only, not every render, even with an inline callback', () => {
+    vi.useFakeTimers()
+    const onRevealChange = vi.fn()
+
+    // An inline lambda is a new identity on every render — the usual way a host
+    // writes this — so the gate must dedupe on the value, not the callback.
+    const renderGate = () => (
+      <StartupGate
+        ready
+        phase="engine"
+        revealDelayMs={220}
+        onRevealChange={(revealed) => onRevealChange(revealed)}
+      >
+        {(onContentReady) => (
+          <button type="button" onClick={onContentReady}>
+            Scene mounted
+          </button>
+        )}
+      </StartupGate>
+    )
+
+    const { rerender } = render(renderGate())
+    rerender(renderGate())
+    rerender(renderGate())
+    expect(onRevealChange).toHaveBeenCalledTimes(1)
+    expect(onRevealChange).toHaveBeenCalledWith(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Scene mounted' }))
+    act(() => vi.advanceTimersByTime(220))
+    expect(onRevealChange).toHaveBeenCalledTimes(2)
+    expect(onRevealChange).toHaveBeenLastCalledWith(true)
+
+    rerender(renderGate())
+    rerender(renderGate())
+    expect(onRevealChange).toHaveBeenCalledTimes(2)
+  })
 })

@@ -309,9 +309,17 @@ function ThemedLighting() {
  * - {@link SceneAssetErrorBoundary}, because a *rejected* request re-throws out
  *   of the Canvas into the DOM tree, where nothing catches it and the app blanks.
  *
- * Both fallbacks are `null`: the table is already lit by `ThemedLighting`'s own
- * ambient/directional/point lights, so losing the HDR costs some reflection
- * richness and nothing else. Decorative, never load-bearing.
+ * Both fallbacks are `null`, which is a real but survivable downgrade rather
+ * than a no-op: without the map the table is lit only by `ThemedLighting`'s
+ * ambient/directional/point lights, and metallic dice lose roughly 30-38% of
+ * their body brightness because most of a metal's diffuse response comes from
+ * the environment. Hue, speculars and numeral contrast all survive, so the
+ * table stays readable and playable — which is the trade we want against a
+ * splash that never leaves.
+ *
+ * `resetKey` is constant on purpose. The preset never changes, and re-mounting
+ * a CDN request that just failed on every re-render would be worse than the
+ * dimmer lighting; the map is retried on the next page load.
  */
 function ThemedEnvironmentMap() {
   return (

@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import { Suspense } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { SceneAssetErrorBoundary } from './SceneAssetErrorBoundary'
 
@@ -22,6 +23,20 @@ describe('SceneAssetErrorBoundary', () => {
     } finally {
       consoleError.mockRestore()
     }
+  })
+
+  it('is transparent on the happy path — the asset renders, no fallback does', () => {
+    render(
+      <SceneAssetErrorBoundary resetKey="night" fallback={<div>degraded lighting</div>}>
+        <Suspense fallback={<div>still loading</div>}>
+          <div>hdr environment</div>
+        </Suspense>
+      </SceneAssetErrorBoundary>,
+    )
+
+    expect(screen.getByText('hdr environment')).toBeInTheDocument()
+    expect(screen.queryByText('degraded lighting')).not.toBeInTheDocument()
+    expect(screen.queryByText('still loading')).not.toBeInTheDocument()
   })
 
   it('renders nothing when a decorative asset rejects and the fallback is null', () => {

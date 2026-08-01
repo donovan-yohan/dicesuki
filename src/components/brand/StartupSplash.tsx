@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 export type StartupPhase =
   | 'boot'
@@ -108,7 +108,14 @@ export function StartupGate({
     return () => window.clearTimeout(timeout)
   }, [contentReady, ready, revealDelayMs])
 
+  // Report only real edges. Hosts pass an inline lambda more often than not, so
+  // a plain `[revealed, onRevealChange]` effect re-fires the same value on every
+  // parent render — and a host that turns the report into state would then feed
+  // its own render loop.
+  const lastReportedRef = useRef<boolean | null>(null)
   useEffect(() => {
+    if (lastReportedRef.current === revealed) return
+    lastReportedRef.current = revealed
     onRevealChange?.(revealed)
   }, [revealed, onRevealChange])
 

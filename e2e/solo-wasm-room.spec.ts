@@ -133,8 +133,10 @@ for (const mode of ['never arrives', 'fails outright'] as const) {
     const room = page.getByTestId('solo-room')
     await expect(room).toHaveAttribute('data-connection-status', 'connected', { timeout: 30_000 })
 
-    // The table renders and the splash leaves on the first painted frame — the
-    // environment map is decorative and must never gate either one.
+    // The table renders and the splash leaves on the first painted frame. The
+    // map is decorative and must never gate either one — losing it dims
+    // metallic dice by roughly a third and changes nothing else, which is a
+    // table you can still play on.
     await expect(room).toHaveAttribute('data-table-revealed', 'true', { timeout: 30_000 })
     await expect(page.getByTestId('startup-splash')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Roll dice' })).toBeVisible()
