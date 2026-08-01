@@ -27,33 +27,17 @@ import {
 const COMPONENTS_DIR = join(process.cwd(), 'src', 'components')
 
 /**
- * Files whose accent labels are known-wrong but are owned by concurrent work
- * (the My Dice Rolls builder rework). Each entry must still be violating —
- * `remains accurate` below fails once a file is fixed, forcing the entry out
- * so the allowlist cannot rot into a permanent exemption.
+ * Files whose accent labels are known-wrong but are owned by concurrent work.
+ * Each entry must still be violating — `remains accurate` below fails once a
+ * file is fixed, forcing the entry out so the allowlist cannot rot into a
+ * permanent exemption.
+ *
+ * EMPTY as of the composition-UX slice: the four saved-rolls builder files that
+ * were deferred here (SavedRollsPanel, RollBuilder, SavedRollCard, DicePool)
+ * now label their accent fills with `onAccent`, so the guard covers every
+ * component. Keep it empty — an addition needs a named concurrent owner.
  */
-const DEFERRED: ReadonlyArray<{ file: string; reason: string }> = [
-  {
-    file: 'panels/SavedRollsPanel.tsx',
-    reason:
-      'saved-rolls builder rework (concurrent owner) — 3 sites: the "All" and per-tag filter ' +
-      'chips (:302, :318) and the Create New Roll CTA (:337) all label an accent fill #ffffff',
-  },
-  {
-    file: 'panels/saved-rolls/RollBuilder.tsx',
-    reason:
-      'saved-rolls builder rework (concurrent owner) — 3 sites: dice-type filter chip (:273) ' +
-      'and the two save CTAs (:437, :476)',
-  },
-  {
-    file: 'panels/saved-rolls/SavedRollCard.tsx',
-    reason: 'saved-rolls builder rework (concurrent owner) — 1 site: Roll CTA (:129)',
-  },
-  {
-    file: 'panels/saved-rolls/DicePool.tsx',
-    reason: 'saved-rolls builder rework (concurrent owner) — 1 site: quantity chip (:41)',
-  },
-]
+const DEFERRED: ReadonlyArray<{ file: string; reason: string }> = []
 
 function walk(dir: string): string[] {
   const out: string[] = []
@@ -92,19 +76,23 @@ describe('accent-filled controls label themselves with onAccent', () => {
     ).toEqual([])
   })
 
-  describe('deferred allowlist remains accurate', () => {
-    it.each(DEFERRED.map((d) => [d.file, d.reason] as const))(
-      '%s still violates (remove the entry once fixed)',
-      (rel) => {
-        const file = FILES.find((f) => f.rel === rel)
-        expect(file, `deferred file ${rel} no longer exists — drop the allowlist entry`).toBeDefined()
-        const violations = scanAccentLabels(rel, file!.source)
-        expect(
-          violations.length,
-          `${rel} no longer violates — delete its entry from DEFERRED so the guard covers it`,
-        ).toBeGreaterThan(0)
-      },
-    )
+  // Collected rather than run as `it.each`, which cannot express "no entries":
+  // the allowlist is now empty and must stay cheap to empty again.
+  it('every deferred file still exists and still violates', () => {
+    const stale = DEFERRED.flatMap(({ file: rel }) => {
+      const file = FILES.find((f) => f.rel === rel)
+      if (!file) return [`${rel}: deferred file no longer exists — drop the allowlist entry`]
+      if (scanAccentLabels(rel, file.source).length === 0) {
+        return [`${rel}: no longer violates — delete its entry from DEFERRED so the guard covers it`]
+      }
+      return []
+    })
+
+    expect(
+      stale,
+      '\nThe deferred allowlist has rotted into a permanent exemption:\n' +
+        stale.map((s) => `  - ${s}`).join('\n') + '\n',
+    ).toEqual([])
   })
 })
 

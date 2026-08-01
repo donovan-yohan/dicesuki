@@ -130,7 +130,7 @@ export function SavedRollCard({
           className="flex-1 py-2 px-4 rounded-lg font-semibold transition-all"
           style={{
             backgroundColor: 'var(--color-accent)',
-            color: '#ffffff',
+            color: 'var(--color-on-accent)',
           }}
         >
           🎲 Roll

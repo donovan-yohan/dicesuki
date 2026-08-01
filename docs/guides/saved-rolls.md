@@ -94,6 +94,23 @@ A plan groups room dice into **chains** whose faces sum into one logical die res
 ### Notation
 `formatDiceEntry` appends in a fixed order: exploding binds to the die (`4d6!`, `4d6!5`), then ` kh2`/` kl2`, ` r≤2`, ` ≥5`, ` [2 specific]`. Min/max clamps are a badge, not notation. `calculateDiceEntryRange` returns `{ min, max, open? }`; `open` marks an exploding entry, rendered as `Range: 4 - 12+`.
 
+### Composing an entry: pinned vs auto slots (`RollDicePicker.tsx`)
+The builder assembles the **roll**; which physical dice fill it is decided per entry in a dialog opened from the entry card (the die preview / formula / source chips are one `aria-haspopup="dialog"` button). There is no standing grid of owned dice in the builder, and no inventory drop zone — PO decision (g), 2026-07-28.
+
+An entry of N dice has **N slots**, one per die (`expandDiceEntrySources`). Each slot is either:
+- **pinned** — a `specific` source naming one `InventoryDie` by id, or
+- **auto** — an `anonymous` source, filled owned-first at execution and falling back to a basic die once the player's dice of that type run out (`spawnEntry`).
+
+`pinDieToEntry` / `unpinDieFromEntry` move a slot between the two and **never change N**. That is the load-bearing invariant: the room-capacity validation (`getRollDiceCount`) and the executor's spawn loop both key off the dice count, so the picker cannot move it underneath them. With every slot pinned the remaining tiles go `disabled` rather than growing the entry. `collapseRollSources` merges adjacent auto slots back into one group afterwards, so pinning does not persist a row of "1 generic" sources.
+
+One inventory die is one physical die, so a die pinned by another entry of the same roll is shown disabled ("In another entry") rather than hidden — `spawnDice` marks it pending on send, and a second claim would silently spawn a basic.
+
+**Percentile entries are pickable.** The tens half is always a plain engine die (nobody can own a `d10tens`), but the ONES half is an ordinary owned d10 and carries the entry's source, so pinning applies to it; the dialog says so inline.
+
+Tiles reuse the inventory's presentation — the real animated 3D previews — through a **single** `SharedInventoryDicePreviewCanvas` scissored across the grid. Do not mount a canvas per tile; a large collection would exhaust the browser's WebGL contexts.
+
+The dialog is `fixed inset-0 z-[70]`, the same band as `HeroDieInspector`, so it sits above the `z-50` sheet that hosts it. It handles Escape and Tab itself and stops both, and `BottomSheet` independently yields while any nested `[role="dialog"][aria-modal="true"]` is mounted — without that, one Escape would dismiss two dialogs. Backdrop dismissal requires the press *and* the release on the backdrop, because pinning re-renders the grid and a click can otherwise land on the backdrop after the tile under the cursor is replaced.
+
 ### Percentile (d100) entries
 A d100 is a `d10tens` + `d10` PAIR combined into one 1-100 result, which changes what the mechanics can mean:
 

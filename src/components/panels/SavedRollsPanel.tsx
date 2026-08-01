@@ -214,7 +214,7 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
                     ? 'var(--color-accent)'
                     : 'rgba(255, 255, 255, 0.1)',
                   color: selectedTag === null
-                    ? '#ffffff'
+                    ? 'var(--color-on-accent)'
                     : 'var(--color-text-secondary)',
                 }}
               >
@@ -230,7 +230,7 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
                       ? 'var(--color-accent)'
                       : 'rgba(255, 255, 255, 0.1)',
                     color: selectedTag === tag
-                      ? '#ffffff'
+                      ? 'var(--color-on-accent)'
                       : 'var(--color-text-secondary)',
                   }}
                 >
@@ -246,7 +246,7 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
             className="w-full py-3 px-4 rounded-lg font-semibold mb-4 transition-all"
             style={{
               backgroundColor: 'var(--color-accent)',
-              color: '#ffffff',
+              color: 'var(--color-on-accent)',
             }}
           >
             ✨ Create New Roll

@@ -2,14 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { formatSavedRoll } from './diceHelpers'
 import { rollDiceEntry } from './rollEngine'
 import {
+  collapseRollSources,
   createAnonymousRollSource,
   createSpecificDieRollSource,
   expandDiceEntrySources,
   getDiceEntrySourceQuantity,
+  getEntrySlotSummary,
   getSpecificDieIds,
   getRollDiceCount,
   normalizeSavedRollSources,
+  pinDieToEntry,
   resizeRollSources,
+  unpinDieFromEntry,
   withNormalizedRollSources,
   withRollSources,
 } from './rollSources'
@@ -379,5 +383,138 @@ describe('getRollDiceCount', () => {
     // Act / Assert — padded back up to the rolled count
     expect(getRollDiceCount([entry])).toBe(3)
     expect(expandDiceEntrySources(entry)).toHaveLength(3)
+  })
+})
+
+/**
+ * Pinning is the picker's whole vocabulary (`RollDicePicker.tsx`). Its
+ * load-bearing invariant is that it moves dice between "pinned" and "auto"
+ * WITHOUT changing how many dice the entry rolls — the builder's room-capacity
+ * validation and the executor's spawn loop both key off that count.
+ */
+describe('pinning owned dice into an entry', () => {
+  const entryOf = (sources: Parameters<typeof withRollSources>[1]): DiceEntry =>
+    withRollSources({ id: 'e1', type: 'd20', quantity: 1, perDieBonus: 0 }, sources)
+
+  it('replaces the first auto slot and keeps the dice count', () => {
+    const entry = entryOf([createAnonymousRollSource(4)])
+
+    const pinned = pinDieToEntry(entry, 'die-a')
+
+    expect(getSpecificDieIds(pinned)).toEqual(['die-a'])
+    expect(getRollDiceCount([pinned])).toBe(4)
+    expect(pinned.sources).toEqual([
+      createSpecificDieRollSource('die-a'),
+      createAnonymousRollSource(3),
+    ])
+  })
+
+  it('keeps pins in the order they were made', () => {
+    const entry = entryOf([createAnonymousRollSource(4)])
+
+    const pinned = pinDieToEntry(pinDieToEntry(entry, 'die-a'), 'die-b')
+
+    expect(getSpecificDieIds(pinned)).toEqual(['die-a', 'die-b'])
+    expect(pinned.sources).toEqual([
+      createSpecificDieRollSource('die-a'),
+      createSpecificDieRollSource('die-b'),
+      createAnonymousRollSource(2),
+    ])
+  })
+
+  it('refuses to pin the same die twice', () => {
+    const entry = pinDieToEntry(entryOf([createAnonymousRollSource(4)]), 'die-a')
+
+    expect(pinDieToEntry(entry, 'die-a')).toBe(entry)
+  })
+
+  it('refuses to pin when every slot is already pinned, rather than growing', () => {
+    const entry = entryOf([createSpecificDieRollSource('die-a')])
+
+    const unchanged = pinDieToEntry(entry, 'die-b')
+
+    expect(unchanged).toBe(entry)
+    expect(getRollDiceCount([entry])).toBe(1)
+  })
+
+  it('returns a released slot to plain auto fill, merged with its neighbours', () => {
+    const entry = pinDieToEntry(entryOf([createAnonymousRollSource(4)]), 'die-a')
+
+    const released = unpinDieFromEntry(entry, 'die-a')
+
+    expect(getSpecificDieIds(released)).toEqual([])
+    expect(getRollDiceCount([released])).toBe(4)
+    // Merged back to ONE group, not "1 generic" + "3 generic".
+    expect(released.sources).toEqual([createAnonymousRollSource(4)])
+  })
+
+  it('ignores an unpin for a die the entry never pinned', () => {
+    const entry = entryOf([createAnonymousRollSource(2)])
+
+    expect(unpinDieFromEntry(entry, 'die-z')).toBe(entry)
+  })
+
+  it('preserves a keep/drop policy across a pin', () => {
+    const entry = withRollSources(
+      { id: 'e1', type: 'd20', quantity: 1, perDieBonus: 0, rollCount: 2, keepMode: 'highest' },
+      [createAnonymousRollSource(2)],
+    )
+
+    const pinned = pinDieToEntry(entry, 'die-a')
+
+    expect(pinned.rollCount).toBe(2)
+    expect(pinned.quantity).toBe(1)
+    expect(pinned.keepMode).toBe('highest')
+    expect(getRollDiceCount([pinned])).toBe(2)
+  })
+
+  it('pins the ONES half of a percentile entry without touching the pair count', () => {
+    const entry = withRollSources(
+      { id: 'e1', type: 'd10', quantity: 2, perDieBonus: 0, percentile: true },
+      [createAnonymousRollSource(2)],
+    )
+
+    const pinned = pinDieToEntry(entry, 'die-a')
+
+    expect(getSpecificDieIds(pinned)).toEqual(['die-a'])
+    // Two d100s are FOUR physical dice — a tens die plus a ones die each.
+    expect(getRollDiceCount([pinned])).toBe(4)
+    const tensSpawns = expandDiceEntrySources(pinned)
+    expect(tensSpawns).toHaveLength(2)
+  })
+
+  it('summarises an entry as pinned plus auto', () => {
+    const entry = pinDieToEntry(entryOf([createAnonymousRollSource(3)]), 'die-a')
+
+    expect(getEntrySlotSummary(entry)).toEqual({ total: 3, pinned: 1, auto: 2 })
+  })
+})
+
+describe('collapseRollSources', () => {
+  it('merges adjacent plain groups but not ones split by a pin', () => {
+    expect(collapseRollSources([
+      createAnonymousRollSource(1),
+      createAnonymousRollSource(1),
+      createSpecificDieRollSource('die-a'),
+      createAnonymousRollSource(1),
+    ])).toEqual([
+      createAnonymousRollSource(2),
+      createSpecificDieRollSource('die-a'),
+      createAnonymousRollSource(1),
+    ])
+  })
+
+  it('keeps differently skinned groups apart', () => {
+    expect(collapseRollSources([
+      createAnonymousRollSource(1, 'skin-a'),
+      createAnonymousRollSource(1, 'skin-b'),
+    ])).toEqual([
+      createAnonymousRollSource(1, 'skin-a'),
+      createAnonymousRollSource(1, 'skin-b'),
+    ])
+  })
+
+  it('is a no-op on an empty list', () => {
+    expect(collapseRollSources([])).toEqual([])
   })
 })

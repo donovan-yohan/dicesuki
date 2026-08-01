@@ -63,6 +63,12 @@ export function BottomSheet({
     const animationFrame = window.requestAnimationFrame(focusFirst)
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // A nested modal owns focus and Escape while it is open, so the sheet
+      // yields both rather than closing out from under it and pulling focus
+      // back behind it. Same rule ShopPanel already applies to its own nested
+      // modals; without it one Escape dismisses two dialogs at once.
+      if (sheet?.querySelector('[role="dialog"][aria-modal="true"]')) return
+
       if (event.key === 'Escape') {
         event.preventDefault()
         onCloseRef.current()

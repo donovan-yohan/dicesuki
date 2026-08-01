@@ -52,7 +52,8 @@
     "test:runtime-dice-assets": "node --test scripts/runtime-dice-assets/runtime-dice-assets.node-test.mjs",
     "generate-dice-manifest": "node scripts/generate-dice-manifest.js --write",
     "check:dice-manifest": "node scripts/generate-dice-manifest.js --check",
-    "test:e2e:basic-dice": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18186} playwright test e2e/basic-dice.spec.ts"
+    "test:e2e:basic-dice": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18186} playwright test e2e/basic-dice.spec.ts",
+    "test:e2e:roll-picker": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18187} playwright test e2e/roll-picker.spec.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1,27 +1,28 @@
-import { type DragEvent, useId, useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { nanoid } from 'nanoid'
 import { DicePool } from './DicePool'
 import { DiceEntryCard } from './DiceEntryCard'
+import { RollDicePicker } from './RollDicePicker'
 import { useInventoryStore } from '../../../store/useInventoryStore'
 import {
   calculateSavedRollRange,
+  formatDiceEntry,
   formatSavedRoll,
   isSuccessCountingRoll,
 } from '../../../lib/diceHelpers'
-import { parseInventoryDieDragPayload } from '../../../lib/inventoryDrag'
 import { ROLL_DICE_CAPACITY_MESSAGE, ROOM_DICE_CAPACITY } from '../../../config/roomCapacity'
 import { PERCENTILE_ONES_SHAPE } from '../../../lib/percentileRolls'
 import {
   createAnonymousRollSource,
   createSpecificDieRollSource,
   getRollDiceCount,
+  getSpecificDieIds,
   withNormalizedRollSources,
   withRollSources,
 } from '../../../lib/rollSources'
 import type { DiceEntry, SavedRoll } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
 import type { DiceShape } from '../../../lib/geometries'
-import { INVENTORY_DICE_SHAPES } from '../../../types/diceShape'
 import type { TableDieSummary } from '../../../types/tableDice'
 
 interface RollBuilderProps {
@@ -41,8 +42,10 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
   const [dice, setDice] = useState<DiceEntry[]>(initialRoll?.dice || [])
   const [flatBonus, setFlatBonus] = useState(initialRoll?.flatBonus || 0)
   const [nameTouched, setNameTouched] = useState(false)
-  const [ownedDiceFilter, setOwnedDiceFilter] = useState<DiceShape | 'all'>('all')
-  const [isDropActive, setIsDropActive] = useState(false)
+  // Which entry the dice picker is open for, by entry id. Held here rather than
+  // inside the card so the dialog is a sibling of the whole builder — a card
+  // deep in the scrolling list is a poor host for a full-screen overlay.
+  const [pickerEntryId, setPickerEntryId] = useState<string | null>(null)
   const ownedDice = useInventoryStore((state) => state.dice)
 
   const fieldPrefix = useId()
@@ -59,16 +62,6 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
     }
     return map
   }, [ownedDice])
-
-  const visibleOwnedDice = useMemo(() => {
-    return [...ownedDice]
-      .filter((die) => ownedDiceFilter === 'all' || die.type === ownedDiceFilter)
-      .sort((a, b) => {
-        if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
-        return (b.lastRolledAt ?? b.acquiredAt) - (a.lastRolledAt ?? a.acquiredAt)
-      })
-      .slice(0, 12)
-  }, [ownedDice, ownedDiceFilter])
 
   const handleAddDice = (type: DiceShape, quantity = 1) => {
     const newEntry: DiceEntry = withRollSources({
@@ -94,23 +87,6 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
     setDice([...dice, newEntry])
   }
 
-  const handleAddSpecificDie = (die: InventoryDie) => {
-    const newEntry: DiceEntry = withRollSources({
-      id: nanoid(),
-      type: die.type,
-      quantity: 1,
-      perDieBonus: 0,
-    }, [createSpecificDieRollSource(die.id)])
-    setDice([...dice, newEntry])
-  }
-
-  const handleAddSpecificDieById = (dieId: string) => {
-    const die = inventoryDiceById.get(dieId)
-    if (die) {
-      handleAddSpecificDie(die)
-    }
-  }
-
   const handleAddTableDice = () => {
     const tableEntries = createEntriesFromTableDice(tableDice, inventoryDiceById)
     if (tableEntries.length === 0) return
@@ -125,17 +101,24 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
 
   const handleRemoveDice = (index: number) => {
     setDice(dice.filter((_, i) => i !== index))
+    setPickerEntryId((openId) => (openId === dice[index]?.id ? null : openId))
   }
 
-  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    setIsDropActive(false)
+  const pickerEntryIndex = pickerEntryId === null
+    ? -1
+    : dice.findIndex((entry) => entry.id === pickerEntryId)
+  const pickerEntry = pickerEntryIndex === -1 ? null : dice[pickerEntryIndex]
 
-    const payload = parseInventoryDieDragPayload(event.dataTransfer)
-    if (!payload) return
-
-    handleAddSpecificDieById(payload.inventoryDieId)
-  }
+  // One inventory die is one physical die, so the picker must know which dice
+  // the roll's OTHER entries have already claimed.
+  const pinnedElsewhere = useMemo(() => {
+    if (!pickerEntry) return new Set<string>()
+    return new Set(
+      dice
+        .filter((entry) => entry.id !== pickerEntry.id)
+        .flatMap(getSpecificDieIds),
+    )
+  }, [dice, pickerEntry])
 
   const previewRoll: SavedRoll = {
     id: initialRoll?.id ?? 'preview',
@@ -151,7 +134,6 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
 
   const preview = calculateSavedRollRange(previewRoll)
   const formula = formatSavedRoll(previewRoll)
-  const diceTypes: Array<DiceShape | 'all'> = ['all', ...INVENTORY_DICE_SHAPES]
 
   // Validation. The roll-wide dice total is what the room actually spawns, so it
   // is the value bounded by ROOM_DICE_CAPACITY (per-entry counts are unbounded).
@@ -259,24 +241,13 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
           {/* Dice Pool */}
           <DicePool onDiceSelect={handleAddDice} onPercentileSelect={handleAddPercentile} />
 
-          {/* Owned Dice */}
-          <div
-            className="flex flex-col gap-3 p-3 rounded-lg"
-            style={{
-              backgroundColor: 'var(--color-surface)',
-              border: isDropActive ? '2px solid var(--color-accent)' : '2px solid var(--color-border)',
-            }}
-            onDragOver={(event) => {
-              event.preventDefault()
-              setIsDropActive(true)
-            }}
-            onDragLeave={() => setIsDropActive(false)}
-            onDrop={handleDrop}
-            data-testid="roll-builder-owned-drop-zone"
-          >
+          {/* Added Dice. Which physical dice fill an entry is decided in the
+              per-entry picker, not from a standing grid of owned dice — the
+              builder assembles the roll, the picker casts it (PO (g)). */}
+          <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                Owned Dice
+                Your Roll
               </h3>
               {tableDice.length > 0 && (
                 <button
@@ -293,73 +264,6 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
                 </button>
               )}
             </div>
-
-            <div className="flex gap-1 overflow-x-auto pb-1" aria-label="Owned dice type filters">
-              {diceTypes.map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setOwnedDiceFilter(type)}
-                  className="h-8 px-3 rounded-full text-xs font-semibold whitespace-nowrap"
-                  style={{
-                    backgroundColor: ownedDiceFilter === type
-                      ? 'var(--color-accent)'
-                      : 'rgba(255, 255, 255, 0.08)',
-                    color: ownedDiceFilter === type ? '#ffffff' : 'var(--color-text-secondary)',
-                    border: ownedDiceFilter === type ? 'none' : '1px solid var(--color-border)',
-                  }}
-                  aria-pressed={ownedDiceFilter === type}
-                >
-                  {type === 'all' ? 'All' : type.toUpperCase()}
-                </button>
-              ))}
-            </div>
-
-            {visibleOwnedDice.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {visibleOwnedDice.map((die) => (
-                  <button
-                    key={die.id}
-                    type="button"
-                    onClick={() => handleAddSpecificDie(die)}
-                    className="min-h-14 rounded p-2 text-left transition-all hover:scale-[1.01]"
-                    style={{
-                      backgroundColor: 'var(--color-background)',
-                      color: 'var(--color-text-primary)',
-                      border: '1px solid var(--color-border)',
-                    }}
-                    aria-label={`Add ${die.name} to roll`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-sm truncate">{die.name}</span>
-                      <span
-                        className="text-[11px] px-2 py-0.5 rounded-full uppercase"
-                        style={{
-                          backgroundColor: 'rgba(249, 135, 151, 0.16)',
-                          color: 'var(--color-accent)',
-                        }}
-                      >
-                        {die.type}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs capitalize truncate" style={{ color: 'var(--color-text-muted)' }}>
-                      {die.rarity} · {die.setId}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                No owned dice match this filter.
-              </div>
-            )}
-          </div>
-
-          {/* Added Dice */}
-          <div className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              Your Roll
-            </h3>
 
             {/* Announced once, when the roll crosses the cap. The changing
                 count is deliberately kept out of the live region so typing a
@@ -406,6 +310,7 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
                   onUpdate={(updated) => handleUpdateDice(index, updated)}
                   onRemove={() => handleRemoveDice(index)}
                   inventoryDiceById={inventoryDiceById}
+                  onOpenPicker={() => setPickerEntryId(entry.id)}
                   isOverCapacity={isOverCapacity}
                   capacityMessageId={isOverCapacity ? capacityMessageId : undefined}
                   isSuccessModeMixed={isSuccessModeMixed}
@@ -484,7 +389,7 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
               className="flex flex-col gap-2 p-4 rounded-lg"
               style={{
                 backgroundColor: 'var(--color-accent)',
-                color: 'white',
+                color: 'var(--color-on-accent)',
               }}
             >
               <div className="text-sm font-semibold opacity-90">Preview</div>
@@ -530,7 +435,7 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
               className="flex-1 py-3 px-4 rounded-lg font-semibold transition-all disabled:opacity-50"
               style={{
                 backgroundColor: 'var(--color-accent)',
-                color: 'white',
+                color: 'var(--color-on-accent)',
               }}
             >
               {initialRoll ? 'Update' : 'Save'} Roll
@@ -538,6 +443,17 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
           </div>
         </div>
       </div>
+
+      {pickerEntry && (
+        <RollDicePicker
+          entry={pickerEntry}
+          entryLabel={formatDiceEntry(pickerEntry)}
+          ownedDice={ownedDice}
+          pinnedElsewhere={pinnedElsewhere}
+          onChange={(updated) => handleUpdateDice(pickerEntryIndex, updated)}
+          onClose={() => setPickerEntryId(null)}
+        />
+      )}
     </div>
   )
 }

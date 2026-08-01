@@ -1,6 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload } from '../../../lib/inventoryDrag'
 import {
   createAnonymousRollSource,
   createSpecificDieRollSource,
@@ -37,12 +36,18 @@ function addNamedDie(name: string, type: DiceShape) {
   return useInventoryStore.getState().addDie(makeDie({ name, type }))
 }
 
-function makeDataTransfer(payload: string) {
-  return {
-    dropEffect: 'none',
-    getData: vi.fn((type: string) => type === INVENTORY_DIE_DRAG_TYPE ? payload : ''),
-    setData: vi.fn(),
-  } as unknown as DataTransfer
+/**
+ * Open an entry's dice picker, pin an owned die into a free slot, and close it.
+ *
+ * This is the ONLY way to attach a specific owned die to a roll now that the
+ * standing "Owned Dice" grid and its drop zone are gone (PO (g)).
+ */
+function pinOwnedDie(dieName: string, entryIndex = -1) {
+  const triggers = screen.getAllByTestId('dice-entry-picker-trigger')
+  fireEvent.click(triggers.at(entryIndex)!)
+  const picker = screen.getByTestId('roll-dice-picker')
+  fireEvent.click(within(picker).getByRole('button', { name: `Pin ${dieName}` }))
+  fireEvent.click(within(picker).getByRole('button', { name: 'Done' }))
 }
 
 /** Type into the quantity field and commit it the way a user would. */
@@ -91,7 +96,8 @@ describe('RollBuilder', () => {
       target: { value: 'Fireball plus lucky strike' },
     })
     fireEvent.click(screen.getByRole('button', { name: /add 4 d6 dice/i }))
-    fireEvent.click(screen.getByRole('button', { name: /add lucky d20 to roll/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d20 die/i }))
+    pinOwnedDie('Lucky D20')
 
     expect(screen.getByText('4d6 + 1d20 [1 specific]')).toBeInTheDocument()
     expect(screen.getAllByText('Lucky D20').length).toBeGreaterThan(0)
@@ -105,17 +111,12 @@ describe('RollBuilder', () => {
     expect(getSpecificDieIds(saved.dice[1])).toEqual([die.id])
   })
 
-  it('accepts an inventory die dropped onto the owned dice builder zone', () => {
+  it('pins an owned die into an entry through the dice picker', () => {
     const die = addNamedDie('Jade D8', 'd8')
     const { onSave } = renderBuilder()
 
-    fireEvent.drop(screen.getByTestId('roll-builder-owned-drop-zone'), {
-      dataTransfer: makeDataTransfer(serializeInventoryDieDragPayload({
-        inventoryDieId: die.id,
-        type: 'd8',
-        name: 'Jade D8',
-      })),
-    })
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d8 die/i }))
+    pinOwnedDie('Jade D8')
     fireEvent.change(screen.getByLabelText(/roll name/i), {
       target: { value: 'Jade opener' },
     })
@@ -125,6 +126,122 @@ describe('RollBuilder', () => {
     expect(saved.dice).toHaveLength(1)
     expect(saved.dice[0].type).toBe('d8')
     expect(getSpecificDieIds(saved.dice[0])).toEqual([die.id])
+  })
+
+  it('offers only the entry\'s own die type in the picker', () => {
+    addNamedDie('Jade D8', 'd8')
+    addNamedDie('Lucky D20', 'd20')
+    renderBuilder()
+
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d8 die/i }))
+    fireEvent.click(screen.getByTestId('dice-entry-picker-trigger'))
+
+    const picker = screen.getByTestId('roll-dice-picker')
+    expect(within(picker).getByRole('button', { name: 'Pin Jade D8' })).toBeInTheDocument()
+    expect(within(picker).queryByRole('button', { name: 'Pin Lucky D20' })).not.toBeInTheDocument()
+  })
+
+  it('releases a pinned die back to auto fill without changing the dice count', () => {
+    const die = addNamedDie('Lucky D20', 'd20')
+    const { onSave } = renderBuilder()
+
+    fireEvent.click(screen.getByRole('button', { name: /add 4 d20 dice/i }))
+    pinOwnedDie('Lucky D20')
+    // The entry card and the summary preview both read it back.
+    expect(screen.getAllByText('4d20 [1 specific]')).toHaveLength(2)
+
+    // Unpin through the same tile, which now reads as the release affordance.
+    fireEvent.click(screen.getByTestId('dice-entry-picker-trigger'))
+    const picker = screen.getByTestId('roll-dice-picker')
+    fireEvent.click(within(picker).getByRole('button', { name: 'Unpin Lucky D20' }))
+    fireEvent.click(within(picker).getByRole('button', { name: 'Done' }))
+
+    fireEvent.change(screen.getByLabelText(/roll name/i), { target: { value: 'Released' } })
+    fireEvent.click(screen.getByRole('button', { name: /save roll/i }))
+
+    const saved = onSave.mock.calls[0][0]
+    expect(getSpecificDieIds(saved.dice[0])).toEqual([])
+    expect(saved.dice[0].sources).toEqual([createAnonymousRollSource(4)])
+    expect(getRollDiceCount(saved.dice)).toBe(4)
+    expect(die.id).toBeTruthy()
+  })
+
+  it('stops offering a die that another entry already pinned', () => {
+    addNamedDie('Lucky D20', 'd20')
+    renderBuilder()
+
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d20 die/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d20 die/i }))
+    // Pin into the FIRST entry, then open the second entry's picker.
+    pinOwnedDie('Lucky D20', 0)
+    fireEvent.click(screen.getAllByTestId('dice-entry-picker-trigger')[1])
+
+    const picker = screen.getByTestId('roll-dice-picker')
+    const tile = within(picker).getByRole('button', {
+      name: 'Lucky D20 is already pinned to another entry',
+    })
+    expect(tile).toBeDisabled()
+  })
+
+  it('disables the remaining dice once every slot in the entry is pinned', () => {
+    addNamedDie('Lucky D20', 'd20')
+    addNamedDie('Spare D20', 'd20')
+    renderBuilder()
+
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d20 die/i }))
+    fireEvent.click(screen.getByTestId('dice-entry-picker-trigger'))
+    const picker = screen.getByTestId('roll-dice-picker')
+    fireEvent.click(within(picker).getByRole('button', { name: 'Pin Lucky D20' }))
+
+    expect(within(picker).getByTestId('roll-dice-picker-summary')).toHaveTextContent(
+      '1 pinned, 0 auto',
+    )
+    expect(
+      within(picker).getByRole('button', {
+        name: 'Spare D20 — every slot in this entry is already pinned',
+      }),
+    ).toBeDisabled()
+  })
+
+  it('tells the player a percentile pin applies to the ones half', () => {
+    addNamedDie('Jade D10', 'd10')
+    renderBuilder()
+
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d100 roll/i }))
+    fireEvent.click(screen.getByTestId('dice-entry-picker-trigger'))
+
+    const picker = screen.getByTestId('roll-dice-picker')
+    expect(within(picker).getByTestId('roll-dice-picker-percentile-notice')).toHaveTextContent(
+      /ONES die/,
+    )
+    expect(within(picker).getByRole('button', { name: 'Pin Jade D10' })).toBeInTheDocument()
+  })
+
+  it('closes the picker on Escape without closing the sheet behind it', () => {
+    addNamedDie('Lucky D20', 'd20')
+    const sheetClose = vi.fn()
+    document.addEventListener('keydown', sheetClose)
+    renderBuilder()
+
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d20 die/i }))
+    fireEvent.click(screen.getByTestId('dice-entry-picker-trigger'))
+    fireEvent.keyDown(screen.getByTestId('roll-dice-picker'), { key: 'Escape' })
+
+    expect(screen.queryByTestId('roll-dice-picker')).not.toBeInTheDocument()
+    // The document-level listener BottomSheet uses must never see it.
+    expect(sheetClose).not.toHaveBeenCalled()
+    document.removeEventListener('keydown', sheetClose)
+  })
+
+  it('says so when the player owns no dice of the entry type', () => {
+    renderBuilder()
+
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d12 die/i }))
+    fireEvent.click(screen.getByTestId('dice-entry-picker-trigger'))
+
+    expect(screen.getByTestId('roll-dice-picker-empty')).toHaveTextContent(
+      /do not own any D12/i,
+    )
   })
 
   it('commits an arbitrary dice count from the numeric quantity field', () => {
@@ -332,7 +449,8 @@ describe('RollBuilder', () => {
     // Arrange
     const die = addNamedDie('Lucky D20', 'd20')
     const { onSave } = renderBuilder()
-    fireEvent.click(screen.getByRole('button', { name: /add lucky d20 to roll/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d20 die/i }))
+    pinOwnedDie('Lucky D20')
 
     // Act
     setQuantity('D20 quantity', '3')
