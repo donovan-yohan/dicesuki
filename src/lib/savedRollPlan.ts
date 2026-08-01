@@ -21,6 +21,7 @@
 
 import type { DiceShape } from './geometries'
 import { KEEP_MODE_DEFAULT, getDieMax, hasKeepDrop } from './diceHelpers'
+import { combinePercentile, isPercentileEntry } from './percentileRolls'
 import type {
   CompareMode,
   ExplodingConfig,
@@ -55,6 +56,12 @@ export const MAX_EXPLOSION_WAVES = 3
 export interface PlannedDieGroup {
   /** Room dice ids whose settled faces sum into this group's value. */
   memberIds: string[]
+  /**
+   * A percentile (d100) pair: `memberIds` is `[tensDieId, onesDieId]` and the
+   * two faces COMBINE (`00 + 0` = 100) rather than summing. Scoring a pair as
+   * a sum would read `00 + 0` as 0 and cap the die at 99.
+   */
+  percentile?: boolean
   /** Reroll is once-only; set as soon as this group has been replaced. */
   rerolled?: boolean
   /** Explosion waves this group has already produced. */
@@ -90,9 +97,9 @@ export interface AggregatedDie {
   /** False for a die dropped by keep/drop — the HUD dims these. */
   kept: boolean
   /**
-   * True for the first member of its group. Only the root carries the per-die
-   * bonus chip; an explosion member is part of the same logical die and must
-   * not show (or add) the bonus a second time.
+   * True for the one member of its group that carries the per-die bonus chip.
+   * An explosion member is part of the same logical die and must not show (or
+   * add) the bonus a second time; for a percentile pair this is the ones die.
    */
   isGroupRoot: boolean
   /** Per-die bonus attributable to this die (0 unless it is a group root). */
@@ -160,20 +167,29 @@ export function createSavedRollPlan(roll: SavedRoll): SavedRollPlan {
   return {
     name: roll.name,
     flatBonus: roll.flatBonus,
-    entries: roll.dice.map((entry) => ({
-      entryId: entry.id,
-      type: entry.type,
-      perDieBonus: entry.perDieBonus,
-      keep: hasKeepDrop(entry) ? entry.quantity : undefined,
-      // Resolved once, here, so nothing downstream has to guess.
-      keepMode: hasKeepDrop(entry) ? entry.keepMode ?? KEEP_MODE_DEFAULT : entry.keepMode,
-      minimum: entry.minimum,
-      maximum: entry.maximum,
-      reroll: entry.reroll,
-      exploding: entry.exploding,
-      countSuccesses: entry.countSuccesses,
-      groups: [],
-    })),
+    entries: roll.dice.map((entry) => {
+      // Reroll and exploding replace or add PHYSICAL dice, which a percentile
+      // pair cannot express — you cannot reroll or explode half a d100. The
+      // builder hides both, but a legacy or hand-edited `saved_rolls` row can
+      // still carry them, so they are dropped here rather than left to be
+      // half-honoured downstream. Keep/drop is fine: it keeps whole pairs.
+      const supportsPhysicalWaves = !isPercentileEntry(entry)
+
+      return {
+        entryId: entry.id,
+        type: entry.type,
+        perDieBonus: entry.perDieBonus,
+        keep: hasKeepDrop(entry) ? entry.quantity : undefined,
+        // Resolved once, here, so nothing downstream has to guess.
+        keepMode: hasKeepDrop(entry) ? entry.keepMode ?? KEEP_MODE_DEFAULT : entry.keepMode,
+        minimum: entry.minimum,
+        maximum: entry.maximum,
+        reroll: supportsPhysicalWaves ? entry.reroll : undefined,
+        exploding: supportsPhysicalWaves ? entry.exploding : undefined,
+        countSuccesses: entry.countSuccesses,
+        groups: [],
+      }
+    }),
   }
 }
 
@@ -194,18 +210,28 @@ export function getPlanDiceIds(plan: SavedRollPlan): string[] {
 }
 
 /**
- * Per-die bonus map for `ActiveSavedRoll`, keyed by room die id.
+ * The one member of a group that carries the per-die bonus.
  *
- * Only group roots appear: an explosion member shares its root's logical die,
- * and a bonus per explosion would inflate the total.
+ * A bonus applies once per LOGICAL die, so an explosion member never repeats
+ * its root's bonus. For a percentile pair it is the ONES die: the tens half is
+ * anonymous engine scaffolding that can never be an owned die, and the rest of
+ * the app already treats the ones die as the pair's real die.
+ */
+function bonusMemberId(group: PlannedDieGroup): string | undefined {
+  return group.percentile ? group.memberIds[1] : group.memberIds[0]
+}
+
+/**
+ * Per-die bonus map for `ActiveSavedRoll`, keyed by room die id.
+ * Only one member per group appears — see {@link bonusMemberId}.
  */
 export function getPlanPerDieBonuses(plan: SavedRollPlan): Map<string, number> {
   const bonuses = new Map<string, number>()
   for (const entry of plan.entries) {
     if (entry.perDieBonus === 0) continue
     for (const group of entry.groups) {
-      const root = group.memberIds[0]
-      if (root !== undefined) bonuses.set(root, entry.perDieBonus)
+      const id = bonusMemberId(group)
+      if (id !== undefined) bonuses.set(id, entry.perDieBonus)
     }
   }
   return bonuses
@@ -216,6 +242,21 @@ export function addGroup(plan: SavedRollPlan, entryId: string, diceId: string): 
   const entry = plan.entries.find((candidate) => candidate.entryId === entryId)
   if (!entry) return
   entry.groups.push({ memberIds: [diceId] })
+}
+
+/**
+ * Record a d100 as ONE logical die backed by its two physical halves.
+ * Order matters: the tens die is the group root and carries the per-die bonus.
+ */
+export function addPercentileGroup(
+  plan: SavedRollPlan,
+  entryId: string,
+  tensDiceId: string,
+  onesDiceId: string,
+): void {
+  const entry = plan.entries.find((candidate) => candidate.entryId === entryId)
+  if (!entry) return
+  entry.groups.push({ memberIds: [tensDiceId, onesDiceId], percentile: true })
 }
 
 /** Append an explosion result to an existing group and bank the wave. */
@@ -284,6 +325,22 @@ function resolveGroups(entry: PlannedEntry, faces: Map<string, number>): Resolve
   const resolved: ResolvedGroup[] = []
 
   entry.groups.forEach((group, index) => {
+    if (group.percentile) {
+      // Both halves or nothing: a d100 showing only its tens die is not a
+      // partial result, it is no result at all.
+      const [tensId, onesId] = group.memberIds
+      const tens = faces.get(tensId)
+      const ones = faces.get(onesId)
+      if (tens === undefined || ones === undefined) return
+
+      resolved.push({
+        index,
+        memberIds: group.memberIds,
+        value: clampFace(combinePercentile(tens, ones), entry) + entry.perDieBonus,
+      })
+      return
+    }
+
     let sum = 0
     let settledMembers = 0
     for (const memberId of group.memberIds) {
@@ -349,12 +406,13 @@ export function aggregateSavedRollPlan(
 
     entry.groups.forEach((group, index) => {
       const isKept = keptIndices.has(index)
-      group.memberIds.forEach((memberId, memberIndex) => {
+      const bonusId = bonusMemberId(group)
+      group.memberIds.forEach((memberId) => {
         dice.set(memberId, {
           entryId: entry.entryId,
           kept: isKept,
-          isGroupRoot: memberIndex === 0,
-          bonus: memberIndex === 0 ? entry.perDieBonus : 0,
+          isGroupRoot: memberId === bonusId,
+          bonus: memberId === bonusId ? entry.perDieBonus : 0,
         })
       })
     })
@@ -386,6 +444,10 @@ export function selectRerollTargets(plan: SavedRollPlan, faces: Map<string, numb
     if (!entry.reroll) continue
 
     entry.groups.forEach((group, groupIndex) => {
+      // A d100 cannot be physically rerolled or exploded as a unit — the
+      // builder hides both for percentile entries, and a legacy roll that
+      // carries them is ignored rather than half-applied.
+      if (group.percentile) return
       if (group.rerolled) return
       const face = faces.get(group.memberIds[0])
       if (face === undefined) return
@@ -421,6 +483,7 @@ export function selectExplosionTargets(
     const depthLimit = Math.min(entry.exploding.limit ?? MAX_EXPLOSION_WAVES, MAX_EXPLOSION_WAVES)
 
     entry.groups.forEach((group, groupIndex) => {
+      if (group.percentile) return
       if ((group.explosionDepth ?? 0) >= depthLimit) return
       const newest = group.memberIds[group.memberIds.length - 1]
       if (faces.get(newest) !== explodeFace) return

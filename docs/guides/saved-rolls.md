@@ -88,6 +88,17 @@ A plan groups room dice into **chains** whose faces sum into one logical die res
 ### Notation
 `formatDiceEntry` appends in a fixed order: exploding binds to the die (`4d6!`, `4d6!5`), then ` kh2`/` kl2`, ` r≤2`, ` ≥5`, ` [2 specific]`. Min/max clamps are a badge, not notation. `calculateDiceEntryRange` returns `{ min, max, open? }`; `open` marks an exploding entry, rendered as `Range: 4 - 12+`.
 
+### Percentile (d100) entries
+A d100 is a `d10tens` + `d10` PAIR combined into one 1-100 result, which changes what the mechanics can mean:
+
+- **Gated off in the builder**: keep/drop, exploding and reroll are hidden for a percentile entry, with an inline explanation. You cannot reroll or explode half a pair, and the room has no way to express "keep whole pairs". `selectRerollTargets`/`selectExplosionTargets` also skip percentile groups, so a legacy roll carrying those configs is ignored rather than half-applied.
+- **Still available**: min/max clamps and success counting, applied to the **combined** value. Their ceiling is `getEntryMax` (100), not the 90 of the tens half.
+- **One plan group per pair**, `memberIds: [tensDieId, onesDieId]`, flagged `percentile`. The group's value is `combinePercentile(tens, ones)` — `00 + 0` is 100 — not a sum. A half-settled pair scores nothing rather than reporting the tens face alone.
+- **The per-die bonus rides on the ones die** (`bonusMemberId`): the tens half is anonymous engine scaffolding that can never be an owned die.
+- **Capacity**: `getRollDiceCount` counts physical dice via `expandDiceEntrySpawns`, so 15 d100s is exactly the 30-die cap and 16 is refused.
+- **`percentileSumCorrection` is applied only to dice the plan does NOT own.** The plan combines its own pairs; correcting them again would double-count. Both the plan branch and the raw branch of `buildCycleSnapshot` and of `roll_complete` handle this.
+- **The HUD** renders a pair as ONE `D100` chip carrying the same `data-testid="result-die-chip"` / `data-dropped` contract as any other chip, so keep/drop dimming and the e2e assertions work unchanged.
+
 ### Known limitation — remote viewers
 The plan is **client-side only** and never crosses the wire. A remote viewer in a multiplayer room sees each die's raw face and a raw face sum: no keep/drop, clamps, success counting or bonuses. Their history row is attributed (`displayName`) and carries no saved-roll name, so nothing they see is a mislabelled combined total — it is simply the unadorned dice. Correcting remote totals would need the plan on the protocol, which is out of scope for this slice.
 

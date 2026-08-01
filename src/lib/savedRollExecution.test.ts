@@ -51,7 +51,12 @@ function createFakeRoom(faceQueue: number[]) {
   const token = Symbol('fake-room')
   activeRoomToken = token
   const faceById = new Map<string, number>()
-  const spawnLog: Array<{ id: string; type: DiceShape; inventoryDieId?: string }> = []
+  const spawnLog: Array<{
+    id: string
+    type: DiceShape
+    inventoryDieId?: string
+    presentation?: unknown
+  }> = []
   const removed: string[] = []
   let nextId = 0
   let failNextSpawn: string | null = null
@@ -67,7 +72,11 @@ function createFakeRoom(faceQueue: number[]) {
     useDiceStore.getState().recordDieSettled(id, face, die.diceType)
   }
 
-  function spawn(type: DiceShape, inventoryDieId?: string): string | null {
+  function spawn(
+    type: DiceShape,
+    inventoryDieId?: string,
+    presentation?: unknown,
+  ): string | null {
     // The real `useMultiplayerDiceBackend.addDie`/`addGenericDie` clear the
     // saved-roll context on every spawn — including the executor's own
     // follow-up-wave spawns. Reproducing it here is what pins the regression
@@ -84,7 +93,7 @@ function createFakeRoom(faceQueue: number[]) {
 
     const id = `die-${++nextId}`
     faceById.set(id, faceQueue.shift() ?? 1)
-    spawnLog.push({ id, type, inventoryDieId })
+    spawnLog.push({ id, type, inventoryDieId, presentation })
     useMultiplayerStore.setState((state) => ({
       dice: new Map(state.dice).set(id, roomDie(id, type)),
     }))
@@ -94,8 +103,10 @@ function createFakeRoom(faceQueue: number[]) {
   }
 
   const backend: SavedRollBackend = {
-    addDie: vi.fn((type: DiceShape, inventoryDieId?: string) => spawn(type, inventoryDieId)),
-    addGenericDie: vi.fn((type: DiceShape) => spawn(type)),
+    addDie: vi.fn((type: DiceShape, inventoryDieId?: string, presentation?: unknown) =>
+      spawn(type, inventoryDieId, presentation)),
+    addGenericDie: vi.fn((type: DiceShape, presentation?: unknown) =>
+      spawn(type, undefined, presentation)),
     removeDie: vi.fn((id: string) => {
       removed.push(id)
       useMultiplayerStore.setState((state) => {
@@ -709,6 +720,74 @@ describe('executePhysicalSavedRoll', () => {
       expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
       expect(useDiceStore.getState().rollHistory).toHaveLength(1)
       expect(useDiceStore.getState().rollHistory[0].sum).toBe(6)
+    })
+  })
+
+  describe('percentile (d100) entries', () => {
+    it('spawns a tens+ones pair and scores the combined result', async () => {
+      // Arrange — one d100; the tens die lands 70, the ones die 3
+      const room = createFakeRoom([70, 3])
+      const roll = makeRoll({ type: 'd10', percentile: true, quantity: 1 })
+
+      // Act
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      // Assert — two physical dice, one logical result
+      expect(room.spawnLog.map((s) => s.type)).toEqual(['d10tens', 'd10'])
+      expect(activeTotal()).toBe(73)
+      // Both halves carry the same pair id so the pairing survives the table
+      const [tens, ones] = room.spawnLog
+      expect((tens.presentation as { percentilePairId?: string }).percentilePairId)
+        .toBe((ones.presentation as { percentilePairId?: string }).percentilePairId)
+    })
+
+    it('reads 00 + 0 as 100 through the whole execution path', async () => {
+      // Arrange
+      const room = createFakeRoom([0, 0])
+      const roll = makeRoll({ type: 'd10', percentile: true, quantity: 1 })
+
+      // Act
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      // Assert — the history row agrees with the HUD
+      expect(activeTotal()).toBe(100)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      expect(useDiceStore.getState().rollHistory[0].sum).toBe(100)
+    })
+
+    it('counts both halves against the room dice cap', async () => {
+      // Arrange — 15 d100s is exactly 30 physical dice
+      const room = createFakeRoom(Array.from({ length: 30 }, () => 1))
+      const roll = makeRoll({
+        type: 'd10',
+        percentile: true,
+        quantity: 15,
+        sources: [{ kind: 'anonymous', quantity: 15 }],
+      })
+
+      // Act
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      // Assert
+      expect(room.spawnLog).toHaveLength(ROOM_DICE_CAPACITY)
+    })
+
+    it('refuses 16 d100s, which would need 32 dice', async () => {
+      // Arrange
+      const room = createFakeRoom([])
+      const roll = makeRoll({
+        type: 'd10',
+        percentile: true,
+        quantity: 16,
+        sources: [{ kind: 'anonymous', quantity: 16 }],
+      })
+
+      // Act / Assert — the guard counts physical dice, not d100s
+      await expect(run(roll, room.backend)).rejects.toThrow('needs 32')
+      expect(room.backend.clearAll).not.toHaveBeenCalled()
     })
   })
 })

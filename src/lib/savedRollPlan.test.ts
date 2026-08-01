@@ -7,6 +7,7 @@ import {
   cloneSavedRollPlan,
   createSavedRollPlan,
   getExplodeFace,
+  addPercentileGroup,
   getPlanDiceIds,
   getPlanPerDieBonuses,
   markGroupRerolled,
@@ -947,5 +948,138 @@ describe('cloneSavedRollPlan', () => {
     expect(clone).toEqual(plan)
     expect(clone).not.toBe(plan)
     expect(clone.entries[0]).not.toBe(plan.entries[0])
+  })
+})
+
+describe('percentile pairs', () => {
+  /** A d100 entry: `type` stays 'd10' (the ones half); the flag discriminates. */
+  function percentileEntry(overrides: Partial<DiceEntry> = {}): DiceEntry {
+    return makeEntry({ id: 'pct', type: 'd10', percentile: true, ...overrides })
+  }
+
+  function pairPlan(entry: DiceEntry = percentileEntry(), flatBonus = 0) {
+    const plan = createSavedRollPlan(makeRoll([entry], flatBonus))
+    addPercentileGroup(plan, entry.id, 'tens-1', 'ones-1')
+    return plan
+  }
+
+  it('combines the pair rather than summing it', () => {
+    // Arrange — 70 + 3
+    const plan = pairPlan()
+
+    // Act
+    const aggregate = aggregateSavedRollPlan(plan, new Map([['tens-1', 70], ['ones-1', 3]]))
+
+    // Assert
+    expect(aggregate.total).toBe(73)
+  })
+
+  it('reads 00 + 0 as 100, not 0', () => {
+    // Arrange / Act
+    const aggregate = aggregateSavedRollPlan(
+      pairPlan(),
+      new Map([['tens-1', 0], ['ones-1', 0]]),
+    )
+
+    // Assert — the whole reason a pair cannot be scored as a plain sum
+    expect(aggregate.total).toBe(100)
+  })
+
+  it('ignores a half-settled pair instead of scoring the tens die alone', () => {
+    // Arrange — the ones die has not landed
+    const plan = pairPlan(percentileEntry(), 5)
+
+    // Act
+    const aggregate = aggregateSavedRollPlan(plan, new Map([['tens-1', 90]]))
+
+    // Assert — only the flat bonus; 90 is not a percentile result
+    expect(aggregate.total).toBe(5)
+  })
+
+  it('applies clamps and the per-die bonus to the COMBINED value', () => {
+    // Arrange — a 100 clamped to 50, then +2
+    const plan = pairPlan(percentileEntry({ maximum: 50, perDieBonus: 2 }))
+
+    // Act
+    const aggregate = aggregateSavedRollPlan(plan, new Map([['tens-1', 0], ['ones-1', 0]]))
+
+    // Assert
+    expect(aggregate.total).toBe(52)
+  })
+
+  it('puts the pair bonus on the ones die, never the tens scaffolding', () => {
+    // Arrange
+    const plan = pairPlan(percentileEntry({ perDieBonus: 3 }))
+
+    // Act
+    const aggregate = aggregateSavedRollPlan(plan, new Map([['tens-1', 20], ['ones-1', 4]]))
+
+    // Assert
+    expect(getPlanPerDieBonuses(plan)).toEqual(new Map([['ones-1', 3]]))
+    expect(aggregate.dice.get('ones-1')).toMatchObject({ bonus: 3, isGroupRoot: true })
+    expect(aggregate.dice.get('tens-1')).toMatchObject({ bonus: 0, isGroupRoot: false })
+  })
+
+  it('keeps and drops whole pairs', () => {
+    // Arrange — roll two d100s, keep the highest
+    const entry = percentileEntry({ quantity: 1, rollCount: 2, keepMode: 'highest' })
+    const plan = createSavedRollPlan(makeRoll([entry], 0))
+    addPercentileGroup(plan, entry.id, 'tens-a', 'ones-a')
+    addPercentileGroup(plan, entry.id, 'tens-b', 'ones-b')
+
+    // Act — 12 versus 100
+    const aggregate = aggregateSavedRollPlan(plan, new Map([
+      ['tens-a', 10], ['ones-a', 2],
+      ['tens-b', 0], ['ones-b', 0],
+    ]))
+
+    // Assert — both halves of the losing pair are dropped together
+    expect(aggregate.total).toBe(100)
+    expect(aggregate.droppedCount).toBe(1)
+    expect(aggregate.dice.get('tens-a')?.kept).toBe(false)
+    expect(aggregate.dice.get('ones-a')?.kept).toBe(false)
+    expect(aggregate.dice.get('tens-b')?.kept).toBe(true)
+    expect(aggregate.dice.get('ones-b')?.kept).toBe(true)
+  })
+
+  it('strips reroll and exploding from a legacy percentile entry', () => {
+    // Arrange — a hand-edited saved_rolls row carrying both
+    const entry = percentileEntry({
+      reroll: { condition: 'lessOrEqual', value: 5, maxRerolls: 1 },
+      exploding: { on: 'max' },
+    })
+
+    // Act
+    const plan = createSavedRollPlan(makeRoll([entry], 0))
+
+    // Assert — dropped at the choke point, not left to be half-honoured
+    expect(plan.entries[0].reroll).toBeUndefined()
+    expect(plan.entries[0].exploding).toBeUndefined()
+  })
+
+  it('never selects a pair for a reroll or explosion wave', () => {
+    // Arrange — a legacy roll carrying mechanics the builder now hides
+    const entry = percentileEntry({
+      reroll: { condition: 'lessOrEqual', value: 5, maxRerolls: 1 },
+      exploding: { on: 'max' },
+    })
+    const plan = pairPlan(entry)
+    const faces = new Map([['tens-1', 0], ['ones-1', 0]])
+
+    // Act / Assert — half a pair cannot be rerolled or exploded
+    expect(selectRerollTargets(plan, faces)).toEqual([])
+    expect(selectExplosionTargets(plan, faces)).toEqual([])
+  })
+
+  it('counts a pair as one success against a 1-100 target', () => {
+    // Arrange
+    const plan = pairPlan(percentileEntry({ countSuccesses: { targetNumber: 80 } }))
+
+    // Act — 90 + 5 = 95
+    const aggregate = aggregateSavedRollPlan(plan, new Map([['tens-1', 90], ['ones-1', 5]]))
+
+    // Assert
+    expect(aggregate.isSuccessCounting).toBe(true)
+    expect(aggregate.total).toBe(1)
   })
 })

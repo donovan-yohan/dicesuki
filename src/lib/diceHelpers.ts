@@ -242,8 +242,14 @@ export function formatDiceEntry(entry: DiceEntry): string {
     text += `${rollCount}${dieLabel}`
   }
 
+  // A percentile pair cannot physically explode or reroll (half a pair is not
+  // a result), so a legacy/hand-edited entry carrying either must not RENDER
+  // them — the plan strips them too, and showing a suffix for something that
+  // will not happen is worse than dropping it silently.
+  const supportsPhysicalWaves = !isPercentileEntry(entry)
+
   // Exploding — attached, not spaced, so it reads as part of the die
-  if (entry.exploding) {
+  if (entry.exploding && supportsPhysicalWaves) {
     text += entry.exploding.on === 'max' ? '!' : `!${entry.exploding.on}`
   }
 
@@ -255,7 +261,7 @@ export function formatDiceEntry(entry: DiceEntry): string {
   }
 
   // Reroll
-  if (entry.reroll) {
+  if (entry.reroll && supportsPhysicalWaves) {
     text += ` r${COMPARE_SYMBOLS[entry.reroll.condition]}${entry.reroll.value}`
   }
 
@@ -430,8 +436,13 @@ export function getDiceEntryBadges(entry: DiceEntry): string[] {
     badges.push(entry.keepMode === 'lowest' ? '⬇️ DIS' : '⬆️ ADV')
   }
 
+  // Reroll and exploding are unavailable for a percentile pair (see
+  // formatDiceEntry) — badging them would advertise a mechanic that is stripped
+  // before it can run.
+  const supportsPhysicalWaves = !isPercentileEntry(entry)
+
   // Reroll
-  if (entry.reroll) {
+  if (entry.reroll && supportsPhysicalWaves) {
     if (entry.reroll.condition === 'lessOrEqual' && entry.reroll.value === 2) {
       badges.push('⚔️ GWF')
     } else if (entry.reroll.condition === 'equals' && entry.reroll.value === 1) {
@@ -442,7 +453,7 @@ export function getDiceEntryBadges(entry: DiceEntry): string[] {
   }
 
   // Exploding
-  if (entry.exploding) {
+  if (entry.exploding && supportsPhysicalWaves) {
     badges.push('💥 Explode')
   }
 

@@ -5,6 +5,7 @@ import {
   formatBonus,
   formatDiceEntry,
   formatSavedRoll,
+  getDiceEntryBadges,
   getKeptDiceCount,
   hasKeepDrop,
 } from './diceHelpers'
@@ -619,5 +620,53 @@ describe('calculateSavedRollRange', () => {
 
     // Act / Assert
     expect(calculateSavedRollRange(roll)).toEqual({ min: 2, max: 7 })
+  })
+})
+
+describe('percentile entries never advertise physical waves', () => {
+  function percentileEntry(overrides: Partial<DiceEntry> = {}): DiceEntry {
+    return makeEntry({ type: 'd10', percentile: true, ...overrides })
+  }
+
+  it('omits the exploding and reroll suffixes a d100 cannot run', () => {
+    // Arrange — a legacy/hand-edited entry carrying both
+    const entry = percentileEntry({
+      quantity: 1,
+      exploding: { on: 'max' },
+      reroll: { condition: 'lessOrEqual', value: 2, maxRerolls: 1 },
+    })
+
+    // Act / Assert — reads as a plain d100, not `1d100! r≤2`
+    expect(formatDiceEntry(entry)).toBe('1d100')
+  })
+
+  it('omits their badges too', () => {
+    // Arrange
+    const entry = percentileEntry({
+      quantity: 1,
+      exploding: { on: 'max' },
+      reroll: { condition: 'equals', value: 1, maxRerolls: 1 },
+    })
+
+    // Act
+    const badges = getDiceEntryBadges(entry)
+
+    // Assert
+    expect(badges).not.toContain('💥 Explode')
+    expect(badges).not.toContain('🍀 LUCK')
+  })
+
+  it('still shows keep/drop and success counting, which a pair CAN do', () => {
+    // Arrange — keep the best of two d100s, success on 80+
+    const entry = percentileEntry({
+      quantity: 1,
+      rollCount: 2,
+      keepMode: 'highest',
+      countSuccesses: { targetNumber: 80 },
+    })
+
+    // Act / Assert
+    expect(formatDiceEntry(entry)).toBe('2d100 kh1 ≥80')
+    expect(getDiceEntryBadges(entry)).toContain('⬆️ ADV')
   })
 })

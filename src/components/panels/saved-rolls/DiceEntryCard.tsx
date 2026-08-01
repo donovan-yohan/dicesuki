@@ -199,6 +199,9 @@ export function DiceEntryCard({
   const rolledCount = getDiceEntrySourceQuantity(entry)
   const keepDropOn = entry.rollCount !== undefined
   const keepMode: KeepMode = entry.keepMode ?? KEEP_MODE_DEFAULT
+  // `entry.type`, not the entry ceiling: exploding is never available for a
+  // percentile entry (the section is hidden and `createSavedRollPlan` strips
+  // it), so the shape's own max is always the right trigger here.
   const explodeTrigger = entry.exploding ? getExplodeFace(entry.type, entry.exploding) : dieMax
 
   /**
@@ -594,7 +597,29 @@ export function DiceEntryCard({
           className="flex flex-col gap-3 p-2 rounded"
           style={{ backgroundColor: 'var(--color-background)' }}
         >
+          {/* A d100 is a d10tens+d10 PAIR combined into one 1-100 result, so
+              the mechanics that add or drop PHYSICAL dice cannot apply to it:
+              you cannot reroll or explode half a pair, and keep/drop would have
+              to keep whole pairs the room has no way to express. Clamps and
+              success counting work on the combined value, so they stay. */}
+          {isPercentile && (
+            <p
+              data-testid="percentile-advanced-notice"
+              className="text-xs px-2 py-1.5 rounded"
+              style={{
+                backgroundColor: 'rgba(249, 135, 151, 0.12)',
+                color: 'var(--color-text-secondary)',
+                border: '1px solid rgba(249, 135, 151, 0.25)',
+              }}
+            >
+              A d100 rolls as a tens + ones pair, so keep/drop, exploding and reroll
+              are not available for it. Min/max and success counting apply to the
+              combined 1-100 result.
+            </p>
+          )}
+
           {/* Quick presets */}
+          {!isPercentile && (
           <div className="flex flex-col gap-1.5">
             <span
               className="text-[11px] font-semibold uppercase tracking-wide"
@@ -621,8 +646,10 @@ export function DiceEntryCard({
               ))}
             </div>
           </div>
+          )}
 
           <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+            {!isPercentile && (<>
             {/* Keep / drop */}
             <div className={SECTION_CLASS} style={SECTION_STYLE}>
               <label className={CHECKBOX_LABEL_CLASS} style={{ color: 'var(--color-text-primary)' }}>
@@ -742,6 +769,7 @@ export function DiceEntryCard({
                 Each qualifying die is rerolled once and the replacement stands, even if it lands lower.
               </p>
             </div>
+            </>)}
 
             {/* Min / max clamps */}
             <div className={SECTION_CLASS} style={SECTION_STYLE}>

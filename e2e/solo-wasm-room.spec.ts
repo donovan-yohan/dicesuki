@@ -101,7 +101,9 @@ test('executes a saved roll through the wasm room backend', async ({ page }) => 
 
   await page.getByRole('button', { name: 'My Dice Rolls' }).click()
   await page.getByRole('button', { name: /create new roll/i }).click()
-  await page.getByPlaceholder(/roll name/i).fill('WASM saved roll')
+  // Locate by label, not placeholder: #212 changed the placeholder copy to
+  // 'e.g. Greatsword Attack' and this manual-run spec was not updated with it.
+  await page.getByLabel('Roll name').fill('WASM saved roll')
   await page.getByRole('button', { name: 'Add 4 D6 dice' }).click()
   await page.getByText('Bonus per die:').locator('..').getByRole('spinbutton').fill('2')
   await page.getByRole('button', { name: 'Save Roll' }).click()

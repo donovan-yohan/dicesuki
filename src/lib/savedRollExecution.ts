@@ -27,15 +27,26 @@
  * ends, so a second roll can never interleave with a half-finished plan.
  */
 
+import { nanoid } from 'nanoid'
+
 import type { DiceBackendState } from '../contexts/DiceBackendContext'
 import { ROLL_DICE_CAPACITY_MESSAGE, ROOM_DICE_CAPACITY } from '../config/roomCapacity'
 import { useDiceStore } from '../store/useDiceStore'
 import { useMultiplayerStore, type MultiplayerDie } from '../store/useMultiplayerStore'
-import type { SavedRoll } from '../types/savedRolls'
-import { expandDiceEntrySources, getRollDiceCount } from './rollSources'
+import type { DiceShape } from './geometries'
+import type { DicePresentationMetadata } from './multiplayerMessages'
+import type { DiceEntry, SavedRoll } from '../types/savedRolls'
+import {
+  isPercentileEntry,
+  percentileOnesPresentation,
+  percentileTensPresentation,
+  PERCENTILE_TENS_SHAPE,
+} from './percentileRolls'
+import { expandDiceEntrySpawns, getRollDiceCount } from './rollSources'
 import {
   MAX_EXPLOSION_WAVES,
   addGroup,
+  addPercentileGroup,
   attachGroupMember,
   cloneSavedRollPlan,
   createSavedRollPlan,
@@ -47,7 +58,6 @@ import {
   selectExplosionTargets,
   selectRerollTargets,
   type SavedRollPlan,
-  type WaveTarget,
 } from './savedRollPlan'
 
 /** Protocol acknowledgements (clear, spawn, roll start) are near-instant. */
@@ -247,18 +257,82 @@ function assertCapacity(roll: SavedRoll, ownerId: string): void {
  */
 function spawnDie(
   backend: SavedRollBackend,
-  type: WaveTarget['type'],
+  type: DiceShape,
   inventoryDieId?: string,
+  presentation?: DicePresentationMetadata,
+  label?: string,
 ): string {
   const id = inventoryDieId
-    ? backend.addDie(type, inventoryDieId)
-    : backend.addGenericDie(type)
+    ? backend.addDie(type, inventoryDieId, presentation)
+    : backend.addGenericDie(type, presentation)
 
   if (!id) {
     const actionError = useMultiplayerStore.getState().roomActionError
-    throw new Error(actionError?.message ?? `Could not spawn ${type.toUpperCase()}.`)
+    throw new Error(actionError?.message ?? `Could not spawn ${label ?? type.toUpperCase()}.`)
   }
   return id
+}
+
+/**
+ * Spawn one entry's physical dice and record them in the plan.
+ *
+ * `expandDiceEntrySpawns` is the SAME expansion `getRollDiceCount` counts, so
+ * the capacity guard and this loop can never disagree about how many dice a
+ * roll puts on the table. A d100 is not one die: it is a TENS die (00-90) plus
+ * its ones d10, spawned as a pair sharing a `percentilePairId` in each die's
+ * `presentation` block, and recorded as ONE plan group so the halves combine
+ * into a single 1-100 result instead of summing.
+ */
+function spawnEntry(backend: SavedRollBackend, plan: SavedRollPlan, entry: DiceEntry): void {
+  const label = isPercentileEntry(entry) ? 'D100' : entry.type.toUpperCase()
+  const pairIds = new Map<number, string>()
+  const pendingTens = new Map<number, string>()
+
+  for (const spawn of expandDiceEntrySpawns(entry)) {
+    const pair = spawn.percentile
+
+    if (!pair) {
+      addGroup(plan, entry.id, spawnDie(
+        backend,
+        entry.type,
+        spawn.source.kind === 'specific' ? spawn.source.dieId : undefined,
+        undefined,
+        label,
+      ))
+      continue
+    }
+
+    let pairId = pairIds.get(pair.pairIndex)
+    if (!pairId) {
+      pairId = `pct_${nanoid(10)}`
+      pairIds.set(pair.pairIndex, pairId)
+    }
+
+    if (pair.role === 'tens') {
+      // The tens half is always a plain engine die and carries no bonus — a
+      // per-die bonus applies once, to the COMBINED value.
+      pendingTens.set(pair.pairIndex, spawnDie(
+        backend,
+        PERCENTILE_TENS_SHAPE,
+        undefined,
+        percentileTensPresentation(pairId),
+        label,
+      ))
+      continue
+    }
+
+    const onesId = spawnDie(
+      backend,
+      entry.type,
+      spawn.source.kind === 'specific' ? spawn.source.dieId : undefined,
+      percentileOnesPresentation(pairId),
+      label,
+    )
+    const tensId = pendingTens.get(pair.pairIndex)
+    /* c8 ignore next -- expandDiceEntrySpawns always emits tens before ones */
+    if (tensId === undefined) continue
+    addPercentileGroup(plan, entry.id, tensId, onesId)
+  }
 }
 
 /**
@@ -407,14 +481,7 @@ export async function executePhysicalSavedRoll(
   const plan = createSavedRollPlan(roll)
 
   for (const entry of roll.dice) {
-    for (const source of expandDiceEntrySources(entry)) {
-      const id = spawnDie(
-        backend,
-        entry.type,
-        source.kind === 'specific' ? source.dieId : undefined,
-      )
-      addGroup(plan, entry.id, id)
-    }
+    spawnEntry(backend, plan, entry)
   }
 
   // The plan is the single record of which dice this roll owns; deriving the

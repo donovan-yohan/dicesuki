@@ -919,9 +919,10 @@ function ResultDisplay() {
           {resultGroups.map((group) => {
             if (group.kind === 'percentile') {
               const { tens, ones, value } = group
-              // Both halves belong to one plan group, whose root is the tens
-              // die: it carries the kept flag and the single per-die bonus.
-              const scoredPair = aggregate?.dice.get(tens.diceId)
+              // Both halves belong to one plan group, so either reports the
+              // pair's kept state; the bonus rides on the ones die (the tens
+              // half is anonymous scaffolding — see `bonusMemberId`).
+              const scoredPair = aggregate?.dice.get(ones.diceId)
               const isPairDropped = scoredPair !== undefined && !scoredPair.kept
               const bonusStr = formatBonus(
                 scoredPair

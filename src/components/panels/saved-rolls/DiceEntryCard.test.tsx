@@ -104,6 +104,32 @@ function d20Entry(overrides: Partial<DiceEntry> = {}): DiceEntry {
   })
 }
 
+/**
+ * A percentile (d100) entry: each die is a `d10tens` + `d10` PAIR combined into
+ * one 1-100 result. `type` stays `'d10'` (the ones half) so every legacy
+ * consumer keeps working — the `percentile` flag is the only discriminator, so
+ * that flag is what these tests set.
+ */
+function percentileEntry(overrides: Partial<DiceEntry> = {}): DiceEntry {
+  return makeEntry({
+    type: 'd10',
+    quantity: 1,
+    percentile: true,
+    sources: [createAnonymousRollSource(1)],
+    ...overrides,
+  })
+}
+
+/** The same entry as a plain d10, for the contrast the d100 ceiling depends on. */
+function plainD10Entry(overrides: Partial<DiceEntry> = {}): DiceEntry {
+  return makeEntry({
+    type: 'd10',
+    quantity: 1,
+    sources: [createAnonymousRollSource(1)],
+    ...overrides,
+  })
+}
+
 describe('DiceEntryCard quantity field inside the sheet', () => {
   it('abandons the draft on Escape without closing the sheet', () => {
     // Arrange
@@ -595,5 +621,128 @@ describe('DiceEntryCard advanced fields inside the sheet', () => {
 
     // Assert
     expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+describe('DiceEntryCard percentile (d100) advanced options', () => {
+  it('explains why keep / drop, exploding and reroll are unavailable', () => {
+    // Arrange
+    renderAdvanced(percentileEntry())
+
+    // Act
+    const notice = screen.getByTestId('percentile-advanced-notice')
+
+    // Assert — the notice names both halves of the rule: what is gone, and
+    // what still applies to the combined result
+    expect(notice).toBeInTheDocument()
+    expect(notice).toHaveTextContent(/keep\/drop, exploding and reroll/i)
+    expect(notice).toHaveTextContent(/not available/i)
+    expect(notice).toHaveTextContent(/min\/max and success counting/i)
+    expect(notice).toHaveTextContent(/combined 1-100 result/i)
+  })
+
+  it('hides the presets, keep / drop, exploding and reroll controls entirely', () => {
+    // Arrange
+    renderAdvanced(percentileEntry())
+
+    // Assert — gone under the d100 name...
+    expect(screen.queryByLabelText('Apply Advantage to D100')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Keep only some D100 dice')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Exploding D100 dice')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Reroll low D100 dice')).not.toBeInTheDocument()
+
+    // ...and gone under ANY name, so a merely relabelled control still fails
+    expect(screen.queryAllByLabelText(/^Apply /)).toHaveLength(0)
+    expect(screen.queryByLabelText(/^Keep only some /)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Exploding /)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Reroll low /)).not.toBeInTheDocument()
+    expect(screen.queryByText('Quick presets')).not.toBeInTheDocument()
+  })
+
+  it('still offers min / max and success counting', () => {
+    // Arrange
+    renderAdvanced(percentileEntry())
+
+    // Assert
+    expect(screen.getByLabelText('D100 minimum value')).toBeInTheDocument()
+    expect(screen.getByLabelText('D100 maximum value')).toBeInTheDocument()
+    expect(screen.getByLabelText('Count D100 successes')).toBeInTheDocument()
+  })
+
+  it('clamps min / max to the combined 1-100 result, not the d10 half', () => {
+    // Arrange
+    const { latest } = renderAdvanced(percentileEntry())
+
+    // Act — 95 is unreachable on either physical die, but is an ordinary
+    // percentile result
+    setAdvanced('D100 maximum value', '95')
+    setAdvanced('D100 minimum value', '40')
+
+    // Assert — both stick; a d10 ceiling would have crushed them to 10
+    expect(latest()).toMatchObject({ minimum: 40, maximum: 95 })
+    expect(screen.getByLabelText('D100 maximum value')).toHaveValue(95)
+    expect(screen.getByLabelText('D100 minimum value')).toHaveValue(40)
+  })
+
+  it('takes a success target above the d10 ceiling', () => {
+    // Arrange
+    const { latest } = renderAdvanced(percentileEntry())
+
+    // Act
+    fireEvent.click(screen.getByLabelText('Count D100 successes'))
+
+    // Assert — one below the combined maximum, the usual default
+    expect(latest().countSuccesses).toEqual({ targetNumber: 99 })
+
+    // Act
+    setAdvanced('D100 success on or above', '80')
+
+    // Assert
+    expect(latest().countSuccesses).toEqual({ targetNumber: 80 })
+    expect(screen.getByLabelText('D100 success on or above')).toHaveValue(80)
+  })
+
+  it('still clamps a plain d10 entry to 10, which is what makes the d100 ceiling load-bearing', () => {
+    // Arrange — the same numbers on the same die shape, without the flag
+    const { latest } = renderAdvanced(plainD10Entry())
+
+    // Act
+    setAdvanced('D10 maximum value', '95')
+    fireEvent.click(screen.getByLabelText('Count D10 successes'))
+    setAdvanced('D10 success on or above', '80')
+
+    // Assert
+    expect(latest().maximum).toBe(10)
+    expect(latest().countSuccesses).toEqual({ targetNumber: 10 })
+  })
+
+  it('names every field D100, never D10', () => {
+    // Arrange
+    renderAdvanced(percentileEntry())
+    fireEvent.click(screen.getByLabelText('Count D100 successes'))
+
+    // Assert — the entry reads as its combined die everywhere a player looks
+    expect(screen.getByLabelText('D100 quantity')).toBeInTheDocument()
+    expect(screen.getByLabelText('D100 bonus per die')).toBeInTheDocument()
+    expect(screen.getByLabelText('D100 minimum value')).toBeInTheDocument()
+    expect(screen.getByLabelText('D100 maximum value')).toBeInTheDocument()
+    expect(screen.getByLabelText('D100 success on or above')).toBeInTheDocument()
+    expect(screen.getByText('1d100 ≥99')).toBeInTheDocument()
+
+    // Assert — and never as the ones half it is built from
+    expect(screen.queryAllByLabelText(/\bD10\b/)).toHaveLength(0)
+  })
+
+  it('leaves a non-percentile entry untouched', () => {
+    // Arrange
+    renderAdvanced()
+
+    // Assert — every mechanic the d100 loses is still here
+    expect(screen.getByLabelText('Apply Advantage to D6')).toBeInTheDocument()
+    expect(screen.getByLabelText('Keep only some D6 dice')).toBeInTheDocument()
+    expect(screen.getByLabelText('Exploding D6 dice')).toBeInTheDocument()
+    expect(screen.getByLabelText('Reroll low D6 dice')).toBeInTheDocument()
+    expect(screen.getByText('Quick presets')).toBeInTheDocument()
+    expect(screen.queryByTestId('percentile-advanced-notice')).not.toBeInTheDocument()
   })
 })
