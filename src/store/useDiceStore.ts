@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { createClientId } from '../lib/clientId'
 import type { DicePresentationMetadata } from '../lib/multiplayerMessages'
 import { percentileSumCorrection } from '../lib/percentileRolls'
 import {
@@ -23,6 +24,14 @@ export interface DieSettledState {
  * Represents a snapshot of a completed roll cycle for history
  */
 export interface RollSnapshot {
+  /**
+   * Stable unique id for this row, minted by whichever writer records it.
+   *
+   * The history list is keyed on this. `timestamp` cannot serve: two rolls that
+   * land in the same millisecond — a remote player's `roll_complete` arriving
+   * alongside ours, or any burst — collide into duplicate React keys.
+   */
+  id: string
   dice: DieSettledState[]
   /**
    * Roll total. Percentile pairs are already combined here (`00 + 0` = 100), so
@@ -93,10 +102,17 @@ function totalWithPlan(
  * Each die independently reports when it starts moving (markDiceRolling)
  * and when it settles (recordDieSettled). The UI sums all settled dice.
  *
- * Roll cycles for history:
+ * Roll cycles:
  * - A "roll cycle" starts when rollingDice goes from empty to non-empty
  * - All dice that enter rollingDice during the cycle accumulate in currentRollCycleDice
- * - When rollingDice empties, a history snapshot is saved containing only those dice
+ * - When rollingDice empties, the cycle closes (currentRollCycleDice is cleared)
+ *
+ * History has exactly ONE writer per roll (issue #211):
+ * - ordinary rolls (solo and multiplayer, local and remote): the `roll_complete`
+ *   handler in `useMultiplayerStore` calls `addRollToHistory`
+ * - saved rolls with follow-up waves, where `roll_complete` is suppressed:
+ *   `finishSavedRollWaves` snapshots the cycle
+ * Closing a cycle never records one.
  */
 interface DiceStore {
   settledDice: Map<string, DieSettledState>
@@ -134,7 +150,8 @@ interface DiceStore {
 
   markDiceRolling: (diceIds: string[]) => void
   recordDieSettled: (diceId: string, value: number, type: string, presentation?: DicePresentationMetadata) => void
-  addRollToHistory: (snapshot: RollSnapshot) => void
+  /** Record a finished roll. The row's `id` is minted here, not by the caller. */
+  addRollToHistory: (snapshot: Omit<RollSnapshot, 'id'>) => void
   removeDieState: (diceId: string) => void
   clearAllDieStates: () => void
   setActiveSavedRoll: (roll: ActiveSavedRoll) => void
@@ -148,9 +165,17 @@ interface DiceStore {
   reset: () => void
 }
 
+/** Mint a history row id. See `RollSnapshot.id`. */
+function newRollSnapshotId(): string {
+  return createClientId('roll')
+}
+
 /**
  * Build the history snapshot for a finished roll cycle.
  * Returns null when the cycle produced nothing worth recording.
+ *
+ * Only `finishSavedRollWaves` uses this. An ordinary roll's row is written by
+ * the `roll_complete` handler instead — see `recordDieSettled`.
  */
 function buildCycleSnapshot(
   settled: Map<string, DieSettledState>,
@@ -173,7 +198,7 @@ function buildCycleSnapshot(
     // total stays a plain sum by design — see src/lib/percentileRolls.ts).
     : cycleDice.reduce((acc, d) => acc + d.value, 0) + percentileSumCorrection(cycleDice)
 
-  return { dice: cycleDice, sum, timestamp: Date.now() }
+  return { id: newRollSnapshotId(), dice: cycleDice, sum, timestamp: Date.now() }
 }
 
 export const useDiceStore = create<DiceStore>()(
@@ -229,27 +254,37 @@ export const useDiceStore = create<DiceStore>()(
           const newRolling = new Set(state.rollingDice)
           newRolling.delete(diceId)
 
-          // If all rolling dice have settled, save history snapshot — unless a
-          // saved roll still owes follow-up waves, in which case the cycle is
-          // not over and `finishSavedRollWaves` will close it out.
+          // Draining the cycle CLOSES it; it does not record it.
+          //
+          // `roll_complete` is the single writer for an ordinary roll's history
+          // row (issue #211). A cycle is only ever opened by `roll_started`,
+          // which the room emits solely from `roll_player_dice` — and that
+          // always registers a pending roll the room later completes. So every
+          // cycle already has a `roll_complete` coming, and snapshotting here
+          // too wrote the same roll twice: one unattributed row from this drain
+          // and one attributed row from the handler ("Roll #1 / 85" next to
+          // "You / 85"). The `roll_complete` row is the one that survives — it
+          // is attributed, it is the only row a remote player's roll ever had,
+          // and it covers the identical dice set (`pending.dice_ids`).
+          //
+          // The sole path that still snapshots the cycle is a saved roll with
+          // follow-up waves, where `roll_complete` is deliberately suppressed
+          // and `finishSavedRollWaves` writes the attributed row instead. That
+          // is why the close is gated on the same latch: the cycle must stay
+          // open across the waves for that snapshot to see every die.
+          //
+          // Clearing the cycle here is also what stops a later knock and
+          // re-settle from resurrecting a finished roll (`dice_knocked` never
+          // reopens a cycle, so the re-settle lands with an empty cycle set).
           if (
             newRolling.size === 0
             && state.currentRollCycleDice.size > 0
             && !state.savedRollWavesPending
           ) {
-            const snapshot = buildCycleSnapshot(
-              newSettled,
-              state.currentRollCycleDice,
-              state.activeSavedRoll,
-            )
-
-            if (snapshot) {
-              return {
-                settledDice: newSettled,
-                rollingDice: newRolling,
-                currentRollCycleDice: new Set<string>(),
-                rollHistory: [...state.rollHistory, snapshot],
-              }
+            return {
+              settledDice: newSettled,
+              rollingDice: newRolling,
+              currentRollCycleDice: new Set<string>(),
             }
           }
 
@@ -260,9 +295,9 @@ export const useDiceStore = create<DiceStore>()(
         })
       },
 
-      addRollToHistory: (snapshot: RollSnapshot) => {
+      addRollToHistory: (snapshot: Omit<RollSnapshot, 'id'>) => {
         set((state) => ({
-          rollHistory: [...state.rollHistory, snapshot],
+          rollHistory: [...state.rollHistory, { ...snapshot, id: newRollSnapshotId() }],
         }))
       },
 
@@ -395,6 +430,23 @@ export const useDiceStore = create<DiceStore>()(
     {
       name: 'dicesuki-dice-rolls',
       storage: createJSONStorage(() => localStorage),
+      version: 1,
+      /**
+       * v1 gave every history row a stable `id` (`RollSnapshot.id`). Rows saved
+       * before that have none, and the list used to key on `timestamp`, so
+       * backfill an id per row rather than leaving the UI to collide on ties.
+       */
+      migrate: (persistedState, version) => {
+        const state = persistedState as { rollHistory?: RollSnapshot[] } | null | undefined
+        if (!state) return { rollHistory: [] } as unknown as DiceStore
+        if (version >= 1) return state as unknown as DiceStore
+        return {
+          ...state,
+          rollHistory: (state.rollHistory ?? []).map((roll) => (
+            roll.id ? roll : { ...roll, id: newRollSnapshotId() }
+          )),
+        } as unknown as DiceStore
+      },
       partialize: (state) => ({
         rollHistory: state.rollHistory,
       }),

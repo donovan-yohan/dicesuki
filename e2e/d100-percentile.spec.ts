@@ -60,14 +60,10 @@ test('rolls a d100 as a tens+ones pair and reports one 1-100 result', async ({ p
   // out as `<tens padded> + <ones>` (the HUD chip keeps its own D100 label).
   const historyRow = page.getByText(/^\d{2} \+ \d$/).first()
   await expect(historyRow).toBeVisible()
-  // Exactly three D100 labels: the HUD chip plus BOTH history entries. The roll
-  // is written to history twice (the useDiceStore settle drain and the room's
-  // roll_complete each push a snapshot) — that duplicate double-write is a
-  // pre-existing behavior tracked in
-  // https://github.com/donovan-yohan/dicesuki/issues/211 and deliberately NOT
-  // fixed in this slice; this asserts the CURRENT exact behavior so whoever
-  // fixes #211 has to update it consciously.
-  await expect(page.getByText('D100', { exact: true })).toHaveCount(3)
+  // Exactly two D100 labels: the HUD chip plus the ONE history row. `roll_complete`
+  // is the single history writer for an ordinary roll, so a roll is recorded once.
+  await expect(page.getByText('D100', { exact: true })).toHaveCount(2)
+  await expect(page.getByText(/^\d{2} \+ \d$/)).toHaveCount(1)
   await expect(page.getByText(String(value), { exact: true }).first()).toBeVisible()
 
   await page.screenshot({ path: 'e2e/screenshots/d100-percentile-history.png', fullPage: true })

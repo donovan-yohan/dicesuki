@@ -47,7 +47,7 @@ export function HistoryPanel({ isOpen, onClose }: HistoryPanelProps) {
           {/* Rolls list - newest first */}
           {[...rollHistory].reverse().map((roll, idx) => (
             <RollHistoryItem
-              key={roll.timestamp}
+              key={roll.id}
               roll={roll}
               rollNumber={rollHistory.length - idx}
             />
@@ -98,6 +98,7 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
 
   return (
     <div
+      data-testid="history-roll"
       className="p-4 rounded-lg"
       style={{
         backgroundColor: 'rgba(0, 0, 0, 0.2)',

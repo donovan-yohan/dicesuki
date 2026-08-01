@@ -53,6 +53,17 @@ function createFakeRoom(faceQueue: number[]) {
   const token = Symbol('fake-room')
   activeRoomToken = token
   const faceById = new Map<string, number>()
+
+  // Only a joined player can roll, and `roll_complete` is addressed to that
+  // player record — without one the client drops the row on the floor. Tests
+  // that want a specific display name set it before building the room.
+  if (!useMultiplayerStore.getState().players.has(OWNER)) {
+    useMultiplayerStore.setState((state) => ({
+      players: new Map(state.players).set(OWNER, {
+        id: OWNER, displayName: 'Solo', color: '#fff', isHost: true,
+      } as never),
+    }))
+  }
   const spawnLog: Array<{
     id: string
     type: DiceShape
@@ -73,6 +84,36 @@ function createFakeRoom(faceQueue: number[]) {
       dice: new Map(state.dice).set(id, { ...die, isRolling: false, faceValue: face }),
     }))
     useDiceStore.getState().recordDieSettled(id, face, die.diceType)
+  }
+
+  /**
+   * Announce the explicit roll as finished, the way the real room does once
+   * every die it launched has come to rest (`take_completed_rolls`).
+   *
+   * This is the room's ONLY history write for an ordinary roll (issue #211), so
+   * a harness that skipped it could not tell a single row from a double one.
+   */
+  function completeRoll(ids: string[]) {
+    if (activeRoomToken !== token) return
+    const roomDice = useMultiplayerStore.getState().dice
+    const results = ids
+      .map((id) => ({ id, die: roomDice.get(id) }))
+      .filter((entry): entry is { id: string; die: MultiplayerDie } => entry.die !== undefined)
+      .map(({ id, die }) => ({
+        diceId: id,
+        diceType: die.diceType,
+        faceValue: faceById.get(id) ?? 1,
+        presentation: die.presentation,
+      }))
+    if (results.length === 0) return
+    useMultiplayerStore.getState().handleServerMessage({
+      type: 'roll_complete',
+      playerId: OWNER,
+      results,
+      // The room reports a PLAIN face sum; the client applies the plan and the
+      // percentile correction on top.
+      total: results.reduce((acc, result) => acc + result.faceValue, 0),
+    } as never)
   }
 
   function spawn(
@@ -151,7 +192,15 @@ function createFakeRoom(faceQueue: number[]) {
       }))
       // `roll_started` wipes the faces of every die it launches.
       useDiceStore.getState().markDiceRolling(mine)
-      for (const id of mine) setTimeout(() => settle(id), 0)
+      let outstanding = mine.length
+      for (const id of mine) {
+        setTimeout(() => {
+          settle(id)
+          // The room announces the roll complete only once the LAST die it
+          // launched has settled.
+          if (--outstanding === 0) completeRoll(mine)
+        }, 0)
+      }
     }),
   }
 
@@ -539,25 +588,19 @@ describe('executePhysicalSavedRoll', () => {
       const room = createFakeRoom([3, 4])
       const roll = makeRoll({ quantity: 2, sources: [{ kind: 'anonymous', quantity: 2 }] }, 5)
 
-      // Act
+      // Act — the room emits its own `roll_complete` once the dice settle
       await run(roll, room.backend)
       await room.quiesce()
-      useMultiplayerStore.getState().handleServerMessage({
-        type: 'roll_complete',
-        playerId: OWNER,
-        total: 7,
-        results: [
-          { diceId: 'die-1', diceType: 'd6', faceValue: 3 },
-          { diceId: 'die-2', diceType: 'd6', faceValue: 4 },
-        ],
-      } as never)
 
-      // Assert — the roller's row carries the flat bonus the room cannot know
-      // about, not the room's raw `total: 7`.
+      // Assert — ONE row for one roll (issue #211). The settle-cycle drain used
+      // to add an unattributed second row alongside this one; now `roll_complete`
+      // is the only writer for a waveless roll.
       const history = useDiceStore.getState().rollHistory
-      const attributed = history.filter((row) => row.player !== undefined)
-      expect(attributed).toHaveLength(1)
-      expect(attributed[0].sum).toBe(12)
+      expect(history).toHaveLength(1)
+      // The roller's row carries the flat bonus the room cannot know about,
+      // not the room's raw `total: 7`.
+      expect(history[0].player?.displayName).toBe('Solo')
+      expect(history[0].sum).toBe(12)
     })
 
     it('leaves a remote player\'s roll_complete row as the raw face sum', async () => {

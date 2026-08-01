@@ -776,9 +776,18 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         if (player) {
           const diceState = useDiceStore.getState()
 
-          // A saved roll with follow-up waves is not finished when the room
-          // says the *roll* is: reroll and explosion dice are still to come.
-          // `finishSavedRollWaves` writes the authoritative row instead.
+          // This handler is THE history writer for a roll (issue #211): the
+          // settle-cycle drain in `useDiceStore` deliberately records nothing,
+          // so a roll lands in history exactly once, attributed, whoever rolled
+          // it. The row covers `pending.dice_ids` — the same dice the local
+          // cycle tracked — so nothing is lost by it being the only one.
+          //
+          // The one exception: a saved roll with follow-up waves is not
+          // finished when the room says the *roll* is — reroll and explosion
+          // dice are still to come. That row is suppressed here and
+          // `finishSavedRollWaves` writes the authoritative, attributed one
+          // once the waves land. Only the base wave is ever an explicit roll,
+          // so this suppresses at most one row per saved roll.
           if (msg.playerId === localPlayerId && diceState.savedRollWavesPending) break
 
           const now = Date.now()
