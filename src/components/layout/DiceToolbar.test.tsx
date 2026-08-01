@@ -109,12 +109,29 @@ describe('DiceToolbar', () => {
 
     renderToolbar({ onAddDice })
 
-    fireEvent.click(screen.getByRole('button', { name: /add random d6 from inventory/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add random owned d6 from inventory/i }))
 
     expect(onAddDice).toHaveBeenCalledWith('d6')
   })
 
-  it('disables a dice type when all owned dice of that type are already on the table', () => {
+  it('offers every dice type even with a completely empty inventory', () => {
+    const onAddDice = vi.fn()
+
+    renderToolbar({ onAddDice })
+
+    for (const type of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'] as const) {
+      const slot = screen.getByTestId(`dice-quick-slot-${type}`)
+      expect(slot).toBeEnabled()
+      expect(slot).toHaveAttribute('data-owned-available', '0')
+      // ∞ rather than 0: basic dice never run out.
+      expect(slot).toHaveTextContent('∞')
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: /add a basic d20 \(unlimited\)/i }))
+    expect(onAddDice).toHaveBeenCalledWith('d20')
+  })
+
+  it('keeps a dice type spawnable when all owned dice of that type are on the table', () => {
     const ownedDie = addNamedDie('Only D6', 'd6', 'common')
     useMultiplayerStore.setState({
       localPlayerId: 'p1',
@@ -131,25 +148,28 @@ describe('DiceToolbar', () => {
     renderToolbar({ onAddDice })
 
     const d6Button = screen.getByTestId('dice-quick-slot-d6')
-    expect(d6Button).toBeDisabled()
+    expect(d6Button).toBeEnabled()
+    expect(d6Button).toHaveAttribute('data-owned-available', '0')
 
+    // Beyond the owned dice the rail keeps spawning; the backend substitutes a
+    // basic die rather than refusing.
     fireEvent.click(d6Button)
-
-    expect(onAddDice).not.toHaveBeenCalled()
+    expect(onAddDice).toHaveBeenCalledWith('d6')
   })
 
   it('counts pending multiplayer inventory dice as unavailable', () => {
     const ownedDie = addNamedDie('Only Online D6', 'd6', 'common')
     useMultiplayerStore.setState({ pendingInventoryDieIds: new Set([ownedDie.id]) })
-    const onAddDice = vi.fn()
 
-    renderToolbar({ onAddDice })
+    renderToolbar()
 
-    expect(screen.getByTestId('dice-quick-slot-d6')).toBeDisabled()
+    expect(screen.getByTestId('dice-quick-slot-d6'))
+      .toHaveAttribute('data-owned-available', '0')
   })
 
   it('counts owned multiplayer table dice as unavailable after server acknowledgement', () => {
     const ownedDie = addNamedDie('Online Table D6', 'd6', 'common')
+    addNamedDie('Spare D6', 'd6', 'common')
     useMultiplayerStore.setState({
       localPlayerId: 'p1',
       dice: new Map([[
@@ -163,7 +183,9 @@ describe('DiceToolbar', () => {
 
     renderToolbar()
 
-    expect(screen.getByTestId('dice-quick-slot-d6')).toBeDisabled()
+    // Two owned d6s, one of them on the table.
+    expect(screen.getByTestId('dice-quick-slot-d6'))
+      .toHaveAttribute('data-owned-available', '1')
   })
 
   it('opens a favorite dice flyout with 3d preview targets and spawns the tapped favorite', () => {

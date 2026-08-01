@@ -19,7 +19,11 @@ const makeNewDie = (overrides: Partial<NewInventoryDie> = {}): NewInventoryDie =
   name: 'Test Die',
   isFavorite: false,
   isLocked: false,
-  source: 'starter',
+  // Deliberately NOT 'starter': the v4 -> v5 migration deletes seeded starter
+  // rows, so a 'starter' default would turn every migration fixture here into an
+  // accidental test of that deletion (which has its own tests in
+  // `useInventoryStore.serverCopies.test.ts`).
+  source: 'gacha_standard',
   assignedToRolls: [],
   ...overrides
 })

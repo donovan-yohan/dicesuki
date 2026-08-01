@@ -42,7 +42,8 @@ import {
   percentileTensPresentation,
   PERCENTILE_TENS_SHAPE,
 } from './percentileRolls'
-import { expandDiceEntrySpawns, getRollDiceCount } from './rollSources'
+import { expandDiceEntrySpawns, getRollDiceCount, type RollSpawn } from './rollSources'
+import { isBasicDiePresentation } from './basicDice'
 import {
   MAX_EXPLOSION_WAVES,
   addGroup,
@@ -254,6 +255,10 @@ function assertCapacity(roll: SavedRoll, ownerId: string): void {
 /**
  * Spawn one die for a wave target.
  * Returns the client request id, or throws with the room's own message.
+ *
+ * A named-but-missing owned die does NOT throw: `addDie` substitutes a basic die
+ * so the rest of the roll still lands (see {@link describeBasicSubstitutions}).
+ * Only a ROOM refusal — disconnected, at capacity — fails here.
  */
 function spawnDie(
   backend: SavedRollBackend,
@@ -274,6 +279,25 @@ function spawnDie(
 }
 
 /**
+ * How many dice the roll asked for BY NAME but got as basics.
+ *
+ * Read from the room's own echo rather than predicted before the spawn: a die is
+ * counted as substituted only when the room comes back saying the die on the
+ * table is a basic one. That makes the notice ground truth instead of a second
+ * copy of `addDie`'s fallback rules, which could drift.
+ */
+function countBasicSubstitutions(specificSpawnIds: readonly string[]): number {
+  const { dice } = useMultiplayerStore.getState()
+  return specificSpawnIds.filter((id) => isBasicDiePresentation(dice.get(id)?.presentation)).length
+}
+
+function describeBasicSubstitutions(count: number): string {
+  return count === 1
+    ? 'One die in this roll is no longer in your collection, so a basic die was rolled instead.'
+    : `${count} dice in this roll are no longer in your collection, so basic dice were rolled instead.`
+}
+
+/**
  * Spawn one entry's physical dice and record them in the plan.
  *
  * `expandDiceEntrySpawns` is the SAME expansion `getRollDiceCount` counts, so
@@ -283,22 +307,33 @@ function spawnDie(
  * `presentation` block, and recorded as ONE plan group so the halves combine
  * into a single 1-100 result instead of summing.
  */
-function spawnEntry(backend: SavedRollBackend, plan: SavedRollPlan, entry: DiceEntry): void {
+function spawnEntry(
+  backend: SavedRollBackend,
+  plan: SavedRollPlan,
+  entry: DiceEntry,
+  specificSpawnIds: string[],
+): void {
   const label = isPercentileEntry(entry) ? 'D100' : entry.type.toUpperCase()
   const pairIds = new Map<number, string>()
   const pendingTens = new Map<number, string>()
+
+  /** Record dice the roll named by inventory id, so substitutions can be counted. */
+  const track = (id: string, source: RollSpawn['source']): string => {
+    if (source.kind === 'specific') specificSpawnIds.push(id)
+    return id
+  }
 
   for (const spawn of expandDiceEntrySpawns(entry)) {
     const pair = spawn.percentile
 
     if (!pair) {
-      addGroup(plan, entry.id, spawnDie(
+      addGroup(plan, entry.id, track(spawnDie(
         backend,
         entry.type,
         spawn.source.kind === 'specific' ? spawn.source.dieId : undefined,
         undefined,
         label,
-      ))
+      ), spawn.source))
       continue
     }
 
@@ -321,13 +356,13 @@ function spawnEntry(backend: SavedRollBackend, plan: SavedRollPlan, entry: DiceE
       continue
     }
 
-    const onesId = spawnDie(
+    const onesId = track(spawnDie(
       backend,
       entry.type,
       spawn.source.kind === 'specific' ? spawn.source.dieId : undefined,
       percentileOnesPresentation(pairId),
       label,
-    )
+    ), spawn.source)
     const tensId = pendingTens.get(pair.pairIndex)
     /* c8 ignore next -- expandDiceEntrySpawns always emits tens before ones */
     if (tensId === undefined) continue
@@ -479,9 +514,10 @@ export async function executePhysicalSavedRoll(
 
   // ── Base wave ───────────────────────────────────────────────────────────
   const plan = createSavedRollPlan(roll)
+  const specificSpawnIds: string[] = []
 
   for (const entry of roll.dice) {
-    spawnEntry(backend, plan, entry)
+    spawnEntry(backend, plan, entry, specificSpawnIds)
   }
 
   // The plan is the single record of which dice this roll owns; deriving the
@@ -493,6 +529,11 @@ export async function executePhysicalSavedRoll(
   }
 
   await waitForSpawns(baseIds, ownerId)
+
+  // Only now, with the room's echo in the store, is it known which named dice
+  // actually landed as basics. Published as a notice rather than an error: the
+  // roll is complete and correct, one or more dice just look plain.
+  const substitutions = countBasicSubstitutions(specificSpawnIds)
 
   const hasWaves = needsFollowUpWaves(roll)
   // Claim the roll cycle before `roll_started` lands, so the settle handler
@@ -521,6 +562,10 @@ export async function executePhysicalSavedRoll(
 
   onBaseWaveStarted?.()
 
+  if (substitutions > 0) {
+    useDiceStore.getState().setRollNotice(describeBasicSubstitutions(substitutions))
+  }
+
   if (!hasWaves) return
 
   // ── Follow-up waves ─────────────────────────────────────────────────────
@@ -530,7 +575,14 @@ export async function executePhysicalSavedRoll(
     await runRerollWave(plan, roll, options)
     const skipped = await runExplosionWaves(plan, roll, options)
     if (skipped > 0) {
-      useDiceStore.getState().setRollNotice(describeSkippedExplosions(skipped))
+      // Appended, not replaced: a substitution notice from the base wave is
+      // still true, and the HUD shows one line.
+      const existing = useDiceStore.getState().rollNotice
+      useDiceStore.getState().setRollNotice(
+        existing
+          ? `${existing} ${describeSkippedExplosions(skipped)}`
+          : describeSkippedExplosions(skipped),
+      )
     }
   } catch (error) {
     useDiceStore.getState().setRollNotice(

@@ -6,6 +6,12 @@
 
 import type { FaceRenderer } from '../textureRendering'
 import { drawEquilateralTriangle } from './shapes'
+import {
+  BASIC_GLYPH_STYLE,
+  EMBOSSED_GLYPH_STYLE,
+  drawFaceGlyph,
+  type FaceGlyphStyle,
+} from './glyphStyle'
 
 /**
  * Simple D20 renderer - triangle background with centered number
@@ -40,60 +46,59 @@ export const renderD20Simple: FaceRenderer = (
 }
 
 /**
- * Styled D20 renderer - triangle with shadow and outline
+ * Styled D20/D8 renderer factory — triangle face with a centroid-anchored
+ * numeral.
+ *
+ * The triangle inset and the centroid maths are the same for every die; only
+ * `style` varies, so a basic d20 lands its numerals in exactly the same place as
+ * a collectible one. The face-relief shadow is drawn only for styles that ask
+ * for one, keeping the basic die genuinely flat.
  */
-export const renderD20Styled: FaceRenderer = (
-  ctx,
-  faceValue,
-  canvasSize,
-  backgroundColor,
-) => {
-  const centerX = canvasSize / 2
-  const triangleSize = canvasSize * 0.85
+export function createD20StyledRenderer(style: FaceGlyphStyle): FaceRenderer {
+  return (ctx, faceValue, canvasSize, backgroundColor) => {
+    const centerX = canvasSize / 2
+    const triangleSize = canvasSize * 0.85
 
-  // The equilateral triangle UV maps centroid to canvas (size/2, size*2/3),
-  // not (size/2, size/2). The triangle occupies the bottom 2/3 of the canvas
-  // with the apex at the top center.
-  const triangleCentroidY = canvasSize / 2 + canvasSize / 6
+    // The equilateral triangle UV maps centroid to canvas (size/2, size*2/3),
+    // not (size/2, size/2). The triangle occupies the bottom 2/3 of the canvas
+    // with the apex at the top center.
+    const triangleCentroidY = canvasSize / 2 + canvasSize / 6
 
-  // Fill canvas background
-  ctx.fillStyle = backgroundColor
-  ctx.fillRect(0, 0, canvasSize, canvasSize)
+    // Fill canvas background
+    ctx.fillStyle = backgroundColor
+    ctx.fillRect(0, 0, canvasSize, canvasSize)
 
-  // Draw triangle with subtle shadow
-  ctx.save()
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
-  ctx.shadowBlur = canvasSize * 0.02
-  ctx.shadowOffsetX = canvasSize * 0.01
-  ctx.shadowOffsetY = canvasSize * 0.01
+    // Draw triangle with subtle shadow. Same-colour fill on the same-colour
+    // canvas, so the shadow IS the effect — skip it entirely for flat styles.
+    if (style.shadow) {
+      ctx.save()
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
+      ctx.shadowBlur = canvasSize * 0.02
+      ctx.shadowOffsetX = canvasSize * 0.01
+      ctx.shadowOffsetY = canvasSize * 0.01
 
-  drawEquilateralTriangle(ctx, centerX, triangleCentroidY, triangleSize)
-  ctx.fillStyle = backgroundColor
-  ctx.fill()
-  ctx.restore()
+      drawEquilateralTriangle(ctx, centerX, triangleCentroidY, triangleSize)
+      ctx.fillStyle = backgroundColor
+      ctx.fill()
+      ctx.restore()
+    }
 
-  // Draw number with outline and shadow at triangle centroid
-  const fontSize = canvasSize * 0.4
-  ctx.font = `bold ${fontSize}px Arial`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-
-  // Shadow
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
-  ctx.shadowBlur = fontSize * 0.1
-  ctx.shadowOffsetX = fontSize * 0.05
-  ctx.shadowOffsetY = fontSize * 0.05
-
-  // Outline
-  ctx.strokeStyle = 'black'
-  ctx.lineWidth = fontSize * 0.08
-  ctx.strokeText(faceValue.toString(), centerX, triangleCentroidY)
-
-  // Fill
-  ctx.shadowColor = 'transparent'
-  ctx.fillStyle = 'white'
-  ctx.fillText(faceValue.toString(), centerX, triangleCentroidY)
+    drawFaceGlyph(
+      ctx,
+      faceValue.toString(),
+      centerX,
+      triangleCentroidY,
+      canvasSize * 0.4,
+      style,
+    )
+  }
 }
+
+/** Collectible-dice d20/d8: bold white numerals with a black outline. */
+export const renderD20Styled: FaceRenderer = createD20StyledRenderer(EMBOSSED_GLYPH_STYLE)
+
+/** Basic-die d20/d8: plain black numerals on a flat face. */
+export const renderD20Basic: FaceRenderer = createD20StyledRenderer(BASIC_GLYPH_STYLE)
 
 /**
  * Bordered D20 renderer - triangle with border

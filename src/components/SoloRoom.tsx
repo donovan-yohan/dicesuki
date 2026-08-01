@@ -5,6 +5,7 @@ import { useMultiplayerDiceBackend } from '../hooks/useMultiplayerDiceBackend'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useDiceStore } from '../store/useDiceStore'
 import { usePlayerIdentityStore } from '../store/usePlayerIdentityStore'
+import { isBasicDiePresentation } from '../lib/basicDice'
 import { StartupGate, type StartupPhase } from './brand/StartupSplash'
 
 /**
@@ -123,6 +124,13 @@ export function SoloRoom() {
     )
   }
 
+  // How many dice on the table are basics (`lib/basicDice.ts`) rather than owned
+  // ones, read from the room's own echoed presentation. Exposed as a data
+  // attribute — like the dice count/types below — so a browser test can prove the
+  // owned-first-then-basic fill without reaching into the store.
+  const basicDiceCount = Array.from(roomDice.values())
+    .filter((die) => isBasicDiePresentation(die.presentation)).length
+
   return (
     <div
       data-testid={roomIsReady ? 'solo-room' : 'solo-room-loading'}
@@ -133,6 +141,7 @@ export function SoloRoom() {
       data-remembered-name={rememberedName}
       data-room-dice-count={roomDice.size}
       data-room-dice-types={Array.from(roomDice.values()).map((die) => die.diceType).sort().join(',')}
+      data-room-basic-dice-count={basicDiceCount}
       data-roll-started-sequence={rollStartedSequence}
       style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden' }}
     >

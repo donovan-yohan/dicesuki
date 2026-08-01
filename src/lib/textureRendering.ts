@@ -1,5 +1,13 @@
 import * as THREE from 'three'
 import { getDiceFaceValues, type DiceShape } from '../types/diceShape'
+// `glyphStyle` is leaf-level (it imports nothing), so reaching into the
+// faceRenderers folder from here introduces no import cycle.
+import {
+  BASIC_GLYPH_STYLE,
+  EMBOSSED_GLYPH_STYLE,
+  drawFaceGlyph,
+  type FaceGlyphStyle,
+} from './faceRenderers/glyphStyle'
 
 /**
  * Texture Rendering Utilities
@@ -123,6 +131,30 @@ export const renderSimpleNumber: FaceRenderer = (
 }
 
 /**
+ * Centred single-number renderer factory — the default layout for shapes with
+ * no bespoke face art (d6, d12).
+ *
+ * Only the glyph style varies between a collectible and a basic die; the
+ * position and size are shared. See `./faceRenderers/glyphStyle.ts`.
+ */
+export function createCenteredNumberRenderer(style: FaceGlyphStyle): FaceRenderer {
+  return (ctx, faceValue, canvasSize, backgroundColor) => {
+    // Fill background
+    ctx.fillStyle = backgroundColor
+    ctx.fillRect(0, 0, canvasSize, canvasSize)
+
+    drawFaceGlyph(
+      ctx,
+      faceValue.toString(),
+      canvasSize / 2,
+      canvasSize / 2,
+      canvasSize * 0.45,
+      style,
+    )
+  }
+}
+
+/**
  * Styled number renderer - numbers with outline and shadow
  *
  * More visually appealing than simple numbers, with:
@@ -130,41 +162,14 @@ export const renderSimpleNumber: FaceRenderer = (
  * - Black outline for contrast
  * - White fill for visibility
  */
-export const renderStyledNumber: FaceRenderer = (
-  ctx,
-  faceValue,
-  canvasSize,
-  backgroundColor
-) => {
-  // Fill background
-  ctx.fillStyle = backgroundColor
-  ctx.fillRect(0, 0, canvasSize, canvasSize)
+export const renderStyledNumber: FaceRenderer = createCenteredNumberRenderer(
+  EMBOSSED_GLYPH_STYLE,
+)
 
-  // Setup text
-  const fontSize = canvasSize * 0.45
-  ctx.font = `bold ${fontSize}px Arial`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-
-  const centerX = canvasSize / 2
-  const centerY = canvasSize / 2
-
-  // Draw shadow
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
-  ctx.shadowBlur = fontSize * 0.1
-  ctx.shadowOffsetX = fontSize * 0.05
-  ctx.shadowOffsetY = fontSize * 0.05
-
-  // Draw outline
-  ctx.strokeStyle = 'black'
-  ctx.lineWidth = fontSize * 0.08
-  ctx.strokeText(faceValue.toString(), centerX, centerY)
-
-  // Draw fill
-  ctx.shadowColor = 'transparent'
-  ctx.fillStyle = 'white'
-  ctx.fillText(faceValue.toString(), centerX, centerY)
-}
+/** Basic-die default: plain black numerals, no outline or shadow. */
+export const renderBasicNumber: FaceRenderer = createCenteredNumberRenderer(
+  BASIC_GLYPH_STYLE,
+)
 
 /**
  * Bordered number renderer - numbers in a rounded rectangle

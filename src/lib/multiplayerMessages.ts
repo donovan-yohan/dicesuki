@@ -40,6 +40,17 @@ export interface DicePresentationMetadata {
    */
   percentilePairId?: string
   percentileRole?: 'tens' | 'ones'
+  /**
+   * Marks one of the infinite fallback "basic" dice — a plain white body with
+   * black numerals that every player has an unlimited supply of and that never
+   * appears in the inventory. See `src/lib/basicDice.ts` for why these carry an
+   * explicit presentation block instead of spawning anonymous.
+   *
+   * INVARIANT: mirrored on `DicePresentationMetadata` in
+   * `server/core/src/messages.rs` (Shared-ADR-002 manual sync). The server never
+   * interprets it; it echoes it like the rest of `presentation`.
+   */
+  basic?: boolean
 }
 
 export interface SpawnDiceEntry {

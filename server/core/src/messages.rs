@@ -168,6 +168,20 @@ pub struct DicePresentationMetadata {
     pub percentile_pair_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub percentile_role: Option<String>,
+    /// Marks one of the infinite fallback "basic" dice — a plain white body with
+    /// black numerals that every player has an unlimited supply of and that
+    /// never appears in any inventory.
+    ///
+    /// Like the rest of `presentation` the room NEVER interprets this; it is
+    /// opaque client display metadata echoed back on `dice_spawned` and
+    /// `roll_complete` (Shared-ADR-005), which is what lets other players and
+    /// reconnecting clients render a basic die as a basic die instead of falling
+    /// back to the owner's player colour.
+    ///
+    /// INVARIANT: mirrored on `DicePresentationMetadata` in
+    /// `src/lib/multiplayerMessages.ts` (Shared-ADR-002 manual sync).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub basic: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -417,9 +431,42 @@ mod tests {
                     Some("die_lucky_d20@1/asset@2")
                 );
                 assert_eq!(presentation.unsupported_reason.as_deref(), Some("generic fallback"));
+                assert_eq!(presentation.basic, None, "an owned die is never basic");
             }
             _ => panic!("Expected SpawnDice message"),
         }
+    }
+
+    /// A basic die (`src/lib/basicDice.ts`) is the infinite fallback the client
+    /// spawns whenever a roll wants more dice than the player owns. The room
+    /// must carry its marker through untouched — including OMITTING the field
+    /// again on the way out for every other die, so an ordinary die can never
+    /// arrive at another client looking basic.
+    #[test]
+    fn test_basic_die_presentation_round_trips() {
+        let json = r##"{"type":"spawn_dice","dice":[{"id":"d1","diceType":"d20","presentation":{"basic":true,"displayName":"Basic D20","baseColor":"#ffffff","accentColor":"#000000","material":"plastic"}}]}"##;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        let presentation = match msg {
+            ClientMessage::SpawnDice { dice } => dice[0].presentation.clone().unwrap(),
+            _ => panic!("Expected SpawnDice message"),
+        };
+
+        assert_eq!(presentation.basic, Some(true));
+        assert_eq!(presentation.display_name.as_deref(), Some("Basic D20"));
+        assert_eq!(presentation.base_color.as_deref(), Some("#ffffff"));
+        assert_eq!(presentation.inventory_die_id, None, "basics own no inventory row");
+
+        let echoed = serde_json::to_string(&presentation).unwrap();
+        assert!(echoed.contains(r#""basic":true"#), "echoed: {echoed}");
+
+        let ordinary = DicePresentationMetadata {
+            basic: None,
+            ..presentation
+        };
+        assert!(
+            !serde_json::to_string(&ordinary).unwrap().contains("basic"),
+            "an unset flag must not serialize at all",
+        );
     }
 
     #[test]

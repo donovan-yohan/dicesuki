@@ -469,10 +469,8 @@ function SceneContent({ onReady }: SceneProps) {
   }, [])
 
 
-  // Initialize starter dice on first load
-  useEffect(() => {
-    useInventoryStore.getState().initializeStarterDice()
-  }, [])
+  // No inventory seeding on first load: an empty collection is the default, and
+  // basic dice (`lib/basicDice.ts`) are the playable floor.
 
   // Get the active backend — always provided by SoloRoom / MultiplayerRoom
   const activeBackend = useDiceBackend()

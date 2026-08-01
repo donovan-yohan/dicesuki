@@ -41,10 +41,20 @@ migration does not inspect the
 client-writable `inventory` JSON, so custom/dev dice and legacy valuable-looking
 rows receive no entitlement.
 
-Guest and offline players continue to receive and use local starter dice without
-an account. The existing starter tray remains 23 independent local instances,
-including repeated dice backed by those 8 owned catalog items. Local instance
-counts and catalog refs describe play/render state; neither is ownership proof.
+Guest and offline players no longer receive a seeded local starter tray. The
+client used to mint 23 independent `source: 'starter'` instances backed by those
+8 owned catalog items on first load; since the 2026-07-27 PO decision the default
+inventory is EMPTY and playability comes from infinite basic dice
+(`src/lib/basicDice.ts`) instead — a plain white body with black numerals that
+never appears in the inventory. The `dicesuki-player-inventory` v4 → v5 migration
+deletes the seeded rows from existing sessions.
+
+The SERVER side is deliberately unchanged: `ensure_starter_entitlements()` still
+owns the same 8-item allowlist, migration `0021`'s pull-prepare path still calls
+it, and existing `dice_copies` rows stay valid. `src/config/starterDice.test.ts`
+guards both halves of that asymmetry — the RPC allowlist is frozen, and no client
+code may start seeding it again. Local instance counts and catalog refs describe
+play/render state; neither is ownership proof.
 
 ## Append-only catalog editions
 

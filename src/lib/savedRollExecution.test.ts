@@ -7,7 +7,9 @@ import { ROOM_DICE_CAPACITY } from '../config/roomCapacity'
 import { useDiceStore } from '../store/useDiceStore'
 import { useMultiplayerStore, type MultiplayerDie } from '../store/useMultiplayerStore'
 import type { DiceShape } from './geometries'
+import type { DicePresentationMetadata } from './multiplayerMessages'
 import type { DiceEntry, SavedRoll } from '../types/savedRolls'
+import { useInventoryStore } from '../store/useInventoryStore'
 import { executePhysicalSavedRoll, type SavedRollBackend } from './savedRollExecution'
 import { aggregateSavedRollPlan, facesFromSettled } from './savedRollPlan'
 
@@ -96,7 +98,12 @@ function createFakeRoom(faceQueue: number[]) {
     faceById.set(id, faceQueue.shift() ?? 1)
     spawnLog.push({ id, type, inventoryDieId, presentation })
     useMultiplayerStore.setState((state) => ({
-      dice: new Map(state.dice).set(id, roomDie(id, type)),
+      // The real room echoes `presentation` back on `dice_spawned`, and the
+      // executor reads it back to tell which named dice landed as basics.
+      dice: new Map(state.dice).set(id, {
+        ...roomDie(id, type),
+        presentation: presentation as DicePresentationMetadata | undefined,
+      }),
     }))
     // A spawned die drops and comes to rest on its own — the spawn IS the roll.
     setTimeout(() => settle(id), 0)
@@ -677,6 +684,117 @@ describe('executePhysicalSavedRoll', () => {
       expect(useDiceStore.getState().rollHistory).toHaveLength(1)
       // 6 exploded into a 2: one logical die worth 8 across two physical dice.
       expect(useDiceStore.getState().rollHistory[0].sum).toBe(8)
+    })
+  })
+
+  describe('basic-die substitution', () => {
+    /**
+     * The real backend, with only the protocol send stubbed, so `addDie`'s
+     * inventory fallback and the executor's read-back of the room's echo are
+     * both live. Faking either would only prove the fake.
+     */
+    function stubRealRoomTransport(faces: number[]) {
+      let nextId = 0
+      const spawned: Array<{ id: string; presentation?: DicePresentationMetadata }> = []
+      useMultiplayerStore.setState({
+        spawnDice: ((type: DiceShape, presentation?: DicePresentationMetadata) => {
+          const id = `real-${++nextId}`
+          spawned.push({ id, presentation })
+          useMultiplayerStore.setState((state) => ({
+            dice: new Map(state.dice).set(id, { ...roomDie(id, type), presentation }),
+          }))
+          const face = faces.shift() ?? 1
+          setTimeout(() => useDiceStore.getState().recordDieSettled(id, face, type), 0)
+          return id
+        }) as never,
+        roll: (() => {
+          const mine = Array.from(useMultiplayerStore.getState().dice.values())
+            .filter((die) => die.ownerId === OWNER).map((die) => die.id)
+          useMultiplayerStore.setState((state) => ({
+            rollStartedSequence: state.rollStartedSequence + 1,
+            lastRollStartedDiceIds: mine,
+          }))
+          useDiceStore.getState().markDiceRolling(mine)
+        }) as never,
+      })
+      return spawned
+    }
+
+    beforeEach(() => {
+      useInventoryStore.getState().reset()
+    })
+
+    it('rolls a saved roll whose named die is gone, as a basic die plus a notice', async () => {
+      // Arrange — the roll names a die the player no longer has.
+      const spawned = stubRealRoomTransport([4])
+      const { result } = renderHook(() => useMultiplayerDiceBackend())
+      const roll = makeRoll({
+        type: 'd4',
+        quantity: 1,
+        sources: [{ kind: 'specific', dieId: 'die_sold_long_ago' }],
+      })
+
+      // Act
+      await executePhysicalSavedRoll(roll, { backend: result.current, ownerId: OWNER })
+      await waitFor(() => {
+        expect(useDiceStore.getState().settledDice.has('real-1')).toBe(true)
+      })
+
+      // Assert — the roll ran to completion with a basic stand-in, and the HUD
+      // is told why rather than the whole roll failing.
+      expect(spawned).toHaveLength(1)
+      expect(spawned[0].presentation).toMatchObject({ basic: true, displayName: 'Basic D4' })
+      expect(useDiceStore.getState().rollNotice)
+        .toBe('One die in this roll is no longer in your collection, so a basic die was rolled instead.')
+    })
+
+    it('says nothing when every named die is still owned', async () => {
+      // Arrange
+      const owned = useInventoryStore.getState().addDie({
+        id: 'owned-d4',
+        type: 'd4',
+        setId: 'test-set',
+        rarity: 'common',
+        appearance: { baseColor: '#8b5cf6', accentColor: '#fff', material: 'plastic' },
+        vfx: {},
+        name: 'My D4',
+        isFavorite: false,
+        isLocked: false,
+        source: 'gacha_standard',
+      })
+      const spawned = stubRealRoomTransport([3])
+      const { result } = renderHook(() => useMultiplayerDiceBackend())
+      const roll = makeRoll({
+        type: 'd4',
+        quantity: 1,
+        sources: [{ kind: 'specific', dieId: owned.id }],
+      })
+
+      // Act
+      await executePhysicalSavedRoll(roll, { backend: result.current, ownerId: OWNER })
+
+      // Assert
+      expect(spawned[0].presentation).toMatchObject({ inventoryDieId: 'owned-d4' })
+      expect(useDiceStore.getState().rollNotice).toBeNull()
+    })
+
+    it('does not count plain anonymous dice as substitutions', async () => {
+      // Arrange — anonymous entries are basics BY DESIGN, not by fallback, so
+      // rolling them must not accuse the player of losing a die.
+      const spawned = stubRealRoomTransport([2, 5])
+      const { result } = renderHook(() => useMultiplayerDiceBackend())
+      const roll = makeRoll({
+        type: 'd6',
+        quantity: 2,
+        sources: [{ kind: 'anonymous', quantity: 2 }],
+      })
+
+      // Act
+      await executePhysicalSavedRoll(roll, { backend: result.current, ownerId: OWNER })
+
+      // Assert
+      expect(spawned.every((die) => die.presentation?.basic === true)).toBe(true)
+      expect(useDiceStore.getState().rollNotice).toBeNull()
     })
   })
 

@@ -174,6 +174,42 @@ for (const viewport of VIEWPORTS) {
 test.describe('owned dice safety at 1280x800', () => {
   test.use({ viewport: { width: 1280, height: 800 } })
 
+  /**
+   * The default inventory is EMPTY — basic dice are the playable floor and
+   * nothing is seeded any more — so a test about OWNED dice has to bring its
+   * own. Written at the current persist version so the store hydrates it as-is.
+   */
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const die = {
+        id: 'die_owned_d20_1',
+        type: 'd20',
+        setId: 'adventurer-starter',
+        rarity: 'common',
+        appearance: { baseColor: '#2563eb', accentColor: '#ffffff', material: 'plastic' },
+        vfx: {},
+        name: 'Owned d20',
+        isFavorite: false,
+        isLocked: false,
+        source: 'gacha_standard',
+        assignedToRolls: [],
+        acquiredAt: 1_700_000_000_000,
+        stats: { timesRolled: 0, totalValue: 0, critsRolled: 0, failsRolled: 0 },
+      }
+      window.localStorage.setItem('dicesuki-player-inventory', JSON.stringify({
+        state: {
+          dice: [die],
+          localDice: [die],
+          assignments: {},
+          localAssignments: {},
+          serverCopiesActive: false,
+          currency: { coins: 0, gems: 0, standardTokens: 0, premiumTokens: 0 },
+        },
+        version: 5,
+      }))
+    })
+  })
+
   test('keeps an owned die while a multi-digit count is typed', async ({ page }) => {
     test.setTimeout(180_000)
     await openBuilder(page)
