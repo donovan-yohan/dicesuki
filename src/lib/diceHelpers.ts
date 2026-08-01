@@ -178,19 +178,21 @@ export function formatBonus(bonus: number): string {
 }
 
 /**
- * Format a dice entry as readable text (e.g., "2d(6+1)")
- * Per-die bonus wraps the die face: 2d(6+1) means "roll 2d6, add 1 to each"
+ * Format a dice entry as readable text
+ *
+ * A per-die bonus puts the count OUTSIDE the parens and the die INSIDE them:
+ * `4(d4+1)` reads as "four of (a d4, plus 1)" — i.e. roll 4d4 and add 1 to each.
+ * A negative bonus renders the same way: `4(d4-1)`.
+ * With no per-die bonus the plain form is kept: `4d4`.
  */
 export function formatDiceEntry(entry: DiceEntry): string {
   let text = ''
 
   // Quantity and die type
   const rollCount = entry.rollCount || entry.quantity
-  const dieMax = entry.type.replace('d', '') // e.g., "6" from "d6"
 
   if (entry.perDieBonus !== 0) {
-    const sign = entry.perDieBonus > 0 ? '+' : ''
-    text += `${rollCount}d(${dieMax}${sign}${entry.perDieBonus})`
+    text += `${rollCount}(${entry.type}${formatBonus(entry.perDieBonus)})`
   } else {
     text += `${rollCount}${entry.type}`
   }

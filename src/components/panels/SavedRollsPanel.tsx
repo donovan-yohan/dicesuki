@@ -15,7 +15,8 @@ import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
 import { useMultiplayerStore, type MultiplayerDie } from '../../store/useMultiplayerStore'
 import { createClientId } from '../../lib/clientId'
-import { expandDiceEntrySources } from '../../lib/rollSources'
+import { expandDiceEntrySources, getRollDiceCount } from '../../lib/rollSources'
+import { ROLL_DICE_CAPACITY_MESSAGE, ROOM_DICE_CAPACITY } from '../../config/roomCapacity'
 import { SavedRoll } from '../../types/savedRolls'
 
 const ROOM_ACK_TIMEOUT_MS = 5_000
@@ -138,6 +139,25 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
     const existingOwnedIds = Array.from(room.dice.values())
       .filter((die: MultiplayerDie) => die.ownerId === ownerId)
       .map((die) => die.id)
+
+    // Capacity guard. `clearAll` only removes our own dice, so other players'
+    // dice keep occupying the room — budget against what will actually be free.
+    // Fail here with readable copy rather than clearing the table and taking a
+    // server-side DICE_LIMIT rejection mid-spawn.
+    const foreignDiceCount = room.dice.size - existingOwnedIds.length
+    const availableCapacity = Math.max(0, ROOM_DICE_CAPACITY - foreignDiceCount)
+    const requestedDiceCount = getRollDiceCount(roll.dice)
+    if (requestedDiceCount > availableCapacity) {
+      setExecutionError(
+        foreignDiceCount > 0
+          ? `Only ${availableCapacity} of the room's ${ROOM_DICE_CAPACITY} dice are free — "${roll.name}" needs ${requestedDiceCount}.`
+          : `${ROLL_DICE_CAPACITY_MESSAGE}. "${roll.name}" needs ${requestedDiceCount} — edit it to continue.`,
+      )
+      executingRef.current = false
+      setIsExecuting(false)
+      return
+    }
+
     const requested: Array<{ id: string; bonus: number }> = []
 
     try {
@@ -235,7 +255,12 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
   }
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title="My Dice Rolls">
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title="My Dice Rolls"
+      desktopClassName="lg:mx-auto lg:max-w-5xl"
+    >
       {view === 'list' ? (
         // List View
         <>

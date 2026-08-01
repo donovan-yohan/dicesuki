@@ -7,10 +7,7 @@ import type { DiceShape } from '../../types/diceShape'
 import type { RenderDeviceTier } from '../../lib/renderLod'
 import { CurrencyText } from '../economy/CurrencyGlyph'
 import { PullDicePreview } from './PullDicePreview'
-
-// Server authority: server/core/src/room.rs::MAX_DICE. EngineConfig does not
-// expose this room cap yet, so this client mirror can drift until that happens.
-const ROOM_DICE_CAPACITY = 30
+import { ROOM_DICE_CAPACITY } from '../../config/roomCapacity'
 
 interface PullRevealOverlayProps {
   assembly: PullRevealAssembly

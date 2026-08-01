@@ -7,7 +7,9 @@ import {
   expandDiceEntrySources,
   getDiceEntrySourceQuantity,
   getSpecificDieIds,
+  getRollDiceCount,
   normalizeSavedRollSources,
+  resizeRollSources,
   withNormalizedRollSources,
   withRollSources,
 } from './rollSources'
@@ -157,5 +159,157 @@ describe('rollSources', () => {
       dieId: 'die_lucky_d20',
       slotIndex: 0,
     })
+  })
+})
+
+
+function getTotalQuantity(sources: ReturnType<typeof createAnonymousRollSource>[]) {
+  return sources.reduce((total, source) => total + (source.kind === 'anonymous' ? source.quantity : 1), 0)
+}
+
+describe('resizeRollSources', () => {
+  const a = createSpecificDieRollSource('die-a')
+  const b = createSpecificDieRollSource('die-b')
+  const c = createSpecificDieRollSource('die-c')
+
+  it('appends generic dice when growing past owned dice', () => {
+    // Arrange / Act
+    const result = resizeRollSources([a, b], 5)
+
+    // Assert
+    expect(result.sources).toEqual([a, b, createAnonymousRollSource(3)])
+    expect(result.droppedDieIds).toEqual([])
+  })
+
+  it('grows a trailing generic group in place instead of appending a new one', () => {
+    // Arrange / Act
+    const result = resizeRollSources([a, createAnonymousRollSource(2)], 6)
+
+    // Assert — one merged group, not [.., anon(2), anon(3)]
+    expect(result.sources).toEqual([a, createAnonymousRollSource(5)])
+  })
+
+  it('keeps repeated single increments collapsed into one generic group', () => {
+    // Arrange
+    let sources = [createAnonymousRollSource(1)]
+
+    // Act — five presses of "+"
+    for (let i = 0; i < 5; i++) {
+      sources = resizeRollSources(sources, getTotalQuantity(sources) + 1).sources
+    }
+
+    // Assert — one source of 6, not six sources of 1
+    expect(sources).toEqual([createAnonymousRollSource(6)])
+  })
+
+  it('does not merge plain growth into a skinned generic group', () => {
+    // Arrange — merging would silently relabel the new dice with that skin
+    const skinned = createAnonymousRollSource(2, 'neon')
+
+    // Act
+    const result = resizeRollSources([skinned], 4)
+
+    // Assert
+    expect(result.sources).toEqual([skinned, createAnonymousRollSource(2)])
+  })
+
+  it('returns a copy when the target already matches, never the input array', () => {
+    // Arrange
+    const sources = [a, createAnonymousRollSource(2)]
+
+    // Act
+    const result = resizeRollSources(sources, 3)
+
+    // Assert
+    expect(result.sources).not.toBe(sources)
+    expect(result.sources).toEqual(sources)
+  })
+
+  it('gives up generic dice before touching owned dice when shrinking', () => {
+    // Arrange — 3 owned + 5 generic = 8 dice
+    const sources = [a, b, c, createAnonymousRollSource(5)]
+
+    // Act — down to 4
+    const result = resizeRollSources(sources, 4)
+
+    // Assert — every owned die survives, generics absorb the whole cut
+    expect(result.sources).toEqual([a, b, c, createAnonymousRollSource(1)])
+    expect(result.droppedDieIds).toEqual([])
+  })
+
+  it('removes a generic source entirely when it is fully consumed', () => {
+    // Arrange
+    const sources = [a, createAnonymousRollSource(2)]
+
+    // Act
+    const result = resizeRollSources(sources, 1)
+
+    // Assert
+    expect(result.sources).toEqual([a])
+    expect(result.droppedDieIds).toEqual([])
+  })
+
+  it('drops owned dice from the end only once generics are exhausted', () => {
+    // Arrange — 3 owned + 1 generic = 4 dice
+    const sources = [a, b, c, createAnonymousRollSource(1)]
+
+    // Act — down to 2
+    const result = resizeRollSources(sources, 2)
+
+    // Assert — generic goes first, then the last owned die
+    expect(result.sources).toEqual([a, b])
+    expect(result.droppedDieIds).toEqual(['die-c'])
+  })
+
+  it('reports every dropped owned die in original order', () => {
+    // Arrange
+    const sources = [a, b, c]
+
+    // Act
+    const result = resizeRollSources(sources, 1)
+
+    // Assert
+    expect(result.sources).toEqual([a])
+    expect(result.droppedDieIds).toEqual(['die-b', 'die-c'])
+  })
+
+  it('never shrinks below a single die', () => {
+    // Arrange / Act
+    const result = resizeRollSources([a, b], 0)
+
+    // Assert
+    expect(result.sources).toEqual([a])
+    expect(result.droppedDieIds).toEqual(['die-b'])
+  })
+})
+
+describe('getRollDiceCount', () => {
+  it('sums the physical dice across every entry', () => {
+    // Arrange
+    const dice: DiceEntry[] = [
+      withRollSources({ id: '1', type: 'd6', quantity: 8, perDieBonus: 0 }, [createAnonymousRollSource(8)]),
+      withRollSources({ id: '2', type: 'd20', quantity: 1, perDieBonus: 0 }, [createSpecificDieRollSource('die-a')]),
+    ]
+
+    // Act / Assert
+    expect(getRollDiceCount(dice)).toBe(9)
+  })
+
+  it('counts what execution actually spawns for every entry', () => {
+    // Arrange
+    const dice: DiceEntry[] = [
+      withRollSources({ id: '1', type: 'd6', quantity: 3, perDieBonus: 0 }, [
+        createSpecificDieRollSource('die-a'),
+        createAnonymousRollSource(2),
+      ]),
+    ]
+
+    // Act / Assert — the guard must agree with expandDiceEntrySources
+    expect(getRollDiceCount(dice)).toBe(expandDiceEntrySources(dice[0]).length)
+  })
+
+  it('treats a missing dice array as empty', () => {
+    // Arrange / Act / Assert
+    expect(getRollDiceCount(undefined)).toBe(0)
   })
 })

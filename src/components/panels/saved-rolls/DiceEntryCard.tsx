@@ -1,46 +1,109 @@
-import { useState } from 'react'
+import { type KeyboardEvent, useState } from 'react'
 import { DiceIconWithNumber } from '../../icons/DiceIconWithNumber'
 import type { DiceEntry } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
 import { formatDiceEntry } from '../../../lib/diceHelpers'
 import {
-  createAnonymousRollSource,
   getDiceEntrySourceQuantity,
   normalizeRollSources,
-  withNormalizedRollSources,
+  resizeRollSources,
 } from '../../../lib/rollSources'
+
+/** Widest count the quantity field accepts; the room cap is 30. */
+const MAX_QUANTITY_DIGITS = 3
 
 interface DiceEntryCardProps {
   entry: DiceEntry
   onUpdate: (entry: DiceEntry) => void
   onRemove: () => void
   inventoryDiceById?: Map<string, InventoryDie>
+  /** True when the roll as a whole exceeds the room dice capacity. */
+  isOverCapacity?: boolean
+  /** Id of the builder's capacity message, for aria-describedby. */
+  capacityMessageId?: string
 }
 
 /**
  * Card showing a single dice entry in the roll builder
  * Allows editing quantity, bonuses, and advanced options
  */
-export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: DiceEntryCardProps) {
+export function DiceEntryCard({
+  entry,
+  onUpdate,
+  onRemove,
+  inventoryDiceById,
+  isOverCapacity = false,
+  capacityMessageId,
+}: DiceEntryCardProps) {
   const [showAdvanced, setShowAdvanced] = useState(false)
+  // The draft owns the displayed text while the field is being typed into, and
+  // is only committed on blur or Enter. Committing per keystroke would make
+  // typing "12" pass through 1, and each pass-through would permanently drop
+  // sources the user never asked to remove.
+  const [quantityDraft, setQuantityDraft] = useState<string | null>(null)
+  const [droppedDieNames, setDroppedDieNames] = useState<string[]>([])
+
+  // Per-entry floor is 1; the roll-wide ROOM_DICE_CAPACITY ceiling is validated
+  // in RollBuilder, which is the only place that can see every entry's total.
+  const commitQuantity = (nextQuantity: number) => {
+    const target = Math.max(1, Math.floor(nextQuantity))
+    const { sources, droppedDieIds } = resizeRollSources(normalizeRollSources(entry), target)
+
+    setDroppedDieNames(droppedDieIds.map(
+      (dieId) => inventoryDiceById?.get(dieId)?.name ?? 'an owned die',
+    ))
+
+    onUpdate({
+      ...entry,
+      quantity: target,
+      // Keep/drop is not editable here; a manual count change resets it so the
+      // entry cannot keep a stale rollCount that outranks the new quantity.
+      rollCount: undefined,
+      sources,
+    })
+  }
 
   const handleQuantityChange = (delta: number) => {
-    const currentQuantity = getDiceEntrySourceQuantity(entry)
-    const newQuantity = Math.max(1, currentQuantity + delta)
-    onUpdate(withNormalizedRollSources({ ...entry, quantity: newQuantity }))
+    setQuantityDraft(null)
+    commitQuantity(getDiceEntrySourceQuantity(entry) + delta)
+  }
+
+  const handleQuantityInput = (rawValue: string) => {
+    setQuantityDraft(rawValue.replace(/[^0-9]/g, '').slice(0, MAX_QUANTITY_DIGITS))
+  }
+
+  /** Commit the draft, or revert to the committed value if it is unusable. */
+  const commitQuantityDraft = () => {
+    if (quantityDraft === null) return
+
+    const parsed = Number.parseInt(quantityDraft, 10)
+    if (Number.isInteger(parsed) && parsed >= 1) {
+      commitQuantity(parsed)
+    }
+    setQuantityDraft(null)
+  }
+
+  const handleQuantityKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commitQuantityDraft()
+      return
+    }
+
+    // Escape is only ours while a draft is in flight, where it means "abandon
+    // what I typed". The panel listens for Escape on `document` to close the
+    // sheet, so swallowing it unconditionally would trap the user in the
+    // builder; letting it bubble when there is no draft keeps sheet-close the
+    // expected behaviour.
+    if (event.key === 'Escape' && quantityDraft !== null) {
+      event.preventDefault()
+      event.stopPropagation()
+      setQuantityDraft(null)
+    }
   }
 
   const handleBonusChange = (bonus: number) => {
     onUpdate({ ...entry, perDieBonus: bonus })
-  }
-
-  const handleAnonymousQuantity = (quantity: number) => {
-    onUpdate({
-      ...entry,
-      quantity,
-      rollCount: undefined,
-      sources: [createAnonymousRollSource(quantity, entry.skinId)],
-    })
   }
 
   // Display formula for this entry
@@ -61,7 +124,7 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
     >
       {/* Main row: dice icon, formula, controls */}
       <div className="flex items-center gap-3">
-        <DiceIconWithNumber type={entry.type} number={entry.quantity} size={40} />
+        <DiceIconWithNumber type={entry.type} number={quantity} size={40} />
 
         <div className="flex-1">
           <div className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
@@ -103,9 +166,26 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
           >
             −
           </button>
-          <span className="w-8 text-center font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            {quantity}
-          </span>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={MAX_QUANTITY_DIGITS}
+            value={quantityDraft ?? String(quantity)}
+            onChange={(event) => handleQuantityInput(event.target.value)}
+            onFocus={(event) => event.currentTarget.select()}
+            onBlur={commitQuantityDraft}
+            onKeyDown={handleQuantityKeyDown}
+            className="field-focus-ring w-12 h-8 text-center rounded font-semibold"
+            style={{
+              backgroundColor: 'var(--color-background)',
+              color: 'var(--color-text-primary)',
+              border: `1px solid ${isOverCapacity ? 'var(--color-error)' : 'var(--color-border)'}`,
+            }}
+            aria-label={`${entry.type.toUpperCase()} quantity`}
+            aria-invalid={isOverCapacity ? true : undefined}
+            aria-describedby={isOverCapacity ? capacityMessageId : undefined}
+          />
           <button
             onClick={() => handleQuantityChange(1)}
             className="w-8 h-8 rounded flex items-center justify-center font-bold transition-all"
@@ -131,6 +211,22 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
         </button>
       </div>
 
+      {/* Owned dice dropped by a shrink. Not an alert: the edit succeeded, but
+          losing a specific die is destructive enough to have to be named. */}
+      {droppedDieNames.length > 0 && (
+        <p
+          role="status"
+          className="text-xs px-2 py-1 rounded"
+          style={{
+            backgroundColor: 'rgba(249, 135, 151, 0.12)',
+            color: 'var(--color-text-secondary)',
+            border: '1px solid rgba(249, 135, 151, 0.25)',
+          }}
+        >
+          Removed from this roll: {droppedDieNames.join(', ')}
+        </p>
+      )}
+
       {/* Per-die bonus */}
       <div className="flex items-center gap-2">
         <label className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
@@ -151,7 +247,8 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
             type="number"
             value={entry.perDieBonus}
             onChange={(e) => handleBonusChange(parseInt(e.target.value) || 0)}
-            className="w-16 h-7 text-center rounded font-semibold"
+            aria-label={`${entry.type.toUpperCase()} bonus per die`}
+            className="field-focus-ring w-16 h-7 text-center rounded font-semibold"
             style={{
               backgroundColor: 'var(--color-background)',
               color: 'var(--color-text-primary)',
@@ -169,27 +266,6 @@ export function DiceEntryCard({ entry, onUpdate, onRemove, inventoryDiceById }: 
             +
           </button>
         </div>
-      </div>
-
-      <div className="flex flex-wrap gap-1" aria-label={`${entry.type.toUpperCase()} bulk quantity shortcuts`}>
-        {[1, 2, 4, 6, 8, 10].map((quantityOption) => (
-          <button
-            key={quantityOption}
-            type="button"
-            onClick={() => handleAnonymousQuantity(quantityOption)}
-            className="h-7 px-2 rounded text-xs font-semibold transition-all"
-            style={{
-              backgroundColor: quantity === quantityOption
-                ? 'var(--color-accent)'
-                : 'rgba(255, 255, 255, 0.08)',
-              color: quantity === quantityOption ? '#ffffff' : 'var(--color-text-secondary)',
-              border: quantity === quantityOption ? 'none' : '1px solid var(--color-border)',
-            }}
-            aria-label={`Set ${entry.type.toUpperCase()} quantity to ${quantityOption}`}
-          >
-            {quantityOption}
-          </button>
-        ))}
       </div>
 
       {/* Advanced options toggle */}
