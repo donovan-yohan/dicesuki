@@ -8,6 +8,7 @@ import { useDiceStore } from '../../store/useDiceStore'
 import { useMultiplayerStore, type MultiplayerDie } from '../../store/useMultiplayerStore'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import type { SavedRoll } from '../../types/savedRolls'
+import type { PercentilePresentationFields } from '../../lib/percentileRolls'
 import { SavedRollsPanel } from './SavedRollsPanel'
 
 vi.mock('./BottomSheet', () => ({
@@ -299,6 +300,81 @@ describe('SavedRollsPanel room execution', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('lets 15 percentile dice through — exactly the 30-dice cap', async () => {
+    // A d100 is TWO physical dice, so 15 sources is the cap exactly, not 15.
+    useSavedRollsStore.setState({
+      savedRolls: [{
+        ...savedRoll,
+        name: 'Fifteen percentiles',
+        dice: [{
+          id: 'entry-15-d100',
+          type: 'd10',
+          quantity: 15,
+          perDieBonus: 0,
+          percentile: true,
+          sources: [{ kind: 'anonymous', quantity: 15 }],
+        }],
+      }],
+      currentlyEditing: null,
+    })
+
+    const spawnedIds: string[] = []
+    const addGenericDie = vi.fn((type: string) => {
+      const id = `${type}-${spawnedIds.length}`
+      spawnedIds.push(id)
+      useMultiplayerStore.setState((state) => ({
+        dice: new Map([...state.dice, [id, roomDie(id)]]),
+      }))
+      return id
+    })
+    const { onClose } = renderPanel({
+      clearAll: vi.fn(() => useMultiplayerStore.setState({ dice: new Map() })),
+      addGenericDie,
+      roll: vi.fn(() => {
+        useMultiplayerStore.setState((state) => ({
+          rollStartedSequence: state.rollStartedSequence + 1,
+          lastRollStartedDiceIds: [...spawnedIds],
+        }))
+      }),
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Roll Fifteen percentiles' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(spawnedIds).toHaveLength(30)
+  })
+
+  it('caps 16 percentile dice with the roll-capacity message (32 > 30)', async () => {
+    useSavedRollsStore.setState({
+      savedRolls: [{
+        ...savedRoll,
+        name: 'Sixteen percentiles',
+        dice: [{
+          id: 'entry-16-d100',
+          type: 'd10',
+          quantity: 16,
+          perDieBonus: 0,
+          percentile: true,
+          sources: [{ kind: 'anonymous', quantity: 16 }],
+        }],
+      }],
+      currentlyEditing: null,
+    })
+    const clearAll = vi.fn()
+    const roll = vi.fn()
+    const { onClose } = renderPanel({ clearAll, roll })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Roll Sixteen percentiles' }))
+
+    // The guard must count PHYSICAL dice: 16 sources are 32 dice, not 16.
+    expect(await screen.findByRole('alert')).toHaveTextContent('Rolls are limited to 30 dice')
+    expect(screen.getByRole('alert')).toHaveTextContent('needs 32')
+    expect(clearAll).not.toHaveBeenCalled()
+    expect(roll).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('spawns a d10tens + d10 pair per percentile die and records the pairing', async () => {
     useSavedRollsStore.setState({
       savedRolls: [{
@@ -318,8 +394,8 @@ describe('SavedRollsPanel room execution', () => {
       currentlyEditing: null,
     })
 
-    const spawned: Array<{ type: string; presentation?: Record<string, unknown> }> = []
-    const addGenericDie = vi.fn((type: string, presentation?: Record<string, unknown>) => {
+    const spawned: Array<{ type: string; presentation?: PercentilePresentationFields }> = []
+    const addGenericDie = vi.fn((type: string, presentation?: PercentilePresentationFields) => {
       const id = `${type}-${spawned.length}`
       spawned.push({ type, presentation })
       useMultiplayerStore.setState((state) => ({
@@ -387,8 +463,8 @@ describe('SavedRollsPanel room execution', () => {
       currentlyEditing: null,
     })
 
-    const spawned: Array<{ type: string; presentation?: Record<string, unknown> }> = []
-    const addGenericDie = vi.fn((type: string, presentation?: Record<string, unknown>) => {
+    const spawned: Array<{ type: string; presentation?: PercentilePresentationFields }> = []
+    const addGenericDie = vi.fn((type: string, presentation?: PercentilePresentationFields) => {
       spawned.push({ type, presentation })
       useMultiplayerStore.setState((state) => ({
         dice: new Map([...state.dice, ['plain-d10', roomDie('plain-d10')]]),

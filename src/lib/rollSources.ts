@@ -1,4 +1,5 @@
 import type { DiceEntry, RollSource, SavedRoll } from '../types/savedRolls'
+import { isPercentileEntry, type PercentileRole } from './percentileRolls'
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -213,15 +214,26 @@ export function resizeRollSources(
 /**
  * Total physical dice a roll spawns on the table.
  *
- * Sums every entry's source quantity, which is exactly the number of dice
- * `expandDiceEntrySources` produces at execution time, so this is the value to
- * compare against `ROOM_DICE_CAPACITY`.
+ * Counts exactly what {@link expandDiceEntrySpawns} produces at execution time —
+ * the SAME function the saved-roll executor iterates — so the builder's
+ * validation and the execution guard can never disagree about how many dice a
+ * roll needs. That equivalence is what makes this the value to compare against
+ * `ROOM_DICE_CAPACITY`.
+ *
+ * Note this is physical dice, not roll sources: a percentile (d100) source is
+ * two dice.
  */
 export function getRollDiceCount(dice: DiceEntry[] | undefined): number {
   if (!Array.isArray(dice)) return 0
-  return dice.reduce((total, entry) => total + getDiceEntrySourceQuantity(entry), 0)
+  return dice.reduce((total, entry) => total + expandDiceEntrySpawns(entry).length, 0)
 }
 
+/**
+ * The LOGICAL roll sources of an entry, one per die the player asked for.
+ *
+ * A percentile entry has one source per d100 — use {@link expandDiceEntrySpawns}
+ * when you need physical dice, since a d100 is spawned as two.
+ */
 export function expandDiceEntrySources(entry: DiceEntry): RollSource[] {
   return normalizeRollSources(entry).flatMap(source => {
     if (source.kind === 'specific') return [source]
@@ -230,6 +242,42 @@ export function expandDiceEntrySources(entry: DiceEntry): RollSource[] {
       createAnonymousRollSource(1, source.skinId)
     )
   })
+}
+
+/** One PHYSICAL die a roll entry puts on the table. */
+export interface RollSpawn {
+  /** The roll source this die comes from. */
+  source: RollSource
+  /**
+   * Percentile (d100) pairing. Present only for percentile entries; the two
+   * halves of one d100 share a `pairIndex`. The executor turns that index into
+   * the `presentation.percentilePairId` both halves carry
+   * (`src/lib/percentileRolls.ts`).
+   */
+  percentile?: { role: PercentileRole; pairIndex: number }
+}
+
+/**
+ * Every PHYSICAL die an entry spawns, in spawn order.
+ *
+ * A d100 is not one die: it is a TENS die plus a ONES die, so a percentile entry
+ * yields two spawns per source. Expanding here — rather than at the call site —
+ * is what keeps {@link getRollDiceCount} (builder validation + the execution
+ * capacity guard) and the executor's spawn loop counting the same dice.
+ */
+export function expandDiceEntrySpawns(entry: DiceEntry): RollSpawn[] {
+  const sources = expandDiceEntrySources(entry)
+
+  if (!isPercentileEntry(entry)) {
+    return sources.map((source) => ({ source }))
+  }
+
+  return sources.flatMap((source, pairIndex) => [
+    // The tens die is always a plain engine die — it can never be an owned die,
+    // so it deliberately does NOT inherit the entry's (possibly specific) source.
+    { source: createAnonymousRollSource(1), percentile: { role: 'tens' as const, pairIndex } },
+    { source, percentile: { role: 'ones' as const, pairIndex } },
+  ])
 }
 
 export function getSpecificDieIds(entry: DiceEntry): string[] {

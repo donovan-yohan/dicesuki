@@ -3,6 +3,7 @@ import type { DiceBackendState } from '../contexts/DiceBackendContext'
 import type { DiceShape } from '../lib/geometries'
 import { createDicePresentationMetadata } from '../lib/dicePresentation'
 import type { DicePresentationMetadata } from '../lib/multiplayerMessages'
+import type { PercentilePresentationFields } from '../lib/percentileRolls'
 import { selectRandomAvailableDie } from '../lib/diceSelection'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useDiceStore } from '../store/useDiceStore'
@@ -11,12 +12,18 @@ import { useInventoryStore } from '../store/useInventoryStore'
 /**
  * Merge caller-supplied presentation fields over an inventory-derived block.
  *
+ * `extras` is narrowed to {@link PercentilePresentationFields} on purpose: the
+ * only fields a spawn caller may add are the percentile pairing ones. A wider
+ * `Partial<DicePresentationMetadata>` would let a caller structurally overwrite
+ * `displayName`, `baseColor`, `inventoryDieId` and friends — silently
+ * misrepresenting which owned die is on the table. Widen this only with a reason.
+ *
  * Returns `undefined` when neither side has anything to say, so a generic
  * anonymous die still spawns with NO presentation block at all (Shared-ADR-005).
  */
 function mergePresentation(
   base: DicePresentationMetadata | undefined,
-  extras: Partial<DicePresentationMetadata> | undefined,
+  extras: PercentilePresentationFields | undefined,
 ): DicePresentationMetadata | undefined {
   if (!extras || Object.keys(extras).length === 0) return base
   return { ...(base ?? {}), ...extras }
@@ -40,7 +47,7 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
   const addDie = useCallback((
     type: DiceShape,
     inventoryDieId?: string,
-    presentationExtras?: Partial<DicePresentationMetadata>,
+    presentationExtras?: PercentilePresentationFields,
   ) => {
     useDiceStore.getState().clearActiveSavedRoll()
 
@@ -85,7 +92,7 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
 
   const addGenericDie = useCallback((
     type: DiceShape,
-    presentationExtras?: Partial<DicePresentationMetadata>,
+    presentationExtras?: PercentilePresentationFields,
   ) => {
     useDiceStore.getState().clearActiveSavedRoll()
     return spawnDice(type, mergePresentation(undefined, presentationExtras))

@@ -22,7 +22,7 @@ test('rolls a d100 as a tens+ones pair and reports one 1-100 result', async ({ p
 
   await page.getByRole('button', { name: 'My Dice Rolls' }).click()
   await page.getByRole('button', { name: /create new roll/i }).click()
-  await page.getByPlaceholder(/roll name/i).fill('Percentile check')
+  await page.getByLabel('Roll name').fill('Percentile check')
   await page.getByRole('button', { name: 'Add 1 D100 roll' }).click()
 
   // The builder reads the pair as a single d100 with a 1-100 range.
@@ -61,9 +61,10 @@ test('rolls a d100 as a tens+ones pair and reports one 1-100 result', async ({ p
   // Exactly three D100 labels: the HUD chip plus BOTH history entries. The roll
   // is written to history twice (the useDiceStore settle drain and the room's
   // roll_complete each push a snapshot) — that duplicate double-write is a
-  // pre-existing behavior filed as its own issue and deliberately NOT fixed in
-  // this slice; this asserts the CURRENT exact behavior so the fix has to update
-  // it consciously.
+  // pre-existing behavior tracked in
+  // https://github.com/donovan-yohan/dicesuki/issues/211 and deliberately NOT
+  // fixed in this slice; this asserts the CURRENT exact behavior so whoever
+  // fixes #211 has to update it consciously.
   await expect(page.getByText('D100', { exact: true })).toHaveCount(3)
   await expect(page.getByText(String(value), { exact: true }).first()).toBeVisible()
 
@@ -79,7 +80,7 @@ test('keeps the pair combined after a table edit clears the saved-roll context',
 
   await page.getByRole('button', { name: 'My Dice Rolls' }).click()
   await page.getByRole('button', { name: /create new roll/i }).click()
-  await page.getByPlaceholder(/roll name/i).fill('Percentile edit')
+  await page.getByLabel('Roll name').fill('Percentile edit')
   await page.getByRole('button', { name: 'Add 1 D100 roll' }).click()
   await page.getByRole('button', { name: 'Save Roll' }).click()
   await page.getByRole('button', { name: 'Roll Percentile edit' }).click()
@@ -118,7 +119,7 @@ test('leaves an ordinary d10 roll unchanged (0-9, one die, no pairing)', async (
 
   await page.getByRole('button', { name: 'My Dice Rolls' }).click()
   await page.getByRole('button', { name: /create new roll/i }).click()
-  await page.getByPlaceholder(/roll name/i).fill('Plain d10')
+  await page.getByLabel('Roll name').fill('Plain d10')
   await page.getByRole('button', { name: 'Add 1 D10 die' }).click()
   await expect(page.getByText('1d10', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('Range: 1 - 10')).toBeVisible()

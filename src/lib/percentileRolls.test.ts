@@ -23,6 +23,8 @@ import {
   getEntryMin,
 } from './diceHelpers'
 import { getDiceFaceValues } from '../types/diceShape'
+import { expandDiceEntrySpawns, getRollDiceCount } from './rollSources'
+import { ROOM_DICE_CAPACITY } from '../config/roomCapacity'
 import { D10_FACE_NORMALS, D10TENS_FACE_NORMALS } from './geometries'
 import { getFaceRendererForShape } from './faceRenderers'
 import { createFaceMaterialsArray, validateFaceNormalRules } from './faceMaterialMapping'
@@ -214,7 +216,10 @@ describe('percentile dice entries', () => {
   })
 
   it('keeps the per-die bonus notation on the combined d100 value', () => {
-    expect(formatDiceEntry(percentileEntry({ perDieBonus: 2 }))).toBe('1d(100+2)')
+    // S1's count-outside style (#212): the count sits outside the parens and the
+    // die inside — and the die a percentile entry shows is the combined d100.
+    expect(formatDiceEntry(percentileEntry({ perDieBonus: 2 }))).toBe('1(d100+2)')
+    expect(formatDiceEntry(percentileEntry({ quantity: 4, perDieBonus: -1 }))).toBe('4(d100-1)')
   })
 
   it('ranges 1-100 per die, plus bonuses', () => {
@@ -320,16 +325,61 @@ describe('d10tens engine shape', () => {
   })
 })
 
-describe('roll-wide dice cap (cross-slice with S1 feat/roll-builder-core)', () => {
-  /**
-   * S1 adds `getRollDiceCount(entries)` — the roll-wide 30-dice cap, defined as
-   * the number of expanded roll sources. A percentile entry expands to ONE source
-   * but spawns TWO physical dice, so an uncorrected count lets a 30-source roll
-   * request up to 60 spawns and the room rejects the whole roll with DICE_LIMIT.
-   *
-   * `.todo` because `getRollDiceCount` is not on `origin/main` yet (verified at
-   * the time of writing). Implement at rebase time, once S1 has landed: each
-   * percentile die must count 2 toward the cap.
-   */
-  it.todo('counts each percentile die as 2 dice toward the 30-dice room cap')
+describe('roll-wide dice cap (S1 30-dice room capacity)', () => {
+  function percentileSources(quantity: number): DiceEntry {
+    return percentileEntry({ quantity, sources: [{ kind: 'anonymous', quantity }] })
+  }
+
+  it('counts each percentile source as the TWO physical dice it spawns', () => {
+    expect(getRollDiceCount([percentileSources(1)])).toBe(2)
+    expect(getRollDiceCount([percentileSources(7)])).toBe(14)
+  })
+
+  it('still counts an ordinary entry one-for-one', () => {
+    const plain: DiceEntry = {
+      id: 'plain',
+      type: 'd6',
+      quantity: 4,
+      perDieBonus: 0,
+      sources: [{ kind: 'anonymous', quantity: 4 }],
+    }
+    expect(getRollDiceCount([plain])).toBe(4)
+    expect(getRollDiceCount([plain, percentileSources(2)])).toBe(8)
+  })
+
+  it('stays equal to what the executor actually spawns', () => {
+    // Load-bearing equivalence: builder validation and the execution guard must
+    // never disagree with the spawn loop, so both read the same expansion.
+    for (const entry of [percentileSources(3), percentileSources(1)]) {
+      expect(getRollDiceCount([entry])).toBe(expandDiceEntrySpawns(entry).length)
+    }
+  })
+
+  it('spawns tens-then-ones per pair, with matching pair indices', () => {
+    const spawns = expandDiceEntrySpawns(percentileSources(2))
+    expect(spawns.map((spawn) => spawn.percentile?.role))
+      .toEqual(['tens', 'ones', 'tens', 'ones'])
+    expect(spawns.map((spawn) => spawn.percentile?.pairIndex)).toEqual([0, 0, 1, 1])
+  })
+
+  it('never binds a specific owned die to the tens half', () => {
+    // The tens die is an engine-only shape; an owned d10 can only ever be the
+    // ones half.
+    const spawns = expandDiceEntrySpawns(percentileEntry({
+      quantity: 1,
+      sources: [{ kind: 'specific', dieId: 'my-lucky-d10' }],
+    }))
+    expect(spawns).toHaveLength(2)
+    expect(spawns[0].percentile?.role).toBe('tens')
+    expect(spawns[0].source).toEqual({ kind: 'anonymous', quantity: 1 })
+    expect(spawns[1].source).toEqual({ kind: 'specific', dieId: 'my-lucky-d10' })
+  })
+
+  it('allows 15 percentile dice (exactly the 30-dice cap) and caps 16', () => {
+    expect(getRollDiceCount([percentileSources(15)])).toBe(ROOM_DICE_CAPACITY)
+    expect(getRollDiceCount([percentileSources(15)])).toBeLessThanOrEqual(ROOM_DICE_CAPACITY)
+
+    expect(getRollDiceCount([percentileSources(16)])).toBe(32)
+    expect(getRollDiceCount([percentileSources(16)])).toBeGreaterThan(ROOM_DICE_CAPACITY)
+  })
 })

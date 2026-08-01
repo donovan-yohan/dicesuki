@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react'
 import type { DiceShape } from '../lib/geometries'
-import type { DicePresentationMetadata, PlayerInfo } from '../lib/multiplayerMessages'
+import type { PlayerInfo } from '../lib/multiplayerMessages'
+import type { PercentilePresentationFields } from '../lib/percentileRolls'
 import type { RollSnapshot } from '../store/useDiceStore'
 import type { ConnectionStatus } from '../store/useMultiplayerStore'
 
@@ -14,18 +15,20 @@ export interface DiceBackendState {
   roll: () => void
   /**
    * Returns the client request id when the spawn was sent, otherwise null.
-   * `presentationExtras` is merged over any inventory-derived presentation —
-   * used to stamp percentile pairing onto the dice (see `percentileRolls.ts`).
+   * `presentationExtras` is merged over any inventory-derived presentation. It is
+   * deliberately narrowed to the percentile pairing fields so a caller cannot
+   * overwrite the die's identity (name, colours, inventory id) on the way in —
+   * see `percentileRolls.ts`.
    */
   addDie: (
     type: DiceShape,
     inventoryDieId?: string,
-    presentationExtras?: Partial<DicePresentationMetadata>,
+    presentationExtras?: PercentilePresentationFields,
   ) => string | null
   /** Returns the client request id when the spawn was sent, otherwise null. */
   addGenericDie: (
     type: DiceShape,
-    presentationExtras?: Partial<DicePresentationMetadata>,
+    presentationExtras?: PercentilePresentationFields,
   ) => string | null
   removeDie: (id: string) => void
   clearAll: () => void

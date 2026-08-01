@@ -16,7 +16,7 @@ import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import { useDiceStore, ActiveSavedRoll } from '../../store/useDiceStore'
 import { useMultiplayerStore, type MultiplayerDie } from '../../store/useMultiplayerStore'
 import { createClientId } from '../../lib/clientId'
-import { expandDiceEntrySources, getRollDiceCount } from '../../lib/rollSources'
+import { expandDiceEntrySpawns, getRollDiceCount } from '../../lib/rollSources'
 import { ROLL_DICE_CAPACITY_MESSAGE, ROOM_DICE_CAPACITY } from '../../config/roomCapacity'
 import {
   isPercentileEntry,
@@ -177,18 +177,31 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
 
       for (const entry of roll.dice) {
         const isPercentile = isPercentileEntry(entry)
+        // One pair id per percentile die, shared by its two halves.
+        const pairIds = new Map<number, string>()
 
-        for (const source of expandDiceEntrySources(entry)) {
-          // A percentile die is really a PAIR: one tens die (00-90) spawned
-          // first, then the ones d10. Both are ordinary room dice; the pairing
-          // rides along in each die's `presentation` block so it survives table
-          // edits, reaches remote players and outlives a refresh
-          // (src/lib/percentileRolls.ts).
-          const pairId = isPercentile ? `pct_${nanoid(10)}` : null
-          if (pairId) {
+        // `expandDiceEntrySpawns` is the SAME expansion `getRollDiceCount` counts,
+        // so the capacity guard above and this loop can never disagree about how
+        // many dice a roll puts on the table.
+        for (const spawn of expandDiceEntrySpawns(entry)) {
+          const pair = spawn.percentile
+          let pairId: string | undefined
+          if (pair) {
+            pairId = pairIds.get(pair.pairIndex)
+            if (!pairId) {
+              pairId = `pct_${nanoid(10)}`
+              pairIds.set(pair.pairIndex, pairId)
+            }
+          }
+
+          // A d100 is a PAIR: the tens die (00-90) then its ones d10. Both are
+          // ordinary room dice; the pairing rides along in each die's
+          // `presentation` block so it survives table edits, reaches remote
+          // players and outlives a refresh (src/lib/percentileRolls.ts).
+          if (pair?.role === 'tens') {
             const tensId = backend.addGenericDie(
               PERCENTILE_TENS_SHAPE,
-              percentileTensPresentation(pairId),
+              percentileTensPresentation(pairId as string),
             )
             if (!tensId) {
               const actionError = useMultiplayerStore.getState().roomActionError
@@ -197,12 +210,13 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
             // The tens half carries no bonus — a per-die bonus applies once, to
             // the COMBINED value, and is attached to the ones die below.
             requested.push({ id: tensId, bonus: 0 })
+            continue
           }
 
-          const onesPresentation = pairId ? percentileOnesPresentation(pairId) : undefined
-          const id = source.kind === 'specific'
-            ? backend.addDie(entry.type, source.dieId, onesPresentation)
-            : backend.addGenericDie(entry.type, onesPresentation)
+          const presentation = pairId ? percentileOnesPresentation(pairId) : undefined
+          const id = spawn.source.kind === 'specific'
+            ? backend.addDie(entry.type, spawn.source.dieId, presentation)
+            : backend.addGenericDie(entry.type, presentation)
           if (!id) {
             const actionError = useMultiplayerStore.getState().roomActionError
             throw new Error(
