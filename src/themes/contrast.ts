@@ -13,6 +13,22 @@
  * Scope note: this gate covers TEXT contrast (WCAG 1.4.3). Purely decorative
  * pairings are listed in `EXCLUDED_PAIRINGS` with a rationale rather than
  * being silently omitted.
+ *
+ * KNOWN STRUCTURAL LIMIT — read before trusting a green run.
+ * ---------------------------------------------------------
+ * This manifest is a *declaration*, not a discovery mechanism. It proves that
+ * every pairing listed here is legible in every registered theme; it cannot
+ * prove the list is complete. A component that starts consuming a new
+ * combination — say, `text.muted` on an `accent` fill — is invisible to this
+ * gate until someone adds the entry. That gap is real: the first pass of this
+ * work shipped a green suite while eight live accent-filled controls still
+ * painted `text.primary` on `accent`, because none of them were declared.
+ *
+ * `contrast.source.guard.test.ts` closes the highest-value slice of that gap
+ * by scanning component source for accent-filled controls whose label is not
+ * `onAccent`. It is a source-shape check, not a full render-tree audit — the
+ * remaining exposure is other token combinations, which stay a review
+ * responsibility until someone extends the scanner.
  */
 
 import type { Theme } from './tokens'
@@ -145,37 +161,56 @@ export const BACKDROPS = {
     base: 'primary',
     source: 'bg-theme-primary controls (artist-tools, DiceSelector hover)',
   },
+  // 0.10 is the largest white alpha any component paints as a container.
+  // Sites painting exactly 0.10: BottomSheet.tsx:211 and FlyoutPanel.tsx:115
+  // (close buttons), SavedRollsPanel.tsx:303,320 (tag filter chips).
+  // Sites painting less, covered conservatively by modelling 0.10:
+  // DicePool.tsx:42 and InventoryPanel.tsx:654 (0.08), HistoryPanel.tsx:155 (0.05).
   chipOnSurface: {
     id: 'chip-on-surface',
     base: 'surface',
     overlay: { color: '#ffffff', alpha: 0.1 },
-    source: 'BottomSheet/FlyoutPanel close button, SavedRollsPanel tag chips (rgba(255,255,255,0.1))',
+    source:
+      'white chips over a panel body — BottomSheet.tsx:211, FlyoutPanel.tsx:115, ' +
+      'SavedRollsPanel.tsx:303 (all rgba(255,255,255,0.1))',
   },
+  // DEFENSIVE: no component currently paints a white chip directly on the page
+  // background — every chip today sits inside a `surface`-backed panel or card.
+  // It is kept anyway because `surface` is NOT reliably the lighter of the two
+  // (critter-forest's bark surface is darker than its forest background), so
+  // "chip-on-surface is always the binding case" is not a safe premise, and
+  // full-screen overlays (PullBannerScreen, InventoryPanel) do paint
+  // `--color-background` directly. Costs nothing: every theme already clears it.
   chipOnBackground: {
     id: 'chip-on-background',
     base: 'background',
-    overlay: { color: '#ffffff', alpha: 0.08 },
-    source: 'DicePool quantity chips (rgba(255,255,255,0.08))',
+    overlay: { color: '#ffffff', alpha: 0.1 },
+    source:
+      'defensive — no current site; covers the chip idiom landing on a ' +
+      'background-backed full-screen overlay, where surface-based bounds do not apply',
   },
   tintedRow: {
     id: 'tinted-row',
     base: 'surface',
     overlay: { color: '#f98797', alpha: 0.12 },
     source:
-      'tinted row cards — ThemeSelector current row, DiceEntryCard status pill (rgba(249,135,151,0.12)); ' +
+      'tinted row cards — ThemeSelector.tsx:84, DiceEntryCard.tsx:221 (rgba(249,135,151,0.12)); ' +
       'lighter than the lavender/indigo 0.12 variants in SettingsPanel/AccountSection, so it is the binding case',
   },
   accentWash: {
     id: 'accent-wash',
     base: 'surface',
     overlay: { color: '#f98797', alpha: 0.16 },
-    source: 'accent-on-accent-wash badges — RollBuilder source chip (rgba(249,135,151,0.16))',
+    source: 'accent-on-accent-wash badges — RollBuilder.tsx:257 source chip (rgba(249,135,151,0.16))',
   },
   errorTint: {
     id: 'error-tint',
     base: 'surface',
     overlay: { color: '#ef4444', alpha: 0.2 },
-    source: 'destructive affordances — DiceManagerPanel remove, HistoryPanel Clear All (rgba(239,68,68,0.2))',
+    source:
+      'destructive affordances — DiceManagerPanel.tsx:115 remove button paints exactly ' +
+      'rgba(239,68,68,0.2); HistoryPanel.tsx:60 (0.1) and SavedRollsPanel.tsx:272 (0.14) ' +
+      'are lighter and covered conservatively',
   },
   accentFill: {
     id: 'accent-fill',
@@ -234,15 +269,15 @@ export const CONTRAST_PAIRINGS: readonly ContrastPairing[] = [
   { name: 'text.primary on background', fg: 'text.primary', bg: BACKDROPS.background, threshold: 'normal', usedBy: 'PullBannerScreen body copy, DiceEntryCard number inputs' },
   { name: 'text.primary on surface', fg: 'text.primary', bg: BACKDROPS.surface, threshold: 'normal', usedBy: 'ThemeSelector title, RollBuilder section headings, CornerIcon glyphs' },
   { name: 'text.primary on primary fill', fg: 'text.primary', bg: BACKDROPS.primaryFill, threshold: 'normal', usedBy: 'artist-tools file input label (file:bg-theme-primary file:text-theme-text)' },
-  { name: 'text.primary on chip over surface', fg: 'text.primary', bg: BACKDROPS.chipOnSurface, threshold: 'normal', usedBy: 'HistoryPanel die value rows' },
-  { name: 'text.primary on chip over background', fg: 'text.primary', bg: BACKDROPS.chipOnBackground, threshold: 'normal', usedBy: 'DicePool +4/+8 quantity chips' },
+  { name: 'text.primary on chip over surface', fg: 'text.primary', bg: BACKDROPS.chipOnSurface, threshold: 'normal', usedBy: 'DicePool.tsx:42 +4/+8 quantity chips (paints 0.08; modelled at 0.10)' },
+  { name: 'text.primary on chip over background', fg: 'text.primary', bg: BACKDROPS.chipOnBackground, threshold: 'normal', usedBy: 'defensive backdrop — see BACKDROPS.chipOnBackground; no current render site' },
   { name: 'text.primary on tinted row', fg: 'text.primary', bg: BACKDROPS.tintedRow, threshold: 'normal', usedBy: 'SettingsPanel "Change Theme" row, ThemeSelector current theme name' },
 
   // ── text.secondary ───────────────────────────────────────────────────────
   { name: 'text.secondary on background', fg: 'text.secondary', bg: BACKDROPS.background, threshold: 'normal', usedBy: 'PullRevealOverlay result copy, DiceEntryCard advanced options' },
   { name: 'text.secondary on surface', fg: 'text.secondary', bg: BACKDROPS.surface, threshold: 'normal', usedBy: 'SettingsPanel section headings, PullBannerScreen details modal' },
   { name: 'text.secondary on primary fill', fg: 'text.secondary', bg: BACKDROPS.primaryFill, threshold: 'normal', usedBy: 'artist-tools inactive tab buttons (bg-theme-primary text-theme-text-secondary)' },
-  { name: 'text.secondary on chip over surface', fg: 'text.secondary', bg: BACKDROPS.chipOnSurface, threshold: 'normal', usedBy: 'BottomSheet/FlyoutPanel close button, SavedRollsPanel tag chips' },
+  { name: 'text.secondary on chip over surface', fg: 'text.secondary', bg: BACKDROPS.chipOnSurface, threshold: 'normal', usedBy: 'BottomSheet.tsx:211 / FlyoutPanel.tsx:115 close buttons, SavedRollsPanel.tsx:303 tag chips' },
   { name: 'text.secondary on tinted row', fg: 'text.secondary', bg: BACKDROPS.tintedRow, threshold: 'normal', usedBy: 'DiceEntryCard "Removed from this roll" pill' },
 
   // ── text.muted ───────────────────────────────────────────────────────────
@@ -257,12 +292,12 @@ export const CONTRAST_PAIRINGS: readonly ContrastPairing[] = [
   { name: 'accent text on accent wash', fg: 'accent', bg: BACKDROPS.accentWash, threshold: 'normal', usedBy: 'SettingsPanel row chevrons, DiceEntryCard source chip' },
 
   // ── the label on an accent-filled control ────────────────────────────────
-  { name: 'onAccent on accent fill', fg: 'onAccent', bg: BACKDROPS.accentFill, threshold: 'normal', usedBy: 'CenterRollButton label, Pull CTAs, RoomBrowser Join, selected filter chips' },
+  { name: 'onAccent on accent fill', fg: 'onAccent', bg: BACKDROPS.accentFill, threshold: 'normal', usedBy: 'CenterRollButton.tsx:51, PullBannerScreen.tsx:634 x10 CTA, PullRevealOverlay.tsx:221, PullProgressOverlay.tsx:125, InventoryPanel.tsx:389/518/675/730, ShopPanel.tsx:337/451, LunarPassCard.tsx:327, HeroDieInspector.tsx:200, RoomBrowser.tsx:211, RoomThemePicker.tsx:128, TableHud.tsx:135' },
 
   // ── destructive / validation ─────────────────────────────────────────────
-  { name: 'error text on background', fg: 'error', bg: BACKDROPS.background, threshold: 'normal', usedBy: 'RollBuilder over-capacity message on the action bar' },
-  { name: 'error text on surface', fg: 'error', bg: BACKDROPS.surface, threshold: 'normal', usedBy: 'RollBuilder name-field error, dice-required hint' },
-  { name: 'error text on error tint', fg: 'error', bg: BACKDROPS.errorTint, threshold: 'normal', usedBy: 'DiceManagerPanel remove button, HistoryPanel "Clear All History"' },
+  { name: 'error text on background', fg: 'error', bg: BACKDROPS.background, threshold: 'normal', usedBy: 'PullProgressOverlay.tsx:114 and PullRevealOverlay.tsx:233 role="alert" copy on the full-screen overlay' },
+  { name: 'error text on surface', fg: 'error', bg: BACKDROPS.surface, threshold: 'normal', usedBy: 'RollBuilder.tsx:198 name-field error, RollBuilder.tsx:370 dice-required hint' },
+  { name: 'error text on error tint', fg: 'error', bg: BACKDROPS.errorTint, threshold: 'normal', usedBy: 'DiceManagerPanel.tsx:115 remove button, HistoryPanel.tsx:60 "Clear All History"' },
 ] as const
 
 /**

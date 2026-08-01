@@ -113,7 +113,7 @@ export function DiceManagerPanel({
                   className="w-7 h-7 flex items-center justify-center rounded-full transition-all"
                   style={{
                     backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                    color: '#ef4444',
+                    color: 'var(--color-error)',
                   }}
                   aria-label={`Remove ${die.type}`}
                   title="Remove die"

@@ -59,7 +59,7 @@ export function HistoryPanel({ isOpen, onClose }: HistoryPanelProps) {
               className="w-full p-3 rounded-lg text-sm font-semibold transition-all mt-6"
               style={{
                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                color: '#ef4444',
+                color: 'var(--color-error)',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
               }}
             >

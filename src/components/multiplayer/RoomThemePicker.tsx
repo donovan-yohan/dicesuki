@@ -125,7 +125,7 @@ function ThemeCard({
               width: '16px',
               height: '16px',
               backgroundColor: 'var(--color-accent, #f98797)',
-              color: 'var(--color-on-accent, #2a1120)',
+              color: 'var(--color-on-accent)',
             }}
             aria-hidden="true"
           >

@@ -111,7 +111,7 @@ export function PullProgressOverlay({
           </p>
         )}
         {error && (
-          <p role="alert" className="mt-3" style={{ color: 'var(--color-accent)' }}>
+          <p role="alert" className="mt-3" style={{ color: 'var(--color-error)' }}>
             Couldn&apos;t finish yet. Your hold is safe. {error}
           </p>
         )}

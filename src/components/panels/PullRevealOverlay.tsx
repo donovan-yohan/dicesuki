@@ -230,7 +230,7 @@ export function PullRevealOverlay({
             </p>
           )}
           {roomActionError && (
-            <p role="alert" style={{ color: 'var(--color-accent)' }}>
+            <p role="alert" style={{ color: 'var(--color-error)' }}>
               Room rejected the request: {roomActionError.message}. The dice remain in your inventory.
             </p>
           )}

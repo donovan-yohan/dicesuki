@@ -197,7 +197,7 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
               className="h-10 rounded-md px-4 text-sm font-semibold disabled:opacity-50"
               style={{
                 backgroundColor: theme.tokens.colors.accent,
-                color: theme.tokens.colors.text.primary,
+                color: theme.tokens.colors.onAccent,
               }}
             >
               Save Identity
