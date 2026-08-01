@@ -108,6 +108,13 @@ afterEach(() => {
 - **Integration Tests**: Component + hook integration
 - **Target**: >80% code coverage for hooks, utilities, and store logic
 
+> Frontend-ADR-004 states this 80% target as a MUST, but **nothing enforces it**:
+> CI runs `npm test`, not `npm run test:coverage`, and no threshold is
+> configured in `vite.config.ts`. Treat it as an aspiration until someone wires
+> a gate — and note that per this guide's own doctrine, an unenforced MUST is
+> doctrine, not backpressure. Raising coverage by adding tests that pin
+> implementation details would satisfy the number and make the suite worse.
+
 Current counts live in [CLAUDE.md](../../CLAUDE.md); don't duplicate them here,
 they go stale within a day.
 
@@ -147,15 +154,34 @@ These encode what already worked in practice — they are policy now, not taste.
 
 **Negative controls stay in the report, not the repo.** Revert the fix, watch
 the N tests go red, restore the fix, and put the numbers in the PR body or
-review report. The control is the *act*, not an artifact. Do not commit a test
-whose only purpose was to demonstrate the fix worked; the behavioral test you
-kept already does that.
+review report. The control is the *act*, not an artifact — what never gets
+committed is the reverted-fix scaffolding: the temporarily-broken source, the
+harness that drove it, the throwaway assertions written to observe the break.
 
-**Probe harnesses and fuzz sweeps are scratch.** Write them under the
-scratchpad, capture the conclusion with real numbers, and delete them before
-committing. If a fuzz sweep finds a specific failing input, commit *that input*
-as a small deterministic behavioral test and throw the sweep away. A seeded
-sweep in CI is a slow, flaky way to re-derive a case you could have pinned.
+**This is not licence to delete the regression test.** A test that pins the
+*corrected* behavior is a regression test and it stays — it is the most
+valuable kind of test in the suite, because the negative control just proved
+its failure mode is reachable. The two are easy to confuse because the negative
+control is what makes the regression test trustworthy. Concretely: the test
+that asserts the bug's symptom is gone ships; the reverted patch you ran it
+against does not. If you are about to delete a test because "the negative
+control already showed the fix works", stop — you have it exactly backwards.
+
+**Probe harnesses are scratch.** Write them under the scratchpad, capture the
+conclusion with real numbers, and delete them before committing.
+
+**Unseeded or slow sweeps are scratch too.** A 4,000-trial sweep over a fresh
+random seed is the right way to *review* a distribution and the wrong thing to
+run on every commit: it is slow, and an unseeded sweep that fails one run in
+fifty is a flake by construction. Capture the finding, and if the sweep found a
+specific failing input, commit *that input* as a small deterministic test.
+
+**A bounded fixed-seed invariant sweep is a legitimate committed test.** If it
+seeds its RNG explicitly, runs in a bounded number of iterations, and asserts an
+*invariant* rather than a distribution — every pull resolves to exactly one
+tier, no ledger entry ever goes negative, every shape reports a face in range —
+then it is deterministic, fast, and covers a state space enumeration cannot.
+Commit it. The line is determinism and runtime, not the word "fuzz".
 
 **One test per invariant, in the module that owns it.** When a second slice
 needs the same guarantee, import the sibling or extend it — do not restate it.
@@ -235,6 +261,17 @@ Prune continuously, and audit when the shape of the suite stops being legible.
   is exactly duplicated, or is strictly dominated by a named sibling. Anything
   debatable goes on a list for a human, not into a commit. Where a merge is
   possible, carry the unique assertion forward rather than dropping it.
+- **Diff the assertions, not the test names.** "Dominated by a sibling" is a
+  claim about every `expect` in the block, and it is easy to get wrong in ways
+  that read fine: a one-directional survivor (only the `false` case kept, so a
+  hardcoded `false` now ships green), a tolerance quietly loosened when a
+  precise test is folded into a general loop, a branch whose other side no test
+  covers any more. Before deleting, list what the block asserts and tick each
+  one off against the survivor.
+- **A guard is not a comment.** If a rule in this document matters, write the
+  test that fails when it is broken — `src/test/testPolicy.guard.test.ts`
+  enforces the e2e-script, no-skip, and no-retry rules above. Prose that no
+  script can fail is doctrine, not backpressure.
 
 ## E2E policy
 
@@ -274,3 +311,19 @@ race in the test, and both are worth knowing about.
   The suite currently has zero `.skip` / `.only` / `.todo`; keep it that way.
 - Quarantining is not a resting place. If a test is disabled, it has an owner
   and a deadline, or it is deleted.
+
+**Shuffle to find order dependence.** `npx vitest run --sequence.shuffle` (add
+`--sequence.seed=N` to reproduce) breaks the declaration order that hides
+leaked state. Run it when touching shared setup, and expect to run a few seeds —
+these failures are seed-specific. A test that only passes in declaration order
+is depending on another test, which means it is not testing what its name says.
+
+Two smells account for most of it: an `afterEach` that calls
+`vi.restoreAllMocks()` where its siblings reset the store (it can tear down
+globals `src/test/setup.ts` installed once per file, breaking everything
+scheduled after it), and state written in one `it` that a later `it` reads.
+
+The suite is **not** shuffle-clean today — see
+[testing-audit-2026-08.md](testing-audit-2026-08.md) for the known offenders.
+Do not add `sequence.shuffle` to the config until they are fixed; a gate that
+ships red trains people to ignore gates.

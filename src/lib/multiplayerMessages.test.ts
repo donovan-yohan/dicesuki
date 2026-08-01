@@ -157,7 +157,9 @@ describe('multiplayerMessages', () => {
       expect(snapshot.dice[0].r).toEqual([0, 0, 0, 1])
     })
 
-    // Three cases ('error', 'die_settled', 'roll_complete') did nothing but
+    // Four cases ('presence and removal lifecycle', 'error', 'die_settled',
+    // 'roll_complete' — the lifecycle one covering both
+    // `player_presence_changed` and `removed_from_room`) did nothing but
     // `JSON.parse` a literal and read `.type` back out of it. `JSON.parse`
     // returns `any`, so the `: ServerMessage` annotation checks nothing at
     // compile time either, and `.type` exists on every variant — so no

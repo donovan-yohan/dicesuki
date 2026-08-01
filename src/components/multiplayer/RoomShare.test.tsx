@@ -38,8 +38,14 @@ describe('RoomShare', () => {
     useMultiplayerStore.getState().reset()
   })
 
-  // Each of the three controls is proven present by the behavioural test that
+  // The three controls are each proven present by the behavioural test that
   // uses it below — `getByTestId` throws when the node is missing.
+
+  it('labels the share button for clipboard when native share is missing', () => {
+    // `beforeEach` deletes `navigator.share`, so this is the desktop path.
+    renderShare()
+    expect(screen.getByTestId('room-share-share')).toHaveTextContent('Copy to share')
+  })
 
   it('renders nothing when there is no room id', () => {
     useMultiplayerStore.setState({ roomId: null })

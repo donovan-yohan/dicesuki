@@ -66,6 +66,19 @@ describe('Face normal arrays - structural validation', () => {
     d4: 4, d6: 6, d8: 8, d10: 10, d10tens: 10, d12: 12, d20: 20,
   }
 
+  /**
+   * Unit-length tolerance, in decimal places, per shape.
+   *
+   * D20 stores its normals rounded to 4 decimal components, so 3 places is the
+   * most it can honestly claim. Every other shape is axis-aligned or exactly
+   * derived and holds to 5 — the precision the d6-specific test asserted before
+   * it was folded into this loop. A single loose tolerance for all shapes would
+   * have silently downgraded d4/d6/d8/d10/d12 by two decimal places.
+   */
+  const unitLengthPrecision: Record<DiceShape, number> = {
+    d4: 5, d6: 5, d8: 5, d10: 5, d10tens: 5, d12: 5, d20: 3,
+  }
+
   for (const shape of DICE_TYPES) {
     const faceNormals = FACE_NORMALS_BY_SHAPE[shape]
 
@@ -76,8 +89,7 @@ describe('Face normal arrays - structural validation', () => {
 
       it('all normals are unit-length', () => {
         for (const face of faceNormals) {
-          // D20 uses rounded 4-decimal normal components, so allow 3-decimal precision
-          expect(face.normal.length()).toBeCloseTo(1.0, 3)
+          expect(face.normal.length()).toBeCloseTo(1.0, unitLengthPrecision[shape])
         }
       })
 
