@@ -6,7 +6,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `npm test` | Run unit tests (Vitest) — 2,008 passing, 0 failing |
+| `npm test` | Run unit tests (Vitest) — 1,858 passing, 0 failing |
 | `npm run build` | Production build |
 | `npm run dev` | Start dev server |
 | `~/.cargo/bin/cargo test` | Run server tests (from server/ directory) — 221 total |

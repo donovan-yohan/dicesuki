@@ -108,12 +108,14 @@ afterEach(() => {
 - **Integration Tests**: Component + hook integration
 - **Target**: >80% code coverage for hooks, utilities, and store logic
 
-> Frontend-ADR-004 states this 80% target as a MUST, but **nothing enforces it**:
-> CI runs `npm test`, not `npm run test:coverage`, and no threshold is
-> configured in `vite.config.ts`. Treat it as an aspiration until someone wires
-> a gate — and note that per this guide's own doctrine, an unenforced MUST is
-> doctrine, not backpressure. Raising coverage by adding tests that pin
-> implementation details would satisfy the number and make the suite worse.
+> [Frontend-ADR-004](../adrs/frontend/004-test-strategy-vitest-playwright.md)
+> states this 80% target as a MUST, but **nothing enforces it**: CI runs
+> `npm test`, not `npm run test:coverage`, and no threshold is configured in
+> `vite.config.ts`. Treat it as an aspiration until someone wires a gate — and
+> note that per this guide's own doctrine, an unenforced MUST is doctrine, not
+> backpressure. Raising coverage by adding tests that pin implementation details
+> would satisfy the number and make the suite worse. (Amendment 1 tightened that
+> ADR's E2E clauses; the coverage clause is untouched and still ungated.)
 
 Current counts live in [CLAUDE.md](../../CLAUDE.md); don't duplicate them here,
 they go stale within a day.
@@ -275,24 +277,35 @@ Prune continuously, and audit when the shape of the suite stops being legible.
 
 ## E2E policy
 
+> Normative source: **Frontend-ADR-004** and its
+> [Amendment 1](../adrs/frontend/004-test-strategy-vitest-playwright.md#amendments)
+> (2026-08-01). The rules below are the working practice; where they and the ADR
+> disagree, the ADR wins.
+
 Playwright specs are **manual-run only** — CI runs lint, unit tests, build, and
 the generator/immutability checks; there is no e2e job. Each suite has its own
 `npm run test:e2e:*` script and its own port so they can run concurrently.
 
+- **Every spec MUST be reachable from an `npm run test:e2e:*` script**
+  (Amendment 1). A spec with no script is in no documented workflow, so it rots
+  unnoticed — which is exactly how the seven `dice-faces-*` specs decayed into
+  asserting nothing before #223 removed them. Enforced by
+  `src/test/testPolicy.guard.test.ts`.
+- **E2E MUST NOT re-verify a value the room already owns** (Amendment 1). If the
+  answer comes from `dicesuki-core`, test it in core. E2E is for what only a real
+  browser can show: composited pixels, real layout geometry, real worker/wasm
+  round-trips, full user flows.
 - **Run the relevant suite per slice, not per commit.** If your change touches
   the table, the HUD, the roll builder, or dice rendering, run its suite before
   opening the PR and put the result in the PR body. Nobody else will.
 - **Extend an existing spec before adding one.** A new spec means a new npm
   script and a new port. Add one only for a genuinely new surface.
-- **Every spec must have an npm script.** A spec with no script is unreachable
-  through any documented entry point and runs nowhere — it is deleted code that
-  still costs review attention. The audit found seven in that state.
+- **A screenshot is not an assertion.** Writing a PNG with nothing comparing it
+  passes unless it throws. If you capture an image, either assert on sampled
+  pixels in-page or treat the file as a debugging artifact, not coverage.
 - **Prefer web-first assertions to sleeps.** `waitForSelector` /
   `expect(locator)` retry; `waitForTimeout` is a guess that gets slower on CI
   hardware and flakier on fast hardware.
-- **E2E covers what unit tests structurally cannot** — real layout geometry,
-  real WebGL, real worker/wasm round-trips. Anything expressible as a unit test
-  belongs in one.
 
 ## Flake policy
 
