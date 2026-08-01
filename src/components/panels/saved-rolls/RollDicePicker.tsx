@@ -26,9 +26,9 @@
  * canvas would blow the browser's WebGL context limit on a large collection.
  */
 
-import { useCallback, useEffect, useId, useMemo, useRef } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useId, useMemo, useRef, useState } from 'react'
 
+import { useNestedDialog } from '../../../hooks/useNestedDialog'
 import { SharedInventoryDicePreviewCanvas } from '../SharedInventoryDicePreviewCanvas'
 import { RARITY_ACCENT_COLORS } from '../../../lib/rarityColor'
 import { isPercentileEntry } from '../../../lib/percentileRolls'
@@ -53,15 +53,13 @@ function rarityAccent(rarity: DieRarity): string {
     : RARITY_ACCENT_COLORS[rarity]
 }
 
-/** Focusable descendants, matching the selector `BottomSheet` traps with. */
-const FOCUSABLE_SELECTOR = [
-  'button:not([disabled])',
-  '[href]',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',')
+/**
+ * Tiles rendered before "Show more". Each tile drives one 3D preview in the
+ * shared canvas, and every visible preview is transformed and scissor-rendered
+ * every frame — an unbounded grid drops the dialog to single-digit fps on a
+ * large collection. Matches `InventoryPanel`'s own batch size.
+ */
+const VISIBLE_DICE_BATCH_SIZE = 24
 
 interface RollDicePickerProps {
   /** The entry being composed. */
@@ -88,10 +86,12 @@ export function RollDicePicker({
   onChange,
   onClose,
 }: RollDicePickerProps) {
-  const dialogRef = useRef<HTMLDivElement>(null)
+  // Focus, Escape, Tab and backdrop dismissal are the contract every dialog
+  // nested inside a BottomSheet owes it (see `useNestedDialog`).
+  const { dialogRef, onKeyDown, backdropProps } = useNestedDialog<HTMLDivElement>(onClose)
   const previewHostRef = useRef<HTMLDivElement>(null)
   const previewSlotRefs = useRef<Map<string, HTMLElement>>(new Map())
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+  const [visibleCount, setVisibleCount] = useState(VISIBLE_DICE_BATCH_SIZE)
   const titleId = useId()
   const summaryId = useId()
 
@@ -111,11 +111,20 @@ export function RollDicePicker({
       })
   }, [ownedDice, entry.type])
 
+  const visibleDice = useMemo(
+    () => candidates.slice(0, visibleCount),
+    [candidates, visibleCount],
+  )
+  const hiddenCount = candidates.length - visibleDice.length
+
   // Thumbnailed custom assets render as images, so only the procedural dice
-  // need a 3D slot — mirroring `InventoryPanel`.
+  // need a 3D slot — mirroring `InventoryPanel`. Scoped to the VISIBLE batch:
+  // the shared canvas builds a geometry+material entry per die it is handed,
+  // so feeding it the whole collection would pay the cost the batching exists
+  // to avoid.
   const proceduralPreviewDice = useMemo(
-    () => candidates.filter((die) => !die.customAsset?.thumbnailUrl),
-    [candidates],
+    () => visibleDice.filter((die) => !die.customAsset?.thumbnailUrl),
+    [visibleDice],
   )
 
   const registerPreviewSlot = useCallback((dieId: string, element: HTMLElement | null) => {
@@ -123,91 +132,14 @@ export function RollDicePicker({
     else previewSlotRefs.current.delete(dieId)
   }, [])
 
-  // Focus moves into the dialog on open and back to the opener on close, so the
-  // builder's entry card is where the keyboard lands when the picker goes away.
-  useEffect(() => {
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null
-    const dialog = dialogRef.current
-    const frame = window.requestAnimationFrame(() => {
-      const first = dialog?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
-      ;(first ?? dialog)?.focus()
-    })
-
-    return () => {
-      window.cancelAnimationFrame(frame)
-      previouslyFocusedRef.current?.focus()
-      previouslyFocusedRef.current = null
-    }
-  }, [])
-
-  /**
-   * Escape and Tab are handled here and STOPPED here.
-   *
-   * `BottomSheet` listens for both on `document`; letting them through would
-   * close the whole saved-rolls sheet on the Escape meant for this dialog, and
-   * would let its trap pull focus back into the sheet behind us. (`BottomSheet`
-   * also yields while a nested `aria-modal` dialog is mounted — this is the
-   * other half of that contract, and the half that still holds if the picker is
-   * ever hosted somewhere without one.)
-   */
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      event.stopPropagation()
-      onClose()
-      return
-    }
-
-    if (event.key !== 'Tab') return
-    const dialog = dialogRef.current
-    if (!dialog) return
-
-    event.stopPropagation()
-    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-    if (focusable.length === 0) {
-      event.preventDefault()
-      dialog.focus()
-      return
-    }
-
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault()
-      first.focus()
-    }
-  }
-
   const handleToggle = (die: InventoryDie, isPinned: boolean) => {
     onChange(isPinned ? unpinDieFromEntry(entry, die.id) : pinDieToEntry(entry, die.id))
   }
 
-  /**
-   * Dismiss only when the press STARTED on the backdrop.
-   *
-   * Pinning re-renders the tile grid, so a `click` alone can be delivered to
-   * the backdrop when the button under the cursor is replaced between press and
-   * release — dismissing the dialog on what the player experienced as a
-   * successful tap. Requiring both halves of the gesture on the backdrop also
-   * stops a drag that ends outside the dialog from closing it.
-   */
-  const backdropPressRef = useRef(false)
-
   return (
     <div
       className="fixed inset-0 z-[70] flex items-end justify-center bg-theme-bg/70 p-0 sm:items-center sm:p-4"
-      onMouseDown={(event) => { backdropPressRef.current = event.target === event.currentTarget }}
-      onClick={(event) => {
-        if (event.target !== event.currentTarget || !backdropPressRef.current) return
-        backdropPressRef.current = false
-        onClose()
-      }}
-      role="presentation"
+      {...backdropProps}
     >
       <div
         ref={dialogRef}
@@ -225,7 +157,7 @@ export function RollDicePicker({
           boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5)',
         }}
         onClick={(event) => event.stopPropagation()}
-        onKeyDown={handleKeyDown}
+        onKeyDown={onKeyDown}
       >
         {/* Header */}
         <div
@@ -300,7 +232,7 @@ export function RollDicePicker({
                 />
               )}
               <div className="relative grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                {candidates.map((die) => {
+                {visibleDice.map((die) => {
                   const isPinned = pinnedHere.has(die.id)
                   const isElsewhere = pinnedElsewhere?.has(die.id) ?? false
                   const isFull = summary.auto === 0
@@ -391,6 +323,24 @@ export function RollDicePicker({
                   )
                 })}
               </div>
+
+              {hiddenCount > 0 && (
+                <div className="flex justify-center pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((count) => count + VISIBLE_DICE_BATCH_SIZE)}
+                    data-testid="roll-dice-picker-show-more"
+                    className="rounded-md px-5 py-2 text-sm font-semibold transition-colors"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      color: 'var(--color-text-primary)',
+                      border: '1px solid var(--color-border)',
+                    }}
+                  >
+                    {`Show ${Math.min(VISIBLE_DICE_BATCH_SIZE, hiddenCount)} More`}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

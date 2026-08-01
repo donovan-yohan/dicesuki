@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useState } from 'react'
+import { type KeyboardEvent, useId, useState } from 'react'
 import { DiceIconWithNumber } from '../../icons/DiceIconWithNumber'
 import type { DiceEntry, KeepMode, QuickPreset, RollSource } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
@@ -214,6 +214,9 @@ export function DiceEntryCard({
   isSuccessModeMixed = false,
   successModeMessageId,
 }: DiceEntryCardProps) {
+  const detailPrefix = useId()
+  const badgesId = `${detailPrefix}-badges`
+  const sourcesId = `${detailPrefix}-sources`
   const [showAdvanced, setShowAdvanced] = useState(false)
   // The draft owns the displayed text while the field is being typed into, and
   // is only committed on blur or Enter. Committing per keystroke would make
@@ -473,7 +476,7 @@ export function DiceEntryCard({
         {/* Mechanics at a glance. The formula already spells out the notation;
             these read as plain labels for the mechanics it encodes. */}
         {badges.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
+          <div id={badgesId} className="flex flex-wrap gap-1 mt-1">
             {badges.map((badge) => (
               <span
                 key={badge}
@@ -490,7 +493,7 @@ export function DiceEntryCard({
           </div>
         )}
         {sourceLabels.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
+          <div id={sourcesId} className="flex flex-wrap gap-1 mt-1">
             {sourceLabels.map((source) => (
               <span
                 key={source.key}
@@ -541,6 +544,17 @@ export function DiceEntryCard({
             onClick={onOpenPicker}
             aria-haspopup="dialog"
             aria-label={`Choose dice for ${getFormula()}`}
+            // The label NAMES the control; the mechanics badges and source
+            // chips are its description. Without this they are inside the
+            // button and an accessible name overrides its contents, so a
+            // screen reader would announce "Choose dice for 4d20 kh1" and
+            // silently drop "Advantage" and which owned dice are pinned.
+            aria-describedby={
+              [
+                badges.length > 0 ? badgesId : null,
+                sourceLabels.length > 0 ? sourcesId : null,
+              ].filter(Boolean).join(' ') || undefined
+            }
             data-testid="dice-entry-picker-trigger"
             className="field-focus-ring flex flex-1 items-center gap-3 min-w-0 rounded-lg p-1 -m-1 text-left transition-all"
           >

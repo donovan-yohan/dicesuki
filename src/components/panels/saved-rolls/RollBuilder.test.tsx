@@ -233,6 +233,23 @@ describe('RollBuilder', () => {
     document.removeEventListener('keydown', sheetClose)
   })
 
+  it('describes the picker trigger with its badges and source chips', () => {
+    addNamedDie('Lucky D20', 'd20')
+    renderBuilder()
+
+    fireEvent.click(screen.getByRole('button', { name: /add 4 d20 dice/i }))
+    pinOwnedDie('Lucky D20')
+
+    // The accessible NAME of a button overrides its contents, so the badges and
+    // source chips inside the trigger would otherwise be announced to nobody.
+    const trigger = screen.getByTestId('dice-entry-picker-trigger')
+    const describedBy = trigger.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    const described = describedBy!.split(' ').map((id) => document.getElementById(id))
+    expect(described.every((node) => node !== null)).toBe(true)
+    expect(described.map((node) => node!.textContent).join(' ')).toContain('Lucky D20')
+  })
+
   it('says so when the player owns no dice of the entry type', () => {
     renderBuilder()
 

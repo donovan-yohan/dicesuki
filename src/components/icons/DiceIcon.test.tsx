@@ -16,6 +16,12 @@ const markupFor = (type: DiceType, props: { tone?: string } = {}) => {
   return container.innerHTML
 }
 
+/** Every numeric coordinate across every path of a rendered icon. */
+const coordinatesOf = (container: HTMLElement) =>
+  [...container.querySelectorAll('path')]
+    .flatMap((path) => path.getAttribute('d')?.match(/-?\d+(?:\.\d+)?/g) ?? [])
+    .map(Number)
+
 describe('DiceIcon', () => {
   describe('rendering', () => {
     it.each(ALL_TYPES)('should render %s as a scalable svg', (type) => {
@@ -191,19 +197,42 @@ describe('DiceIcon', () => {
       expect(container.querySelectorAll('path').length).toBe(4)
     })
 
-    it.each(ALL_TYPES)('should keep %s geometry inside the 10..90 safe area', (type) => {
+    it.each(ALL_TYPES)('should keep %s geometry inside the 8..92 outer safe area', (type) => {
       // Arrange
       const { container } = render(<DiceIcon type={type} />)
 
       // Act — every coordinate in every path
-      const coords = [...container.querySelectorAll('path')]
-        .flatMap((path) => path.getAttribute('d')?.match(/-?\d+(?:\.\d+)?/g) ?? [])
-        .map(Number)
+      const coords = coordinatesOf(container)
 
-      // Assert — icons optically align only if they share a bounding box
+      // Assert — nothing may exceed the widest shape's box
       expect(coords.length).toBeGreaterThan(0)
       expect(Math.min(...coords)).toBeGreaterThanOrEqual(8)
       expect(Math.max(...coords)).toBeLessThanOrEqual(92)
+    })
+
+    it.each(ALL_TYPES.filter((type) => type !== 'd4'))(
+      'should keep %s inside the tighter 10..90 alignment box',
+      (type) => {
+        // Arrange / Act — d4 is deliberately fitted 4 units wider (8..92): an
+        // equilateral triangle reads optically smaller at the same box size.
+        // Every other shape has no such excuse.
+        const { container } = render(<DiceIcon type={type} />)
+        const coords = coordinatesOf(container)
+
+        // Assert
+        expect(Math.min(...coords)).toBeGreaterThanOrEqual(10)
+        expect(Math.max(...coords)).toBeLessThanOrEqual(90)
+      },
+    )
+
+    it('should keep d4 within its documented 8..92 exception', () => {
+      // Arrange / Act — pins the exception so it cannot quietly widen further
+      const { container } = render(<DiceIcon type="d4" />)
+      const coords = coordinatesOf(container)
+
+      // Assert
+      expect(Math.min(...coords)).toBe(8)
+      expect(Math.max(...coords)).toBe(92)
     })
 
     it.each(ALL_TYPES)('should keep %s vertices symmetric about x=50', (type) => {

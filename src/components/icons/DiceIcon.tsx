@@ -53,8 +53,12 @@ interface Solid {
  * canonical vertex set → convex-hull faces → rest on a face → orthographic
  * projection at the camera elevation noted per shape → back-face cull → fit to
  * the 100×100 viewBox centred on (50, 50). Vertices are therefore exactly
- * mirror-symmetric about x=50, and every shape stays inside 10..90 so the icons
- * optically align with one another.
+ * mirror-symmetric about x=50.
+ *
+ * Six of the seven fit inside 10..90 so the icons optically align. `d4` is the
+ * exception, fitted to 84 wide (8..92): an equilateral triangle reads smaller
+ * than a round shape in the same box, so it needs the extra width to carry the
+ * same visual weight. Nothing exceeds 8..92.
  *
  * To change a shape, re-derive it — nudging a coordinate breaks the symmetry
  * and the facet tiling.

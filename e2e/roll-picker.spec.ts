@@ -167,6 +167,48 @@ for (const viewport of VIEWPORTS) {
   })
 }
 
+/**
+ * The other consumer of the nested-dialog contract.
+ *
+ * `BottomSheet` yields Escape and its focus trap to any nested `aria-modal`
+ * dialog, so a nested dialog that handles neither leaves Escape dead and lets
+ * Tab walk out onto the HUD behind the sheet. jsdom cannot show this — it has
+ * no native Tab navigation — so the browser proof lives here.
+ */
+test.describe('nested dialogs keep focus and Escape', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  test('the hero inspector traps Tab and takes only its own Escape', async ({ page }) => {
+    test.setTimeout(180_000)
+    await seedOwnedDice(page, 3)
+
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Manage Dice' }).click({ timeout: 90_000 })
+    await page.getByRole('button', { name: /open full dice inventory/i }).click()
+    await page.getByRole('button', { name: /Inspect Owned d20 #3/ }).click()
+
+    const inspector = page.getByTestId('hero-die-inspector')
+    await expect(inspector).toBeVisible()
+
+    // Far more presses than the inspector has focusable controls: a trap that
+    // leaks reaches the sheet or the HUD well before this finishes.
+    for (let press = 0; press < 60; press += 1) {
+      await page.keyboard.press('Tab')
+      const inside = await inspector.evaluate((el) => el.contains(document.activeElement))
+      expect(inside, `focus left the inspector on Tab #${press + 1}`).toBe(true)
+    }
+
+    // One Escape, one dialog: the inspector goes and the inventory sheet stays.
+    await page.keyboard.press('Escape')
+    await expect(inspector).toHaveCount(0)
+    await expect(page.getByRole('dialog')).toBeVisible()
+
+    // The second Escape is the sheet's.
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+})
+
 test.describe('a pinned die reaches the table', () => {
   test.use({ viewport: { width: 1280, height: 800 } })
 

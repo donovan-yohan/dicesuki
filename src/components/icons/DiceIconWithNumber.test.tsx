@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { DiceIconWithNumber } from './DiceIconWithNumber'
+import type { DiceType } from './DiceIcon'
+
+const ALL_TYPES: DiceType[] = ['d4', 'd6', 'd8', 'd10', 'd10tens', 'd12', 'd20']
 
 describe('DiceIconWithNumber', () => {
   describe('rendering', () => {
@@ -15,14 +18,73 @@ describe('DiceIconWithNumber', () => {
       expect(screen.getByText('5')).toBeInTheDocument()
     })
 
-    it('should render number for all dice types', () => {
-      const types: Array<'d4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20'> = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20']
+    it.each(ALL_TYPES)('should render number for %s', (type) => {
+      // Arrange / Act
+      const { unmount } = render(<DiceIconWithNumber type={type} number={3} />)
 
-      types.forEach(type => {
-        const { unmount } = render(<DiceIconWithNumber type={type} number={3} />)
-        expect(screen.getByText('3')).toBeInTheDocument()
-        unmount()
-      })
+      // Assert
+      expect(screen.getByText('3')).toBeInTheDocument()
+      unmount()
+    })
+  })
+
+  describe('percentile die count placement', () => {
+    it('should not stack the count on top of the d10tens % mark', () => {
+      // Arrange — DiceEntryCard renders exactly this pair for 1d100
+      const { container } = render(<DiceIconWithNumber type="d10tens" number={1} />)
+
+      // Act
+      const mark = container.querySelector('text')
+      const count = container.querySelector('span')
+
+      // Assert — the % owns the centre of the face...
+      expect(mark).toHaveTextContent('%')
+      expect(mark).toHaveAttribute('x', '50')
+      expect(mark).toHaveAttribute('text-anchor', 'middle')
+      // ...so the count must be anchored somewhere else
+      expect(count).not.toHaveClass('items-center')
+      expect(count).not.toHaveClass('justify-center')
+      expect(count).toHaveClass('items-end')
+      expect(count).toHaveClass('justify-end')
+    })
+
+    it.each(ALL_TYPES.filter((type) => type !== 'd10tens'))(
+      'should keep the %s count centred',
+      (type) => {
+        // Arrange / Act — only the percentile die prints a mark on its face,
+        // so only the percentile die gives up the centre
+        const { container } = render(<DiceIconWithNumber type={type} number={3} />)
+
+        // Assert
+        const count = container.querySelector('span')
+        expect(count).toHaveClass('items-center')
+        expect(count).toHaveClass('justify-center')
+        expect(container.querySelector('text')).toBeNull()
+      },
+    )
+  })
+
+  describe('icon tone', () => {
+    it('should drive the icon colour through the tone prop, not a class', () => {
+      // Arrange / Act — DiceIcon sets `color` inline, so a colour utility in
+      // className would be overridden and silently do nothing
+      const { container } = render(<DiceIconWithNumber type="d6" number={3} />)
+
+      // Assert
+      const svg = container.querySelector('svg')
+      expect(svg?.getAttribute('style')).toContain('color: var(--color-text-secondary)')
+      expect(svg?.className.baseVal ?? '').not.toContain('text-theme')
+    })
+
+    it('should forward a custom tone to the icon', () => {
+      // Arrange / Act
+      const { container } = render(
+        <DiceIconWithNumber type="d20" number={3} tone="var(--color-accent)" />,
+      )
+
+      // Assert
+      const svg = container.querySelector('svg')
+      expect(svg?.getAttribute('style')).toContain('color: var(--color-accent)')
     })
   })
 

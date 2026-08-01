@@ -120,15 +120,18 @@ describe('RollDicePicker', () => {
     ])
   })
 
-  it('closes on the backdrop but not on a click inside the dialog', () => {
+  it('closes on a backdrop press and release, but not on a click inside', () => {
     const { onClose } = renderPicker()
     const backdrop = screen.getByRole('presentation')
+    const dialog = screen.getByRole('dialog')
 
-    fireEvent.mouseDown(screen.getByRole('dialog'))
-    fireEvent.click(screen.getByRole('dialog'))
+    fireEvent.mouseDown(dialog)
+    fireEvent.mouseUp(dialog)
+    fireEvent.click(dialog)
     expect(onClose).not.toHaveBeenCalled()
 
     fireEvent.mouseDown(backdrop)
+    fireEvent.mouseUp(backdrop)
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -146,6 +149,21 @@ describe('RollDicePicker', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('ignores a gesture that starts on the backdrop but ends inside the dialog', () => {
+    // The browser fires `click` on the nearest common ancestor of press and
+    // release — the backdrop — so checking the click target alone would dismiss
+    // a drag that ended inside the dialog. Both halves must land on the
+    // backdrop.
+    const { onClose } = renderPicker()
+    const backdrop = screen.getByRole('presentation')
+
+    fireEvent.mouseDown(backdrop)
+    fireEvent.mouseUp(screen.getByRole('dialog'))
+    fireEvent.click(backdrop)
+
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('offers a die claimed by another entry as unavailable rather than hiding it', () => {
     renderPicker({ pinnedElsewhere: new Set(['die-a']) })
 
@@ -154,6 +172,22 @@ describe('RollDicePicker', () => {
     })
     expect(tile).toBeDisabled()
     expect(tile).toHaveTextContent('In another entry')
+  })
+
+  it('batches a large collection behind Show More', () => {
+    const many = Array.from({ length: 30 }, (_, i) =>
+      makeDie({ id: `die-${i}`, name: `Die ${i}`, acquiredAt: i }))
+    renderPicker({ ownedDice: many })
+
+    // 24 tiles, and — crucially — only 24 previews handed to the shared canvas,
+    // since each one costs a geometry + material entry and a per-frame draw.
+    expect(screen.getAllByTestId('roll-dice-picker-tile')).toHaveLength(24)
+    expect(screen.getAllByTestId('roll-dice-picker-preview')).toHaveLength(24)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show 6 More' }))
+
+    expect(screen.getAllByTestId('roll-dice-picker-tile')).toHaveLength(30)
+    expect(screen.queryByTestId('roll-dice-picker-show-more')).not.toBeInTheDocument()
   })
 
   it('draws every preview from one shared canvas, never one per tile', () => {
