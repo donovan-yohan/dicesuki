@@ -3,7 +3,12 @@ use crate::dice::get_face_normals;
 use crate::messages::DiceType;
 
 /// Detect which face is pointing up given a quaternion rotation.
-/// Matches the client-side `getDiceFaceValue()` in src/lib/geometries.ts.
+///
+/// This is the sole authoritative face detection. Client-side face detection was
+/// removed per Shared-ADR-005 / Frontend-ADR-001: the room (native server or
+/// in-browser wasm room) detects the face and emits it on `die_settled`, and the
+/// client consumes that value rather than recomputing it. There is deliberately
+/// no client counterpart to keep in sync.
 ///
 /// Algorithm:
 /// 1. For each face normal, rotate it by the die's quaternion

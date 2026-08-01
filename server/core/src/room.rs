@@ -4118,6 +4118,33 @@ mod physics_tick_helper_tests {
         room
     }
 
+    /// Deterministic sibling of [`make_room_with_player_and_die`]: spawns the die
+    /// at an explicit position and orientation instead of the RNG-jittered drop
+    /// grid plus random spawn rotation (both draw from `thread_rng`).
+    ///
+    /// Use this for any test whose outcome depends on *where* the die ends up —
+    /// distance to a wall, rest pose, face value. The die is handed back active
+    /// (`is_rolling`, `is_simulating`) so it falls and settles through the normal
+    /// pipeline. See issue #205 for the flake this exists to prevent.
+    fn make_room_with_die_at(die_id: &str, position: [f32; 3], rotation: [f32; 4]) -> Room {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let player = Player::new("p1".to_string(), "Test".to_string(), "#FFF".to_string(), tx);
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(player).unwrap();
+        room.spawn_dice_with_physics(
+            "p1",
+            vec![DiceSpawnRequest {
+                id: die_id.to_string(),
+                dice_type: DiceType::D6,
+                presentation: None,
+                position: Some(position),
+                rotation: Some(rotation),
+            }],
+        )
+        .unwrap();
+        room
+    }
+
     // ── apply_drag_forces ────────────────────────────────────────────────────
 
     /// Dragging a die should set a velocity toward the target position.
@@ -4308,34 +4335,49 @@ mod physics_tick_helper_tests {
     /// drift when the simulation keeps stepping. Before the fix, resting dice
     /// were re-solved every substep and micro-drifted (visible jitter). Also
     /// asserts the body stays wakeable (a shove re-rolls it).
+    ///
+    /// Determinism (issue #205): this test used to roll the die with
+    /// `roll_player_dice`, whose impulse/spin come from `thread_rng` — so the die
+    /// came to rest at an unpredictable spot. ~10 % of runs it rested within one
+    /// step of travel of the +X wall, the shove below drove it *into* that wall,
+    /// and the die rebounded at only `die↔arena restitution` × shove
+    /// (= 0.30 × 40 = 12 U/s) — under the 15.9 U/s knock threshold, so the wake
+    /// assertion failed on an unrelated PR's CI. The die is now placed
+    /// explicitly at the arena centre so nothing can absorb the shove.
     #[test]
     fn test_settled_die_is_frozen_and_does_not_jitter() {
-        let mut room = make_room_with_player_and_die("d1");
-        room.roll_player_dice("p1");
+        // Drop the die at the arena centre, axis-aligned, at zero velocity: no
+        // RNG anywhere in the setup, so the rest pose is reproducible.
+        let mut room = make_room_with_die_at("d1", [0.0, crate::physics::SPAWN_HEIGHT, 0.0], [0.0, 0.0, 0.0, 1.0]);
         let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
 
-        // Drive to physical rest.
-        let mut at_rest = false;
-        for _ in 0..600 {
-            room.physics.step();
-            if room.physics.is_at_rest(handle) {
-                at_rest = true;
+        // Settle through the REAL pipeline (rest debounce and all) rather than a
+        // fixed tick count: a condition loop can't confirm a rest the simulation
+        // hasn't actually reached, and `check_settled_dice`'s REST_DURATION_MS
+        // window rejects the momentary zero-velocity apex of a bounce.
+        let mut settled_face = None;
+        for _ in 0..1200 {
+            let (_, newly_settled, _) = room.physics_tick();
+            if let Some((_, face)) = newly_settled.iter().find(|(id, _)| id == "d1") {
+                settled_face = Some(*face);
                 break;
             }
         }
-        assert!(at_rest, "die should come to rest");
+        assert!(settled_face.is_some(), "die should settle within 1200 ticks");
+        assert!(!room.dice.get("d1").unwrap().is_rolling, "settled die is no longer rolling");
 
-        // Settle it through the room pipeline (record rest start, cross threshold).
-        room.tick_count = 100;
-        room.check_settled_dice();
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
-        let rest_ticks = (REST_DURATION_MS as f64 / (1000.0 / 60.0)) as u64 + 1;
-        room.tick_count = 100 + rest_ticks;
-        assert!(!room.check_settled_dice().is_empty(), "die should settle");
+        // It settled *on the floor*, not frozen mid-flight — otherwise the
+        // no-drift assertion below would be trivially true.
+        let resting = room.physics.get_position(handle).expect("position");
+        assert!(
+            (resting[1] - crate::dice::D6_HALF_EXTENT).abs() < 0.05,
+            "die must rest flat on the floor, got y={}",
+            resting[1]
+        );
 
         // Capture pose, then keep stepping. A slept body is excluded from
         // integration, so the pose must be bit-stable (no jitter).
-        let before = room.physics.get_position(handle).expect("position");
+        let before = resting;
         for _ in 0..180 {
             room.physics.step();
         }
@@ -4344,15 +4386,45 @@ mod physics_tick_helper_tests {
             + (after[1] - before[1]).powi(2)
             + (after[2] - before[2]).powi(2))
         .sqrt();
-        assert!(drift < 1e-4, "settled die drifted {drift} U after sleeping (jitter regression)");
+        // Exact zero, not a tolerance: with the die placed deterministically the
+        // slept body is excluded from integration outright, so the pose is
+        // bit-stable. A tolerance here would be far too slack — a sleep-disabled
+        // regression drifts only 1.07e-4 U from this pose, barely over the old
+        // 1e-4 bound, so the guard would be a coin flip rather than a test.
+        assert!(drift == 0.0, "settled die drifted {drift} U after sleeping (jitter regression)");
         assert!(
             room.physics.get_linear_speed(handle) < 1e-4,
             "slept die must report zero linear speed"
         );
 
         // Still wakeable: a hard shove must re-roll it (knock detection intact).
-        room.physics.set_linear_velocity(handle, [40.0, 0.0, 0.0]);
+        //
+        // Margin, derived from the constants in `physics.rs` rather than guessed:
+        //   * shove          = 2.5 × KNOCK_WAKE_LINEAR_SPEED = 39.75 U/s
+        //   * one `step()`   = TIME_SCALE/60 = 0.8/60 s = 13.3 ms
+        //   * floor friction pair µ = (DICE_FRICTION + ARENA_FRICTION)/2 = 0.30, so the
+        //     most one step can shed is µ·|GRAVITY|·Δt = 0.30 × 240 × 0.0133 = 0.96 U/s
+        //   ⇒ post-step speed ≥ 38.79 U/s = 2.44 × the 15.9 U/s knock threshold.
+        // The only thing that could eat more is a wall, and the nearest one is
+        // WALL_HALF_X − D6_HALF_EXTENT = 3.95 U away — 7.4 steps of travel at this
+        // speed — so the die cannot reach it inside the single step below.
+        let shove = crate::physics::KNOCK_WAKE_LINEAR_SPEED * 2.5;
+        room.physics.set_linear_velocity(handle, [shove, 0.0, 0.0]);
         room.physics.step();
+
+        // The slept body genuinely re-entered integration (it moved), rather than
+        // just carrying a velocity field nothing reads.
+        let shoved = room.physics.get_position(handle).expect("position");
+        assert!(
+            shoved[0] - after[0] > 0.4,
+            "shoved die must actually translate (slept body must wake), moved {} U",
+            shoved[0] - after[0]
+        );
+        let post_speed = room.physics.get_linear_speed(handle);
+        assert!(
+            post_speed > crate::physics::KNOCK_WAKE_LINEAR_SPEED * 2.0,
+            "shove must clear the knock threshold with margin, got {post_speed} U/s"
+        );
         assert!(
             !room.wake_knocked_dice().is_empty(),
             "a shoved settled die must wake and re-roll"
