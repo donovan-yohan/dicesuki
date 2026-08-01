@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { type DiceShape, createDiceGeometry } from '../../lib/geometries'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 import { resolveDiceMaterial } from '../../lib/diceMaterial'
+import { isBasicDiePresentation } from '../../lib/basicDice'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { type RenderDeviceTier, resolveDiceRenderLod } from '../../lib/renderLod'
@@ -72,8 +73,19 @@ export function MultiplayerDie({
   // Material look comes from the single resolver (shared with the inventory
   // previews, so they can't drift), keyed on the server physics material
   // (dice.rs::material_physics): metal → glossy faces + matte painted numbers,
-  // rubber → pastel tie-dye, everything else the default.
-  const resolution = resolveDiceMaterial(diceType, presentation?.material)
+  // rubber → pastel tie-dye, everything else the default. A basic die
+  // (`lib/basicDice.ts`) overrides all of that with plain black numerals.
+  //
+  // `presentation?.baseColor ?? color` falls back to the OWNER'S PLAYER COLOUR.
+  // Every die this client spawns now carries a presentation block — basics
+  // included — so that fallback only ever applies to a presentation-less die
+  // originated by some other client.
+  const isBasic = isBasicDiePresentation(presentation)
+  const resolution = resolveDiceMaterial(
+    diceType,
+    presentation?.material,
+    isBasic ? 'basic' : 'default',
+  )
   const materials = useDiceMaterials({
     shape: diceType,
     color: presentation?.baseColor ?? color,

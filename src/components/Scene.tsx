@@ -26,6 +26,7 @@ import {
   groupPercentileResults,
   percentileSumCorrection,
 } from '../lib/percentileRolls'
+import { dieChipLabel, isBasicDiePresentation } from '../lib/basicDice'
 import { aggregateSavedRollPlan, facesFromSettled } from '../lib/savedRollPlan'
 import { detectRenderDeviceTier } from '../lib/deviceDetection'
 import {
@@ -469,10 +470,8 @@ function SceneContent({ onReady }: SceneProps) {
   }, [])
 
 
-  // Initialize starter dice on first load
-  useEffect(() => {
-    useInventoryStore.getState().initializeStarterDice()
-  }, [])
+  // No inventory seeding on first load: an empty collection is the default, and
+  // basic dice (`lib/basicDice.ts`) are the playable floor.
 
   // Get the active backend — always provided by SoloRoom / MultiplayerRoom
   const activeBackend = useDiceBackend()
@@ -1014,12 +1013,14 @@ function ResultDisplay() {
 }
 
 function getResultDieLabel(die: DieSettledState) {
-  // `formatDiceShapeLabel` keeps a stray, unpaired tens die from surfacing as the
-  // raw engine shape `d10tens`.
-  return die.presentation?.displayName ?? formatDiceShapeLabel(die.type)
+  // `dieChipLabel` reads a basic die as its bare shape (`D6`, not `Basic D6`) and
+  // keeps a stray, unpaired tens die from surfacing as the raw engine shape
+  // `d10tens`.
+  return dieChipLabel(die.type, die.presentation)
 }
 
 function getRollingDieLabel(die: MultiplayerDieState, inventoryDiceById: Map<string, InventoryDie>) {
+  if (isBasicDiePresentation(die.presentation)) return formatDiceShapeLabel(die.diceType)
   const inventoryDieId = die.presentation?.inventoryDieId
   return die.presentation?.displayName
     ?? (inventoryDieId ? inventoryDiceById.get(inventoryDieId)?.name : undefined)

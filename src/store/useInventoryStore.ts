@@ -21,8 +21,8 @@ import { DiceShape } from '../lib/geometries'
 import { INVENTORY_DICE_SHAPES } from '../types/diceShape'
 import { getDieMax } from '../lib/diceHelpers'
 import { getDieSetById } from '../config/dieSets'
-import { STARTER_DICE } from '../config/starterDice'
 import { createBlobUrlFromStorage, deleteCustomDiceModel } from '../lib/customDiceDB'
+import { pruneSavedRollsForRemovedDice } from '../lib/savedRollDieCleanup'
 import {
   mapInventoryDieToCatalogRef,
 } from '../lib/collectibleCatalog'
@@ -127,9 +127,13 @@ interface InventoryStore {
 
   // ============================================================================
   // Initialization
+  //
+  // There is deliberately no seeding action here. An empty inventory is the
+  // DEFAULT and a fully playable state: every player has an unlimited supply of
+  // basic dice (`src/lib/basicDice.ts`), so nothing has to be granted for the
+  // game to work. Dice arrive from entitlements, pulls and rewards only.
   // ============================================================================
 
-  initializeStarterDice: () => void
   reset: () => void
 
   // ============================================================================
@@ -356,6 +360,74 @@ function isLegacyBundledDevilAsset(die: InventoryDie): boolean {
       die.customAsset?.modelUrl === '/dice/devil-set/devil-d6/model.glb')
 }
 
+function asAssignments(value: unknown): Record<string, string> {
+  return value && typeof value === 'object'
+    ? { ...(value as Record<string, string>) }
+    : {}
+}
+
+/**
+ * v4 -> v5 retires the seeded local starter inventory.
+ *
+ * Every player used to get 23 `source: 'starter'` instances on first load
+ * (adventurer-starter, devil d6s, materials-lab d20s). Basic dice
+ * (`src/lib/basicDice.ts`) are the floor now, so the default inventory is empty
+ * and those rows are removed — including from existing sessions, which is the
+ * whole point of the bump: a returning player must not keep a private stash the
+ * game no longer grants.
+ *
+ * Only `source: 'starter'` rows go. Purchased, pulled, rewarded, crafted and
+ * custom-uploaded dice are untouched, and assignments naming a dropped die are
+ * pruned so no roll slot points at a row that no longer exists.
+ *
+ * The server side is deliberately NOT touched: `ensure_starter_entitlements`
+ * still owns the same 8-item allowlist and existing `dice_copies` rows stay
+ * valid (they are harmless, and revoking granted property is not this slice's
+ * business). See `src/config/starterDice.test.ts` for the guard that keeps those
+ * two halves honest.
+ */
+function dropSeededStarterDice(state: Record<string, unknown>): {
+  state: Record<string, unknown>
+  removedDieIds: string[]
+} {
+  const collect = (value: unknown): InventoryDie[] => (
+    Array.isArray(value) ? value as InventoryDie[] : []
+  )
+  const isSeededStarter = (die: InventoryDie) => die?.source === 'starter'
+
+  const removedDieIds = Array.from(new Set(
+    [...collect(state.dice), ...collect(state.localDice)]
+      .filter(isSeededStarter)
+      .map(die => die.id)
+      .filter((id): id is string => typeof id === 'string'),
+  ))
+
+  if (removedDieIds.length === 0) {
+    return { state, removedDieIds }
+  }
+
+  const removed = new Set(removedDieIds)
+  const pruneAssignments = (value: unknown) => Object.fromEntries(
+    Object.entries(asAssignments(value)).filter(([, dieId]) => !removed.has(dieId)),
+  )
+  const purge = (value: unknown) => collect(value).filter(die => !isSeededStarter(die))
+
+  return {
+    state: {
+      ...state,
+      dice: purge(state.dice),
+      // A pre-v4 payload has no `localDice` at all. Writing `[]` rather than
+      // leaving it undefined is deliberate: the field is required from v4 on,
+      // and an undefined one would make `selectRetainedLocalInventory` read a
+      // shape the rest of the store does not expect.
+      localDice: purge(state.localDice),
+      assignments: pruneAssignments(state.assignments),
+      localAssignments: pruneAssignments(state.localAssignments),
+    },
+    removedDieIds,
+  }
+}
+
 /**
  * v2 -> v3 adds best-effort catalog definition refs without replacing any
  * client-local instance. It also marks the one known production GLTF as a
@@ -364,16 +436,29 @@ function isLegacyBundledDevilAsset(die: InventoryDie): boolean {
  *
  * v3 -> v4 establishes a separate persisted guest/local inventory. The live
  * server-copy view is deliberately ephemeral and is rebuilt after sign-in.
+ *
+ * v4 -> v5 removes the seeded starter dice — see {@link dropSeededStarterDice}.
+ *
+ * Returns the dropped die ids alongside the state so the caller can repair
+ * saved rolls that pinned one of them; the migration itself stays pure.
  */
-export function migratePersistedInventoryState(
+export function migratePersistedInventory(
   persistedState: unknown,
   version: number,
-): unknown {
+): { state: unknown; removedStarterDieIds: string[] } {
   if (!persistedState || typeof persistedState !== 'object') {
-    return emptyPersistedInventory()
+    return { state: emptyPersistedInventory(), removedStarterDieIds: [] }
   }
   const state = persistedState as Record<string, unknown>
-  if (!Array.isArray(state.dice)) return persistedState
+  if (!Array.isArray(state.dice)) {
+    // A payload with no `dice` array is malformed as far as the v1-v3 catalog
+    // pass is concerned, but it may still carry `localDice` — and those starter
+    // rows become the visible inventory on the next sign-out. Returning early
+    // without purging is what let a starter die survive the migration entirely,
+    // so the v5 step still runs on whatever IS there.
+    const purged = dropSeededStarterDice(state)
+    return { state: purged.state, removedStarterDieIds: purged.removedDieIds }
+  }
   const dice = (version >= 3 ? state.dice : state.dice.map(value => {
     if (!value || typeof value !== 'object') return value
     const die = value as InventoryDie
@@ -384,18 +469,24 @@ export function migratePersistedInventoryState(
     return catalogRef ? { ...migratedDie, catalogRef } : migratedDie
   })) as InventoryDie[]
 
-  if (version >= 4) return persistedState
-  return {
+  const throughV4 = version >= 4 ? state : {
     ...state,
     dice,
     localDice: [...dice],
-    localAssignments: {
-      ...(state.assignments && typeof state.assignments === 'object'
-        ? state.assignments as Record<string, string>
-        : {}),
-    },
+    localAssignments: asAssignments(state.assignments),
     serverCopiesActive: false,
   }
+
+  const { state: withoutStarters, removedDieIds } = dropSeededStarterDice(throughV4)
+  return { state: withoutStarters, removedStarterDieIds: removedDieIds }
+}
+
+/** Pure state-only view of {@link migratePersistedInventory}. */
+export function migratePersistedInventoryState(
+  persistedState: unknown,
+  version: number,
+): unknown {
+  return migratePersistedInventory(persistedState, version).state
 }
 
 // ============================================================================
@@ -875,38 +966,6 @@ export const useInventoryStore = create<InventoryStore>()(
       // Initialization
       // ========================================================================
 
-      initializeStarterDice: () => {
-        const hadDice = get().dice.length > 0
-
-        if (!hadDice) {
-          console.log('[Inventory] Initializing starter dice')
-          STARTER_DICE.forEach(starterDie => {
-            get().addDie(starterDie)
-          })
-          // Give some starting currency
-          set(state => ({
-            currency: {
-              ...state.currency,
-              coins: 500,
-              standardTokens: 5,
-            },
-          }))
-          return
-        }
-
-        // Existing inventory: idempotently grant just the newer "materials-lab"
-        // dice (metal/rubber d20) so players who predate them can still play with
-        // material feel. Keyed by name so it grants exactly once.
-        const ownedNames = new Set(get().dice.map(d => d.name))
-        const missing = STARTER_DICE.filter(
-          d => d.setId === 'materials-lab' && !ownedNames.has(d.name),
-        )
-        if (missing.length > 0) {
-          console.log(`[Inventory] Granting ${missing.length} materials-lab dice`)
-          missing.forEach(d => get().addDie(d))
-        }
-      },
-
       reset: () => {
         set({
           dice: [],
@@ -1031,17 +1090,16 @@ export const useInventoryStore = create<InventoryStore>()(
         const serverDice = mapServerCopiesToInventoryDice(copies, catalog)
         if (!serverDice) return false
         const retained = selectRetainedLocalInventory(get())
-        const playableLocalDice = retained.dice.length > 0
-          ? retained.dice
-          : STARTER_DICE.map(createInventoryDie)
+        const playableLocalDice = retained.dice
         const localIds = new Set(playableLocalDice.map(die => die.id))
         if (serverDice.some(die => localIds.has(die.id))) return false
 
         set({
           // Signed-in play keeps the local-first baseline and overlays the
-          // authoritative copy rows. An empty-but-successful copy read must not
-          // erase the 23 playable starter instances. Refresh always derives
-          // local state from current visible non-server rows.
+          // authoritative copy rows. An empty result is simply an empty
+          // inventory now — basic dice are the playable floor, so there is no
+          // starter baseline to fall back to. Refresh always derives local state
+          // from current visible non-server rows.
           localDice: playableLocalDice,
           localAssignments: retained.assignments,
           dice: [...playableLocalDice, ...serverDice],
@@ -1056,9 +1114,9 @@ export const useInventoryStore = create<InventoryStore>()(
         if (!state.serverCopiesActive) return
 
         const retained = selectRetainedLocalInventory(state)
-        const playableLocalDice = retained.dice.length > 0
-          ? retained.dice
-          : STARTER_DICE.map(createInventoryDie)
+        // Signing out leaves exactly the local rows, which may be none: an empty
+        // inventory is valid and still fully playable via basic dice.
+        const playableLocalDice = retained.dice
         set({
           dice: playableLocalDice,
           localDice: playableLocalDice,
@@ -1080,13 +1138,21 @@ export const useInventoryStore = create<InventoryStore>()(
       // SCHEMA VERSION
       // Increment this when starter dice or inventory structure changes
       // This will trigger the migrate function below
-      version: 4,
+      version: 5,
 
       // Migration function - runs when stored version doesn't match current version
       migrate: (persistedState, version) => {
         // Keep migration logs in production - they're useful for debugging user issues
-        console.log(`[InventoryStore] Migrating from version ${version} to 4`)
-        return migratePersistedInventoryState(persistedState, version) as InventoryStore
+        console.log(`[InventoryStore] Migrating from version ${version} to 5`)
+        const { state, removedStarterDieIds } = migratePersistedInventory(persistedState, version)
+        if (removedStarterDieIds.length > 0) {
+          console.log(`[InventoryStore] Removed ${removedStarterDieIds.length} seeded starter dice`)
+          // Saved rolls that pinned one of those dice would otherwise keep a
+          // dangling id forever; rewrite them to plain (basic) dice here, while
+          // the exact removed ids are still known.
+          pruneSavedRollsForRemovedDice(removedStarterDieIds)
+        }
+        return state as InventoryStore
       },
 
       // Partial persistence (only save essential data)

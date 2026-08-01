@@ -7,7 +7,8 @@
 
 import { FlyoutPanel } from './FlyoutPanel'
 import { useDiceStore, type RollSnapshot } from '../../store/useDiceStore'
-import { formatDiceShapeLabel, groupPercentileResults } from '../../lib/percentileRolls'
+import { groupPercentileResults } from '../../lib/percentileRolls'
+import { dieChipLabel } from '../../lib/basicDice'
 
 interface HistoryPanelProps {
   isOpen: boolean
@@ -198,7 +199,7 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
 }
 
 function getHistoryDieLabel(die: RollSnapshot['dice'][number]) {
-  // `formatDiceShapeLabel` keeps a stray, unpaired tens die from surfacing as the
-  // raw engine shape `d10tens`.
-  return die.presentation?.displayName ?? formatDiceShapeLabel(die.type)
+  // `dieChipLabel` reads a basic die as its bare shape and keeps a stray,
+  // unpaired tens die from surfacing as the raw engine shape `d10tens`.
+  return dieChipLabel(die.type, die.presentation)
 }

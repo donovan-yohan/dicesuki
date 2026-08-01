@@ -87,6 +87,12 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory
     return ids
   }, [localPlayerId, multiplayerDiceOnTable, pendingInventoryDieIds])
 
+  /**
+   * Every die type, always. A player has an unlimited supply of basic dice
+   * (`lib/basicDice.ts`), so the rail never hides or disables a type — `available`
+   * counts only the OWNED dice not already on the table, and tapping past that
+   * count spawns a basic one.
+   */
   const availableDiceTypes = useMemo(() => {
     const ownedDiceByType = new Map<DiceShape, InventoryDie[]>()
     inventoryDice.forEach(die => {
@@ -95,16 +101,14 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory
       ownedDiceByType.set(die.type, ownedDice)
     })
 
-    return ALL_DICE_TYPES
-      .filter(({ type }) => ownedDiceByType.has(type))
-      .map(({ type, label }) => {
-        const ownedDice = ownedDiceByType.get(type) ?? []
-        return {
-          type,
-          label,
-          available: ownedDice.filter(die => !unavailableInventoryIds.has(die.id)).length,
-        }
-      })
+    return ALL_DICE_TYPES.map(({ type, label }) => {
+      const ownedDice = ownedDiceByType.get(type) ?? []
+      return {
+        type,
+        label,
+        available: ownedDice.filter(die => !unavailableInventoryIds.has(die.id)).length,
+      }
+    })
   }, [inventoryDice, unavailableInventoryIds])
 
   const favoriteDiceByType = useMemo(() => {
@@ -159,7 +163,6 @@ export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory
                 favorites={favorites}
                 index={index}
                 isFavoriteOpen={isFavoriteOpen}
-                disabled={available === 0}
                 onAdd={() => onAddDice(type)}
                 onToggleFavorites={() => setActiveFavoriteType(isFavoriteOpen ? null : type)}
                 onSpawnFavorite={(die) => {
@@ -210,11 +213,17 @@ interface DiceQuickSlotProps {
   favorites: InventoryDie[]
   index: number
   isFavoriteOpen: boolean
-  disabled?: boolean
   onAdd: () => void
   onToggleFavorites: () => void
   onSpawnFavorite: (die: InventoryDie) => void
 }
+
+/**
+ * The badge shows how many OWNED dice of the type are still off the table. At
+ * zero it becomes ∞: there is nothing left to run out of, because the next tap
+ * spawns a basic die.
+ */
+const INFINITE_BASICS_BADGE = '∞'
 
 function DiceQuickSlot({
   type,
@@ -223,7 +232,6 @@ function DiceQuickSlot({
   favorites,
   index,
   isFavoriteOpen,
-  disabled = false,
   onAdd,
   onToggleFavorites,
   onSpawnFavorite,
@@ -234,6 +242,10 @@ function DiceQuickSlot({
   const surfaceColor = currentTheme.tokens.colors.surface
   const hasFavorites = favorites.length > 0
   const slotRef = useRef<HTMLDivElement>(null)
+  const hasOwned = count > 0
+  const actionLabel = hasOwned
+    ? `Add random owned ${label} from inventory (${count} available)`
+    : `Add a basic ${label} (unlimited)`
 
   return (
     <motion.div
@@ -250,18 +262,16 @@ function DiceQuickSlot({
     >
       <motion.button
         type="button"
-        onClick={disabled ? undefined : onAdd}
-        disabled={disabled}
+        onClick={onAdd}
         className="relative flex h-12 w-12 flex-col items-center justify-center rounded-xl text-sm font-bold"
         style={{
-          backgroundColor: disabled ? `${accentColor}40` : accentColor,
+          backgroundColor: accentColor,
           border: 'none',
-          color: disabled ? `${surfaceColor}60` : surfaceColor,
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          opacity: disabled ? 0.5 : 1,
+          color: surfaceColor,
+          cursor: 'pointer',
         }}
         whileHover={
-          !reduceMotion && !disabled
+          !reduceMotion
             ? {
                 backgroundColor: currentTheme.tokens.colors.dice.highlight,
                 scale: 1.08,
@@ -269,10 +279,11 @@ function DiceQuickSlot({
               }
             : undefined
         }
-        whileTap={!reduceMotion && !disabled ? buttonPressScale : undefined}
-        aria-label={disabled ? `No ${label} available` : `Add random ${label} from inventory (${count} available)`}
-        title={disabled ? `No ${label} available` : `Add random owned ${label}`}
+        whileTap={!reduceMotion ? buttonPressScale : undefined}
+        aria-label={actionLabel}
+        title={actionLabel}
         data-testid={`dice-quick-slot-${type}`}
+        data-owned-available={count}
       >
         <span>{label}</span>
         <span
@@ -287,7 +298,7 @@ function DiceQuickSlot({
           }}
           aria-hidden="true"
         >
-          {count}
+          {hasOwned ? count : INFINITE_BASICS_BADGE}
         </span>
       </motion.button>
 

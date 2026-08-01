@@ -32,6 +32,12 @@
  */
 
 import type { FaceRenderer } from '../textureRendering'
+import {
+  BASIC_GLYPH_STYLE,
+  EMBOSSED_GLYPH_STYLE,
+  drawFaceGlyph,
+  type FaceGlyphStyle,
+} from './glyphStyle'
 
 /**
  * Numbers displayed at each vertex of each face.
@@ -49,20 +55,18 @@ export const D4_FACE_NUMBERS: readonly [number, number, number][] = [
 ]
 
 /**
- * Classic D4 renderer - three numbers per triangular face
+ * Classic D4 renderer factory — three numbers per triangular face.
  *
  * Draws 3 numbers on each face, positioned near each vertex of the triangle.
  * The UV mapping places vertex 0 at top, vertex 1 at bottom-left,
  * vertex 2 at bottom-right.
  *
- * Numbers are drawn with white fill and black outline for legibility.
+ * The vertex layout is the same for every die; only `style` (how a numeral is
+ * painted) varies, so a basic d4 and a collectible d4 can never disagree about
+ * WHERE the numbers go. See `./glyphStyle.ts`.
  */
-export const renderD4Classic: FaceRenderer = (
-  ctx,
-  faceValue,
-  canvasSize,
-  backgroundColor,
-) => {
+export function createD4ClassicRenderer(style: FaceGlyphStyle): FaceRenderer {
+  return (ctx, faceValue, canvasSize, backgroundColor) => {
   const faceIndex = faceValue - 1 // Convert 1-based value to 0-based index
   const numbers = D4_FACE_NUMBERS[faceIndex]
 
@@ -71,9 +75,6 @@ export const renderD4Classic: FaceRenderer = (
   ctx.fillRect(0, 0, canvasSize, canvasSize)
 
   const fontSize = canvasSize * 0.32
-  ctx.font = `bold ${fontSize}px Arial`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
 
   // Position numbers near each vertex of the equilateral triangle
   // UV coordinates: top=(0.5, 1.0), bottomLeft=(0.0, 0.0), bottomRight=(1.0, 0.0)
@@ -98,26 +99,29 @@ export const renderD4Classic: FaceRenderer = (
   const numBRX = bottomRightX + (centerX - bottomRightX) * inset
   const numBRY = bottomRightY + (centerY - bottomRightY) * inset
 
-  // Draw each number with outline for legibility
   const drawNumber = (num: number, x: number, y: number) => {
-    // Shadow
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
-    ctx.shadowBlur = fontSize * 0.1
-    ctx.shadowOffsetX = fontSize * 0.04
-    ctx.shadowOffsetY = fontSize * 0.04
-
-    // Outline
-    ctx.strokeStyle = 'black'
-    ctx.lineWidth = fontSize * 0.1
-    ctx.strokeText(num.toString(), x, y)
-
-    // Fill
-    ctx.shadowColor = 'transparent'
-    ctx.fillStyle = 'white'
-    ctx.fillText(num.toString(), x, y)
+    drawFaceGlyph(ctx, num.toString(), x, y, fontSize, style)
   }
 
   drawNumber(numbers[0], numTopX, numTopY)     // Top vertex
   drawNumber(numbers[1], numBLX, numBLY)       // Bottom-left vertex
   drawNumber(numbers[2], numBRX, numBRY)       // Bottom-right vertex
+  }
 }
+
+/**
+ * The d4 packs three numerals onto one small face, so it has always drawn a
+ * slightly heavier outline and a tighter shadow than the other shapes. Kept
+ * exactly as it shipped rather than folded into {@link EMBOSSED_GLYPH_STYLE}.
+ */
+const D4_EMBOSSED_GLYPH_STYLE: FaceGlyphStyle = {
+  ...EMBOSSED_GLYPH_STYLE,
+  stroke: { color: 'black', widthScale: 0.1 },
+  shadow: { color: 'rgba(0, 0, 0, 0.5)', blurScale: 0.1, offsetScale: 0.04 },
+}
+
+/** Collectible-dice d4: bold white numerals with a black outline. */
+export const renderD4Classic: FaceRenderer = createD4ClassicRenderer(D4_EMBOSSED_GLYPH_STYLE)
+
+/** Basic-die d4: plain black numerals, no outline or shadow. */
+export const renderD4Basic: FaceRenderer = createD4ClassicRenderer(BASIC_GLYPH_STYLE)

@@ -15,8 +15,9 @@ import {
   D20_FACE_NORMALS,
 } from '../../lib/geometries'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
-import { getFaceRendererForShape } from '../../lib/faceRenderers'
+import { getFaceRendererForShape, type DiceFaceStyle } from '../../lib/faceRenderers'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
+import { BASIC_DIE_BASE_COLOR } from '../../lib/basicDice'
 
 const FACE_NORMALS_MAP: Record<DiceShape, import('../../lib/geometries').DiceFace[]> = {
   d4: D4_FACE_NORMALS,
@@ -67,6 +68,10 @@ export default function DiceFaceTestHarness() {
   const [searchParams] = useSearchParams()
   const shape = (searchParams.get('type') || 'd6') as DiceShape
   const faceIndex = parseInt(searchParams.get('face') || '0')
+  // `?style=basic` renders the infinite fallback die (`lib/basicDice.ts`) with
+  // the exact colours it spawns with, so its white body and black numerals can
+  // be verified as real rendered pixels instead of asserted metadata.
+  const faceStyle: DiceFaceStyle = searchParams.get('style') === 'basic' ? 'basic' : 'default'
 
   const faceNormals = FACE_NORMALS_MAP[shape]
   const isValidFaceIndex = faceNormals && !Number.isNaN(faceIndex) && faceIndex < faceNormals.length && faceIndex >= 0
@@ -78,8 +83,8 @@ export default function DiceFaceTestHarness() {
   // Use textured materials for visual validation
   const materials = useDiceMaterials({
     shape,
-    color: '#ff6b35',
-    faceRenderer: getFaceRendererForShape(shape),
+    color: faceStyle === 'basic' ? BASIC_DIE_BASE_COLOR : '#ff6b35',
+    faceRenderer: getFaceRendererForShape(shape, faceStyle),
   })
 
   if (!face || !quaternion || reportedValue === null) {
@@ -90,6 +95,7 @@ export default function DiceFaceTestHarness() {
     <div data-testid="dice-test-harness" style={{ width: '100vw', height: '100vh', background: '#111' }}>
       <div style={{ position: 'absolute', top: 10, left: 10, color: 'white', zIndex: 10, fontFamily: 'monospace' }}>
         <div data-testid="dice-type">{shape}</div>
+        <div data-testid="face-style">{faceStyle}</div>
         <div data-testid="face-index">{faceIndex}</div>
         <div data-testid="expected-value">{face.value}</div>
         <div data-testid="reported-value">{reportedValue}</div>

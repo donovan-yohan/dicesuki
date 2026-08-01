@@ -209,7 +209,10 @@ async function seedRuntimeInventory(page: Page, setId: string, assets: CatalogAs
     isFavorite: false,
     isLocked: false,
     acquiredAt: 1_750_000_000_000 + index,
-    source: 'starter',
+    // NOT 'starter': the seeded starter inventory is retired and the store's
+    // v4 -> v5 migration deletes `source: 'starter'` rows. These runtime-set
+    // dice are pulled/granted collectibles, which is what they are in reality.
+    source: 'gacha_standard',
     catalogRef: {
       itemId: asset.catalogItemId,
       assetVersionId: asset.id,

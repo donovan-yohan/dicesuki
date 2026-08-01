@@ -3,9 +3,11 @@ import { COLLECTIBLE_CATALOG } from '../lib/collectibleCatalog'
 import { createRealTargets } from '../lib/dataSync'
 import type { NewInventoryDie } from '../types/inventory'
 import {
+  migratePersistedInventory,
   migratePersistedInventoryState,
   useInventoryStore,
 } from './useInventoryStore'
+import { useSavedRollsStore } from './useSavedRollsStore'
 
 const makeNewDie = (overrides: Partial<NewInventoryDie> = {}): NewInventoryDie => ({
   type: 'd6',
@@ -20,7 +22,10 @@ const makeNewDie = (overrides: Partial<NewInventoryDie> = {}): NewInventoryDie =
   name: 'Test Die',
   isFavorite: false,
   isLocked: false,
-  source: 'starter',
+  // Deliberately NOT 'starter': the v4 -> v5 migration deletes seeded starter
+  // rows, so a default of 'starter' would silently make every unrelated
+  // persistence test a test of that deletion. Starter rows get their own tests.
+  source: 'gacha_standard',
   assignedToRolls: [],
   ...overrides,
 })
@@ -106,7 +111,10 @@ describe('useInventoryStore server-copy slice', () => {
     expect(stateAfterClear).toBe(stateBeforeClear)
   })
 
-  it('keeps a 23-die playable baseline when the authoritative copy read is empty', () => {
+  it('leaves the inventory empty when the authoritative copy read is empty', () => {
+    // The retired starter fallback re-seeded 23 instances here. An empty
+    // inventory is now a valid, playable state — basic dice are the floor —
+    // so an empty-but-successful read must stay empty.
     expect(useInventoryStore.getState().dice).toHaveLength(0)
     expect(
       useInventoryStore.getState().syncServerCopies(
@@ -117,13 +125,15 @@ describe('useInventoryStore server-copy slice', () => {
     expect(useInventoryStore.getState()).toMatchObject({
       serverCopiesActive: true,
     })
-    expect(useInventoryStore.getState().dice).toHaveLength(23)
-    expect(useInventoryStore.getState().dice.every(die => die.source === 'starter'))
-      .toBe(true)
+    expect(useInventoryStore.getState().dice).toHaveLength(0)
+    expect(useInventoryStore.getState().localDice).toHaveLength(0)
   })
 
-  it('adds authoritative copies once on top of the retained 23-die baseline', () => {
-    useInventoryStore.getState().initializeStarterDice()
+  it('adds authoritative copies once on top of the retained local rows', () => {
+    const local = useInventoryStore.getState().addDie(makeNewDie({
+      id: 'retained-local-die',
+      source: 'gacha_standard',
+    }))
     const item = COLLECTIBLE_CATALOG.items.find(
       candidate => candidate.setId !== 'adventurer-starter',
     ) ?? COLLECTIBLE_CATALOG.items[0]
@@ -134,7 +144,7 @@ describe('useInventoryStore server-copy slice', () => {
         COLLECTIBLE_CATALOG,
       ),
     ).toBe(true)
-    expect(useInventoryStore.getState().dice).toHaveLength(24)
+    expect(useInventoryStore.getState().dice).toHaveLength(2)
 
     expect(
       useInventoryStore.getState().syncServerCopies(
@@ -142,14 +152,14 @@ describe('useInventoryStore server-copy slice', () => {
         COLLECTIBLE_CATALOG,
       ),
     ).toBe(true)
-    expect(useInventoryStore.getState().dice).toHaveLength(24)
+    expect(useInventoryStore.getState().dice).toHaveLength(2)
     expect(useInventoryStore.getState().dice.map(die => die.id)).not
       .toContain('first-server-copy')
     expect(useInventoryStore.getState().dice.map(die => die.id))
       .toContain('refreshed-server-copy')
 
     useInventoryStore.getState().clearServerCopies()
-    expect(useInventoryStore.getState().dice).toHaveLength(23)
+    expect(useInventoryStore.getState().dice.map(die => die.id)).toEqual([local.id])
     expect(useInventoryStore.getState().dice.some(die => die.serverCopyMetadata))
       .toBe(false)
   })
@@ -178,8 +188,142 @@ describe('useInventoryStore server-copy slice', () => {
     expect(migrated.serverCopiesActive).toBe(false)
   })
 
+  describe('v4 -> v5 retires the seeded starter inventory', () => {
+    const starterDie = (id: string) => ({
+      ...makeNewDie({ id, source: 'starter', name: `Starter ${id}` }),
+      id,
+      acquiredAt: 1,
+      stats: { timesRolled: 0, totalValue: 0, critsRolled: 0, failsRolled: 0 },
+    })
+    const keptDie = (id: string) => ({
+      ...makeNewDie({ id, source: 'gacha_standard', name: `Kept ${id}` }),
+      id,
+      acquiredAt: 2,
+      stats: { timesRolled: 0, totalValue: 0, critsRolled: 0, failsRolled: 0 },
+    })
+
+    it('drops only starter rows and the assignments that named them', () => {
+      const { state, removedStarterDieIds } = migratePersistedInventory({
+        dice: [starterDie('die_starter_a'), keptDie('die_reward_b')],
+        localDice: [starterDie('die_starter_a'), keptDie('die_reward_b')],
+        assignments: { 'roll:entry:0': 'die_starter_a', 'roll:entry:1': 'die_reward_b' },
+        localAssignments: { 'roll:entry:0': 'die_starter_a' },
+        currency: { coins: 4, gems: 3, standardTokens: 2, premiumTokens: 1 },
+      }, 4)
+
+      const migrated = state as {
+        dice: NewInventoryDie[]
+        localDice: NewInventoryDie[]
+        assignments: Record<string, string>
+        localAssignments: Record<string, string>
+        currency: { coins: number }
+      }
+
+      expect(removedStarterDieIds).toEqual(['die_starter_a'])
+      expect(migrated.dice.map(die => die.id)).toEqual(['die_reward_b'])
+      expect(migrated.localDice.map(die => die.id)).toEqual(['die_reward_b'])
+      expect(migrated.assignments).toEqual({ 'roll:entry:1': 'die_reward_b' })
+      expect(migrated.localAssignments).toEqual({})
+      // Everything outside the starter rows is carried through untouched.
+      expect(migrated.currency.coins).toBe(4)
+    })
+
+    it('still purges localDice when the payload has no dice array', () => {
+      // The v1-v3 catalog pass needs `dice` to be an array and used to bail out
+      // here — which skipped the starter purge entirely, so a starter row in
+      // `localDice` survived and became the visible inventory on sign-out.
+      const { state, removedStarterDieIds } = migratePersistedInventory({
+        localDice: [starterDie('die_starter_a'), keptDie('die_reward_b')],
+        localAssignments: { 'roll:entry:0': 'die_starter_a' },
+      }, 4)
+
+      const migrated = state as {
+        localDice: NewInventoryDie[]
+        localAssignments: Record<string, string>
+      }
+      expect(removedStarterDieIds).toEqual(['die_starter_a'])
+      expect(migrated.localDice.map(die => die.id)).toEqual(['die_reward_b'])
+      expect(migrated.localAssignments).toEqual({})
+    })
+
+    it('normalizes a missing localDice to an empty array when purging', () => {
+      // A pre-v4 payload has no `localDice` at all; leaving it undefined would
+      // hand the store a shape it does not expect.
+      const { state } = migratePersistedInventory({
+        dice: [starterDie('die_starter_a')],
+        assignments: {},
+      }, 4)
+
+      expect((state as { localDice: unknown }).localDice).toEqual([])
+      expect((state as { dice: unknown[] }).dice).toEqual([])
+    })
+
+    it('is a no-op for an inventory with no starter rows', () => {
+      const persisted = {
+        dice: [keptDie('die_reward_b')],
+        localDice: [keptDie('die_reward_b')],
+        assignments: {},
+        localAssignments: {},
+      }
+      const { state, removedStarterDieIds } = migratePersistedInventory(persisted, 4)
+
+      expect(removedStarterDieIds).toEqual([])
+      expect(state).toBe(persisted)
+    })
+
+    it('rehydrates a v4 payload through the real middleware and rewrites saved rolls', async () => {
+      const specificEntry = {
+        id: 'entry-1',
+        type: 'd4' as const,
+        quantity: 2,
+        sources: [
+          { kind: 'specific' as const, dieId: 'die_starter_a' },
+          { kind: 'specific' as const, dieId: 'die_reward_b' },
+        ],
+      }
+      localStorage.setItem('dicesuki-saved-rolls', JSON.stringify({
+        state: {
+          savedRolls: [{
+            id: 'roll-1',
+            name: 'Starter roll',
+            dice: [specificEntry],
+            flatBonus: 0,
+            createdAt: 1,
+          }],
+          currentlyEditing: null,
+        },
+        version: 1,
+      }))
+      await useSavedRollsStore.persist.rehydrate()
+
+      localStorage.setItem('dicesuki-player-inventory', JSON.stringify({
+        state: {
+          dice: [starterDie('die_starter_a'), keptDie('die_reward_b')],
+          localDice: [starterDie('die_starter_a'), keptDie('die_reward_b')],
+          assignments: { 'roll-1:entry-1:0': 'die_starter_a' },
+          localAssignments: { 'roll-1:entry-1:0': 'die_starter_a' },
+          currency: { coins: 0, gems: 0, standardTokens: 0, premiumTokens: 0 },
+          serverCopiesActive: false,
+        },
+        version: 4,
+      }))
+
+      await useInventoryStore.persist.rehydrate()
+
+      expect(useInventoryStore.getState().dice.map(die => die.id)).toEqual(['die_reward_b'])
+      expect(useInventoryStore.getState().assignments).toEqual({})
+
+      // The roll survives; only the source naming the deleted die is rewritten,
+      // and it will spawn as a basic die.
+      expect(useSavedRollsStore.getState().savedRolls[0].dice[0].sources).toEqual([
+        { kind: 'anonymous', quantity: 1 },
+        { kind: 'specific', dieId: 'die_reward_b' },
+      ])
+    })
+  })
+
   it.each([3, 1])(
-    'rehydrates persisted v%s through the actual v4 persist middleware migration',
+    'rehydrates persisted v%s through the actual persist middleware migration',
     async (version) => {
       const die = {
         ...makeNewDie({ id: `persisted-v${version}-die` }),
@@ -259,7 +403,10 @@ describe('useInventoryStore server-copy slice', () => {
   })
 
   it('retains visible local mutations across refresh, persistence, and sign-out', () => {
-    useInventoryStore.getState().initializeStarterDice()
+    const baseline = useInventoryStore.getState().addDie(makeNewDie({
+      id: 'baseline-local-die',
+      source: 'gacha_standard',
+    }))
     const item = COLLECTIBLE_CATALOG.items[0]
     expect(useInventoryStore.getState().syncServerCopies(
       liveGroup(item.id),
@@ -285,7 +432,7 @@ describe('useInventoryStore server-copy slice', () => {
       dice: NewInventoryDie[]
       assignments: Record<string, string>
     }
-    expect(payload.dice).toHaveLength(24)
+    expect(payload.dice.map(die => die.id)).toEqual([baseline.id, added.id])
     expect(payload.dice).toContainEqual(
       expect.objectContaining({ id: added.id, name: 'After rename' }),
     )
@@ -323,7 +470,10 @@ describe('useInventoryStore server-copy slice', () => {
   })
 
   it('rejects an exact server/local id collision without mutating local state', () => {
-    useInventoryStore.getState().initializeStarterDice()
+    useInventoryStore.getState().addDie(makeNewDie({
+      id: 'collision-baseline-die',
+      source: 'gacha_standard',
+    }))
     const item = COLLECTIBLE_CATALOG.items[0]
     expect(useInventoryStore.getState().syncServerCopies(
       liveGroup(item.id, 'existing-server-copy'),
@@ -351,7 +501,7 @@ describe('useInventoryStore server-copy slice', () => {
         'roll-collision:entry-collision:0': local.id,
       },
     })
-    expect(useInventoryStore.getState().dice).toHaveLength(25)
+    expect(useInventoryStore.getState().dice).toHaveLength(3)
     const retainedCollision = useInventoryStore.getState().dice.find(
       die => die.id === local.id,
     )

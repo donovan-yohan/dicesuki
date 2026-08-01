@@ -34,41 +34,18 @@ function createConfiguredDie(
 }
 
 /**
- * Complete D&D set given locally to every new player. These are playable
- * without auth/network; the catalog refs describe them but do not prove
- * server-side ownership.
+ * There is deliberately NO `STARTER_DICE` here any more.
+ *
+ * Every new player used to be seeded 23 local `source: 'starter'` instances
+ * (adventurer-starter, six devil d6s, the materials-lab d20s). The default
+ * inventory is now EMPTY: basic dice (`src/lib/basicDice.ts`) are the infinite
+ * floor, so no seeding is needed for the game to be playable, and dice arrive
+ * only through entitlements, pulls and rewards.
+ *
+ * The server-side `ensure_starter_entitlements` allowlist is unchanged and still
+ * owns its 8 catalog items — existing accounts keep every row they were granted.
+ * `src/config/starterDice.test.ts` guards both halves of that split.
  */
-export const STARTER_DICE: InventoryDieTemplate[] = [
-  createCatalogDie('materials-lab/steel-d20', 'Steel d20', 'starter'),
-  createCatalogDie('materials-lab/rubber-d20', 'Rubber d20', 'starter'),
-
-  createConfiguredDie('d20', 'adventurer-starter', 'common', 'Starter d20', 'starter'),
-
-  createConfiguredDie('d12', 'adventurer-starter', 'common', 'Starter d12 #1', 'starter'),
-  createConfiguredDie('d12', 'adventurer-starter', 'common', 'Starter d12 #2', 'starter'),
-
-  createConfiguredDie('d10', 'adventurer-starter', 'common', 'Starter d10 #1', 'starter'),
-  createConfiguredDie('d10', 'adventurer-starter', 'common', 'Starter d10 #2', 'starter'),
-
-  createConfiguredDie('d8', 'adventurer-starter', 'common', 'Starter d8 #1', 'starter'),
-  createConfiguredDie('d8', 'adventurer-starter', 'common', 'Starter d8 #2', 'starter'),
-  createConfiguredDie('d8', 'adventurer-starter', 'common', 'Starter d8 #3', 'starter'),
-  createConfiguredDie('d8', 'adventurer-starter', 'common', 'Starter d8 #4', 'starter'),
-
-  createCatalogDie('devil-set/devil-d6', 'Devil d6 #1', 'starter'),
-  createCatalogDie('devil-set/devil-d6', 'Devil d6 #2', 'starter'),
-  createCatalogDie('devil-set/devil-d6', 'Devil d6 #3', 'starter'),
-  createCatalogDie('devil-set/devil-d6', 'Devil d6 #4', 'starter'),
-  createCatalogDie('devil-set/devil-d6', 'Devil d6 #5', 'starter'),
-  createCatalogDie('devil-set/devil-d6', 'Devil d6 #6', 'starter'),
-
-  createConfiguredDie('d4', 'adventurer-starter', 'common', 'Starter d4 #1', 'starter'),
-  createConfiguredDie('d4', 'adventurer-starter', 'common', 'Starter d4 #2', 'starter'),
-  createConfiguredDie('d4', 'adventurer-starter', 'common', 'Starter d4 #3', 'starter'),
-  createConfiguredDie('d4', 'adventurer-starter', 'common', 'Starter d4 #4', 'starter'),
-  createConfiguredDie('d4', 'adventurer-starter', 'common', 'Starter d4 #5', 'starter'),
-  createConfiguredDie('d4', 'adventurer-starter', 'common', 'Starter d4 #6', 'starter'),
-]
 
 export const TUTORIAL_REWARDS: InventoryDieTemplate[] = [
   createConfiguredDie('d20', 'lucky-bronze', 'uncommon', 'Lucky Bronze d20', 'tutorial'),

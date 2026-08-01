@@ -1,9 +1,21 @@
 import type { FaceRenderer } from '../textureRendering'
 import { formatDieFaceLabel, PERCENTILE_TENS_SHAPE } from '../percentileRolls'
 import { drawKite } from './shapes'
+import {
+  BASIC_GLYPH_STYLE,
+  EMBOSSED_GLYPH_STYLE,
+  drawFaceGlyph,
+  type FaceGlyphStyle,
+} from './glyphStyle'
 
 const SINGLE_DIGIT_FONT_SCALE = 0.36
 const DOUBLE_DIGIT_FONT_SCALE = 0.28
+
+/** The kite is narrow, so the shadow sits tighter than the shared default. */
+const D10_EMBOSSED_GLYPH_STYLE: FaceGlyphStyle = {
+  ...EMBOSSED_GLYPH_STYLE,
+  shadow: { color: 'rgba(0, 0, 0, 0.5)', blurScale: 0.1, offsetScale: 0.04 },
+}
 
 /**
  * Draw one kite face carrying `text`. Shared by the ones d10 (`0`–`9`) and the
@@ -15,6 +27,7 @@ function renderKiteLabel(
   text: string,
   canvasSize: number,
   backgroundColor: string,
+  style: FaceGlyphStyle,
 ): void {
   const centerX = canvasSize / 2
   const centerY = canvasSize / 2
@@ -29,33 +42,16 @@ function renderKiteLabel(
   drawKite(ctx, centerX, centerY, canvasSize * 0.76, canvasSize * 0.92)
   ctx.clip()
 
-  ctx.font = `bold ${fontSize}px Arial`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
-  ctx.shadowBlur = fontSize * 0.1
-  ctx.shadowOffsetX = fontSize * 0.04
-  ctx.shadowOffsetY = fontSize * 0.04
-
-  ctx.strokeStyle = 'black'
-  ctx.lineWidth = fontSize * 0.08
-  ctx.strokeText(text, centerX, textY)
-
-  ctx.shadowColor = 'transparent'
-  ctx.fillStyle = 'white'
-  ctx.fillText(text, centerX, textY)
+  drawFaceGlyph(ctx, text, centerX, textY, fontSize, style)
 
   ctx.restore()
 }
 
-export const renderD10Kite: FaceRenderer = (
-  ctx,
-  faceValue,
-  canvasSize,
-  backgroundColor,
-) => {
-  renderKiteLabel(ctx, faceValue.toString(), canvasSize, backgroundColor)
+/** Ones d10 (`0`–`9`) in the given glyph style. */
+export function createD10KiteRenderer(style: FaceGlyphStyle): FaceRenderer {
+  return (ctx, faceValue, canvasSize, backgroundColor) => {
+    renderKiteLabel(ctx, faceValue.toString(), canvasSize, backgroundColor, style)
+  }
 }
 
 /**
@@ -63,16 +59,21 @@ export const renderD10Kite: FaceRenderer = (
  * value is drawn zero-padded — `00`, `10`, … `90` — which is what makes the die
  * readable as the tens half of a d100 pair.
  */
-export const renderD10TensKite: FaceRenderer = (
-  ctx,
-  faceValue,
-  canvasSize,
-  backgroundColor,
-) => {
-  renderKiteLabel(
-    ctx,
-    formatDieFaceLabel(PERCENTILE_TENS_SHAPE, faceValue),
-    canvasSize,
-    backgroundColor,
-  )
+export function createD10TensKiteRenderer(style: FaceGlyphStyle): FaceRenderer {
+  return (ctx, faceValue, canvasSize, backgroundColor) => {
+    renderKiteLabel(
+      ctx,
+      formatDieFaceLabel(PERCENTILE_TENS_SHAPE, faceValue),
+      canvasSize,
+      backgroundColor,
+      style,
+    )
+  }
 }
+
+export const renderD10Kite: FaceRenderer = createD10KiteRenderer(D10_EMBOSSED_GLYPH_STYLE)
+export const renderD10TensKite: FaceRenderer = createD10TensKiteRenderer(D10_EMBOSSED_GLYPH_STYLE)
+
+/** Basic-die variants: plain black numerals, no outline or shadow. */
+export const renderD10KiteBasic: FaceRenderer = createD10KiteRenderer(BASIC_GLYPH_STYLE)
+export const renderD10TensKiteBasic: FaceRenderer = createD10TensKiteRenderer(BASIC_GLYPH_STYLE)

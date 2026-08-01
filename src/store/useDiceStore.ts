@@ -111,6 +111,21 @@ interface DiceStore {
    */
   savedRollWavesPending: boolean
   /**
+   * Inventory dice a roll being spawned has PINNED by id but has not put on the
+   * table yet.
+   *
+   * A plain entry fills owned-first, and it picks from the same collection a
+   * `specific` source elsewhere in the SAME roll is waiting to claim. Without a
+   * reservation the plain source can take that die first, and the pinned source
+   * then finds it "already on the table" and degrades to a basic — a wrong
+   * result that also reports a die as missing when the player still owns it, and
+   * one that depends on entry order and on `Math.random`.
+   *
+   * Held only for the base-wave spawn loop (see `savedRollExecution.ts`), which
+   * is the only window in which the two can race.
+   */
+  reservedInventoryDieIds: Set<string>
+  /**
    * Transient, non-blocking notice about the roll currently on the table —
    * "the table filled up, 2 explosions were skipped". Follow-up waves run after
    * the saved-rolls panel has closed, so this is their only way to speak.
@@ -126,6 +141,8 @@ interface DiceStore {
   clearActiveSavedRoll: () => void
   beginSavedRollWaves: () => void
   finishSavedRollWaves: (player?: RollSnapshot['player']) => void
+  reserveInventoryDice: (dieIds: readonly string[]) => void
+  clearInventoryDiceReservations: () => void
   setRollNotice: (notice: string | null) => void
   clearHistory: () => void
   reset: () => void
@@ -168,6 +185,7 @@ export const useDiceStore = create<DiceStore>()(
       rollHistory: [],
       activeSavedRoll: null,
       savedRollWavesPending: false,
+      reservedInventoryDieIds: new Set(),
       rollNotice: null,
 
       markDiceRolling: (diceIds: string[]) => {
@@ -335,6 +353,24 @@ export const useDiceStore = create<DiceStore>()(
         })
       },
 
+      /**
+       * Claim inventory dice for a roll that is about to spawn, so its own
+       * owned-first picks cannot take a die one of its `specific` sources has
+       * pinned. Replaces any previous claim: only one roll spawns at a time
+       * (the caller holds a reentrancy latch for the whole sequence).
+       */
+      reserveInventoryDice: (dieIds: readonly string[]) => {
+        set({ reservedInventoryDieIds: new Set(dieIds) })
+      },
+
+      clearInventoryDiceReservations: () => {
+        set((state) => (
+          state.reservedInventoryDieIds.size === 0
+            ? state
+            : { reservedInventoryDieIds: new Set<string>() }
+        ))
+      },
+
       setRollNotice: (notice: string | null) => {
         set({ rollNotice: notice })
       },
@@ -351,6 +387,7 @@ export const useDiceStore = create<DiceStore>()(
           rollHistory: [],
           activeSavedRoll: null,
           savedRollWavesPending: false,
+          reservedInventoryDieIds: new Set(),
           rollNotice: null,
         })
       },

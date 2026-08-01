@@ -1918,6 +1918,7 @@ mod tests {
             unsupported_reason: None,
             percentile_pair_id: None,
             percentile_role: None,
+            basic: None,
         }
     }
 

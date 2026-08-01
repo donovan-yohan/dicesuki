@@ -71,6 +71,22 @@ describe('InventoryPanel', () => {
     useInventoryStore.getState().reset()
   })
 
+  it('renders the empty collection every new player now starts with', () => {
+    // The DEFAULT inventory is empty: nothing is seeded any more and basic dice
+    // (`lib/basicDice.ts`) are the playable floor. This branch used to be
+    // unreachable in practice, so it was never pinned — an empty collection must
+    // read as a normal state, not as a broken or still-loading panel.
+    renderInventory()
+
+    expect(screen.getByText('No Dice Yet')).toBeInTheDocument()
+    expect(screen.getByText(/collection will appear here after you acquire dice/i))
+      .toBeInTheDocument()
+    // Not the loading state, and not the "no results for your filters" state.
+    expect(screen.queryByText('Loading Dice')).not.toBeInTheDocument()
+    expect(screen.queryByText('No Matching Dice')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Showing \d+ of \d+ dice/)).not.toBeInTheDocument()
+  })
+
   it('filters owned dice by shape, rarity, set, tag, status, and search', () => {
     addNamedDie('Lucky Devil D6', 'd6', 'rare', 'starter-devil', {
       isFavorite: true,

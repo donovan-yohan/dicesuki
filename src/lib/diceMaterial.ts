@@ -17,7 +17,7 @@ import * as THREE from 'three'
 import type { DiceShape } from './geometries'
 import type { FaceRenderer } from './textureRendering'
 import { renderDiceFaceToTexture } from './textureRendering'
-import { getFaceRendererForShape } from './faceRenderers'
+import { getFaceRendererForShape, type DiceFaceStyle } from './faceRenderers'
 import { renderTieDyeD20, renderMetalMaskD20 } from './faceRenderers/materialRenderers'
 
 /** PBR roughness/metalness per material. The single map for tray + previews. */
@@ -50,9 +50,28 @@ export interface DiceMaterialResolution {
  * Resolve a die's material look from its `shape` + `material` string. The ONE place
  * material-specific rendering lives. The tie-dye / metal-mask renderers assume the
  * d20's triangular faces, so they only apply to the d20.
+ *
+ * `faceStyle` selects the ink (see `./faceRenderers/index.ts`). A `basic` die —
+ * the infinite white/black fallback in `./basicDice.ts` — always takes the plain
+ * renderer: the material-specific looks are collectible flair a basic die by
+ * definition does not have, and painting white numerals on its white body would
+ * make it unreadable.
  */
-export function resolveDiceMaterial(shape: DiceShape, material?: string): DiceMaterialResolution {
+export function resolveDiceMaterial(
+  shape: DiceShape,
+  material?: string,
+  faceStyle: DiceFaceStyle = 'default',
+): DiceMaterialResolution {
   const pbr = (material && MATERIAL_PBR[material]) || DEFAULT_PBR
+
+  if (faceStyle === 'basic') {
+    return {
+      roughness: pbr.roughness,
+      metalness: pbr.metalness,
+      faceRenderer: getFaceRendererForShape(shape, 'basic'),
+    }
+  }
+
   const faceRenderer =
     material === 'rubber' && shape === 'd20' ? renderTieDyeD20 : getFaceRendererForShape(shape)
   const materialMaskRenderer =

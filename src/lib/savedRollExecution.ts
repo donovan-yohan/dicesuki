@@ -32,6 +32,7 @@ import { nanoid } from 'nanoid'
 import type { DiceBackendState } from '../contexts/DiceBackendContext'
 import { ROLL_DICE_CAPACITY_MESSAGE, ROOM_DICE_CAPACITY } from '../config/roomCapacity'
 import { useDiceStore } from '../store/useDiceStore'
+import { useInventoryStore } from '../store/useInventoryStore'
 import { useMultiplayerStore, type MultiplayerDie } from '../store/useMultiplayerStore'
 import type { DiceShape } from './geometries'
 import type { DicePresentationMetadata } from './multiplayerMessages'
@@ -42,7 +43,13 @@ import {
   percentileTensPresentation,
   PERCENTILE_TENS_SHAPE,
 } from './percentileRolls'
-import { expandDiceEntrySpawns, getRollDiceCount } from './rollSources'
+import {
+  expandDiceEntrySpawns,
+  getRollDiceCount,
+  getSpecificDieIds,
+  type RollSpawn,
+} from './rollSources'
+import { isBasicDiePresentation } from './basicDice'
 import {
   MAX_EXPLOSION_WAVES,
   addGroup,
@@ -252,25 +259,93 @@ function assertCapacity(roll: SavedRoll, ownerId: string): void {
 }
 
 /**
+ * How a wave target picks the physical die it puts on the table.
+ *
+ * - `named` — the roll pinned a specific owned die by id.
+ * - `owned-first` — a plain entry: use any owned die of the type that is not
+ *   already in play, and fall back to a basic once they run out.
+ * - `generic` — deliberately never an owned die: the percentile TENS half (no
+ *   player owns one) and follow-up wave dice, which are extra dice the entry did
+ *   not ask for and must not silently consume the player's collection.
+ */
+type SpawnKind = 'named' | 'owned-first' | 'generic'
+
+/**
  * Spawn one die for a wave target.
  * Returns the client request id, or throws with the room's own message.
+ *
+ * Inventory scarcity NEVER throws: `addDie` substitutes a basic die so the rest
+ * of the roll still lands (see {@link describeMissingNamedDice} and
+ * {@link describeBasicFill}). Only a ROOM refusal — disconnected, at capacity —
+ * fails here.
  */
 function spawnDie(
   backend: SavedRollBackend,
+  kind: SpawnKind,
   type: DiceShape,
   inventoryDieId?: string,
   presentation?: DicePresentationMetadata,
   label?: string,
 ): string {
-  const id = inventoryDieId
-    ? backend.addDie(type, inventoryDieId, presentation)
-    : backend.addGenericDie(type, presentation)
+  const id = kind === 'generic'
+    ? backend.addGenericDie(type, presentation)
+    : backend.addDie(type, inventoryDieId, presentation)
 
   if (!id) {
     const actionError = useMultiplayerStore.getState().roomActionError
     throw new Error(actionError?.message ?? `Could not spawn ${label ?? type.toUpperCase()}.`)
   }
   return id
+}
+
+/**
+ * How many of `spawnIds` came back from the room as basic dice.
+ *
+ * Read from the room's own echo rather than predicted before the spawn, so the
+ * notice is ground truth instead of a second copy of `addDie`'s fallback rules,
+ * which could drift from it.
+ */
+function countBasicSpawns(spawnIds: readonly string[]): number {
+  const { dice } = useMultiplayerStore.getState()
+  return spawnIds.filter((id) => isBasicDiePresentation(dice.get(id)?.presentation)).length
+}
+
+function describeMissingNamedDice(count: number): string {
+  return count === 1
+    ? 'One die in this roll is no longer in your collection, so a basic die was rolled instead.'
+    : `${count} dice in this roll are no longer in your collection, so basic dice were rolled instead.`
+}
+
+function describeBasicFill(count: number): string {
+  return count === 1
+    ? 'You ran out of owned dice, so 1 basic die filled in.'
+    : `You ran out of owned dice, so ${count} basic dice filled in.`
+}
+
+/**
+ * Add a line to the roll notice without dropping what is already there.
+ *
+ * Waves report at different times — a base-wave substitution, a reroll
+ * substitution, a skipped explosion — and each is still true when the next one
+ * lands, so they accumulate into the HUD's one line instead of overwriting.
+ */
+function appendRollNotice(line: string): void {
+  const existing = useDiceStore.getState().rollNotice
+  useDiceStore.getState().setRollNotice(existing ? `${existing} ${line}` : line)
+}
+
+/** Where each of an entry's base-wave dice came from, for the roll notice. */
+interface EntrySpawnLedger {
+  /** Dice the roll pinned by inventory id. A basic here means the die is gone. */
+  named: string[]
+  /**
+   * Dice from PLAIN sources, recorded only when the player owns at least one die
+   * of that type. A basic here means their owned dice ran short mid-roll, which
+   * is worth saying. Owning none of a type is not "running short" — it is the
+   * default state, so those spawns are deliberately not tracked and a player with
+   * an empty collection is never nagged.
+   */
+  ownedFirst: string[]
 }
 
 /**
@@ -282,23 +357,49 @@ function spawnDie(
  * its ones d10, spawned as a pair sharing a `percentilePairId` in each die's
  * `presentation` block, and recorded as ONE plan group so the halves combine
  * into a single 1-100 result instead of summing.
+ *
+ * A PLAIN source spawns owned-first: `addDie(type)` picks any owned die of the
+ * type that is not already in play and falls back to a basic once they run out
+ * (PO decision (d), 2026-07-28). "Already in play" includes dice spawned earlier
+ * in THIS roll — `spawnDice` marks an inventory die pending the moment it is
+ * sent, so the same owned die can never fill two slots of one roll, nor be
+ * claimed twice by two entries of the same type.
  */
-function spawnEntry(backend: SavedRollBackend, plan: SavedRollPlan, entry: DiceEntry): void {
+function spawnEntry(
+  backend: SavedRollBackend,
+  plan: SavedRollPlan,
+  entry: DiceEntry,
+  ledger: EntrySpawnLedger,
+): void {
   const label = isPercentileEntry(entry) ? 'D100' : entry.type.toUpperCase()
   const pairIds = new Map<number, string>()
   const pendingTens = new Map<number, string>()
+  // Sampled once per entry, before any of its dice are sent: whether the player
+  // owns this type at all does not change mid-entry, only how many are free does.
+  const ownsAnyOfType = useInventoryStore.getState().getDiceByType(entry.type).length > 0
+
+  const kindOf = (source: RollSpawn['source']): SpawnKind =>
+    source.kind === 'specific' ? 'named' : 'owned-first'
+
+  /** File the spawned die under the source that asked for it. */
+  const track = (id: string, source: RollSpawn['source']): string => {
+    if (source.kind === 'specific') ledger.named.push(id)
+    else if (ownsAnyOfType) ledger.ownedFirst.push(id)
+    return id
+  }
 
   for (const spawn of expandDiceEntrySpawns(entry)) {
     const pair = spawn.percentile
 
     if (!pair) {
-      addGroup(plan, entry.id, spawnDie(
+      addGroup(plan, entry.id, track(spawnDie(
         backend,
+        kindOf(spawn.source),
         entry.type,
         spawn.source.kind === 'specific' ? spawn.source.dieId : undefined,
         undefined,
         label,
-      ))
+      ), spawn.source))
       continue
     }
 
@@ -310,9 +411,11 @@ function spawnEntry(backend: SavedRollBackend, plan: SavedRollPlan, entry: DiceE
 
     if (pair.role === 'tens') {
       // The tens half is always a plain engine die and carries no bonus — a
-      // per-die bonus applies once, to the COMBINED value.
+      // per-die bonus applies once, to the COMBINED value. No player can own a
+      // `d10tens`, so it is spawned generic rather than owned-first.
       pendingTens.set(pair.pairIndex, spawnDie(
         backend,
+        'generic',
         PERCENTILE_TENS_SHAPE,
         undefined,
         percentileTensPresentation(pairId),
@@ -321,13 +424,14 @@ function spawnEntry(backend: SavedRollBackend, plan: SavedRollPlan, entry: DiceE
       continue
     }
 
-    const onesId = spawnDie(
+    const onesId = track(spawnDie(
       backend,
+      kindOf(spawn.source),
       entry.type,
       spawn.source.kind === 'specific' ? spawn.source.dieId : undefined,
       percentileOnesPresentation(pairId),
       label,
-    )
+    ), spawn.source)
     const tensId = pendingTens.get(pair.pairIndex)
     /* c8 ignore next -- expandDiceEntrySpawns always emits tens before ones */
     if (tensId === undefined) continue
@@ -364,9 +468,22 @@ async function runRerollWave(
   await waitForRemovals(doomedIds)
 
   const spawnedIds: string[] = []
+  // Dice that were owned before the reroll but came back basic — the die left
+  // the collection mid-roll (sold in another tab, a revoked server copy). Same
+  // failure the base wave reports, so it gets the same sentence.
+  const rerolledNamedIds: string[] = []
   try {
     targets.forEach((target, index) => {
-      const id = spawnDie(backend, target.type, inventoryDieIds[index])
+      // A rerolled OWNED die comes back as itself; a rerolled plain die stays
+      // plain rather than newly claiming an owned die the roll never asked for.
+      const inventoryDieId = inventoryDieIds[index]
+      const id = spawnDie(
+        backend,
+        inventoryDieId ? 'named' : 'generic',
+        target.type,
+        inventoryDieId,
+      )
+      if (inventoryDieId) rerolledNamedIds.push(id)
       replaceGroupMembers(plan, target.entryId, target.groupIndex, id)
       spawnedIds.push(id)
     })
@@ -389,6 +506,11 @@ async function runRerollWave(
   // plan). Nothing may observe a settle while the plan is missing.
   publishPlan(plan, roll)
   await waitForSpawns(spawnedIds, ownerId)
+
+  // The room has echoed the replacements, so a substitution is now visible.
+  const substituted = countBasicSpawns(rerolledNamedIds)
+  if (substituted > 0) appendRollNotice(describeMissingNamedDice(substituted))
+
   useDiceStore.getState().markDiceRolling(spawnedIds)
   await waitForSettle(spawnedIds)
   return true
@@ -422,9 +544,11 @@ async function runExplosionWaves(
 
     const spawnedIds: string[] = []
     for (const target of affordable) {
-      // An explosion is always a fresh generic die: the owned die that
-      // triggered it is still on the table and cannot be spawned twice.
-      const id = spawnDie(backend, target.type)
+      // An explosion is always a fresh basic die. It is a bonus die the entry
+      // never asked for, so it must not silently consume an owned die the
+      // player was saving — and the die that triggered it is still on the table
+      // and cannot be spawned twice anyway.
+      const id = spawnDie(backend, 'generic', target.type)
       attachGroupMember(plan, target.entryId, target.groupIndex, id)
       spawnedIds.push(id)
     }
@@ -479,9 +603,21 @@ export async function executePhysicalSavedRoll(
 
   // ── Base wave ───────────────────────────────────────────────────────────
   const plan = createSavedRollPlan(roll)
+  const ledger: EntrySpawnLedger = { named: [], ownedFirst: [] }
 
-  for (const entry of roll.dice) {
-    spawnEntry(backend, plan, entry)
+  // Claim every die this roll pins BEFORE any of it spawns. Plain entries fill
+  // owned-first from the same collection, so without this an entry listed before
+  // a pinned one could take that exact die — an outcome that varied with entry
+  // order and with `Math.random`, and that reported a still-owned die as gone.
+  // Released as soon as the base wave is issued: later waves never pick
+  // owned-first (rerolls respawn a named die, explosions are always basic).
+  diceStore.reserveInventoryDice(roll.dice.flatMap(getSpecificDieIds))
+  try {
+    for (const entry of roll.dice) {
+      spawnEntry(backend, plan, entry, ledger)
+    }
+  } finally {
+    useDiceStore.getState().clearInventoryDiceReservations()
   }
 
   // The plan is the single record of which dice this roll owns; deriving the
@@ -493,6 +629,18 @@ export async function executePhysicalSavedRoll(
   }
 
   await waitForSpawns(baseIds, ownerId)
+
+  // Only now, with the room's echo in the store, is it known which dice actually
+  // landed as basics. Published as a notice rather than an error: the roll is
+  // complete and correct, some dice just look plain.
+  const rollNotices = [
+    countBasicSpawns(ledger.named),
+    countBasicSpawns(ledger.ownedFirst),
+  ] as const
+  const spawnNotice = [
+    rollNotices[0] > 0 ? describeMissingNamedDice(rollNotices[0]) : null,
+    rollNotices[1] > 0 ? describeBasicFill(rollNotices[1]) : null,
+  ].filter((line): line is string => line !== null).join(' ')
 
   const hasWaves = needsFollowUpWaves(roll)
   // Claim the roll cycle before `roll_started` lands, so the settle handler
@@ -521,6 +669,10 @@ export async function executePhysicalSavedRoll(
 
   onBaseWaveStarted?.()
 
+  if (spawnNotice.length > 0) {
+    useDiceStore.getState().setRollNotice(spawnNotice)
+  }
+
   if (!hasWaves) return
 
   // ── Follow-up waves ─────────────────────────────────────────────────────
@@ -529,9 +681,7 @@ export async function executePhysicalSavedRoll(
     await waitForSettle(baseIds)
     await runRerollWave(plan, roll, options)
     const skipped = await runExplosionWaves(plan, roll, options)
-    if (skipped > 0) {
-      useDiceStore.getState().setRollNotice(describeSkippedExplosions(skipped))
-    }
+    if (skipped > 0) appendRollNotice(describeSkippedExplosions(skipped))
   } catch (error) {
     useDiceStore.getState().setRollNotice(
       error instanceof Error
