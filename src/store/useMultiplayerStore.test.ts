@@ -922,6 +922,83 @@ describe('useMultiplayerStore', () => {
       expect(snapshot.player?.displayName).toBe('Remote Player')
     })
 
+    it('drops the roll_complete a wave sequence claimed, even once the latch has cleared', () => {
+      // Issue #211: a saved roll whose reroll/explosion never triggers finishes
+      // its waves before this message arrives, so suppression cannot key on
+      // `savedRollWavesPending`. The claim names the roll's dice instead.
+      useDiceStore.getState().reset()
+      useMultiplayerStore.setState({
+        localPlayerId: 'p1',
+        players: new Map([['p1', {
+          id: 'p1', displayName: 'Me', color: '#f00', isHost: true,
+        }]]) as never,
+      })
+
+      // Claimed in spawn order `b, a`; the room will report them sorted as
+      // `a, b`. The match has to be set-wise or the claim misses entirely.
+      useDiceStore.getState().beginSavedRollWaves(['b', 'a'])
+      useDiceStore.getState().markDiceRolling(['a', 'b'])
+      useDiceStore.getState().recordDieSettled('a', 2, 'd6')
+      useDiceStore.getState().recordDieSettled('b', 3, 'd6')
+      useDiceStore.getState().finishSavedRollWaves({
+        id: 'p1', displayName: 'Me', color: '#f00',
+      })
+
+      // The wave row is written and the latch is down, but the claim stands.
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+
+      // The room finally speaks — in the room's own sorted order, which the
+      // claim must match set-wise, not positionally.
+      const message = {
+        type: 'roll_complete' as const,
+        playerId: 'p1',
+        total: 5,
+        results: [
+          { diceId: 'a', diceType: 'd6', faceValue: 2 },
+          { diceId: 'b', diceType: 'd6', faceValue: 3 },
+        ],
+      }
+      useMultiplayerStore.getState().handleServerMessage(message as never)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+
+      // One-shot: the claim is consumed, so a later roll of the same dice records.
+      useMultiplayerStore.getState().handleServerMessage(message as never)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(2)
+    })
+
+    it('attributes a roll cancelled by dice_removed to the ROLL OWNER', () => {
+      // Removing a tracked die makes the room drop `pending_roll`, so no
+      // `roll_complete` follows. The owner has to be read off the die before it
+      // is deleted, and it is the roll's owner — never "us" for their roll.
+      useDiceStore.getState().reset()
+      useMultiplayerStore.setState({
+        localPlayerId: 'p1',
+        players: new Map([
+          ['p1', { id: 'p1', displayName: 'Me', color: '#f00', isHost: true }],
+          ['p2', { id: 'p2', displayName: 'Rival', color: '#0f0', isHost: false }],
+        ]) as never,
+        dice: new Map([
+          ['their-1', { id: 'their-1', ownerId: 'p2', diceType: 'd6' }],
+          ['their-2', { id: 'their-2', ownerId: 'p2', diceType: 'd6' }],
+        ]) as never,
+      })
+
+      useDiceStore.getState().markDiceRolling(['their-1', 'their-2'])
+      useDiceStore.getState().recordDieSettled('their-1', 2, 'd6')
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'dice_removed',
+        diceIds: ['their-2'],
+      } as never)
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].sum).toBe(2)
+      expect(history[0].player?.displayName).toBe('Rival')
+      expect(history[0].player?.id).toBe('p2')
+    })
+
     it('should not pair two loose d10s in a roll_complete', () => {
       useDiceStore.getState().reset()
       useMultiplayerStore.setState({

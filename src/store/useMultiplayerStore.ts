@@ -291,6 +291,19 @@ const JOIN_ERROR_CODES = new Set([
   'RECONNECT_UNAUTHORIZED',
 ])
 
+/**
+ * Do these name the same dice, order aside?
+ *
+ * Used to match a `roll_complete` against the roll a wave sequence claimed. The
+ * room sorts its results by dice id and the claim is recorded in spawn order, so
+ * comparison has to be set-wise.
+ */
+function sameDiceIdSet(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false
+  const seen = new Set(left)
+  return right.every((id) => seen.has(id))
+}
+
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
 /** Timestamp (performance.now) of the last sent motion field, for throttling.
@@ -673,13 +686,33 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       case 'dice_removed': {
         const { dice } = get()
         const newDice = new Map(dice)
-        for (const id of msg.diceIds) {
-          newDice.delete(id)
-          // Mirror the removal into the roll-result store so the top-of-screen
-          // total and per-die chips drop the deleted die's face — otherwise its
-          // settled value lingers and later rolls appear to add to a stale sum.
-          useDiceStore.getState().removeDieState(id)
-        }
+        // Removing a die the room still tracks for an explicit roll cancels that
+        // roll (`remove_dice` drops `pending_roll`), so no `roll_complete` will
+        // follow and the roll would leave no trace. Mark the cycle ONCE for the
+        // whole message, before anything is deleted — the owner has to be read
+        // off the die while it is still here, and it is the ROLL's owner, not
+        // whoever happens to be local: a remote player's trashed roll must be
+        // attributed to them, exactly as their `roll_complete` row would be.
+        const { players: removalPlayers } = get()
+        const cycleDice = useDiceStore.getState().currentRollCycleDice
+        const cancelledId = msg.diceIds.find((id) => cycleDice.has(id))
+        const rollOwnerId = cancelledId === undefined
+          ? undefined
+          : dice.get(cancelledId)?.ownerId
+        const rollOwner = rollOwnerId ? removalPlayers.get(rollOwnerId) : undefined
+
+        for (const id of msg.diceIds) newDice.delete(id)
+
+        // One call for the whole message, not one per die. This also mirrors the
+        // removal into the roll-result store so the top-of-screen total and
+        // per-die chips drop the deleted faces — otherwise a settled value
+        // lingers and later rolls appear to add to a stale sum.
+        useDiceStore.getState().applyDiceRemoval(
+          msg.diceIds,
+          rollOwnerId && rollOwner
+            ? { id: rollOwnerId, displayName: rollOwner.displayName, color: rollOwner.color }
+            : undefined,
+        )
         set({ dice: newDice })
         break
       }
@@ -776,10 +809,33 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         if (player) {
           const diceState = useDiceStore.getState()
 
-          // A saved roll with follow-up waves is not finished when the room
-          // says the *roll* is: reroll and explosion dice are still to come.
-          // `finishSavedRollWaves` writes the authoritative row instead.
-          if (msg.playerId === localPlayerId && diceState.savedRollWavesPending) break
+          // This handler is THE history writer for a roll (issue #211): the
+          // settle-cycle drain in `useDiceStore` deliberately records nothing,
+          // so a roll lands in history exactly once, attributed, whoever rolled
+          // it. The row covers `pending.dice_ids` — the same dice the local
+          // cycle tracked — so nothing is lost by it being the only one.
+          //
+          // The one exception: a saved roll with follow-up waves is not finished
+          // when the room says the *roll* is — reroll and explosion dice are
+          // still to come — so it claims this message up front and
+          // `finishSavedRollWaves` writes the attributed row once the waves land.
+          //
+          // The claim is matched on the roll's DICE, not on "are waves running
+          // right now". A saved roll that configures reroll or exploding but
+          // triggers neither closes its wave sequence in the same task its dice
+          // settle in, which is before this message crosses the socket; a latch
+          // check would find it already cleared and write the duplicate row all
+          // over again. Only the base wave is ever an explicit roll, so exactly
+          // one message per saved roll is ever dropped.
+          const suppressed = diceState.suppressedRollDiceIds
+          if (
+            msg.playerId === localPlayerId
+            && suppressed !== null
+            && sameDiceIdSet(suppressed, msg.results.map((r) => r.diceId))
+          ) {
+            diceState.clearSuppressedRollComplete()
+            break
+          }
 
           const now = Date.now()
           const dice = msg.results.map((r) => ({

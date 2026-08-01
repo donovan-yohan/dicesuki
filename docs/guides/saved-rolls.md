@@ -63,16 +63,35 @@ The panel closes as soon as the base wave starts rolling, which splits error han
 
 Either way `executingRef` is held for the whole sequence, so a second roll can never interleave with a half-finished plan.
 
-**Releasing `savedRollWavesPending` is the sequence's hard obligation.** `beginSavedRollWaves()` is claimed *before* `roll` is sent (so the settle handler already knows to hold the history row open), which means every path from that point on has to close it:
+**Releasing `savedRollWavesPending` is the sequence's hard obligation.** `beginSavedRollWaves(baseIds)` is claimed *before* `roll` is sent (so the settle handler already knows to hold the history row open), which means every path from that point on has to close it:
 - the follow-up waves run inside `try/finally`, so they release it however they end;
 - the base roll's `publishPlan` → `roll()` → ack window is wrapped in its own `try/catch` that releases it and rethrows.
 
-That second guard is not theoretical: an ack timeout, a socket drop (`SEND_FAILED`), a room rejection, or a spawn-id mismatch all abort between "claimed" and "waves running". A flag left set there is a session-wide lockout — every saved roll and the HUD's Roll button stay disabled, `recordDieSettled` never closes a cycle, and `roll_complete` stays suppressed until the page is reloaded.
+That second guard is not theoretical: an ack timeout, a socket drop (`SEND_FAILED`), a room rejection, or a spawn-id mismatch all abort between "claimed" and "waves running". A flag left set there is a session-wide lockout — every saved roll and the HUD's Roll button stay disabled and `recordDieSettled` never closes a cycle, until the page is reloaded.
 
 While `savedRollWavesPending` is true:
 - the HUD's Roll button is disabled (`roll` impulses **every** die the player owns, so it would re-roll dice that already landed and invalidate the plan);
 - reopening the saved-rolls panel shows "Still rolling — waiting for the follow-up dice to land" and its roll buttons are disabled, because the execution latch would silently reject them;
-- `roll_complete` for the local player is suppressed — `finishSavedRollWaves` writes the authoritative row instead, carrying the same player attribution `roll_complete` would have.
+### One history row per roll (issue #211)
+
+`roll_complete` is the single history writer for an ordinary roll; `recordDieSettled` closes the settle cycle but records nothing. A wave sequence is the one exception, and it **claims** the roll rather than relying on the latch being up when the message lands:
+
+- `beginSavedRollWaves(baseIds)` stores those dice ids in `useDiceStore.suppressedRollDiceIds`. The `roll_complete` handler drops the message whose result set matches, whenever it arrives, and consumes the claim.
+- **Why identity, not timing.** A roll that configures `reroll`/`exploding` but triggers neither has no follow-up wave to run, so the sequence finishes in the same task the base dice settle in — *before* `roll_complete` crosses the socket. A `savedRollWavesPending` check finds the latch already down and writes a second row. Only the base wave is ever an explicit roll, so at most one message per saved roll is dropped.
+- The claim is dropped when a new cycle opens (`markDiceRolling` on a fresh cycle), so re-rolling an unchanged table cannot inherit it.
+- `finishSavedRollWaves` writes the row, carrying the same player attribution `roll_complete` would have. If dice are still in the air it records **what has settled** rather than nothing; if nothing settled at all it releases the claim so `roll_complete` still writes the row. Either way the roll is never lost.
+
+**Known gap (compensated, not fixed).** Removing a die the room is tracking for an explicit roll makes `remove_dice` drop `pending_roll`, so no `roll_complete` ever arrives and the roll would leave no trace.
+
+The whole message is applied in **one** store update (`applyDiceRemoval`), which takes both decisions once for the entire id set: does this cancel the open roll, and is the roll now over. If it cancels, the cycle is *marked* (`orphanedCycle`) rather than recorded there and then; the row is written when the table next goes still — by the settle drain, or by the removal itself if it took the last die out of the air — so it contains everything that *eventually* landed.
+
+Applying the message one die at a time got this wrong twice over. Recording at removal time took the total at the wrong moment: a removal that beat every die to the table found nothing settled and recorded nothing, and dice still tumbling when the message arrived (the normal case, since a removal races the physics) were dropped. And evaluating the close per id made the outcome depend on the order the ids happened to arrive in — sweeping a two-die roll with one die settled recorded a row when the airborne id came first and nothing when the settled id did.
+
+**Full clear records nothing.** A message that removes the roll *entirely* — Clear All — closes the cycle silently: the player swept the table, so there is no roll to report, which is what the settle-drain always did. Only a roll with survivors is written.
+
+The row is attributed to the **roll's owner**, read off the die before it is deleted — a remote player's trashed roll is attributed to them, exactly as their `roll_complete` row would be, never to whoever is local. A wave sequence's own claimed dice are exempt, since that is the reroll wave discarding its dice and `finishSavedRollWaves` owns that row; a remote player's roll is still orphaned even while we hold a claim.
+
+The proper fix (the room completing the roll from the survivors, or emitting an explicit cancellation) is a `dicesuki-core` change affecting both targets and is tracked separately.
 
 ### Invariant: the backend clears the saved-roll context on every spawn
 `useMultiplayerDiceBackend.addDie`/`addGenericDie` call `clearActiveSavedRoll()` as their first act — including the executor's own follow-up-wave spawns. Therefore:

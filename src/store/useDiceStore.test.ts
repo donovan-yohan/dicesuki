@@ -1,5 +1,20 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { useDiceStore } from './useDiceStore'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { useDiceStore, type RollSnapshot } from './useDiceStore'
+
+/**
+ * Drain a roll cycle through the ONE path that still snapshots it: a saved roll
+ * with follow-up waves, where `roll_complete` is deliberately suppressed and
+ * `finishSavedRollWaves` writes the row instead.
+ *
+ * An ordinary roll's row is written by the `roll_complete` handler (issue
+ * #211) and is covered in `useMultiplayerStore.test.ts`; closing a plain cycle
+ * records nothing at all.
+ */
+function asWaveRoll(body: () => void, player?: RollSnapshot['player']) {
+  useDiceStore.getState().beginSavedRollWaves()
+  body()
+  useDiceStore.getState().finishSavedRollWaves(player)
+}
 
 describe('useDiceStore', () => {
   beforeEach(() => {
@@ -69,10 +84,9 @@ describe('useDiceStore', () => {
       // Complete a full cycle
       useDiceStore.getState().markDiceRolling(['die-1'])
       useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
-      // die-1 settled, cycle complete, history saved
-
-      const historyAfterFirst = useDiceStore.getState().rollHistory.length
-      expect(historyAfterFirst).toBe(1)
+      // die-1 settled, so the cycle CLOSED — and recorded nothing (issue #211).
+      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(0)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
 
       // Start a new cycle
       useDiceStore.getState().markDiceRolling(['die-2'])
@@ -106,31 +120,49 @@ describe('useDiceStore', () => {
       expect(useDiceStore.getState().settledDice.get('die-1')?.value).toBe(5)
     })
 
-    it('should auto-save history when last rolling die settles', () => {
-      // Mark two dice as rolling
+    it('closes the cycle WITHOUT recording history when the last die settles', () => {
+      // Issue #211: this drain used to push its own snapshot on top of the
+      // `roll_complete` row, so one roll appeared twice ("Roll #1 / 10" beside
+      // "You / 10"). Draining now only closes the cycle.
       useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
 
-      // Settle first die - no history yet
       useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
-      expect(useDiceStore.getState().rollHistory.length).toBe(0)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(2)
 
-      // Settle second die - history snapshot saved
       useDiceStore.getState().recordDieSettled('die-2', 6, 'd6')
-      expect(useDiceStore.getState().rollHistory.length).toBe(1)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(0)
 
-      const snapshot = useDiceStore.getState().rollHistory[0]
-      expect(snapshot.sum).toBe(10) // 4 + 6
-      expect(snapshot.dice.length).toBe(2)
+      // The faces are still on the table for the HUD and for `roll_complete`.
+      expect(useDiceStore.getState().settledDice.get('die-1')?.value).toBe(4)
+      expect(useDiceStore.getState().settledDice.get('die-2')?.value).toBe(6)
     })
 
-    it('should only include currentRollCycleDice in history snapshot', () => {
+    it('does not resurrect a closed cycle when a settled die re-settles', () => {
+      // `dice_knocked` never calls `markDiceRolling`, so a knocked die's
+      // re-settle lands on an empty cycle and cannot reopen a finished roll.
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(0)
+
+      useDiceStore.getState().recordDieSettled('die-1', 2, 'd6')
+
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(0)
+      expect(useDiceStore.getState().settledDice.get('die-1')?.value).toBe(2)
+    })
+
+    it('should only include currentRollCycleDice in the wave snapshot', () => {
       // Settle die-3 without it being part of a cycle (e.g. already on table)
       useDiceStore.getState().recordDieSettled('die-3', 2, 'd6')
 
-      // Start a roll cycle with die-1 and die-2
-      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
-      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
-      useDiceStore.getState().recordDieSettled('die-2', 6, 'd6')
+      asWaveRoll(() => {
+        // Start a roll cycle with die-1 and die-2
+        useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
+        useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+        useDiceStore.getState().recordDieSettled('die-2', 6, 'd6')
+      })
 
       const snapshot = useDiceStore.getState().rollHistory[0]
       // Only die-1 and die-2 should be in snapshot, not die-3
@@ -140,15 +172,17 @@ describe('useDiceStore', () => {
     })
 
     it('should handle knock-on effect: die knocked into another during cycle', () => {
-      // Die-1 starts rolling (new cycle)
-      useDiceStore.getState().markDiceRolling(['die-1'])
+      asWaveRoll(() => {
+        // Die-1 starts rolling (new cycle)
+        useDiceStore.getState().markDiceRolling(['die-1'])
 
-      // Die-1 knocks die-2 into motion (same cycle)
-      useDiceStore.getState().markDiceRolling(['die-2'])
+        // Die-1 knocks die-2 into motion (same cycle)
+        useDiceStore.getState().markDiceRolling(['die-2'])
 
-      // Both settle
-      useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')
-      useDiceStore.getState().recordDieSettled('die-2', 5, 'd6')
+        // Both settle
+        useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')
+        useDiceStore.getState().recordDieSettled('die-2', 5, 'd6')
+      })
 
       const snapshot = useDiceStore.getState().rollHistory[0]
       expect(snapshot.dice.length).toBe(2)
@@ -163,6 +197,7 @@ describe('useDiceStore', () => {
       useDiceStore.getState().recordDieSettled('die-2', 4, 'd6')
       useDiceStore.getState().recordDieSettled('die-3', 5, 'd6')
 
+      useDiceStore.getState().beginSavedRollWaves()
       // Tap/drag only die-2
       useDiceStore.getState().markDiceRolling(['die-2'])
 
@@ -177,8 +212,9 @@ describe('useDiceStore', () => {
       // die-2 removed from settled
       expect(useDiceStore.getState().settledDice.has('die-2')).toBe(false)
 
-      // When die-2 settles, history should only log die-2
+      // When die-2 settles, the recorded row should only log die-2
       useDiceStore.getState().recordDieSettled('die-2', 6, 'd6')
+      useDiceStore.getState().finishSavedRollWaves()
 
       const snapshot = useDiceStore.getState().rollHistory[0]
       expect(snapshot.dice.length).toBe(1)
@@ -237,9 +273,8 @@ describe('useDiceStore', () => {
     })
 
     it('should not clear rollHistory', () => {
-      // Create a history entry
-      useDiceStore.getState().markDiceRolling(['die-1'])
-      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+      // Create a history entry the way a finished roll does
+      useDiceStore.getState().addRollToHistory({ dice: [], sum: 4, timestamp: Date.now() })
       expect(useDiceStore.getState().rollHistory.length).toBe(1)
 
       useDiceStore.getState().clearAllDieStates()
@@ -249,8 +284,7 @@ describe('useDiceStore', () => {
 
   describe('clearHistory', () => {
     it('should clear rollHistory', () => {
-      useDiceStore.getState().markDiceRolling(['die-1'])
-      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+      useDiceStore.getState().addRollToHistory({ dice: [], sum: 4, timestamp: Date.now() })
       expect(useDiceStore.getState().rollHistory.length).toBe(1)
 
       useDiceStore.getState().clearHistory()
@@ -314,25 +348,32 @@ describe('useDiceStore', () => {
     })
   })
 
-  describe('percentile (d100) history snapshots', () => {
+  describe('percentile (d100) wave snapshots', () => {
     // Pairing travels on each die's presentation block, NOT in roll state, so
     // these snapshots stay correct no matter what happened to the saved roll.
+    // These drive the wave path — the only one that still snapshots a cycle.
+    // The same correction on the `roll_complete` path (every ordinary roll,
+    // local or remote) is covered in `useMultiplayerStore.test.ts`.
     const TENS = { percentilePairId: 'p1', percentileRole: 'tens' as const }
     const ONES = { percentilePairId: 'p1', percentileRole: 'ones' as const }
 
     it('sums a normal pair as tens + ones', () => {
-      useDiceStore.getState().markDiceRolling(['tens', 'ones'])
-      useDiceStore.getState().recordDieSettled('tens', 30, 'd10tens', TENS)
-      useDiceStore.getState().recordDieSettled('ones', 4, 'd10', ONES)
+      asWaveRoll(() => {
+        useDiceStore.getState().markDiceRolling(['tens', 'ones'])
+        useDiceStore.getState().recordDieSettled('tens', 30, 'd10tens', TENS)
+        useDiceStore.getState().recordDieSettled('ones', 4, 'd10', ONES)
+      })
 
       const [snapshot] = useDiceStore.getState().rollHistory
       expect(snapshot.sum).toBe(34)
     })
 
     it('records 00 + 0 as 100, not 0 (the server total stays a plain sum)', () => {
-      useDiceStore.getState().markDiceRolling(['tens', 'ones'])
-      useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
-      useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
+      asWaveRoll(() => {
+        useDiceStore.getState().markDiceRolling(['tens', 'ones'])
+        useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
+        useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
+      })
 
       const [snapshot] = useDiceStore.getState().rollHistory
       // Raw faces are still both 0 — only the aggregate is corrected.
@@ -344,9 +385,11 @@ describe('useDiceStore', () => {
       // The regression this guards: pairing used to live in `activeSavedRoll`, so
       // any client without it — a reconnected client, a remote viewer — saw 0.
       expect(useDiceStore.getState().activeSavedRoll).toBeNull()
-      useDiceStore.getState().markDiceRolling(['tens', 'ones'])
-      useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
-      useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
+      asWaveRoll(() => {
+        useDiceStore.getState().markDiceRolling(['tens', 'ones'])
+        useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
+        useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
+      })
 
       expect(useDiceStore.getState().rollHistory[0].sum).toBe(100)
     })
@@ -357,31 +400,355 @@ describe('useDiceStore', () => {
         flatBonus: 0,
         perDieBonuses: new Map(),
       })
-      useDiceStore.getState().markDiceRolling(['tens', 'ones', 'added-d6'])
-      useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
-      // Adding a die to the table clears the active saved roll (backend behavior).
-      useDiceStore.getState().clearActiveSavedRoll()
-      useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
-      useDiceStore.getState().recordDieSettled('added-d6', 5, 'd6')
+      asWaveRoll(() => {
+        useDiceStore.getState().markDiceRolling(['tens', 'ones', 'added-d6'])
+        useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
+        // Adding a die to the table clears the active saved roll (backend behavior).
+        useDiceStore.getState().clearActiveSavedRoll()
+        useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
+        useDiceStore.getState().recordDieSettled('added-d6', 5, 'd6')
+      })
 
       expect(useDiceStore.getState().rollHistory[0].sum).toBe(105)
     })
 
     it('adds a percentile pair alongside ordinary dice', () => {
-      useDiceStore.getState().markDiceRolling(['tens', 'ones', 'plain'])
-      useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
-      useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
-      useDiceStore.getState().recordDieSettled('plain', 5, 'd6')
+      asWaveRoll(() => {
+        useDiceStore.getState().markDiceRolling(['tens', 'ones', 'plain'])
+        useDiceStore.getState().recordDieSettled('tens', 0, 'd10tens', TENS)
+        useDiceStore.getState().recordDieSettled('ones', 0, 'd10', ONES)
+        useDiceStore.getState().recordDieSettled('plain', 5, 'd6')
+      })
 
       expect(useDiceStore.getState().rollHistory[0].sum).toBe(105)
     })
 
     it('does not pair two loose d10s that were never spawned as a d100', () => {
-      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
-      useDiceStore.getState().recordDieSettled('die-1', 0, 'd10')
-      useDiceStore.getState().recordDieSettled('die-2', 0, 'd10')
+      asWaveRoll(() => {
+        useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
+        useDiceStore.getState().recordDieSettled('die-1', 0, 'd10')
+        useDiceStore.getState().recordDieSettled('die-2', 0, 'd10')
+      })
 
       expect(useDiceStore.getState().rollHistory[0].sum).toBe(0)
+    })
+  })
+
+  describe('wave sequence that gives up before the table is still', () => {
+    it('records what HAS settled rather than losing the roll', () => {
+      // A wave failure or a timed-out wait ends the sequence with dice still in
+      // the air. This used to bail out recording nothing while the roll's
+      // `roll_complete` stayed claimed — the roll vanished from history.
+      useDiceStore.getState().beginSavedRollWaves(['die-1', 'die-2'])
+      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
+      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+
+      useDiceStore.getState().finishSavedRollWaves()
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].dice.map((d) => d.diceId)).toEqual(['die-1'])
+      expect(history[0].sum).toBe(4)
+      // The latch must always be released — holding it locks out every later roll.
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+    })
+
+    it('hands the roll back to roll_complete when nothing settled at all', () => {
+      useDiceStore.getState().beginSavedRollWaves(['die-1'])
+      useDiceStore.getState().markDiceRolling(['die-1'])
+
+      useDiceStore.getState().finishSavedRollWaves()
+
+      // No row to write, so the claim is released and the room's own
+      // `roll_complete` records the roll instead of being swallowed.
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+      expect(useDiceStore.getState().suppressedRollDiceIds).toBeNull()
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+    })
+  })
+
+  describe('suppression ticket', () => {
+    it('survives the wave latch clearing, so a late roll_complete is still claimed', () => {
+      // Waves that never trigger close in the same task the dice settle in —
+      // before `roll_complete` crosses the socket. The claim has to outlive the
+      // latch or that message writes a duplicate row.
+      useDiceStore.getState().beginSavedRollWaves(['die-1'])
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')
+      useDiceStore.getState().finishSavedRollWaves()
+
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+      expect(useDiceStore.getState().suppressedRollDiceIds).toEqual(['die-1'])
+    })
+
+    it('is dropped when a new cycle opens, so an unchanged table can re-roll', () => {
+      useDiceStore.getState().beginSavedRollWaves(['die-1'])
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')
+      useDiceStore.getState().finishSavedRollWaves()
+      expect(useDiceStore.getState().suppressedRollDiceIds).toEqual(['die-1'])
+
+      // Rolling the same table again presents the SAME dice ids; an unclaimed
+      // stale ticket would swallow this roll's row.
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      expect(useDiceStore.getState().suppressedRollDiceIds).toBeNull()
+    })
+
+    it('records the claim in spawn order, for the handler to match set-wise', () => {
+      // The room sorts its results by dice id, so a positional comparison would
+      // miss whenever spawn order differs from sorted order.
+      useDiceStore.getState().beginSavedRollWaves(['b', 'a'])
+      expect(useDiceStore.getState().suppressedRollDiceIds).toEqual(['b', 'a'])
+    })
+  })
+
+  describe('a removal that cancels the roll in flight', () => {
+    const PLAYER = { id: 'p1', displayName: 'Me', color: '#f00' }
+
+    /** One whole `dice_removed` message, the way the handler applies it. */
+    function removeDice(ids: string[], player?: typeof PLAYER) {
+      useDiceStore.getState().applyDiceRemoval(ids, player)
+    }
+
+    it('records the roll once the SURVIVORS settle, not at removal time', () => {
+      // The room drops `pending_roll` when a die it tracked is removed, so the
+      // roll is never announced and would otherwise leave no trace. The row is
+      // written by the ordinary drain, so dice still in the air when the removal
+      // lands are counted — recording at removal time would drop them.
+      useDiceStore.getState().markDiceRolling(['die-1', 'die-2', 'die-3'])
+      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+
+      removeDice(['die-3'], PLAYER)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+
+      // die-2 was still tumbling when the die was trashed.
+      useDiceStore.getState().recordDieSettled('die-2', 5, 'd6')
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].dice.map((d) => d.diceId).sort()).toEqual(['die-1', 'die-2'])
+      expect(history[0].sum).toBe(9)
+      expect(history[0].player?.displayName).toBe('Me')
+      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(0)
+      expect(useDiceStore.getState().orphanedCycle).toBeNull()
+    })
+
+    it('records the roll when the removal beats every die to the table', () => {
+      // Nothing had settled yet — the natural timing, since a removal races the
+      // physics. A point-in-time snapshot found an empty cycle and recorded
+      // nothing at all.
+      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
+
+      removeDice(['die-2'], PLAYER)
+      useDiceStore.getState().recordDieSettled('die-1', 6, 'd6')
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].dice.map((d) => d.diceId)).toEqual(['die-1'])
+      expect(history[0].sum).toBe(6)
+    })
+
+    /**
+     * Sweep away a whole 2-die roll, one die settled and one still in the air,
+     * in the given id order. This is the shape that diverged: applied per die,
+     * removing the SETTLED one last emptied the cycle a moment before the close
+     * was evaluated and the row was dropped, while the reverse order recorded
+     * it — and which order a `dice_removed` batch arrives in is a coin flip.
+     */
+    function sweepBothDice(ids: string[]) {
+      useDiceStore.getState().reset()
+      useDiceStore.getState().markDiceRolling(['settled', 'airborne'])
+      useDiceStore.getState().recordDieSettled('settled', 4, 'd6')
+      removeDice(ids, PLAYER)
+      return useDiceStore.getState()
+    }
+
+    it('records nothing when the message sweeps the whole roll away, either order', () => {
+      // The chosen semantics, matching what Clear All always did: a roll the
+      // player deliberately swept off the table is not a roll to report. What
+      // matters most is that BOTH orders agree.
+      const settledLast = sweepBothDice(['airborne', 'settled'])
+      const settledFirst = sweepBothDice(['settled', 'airborne'])
+
+      expect(settledLast.rollHistory).toHaveLength(0)
+      expect(settledFirst.rollHistory).toHaveLength(0)
+      expect(settledLast.orphanedCycle).toBeNull()
+      expect(settledFirst.orphanedCycle).toBeNull()
+      expect(settledLast.currentRollCycleDice.size).toBe(0)
+      expect(settledFirst.currentRollCycleDice.size).toBe(0)
+    })
+
+    it('records the survivors whatever order the removed ids arrive in', () => {
+      const order = (ids: string[]) => {
+        useDiceStore.getState().reset()
+        useDiceStore.getState().markDiceRolling(['die-1', 'die-2', 'die-3'])
+        // die-2 has landed, die-3 has not — a mixed batch, like Clear All.
+        useDiceStore.getState().recordDieSettled('die-2', 5, 'd6')
+        removeDice(ids, PLAYER)
+        useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')
+        return useDiceStore.getState().rollHistory
+      }
+
+      const forwards = order(['die-2', 'die-3'])
+      const backwards = order(['die-3', 'die-2'])
+
+      expect(forwards).toHaveLength(1)
+      expect(backwards).toHaveLength(1)
+      expect(forwards[0].sum).toBe(3)
+      expect(backwards[0].sum).toBe(3)
+      expect(forwards[0].dice.map((d) => d.diceId)).toEqual(['die-1'])
+      expect(backwards[0].dice.map((d) => d.diceId)).toEqual(['die-1'])
+    })
+
+    it('attributes a remote player\'s trashed roll to THEM', () => {
+      const rival = { id: 'p2', displayName: 'Rival', color: '#0f0' }
+      useDiceStore.getState().markDiceRolling(['their-1', 'their-2'])
+      useDiceStore.getState().recordDieSettled('their-1', 2, 'd6')
+
+      removeDice(['their-2'], rival)
+
+      expect(useDiceStore.getState().rollHistory[0].player?.displayName).toBe('Rival')
+    })
+
+    it('orphans a remote roll even while OUR wave sequence holds a claim', () => {
+      // Our claim speaks only for our own dice; it must not swallow theirs.
+      const rival = { id: 'p2', displayName: 'Rival', color: '#0f0' }
+      useDiceStore.getState().beginSavedRollWaves(['mine-1'])
+      useDiceStore.getState().markDiceRolling(['their-1', 'their-2'])
+
+      removeDice(['their-2'], rival)
+
+      expect(useDiceStore.getState().orphanedCycle).toEqual({ player: rival })
+    })
+
+    it('records nothing when the die leaves an already-settled table', () => {
+      // The common case: the cycle closed on drain and `roll_complete` already
+      // wrote the row, so tidying the table must not add a second one.
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+
+      removeDice(['die-1'], PLAYER)
+
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+      expect(useDiceStore.getState().orphanedCycle).toBeNull()
+    })
+
+    it('leaves wave removals alone — a reroll drops its own claimed dice', () => {
+      useDiceStore.getState().beginSavedRollWaves(['die-1'])
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      useDiceStore.getState().recordDieSettled('die-1', 1, 'd6')
+
+      removeDice(['die-1'], PLAYER)
+
+      expect(useDiceStore.getState().orphanedCycle).toBeNull()
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+    })
+
+    it('records the roll when the removal itself stills the table', () => {
+      // Trashing the last die in the air ends the roll; no settle follows to
+      // notice, so the removal has to close the cycle itself.
+      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
+      useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
+
+      removeDice(['die-2'], PLAYER)
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].dice.map((d) => d.diceId)).toEqual(['die-1'])
+      expect(history[0].sum).toBe(4)
+      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(0)
+    })
+
+    it('records nothing when every die of the roll is removed', () => {
+      useDiceStore.getState().markDiceRolling(['die-1'])
+
+      removeDice(['die-1'], PLAYER)
+
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+    })
+
+    it('does not survive into the next roll', () => {
+      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
+      removeDice(['die-2'], PLAYER)
+      expect(useDiceStore.getState().orphanedCycle).not.toBeNull()
+
+      // A fresh roll supersedes the abandoned one; its row belongs to
+      // `roll_complete` again.
+      useDiceStore.getState().removeDieState('die-1')
+      useDiceStore.getState().markDiceRolling(['die-9'])
+      expect(useDiceStore.getState().orphanedCycle).toBeNull()
+
+      useDiceStore.getState().recordDieSettled('die-9', 4, 'd6')
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+    })
+  })
+
+  describe('history row identity', () => {
+    it('gives every row a unique id, whichever writer recorded it', () => {
+      // Same-millisecond rolls used to collide as duplicate React keys because
+      // the list keyed on `timestamp` (issue #211).
+      const timestamp = Date.now()
+      useDiceStore.getState().addRollToHistory({ dice: [], sum: 1, timestamp })
+      useDiceStore.getState().addRollToHistory({ dice: [], sum: 2, timestamp })
+      asWaveRoll(() => {
+        useDiceStore.getState().markDiceRolling(['die-1'])
+        useDiceStore.getState().recordDieSettled('die-1', 3, 'd6')
+      })
+
+      const ids = useDiceStore.getState().rollHistory.map((roll) => roll.id)
+      expect(ids).toHaveLength(3)
+      expect(ids.every((id) => typeof id === 'string' && id.length > 0)).toBe(true)
+      expect(new Set(ids).size).toBe(3)
+    })
+  })
+
+  describe('persist migration to v1', () => {
+    async function rehydrateFrom(stored: unknown) {
+      window.localStorage.setItem('dicesuki-dice-rolls', JSON.stringify(stored))
+      await useDiceStore.persist.rehydrate()
+    }
+
+    afterEach(() => {
+      window.localStorage.removeItem('dicesuki-dice-rolls')
+    })
+
+    it('backfills a unique id on every id-less stored row', async () => {
+      // v0 rows have no `id`; the list keyed on `timestamp`, so two rows written
+      // in the same millisecond collided as duplicate React keys.
+      await rehydrateFrom({
+        version: 0,
+        state: {
+          rollHistory: [
+            { dice: [], sum: 1, timestamp: 1_700_000_000_000 },
+            { dice: [], sum: 2, timestamp: 1_700_000_000_000 },
+          ],
+        },
+      })
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(2)
+      expect(history.map((roll) => roll.sum)).toEqual([1, 2])
+      expect(history.every((roll) => typeof roll.id === 'string' && roll.id.length > 0)).toBe(true)
+      expect(new Set(history.map((roll) => roll.id)).size).toBe(2)
+    })
+
+    it('keeps ids that are already present', async () => {
+      await rehydrateFrom({
+        version: 0,
+        state: { rollHistory: [{ id: 'roll_kept', dice: [], sum: 3, timestamp: 1 }] },
+      })
+
+      expect(useDiceStore.getState().rollHistory[0].id).toBe('roll_kept')
+    })
+
+    it('survives a null payload', async () => {
+      await rehydrateFrom({ version: 0, state: null })
+      expect(useDiceStore.getState().rollHistory).toEqual([])
+    })
+
+    it('survives an empty payload', async () => {
+      await rehydrateFrom({ version: 0, state: {} })
+      expect(useDiceStore.getState().rollHistory).toEqual([])
     })
   })
 

@@ -645,7 +645,11 @@ export async function executePhysicalSavedRoll(
   const hasWaves = needsFollowUpWaves(roll)
   // Claim the roll cycle before `roll_started` lands, so the settle handler
   // already knows this is a multi-wave roll and holds the history row open.
-  if (hasWaves) useDiceStore.getState().beginSavedRollWaves()
+  // Claiming the base wave's dice — not just raising the latch — is what lets
+  // the `roll_complete` handler drop exactly this roll's message however late it
+  // arrives, including when no reroll or explosion actually triggers and the
+  // sequence is over before the room has spoken.
+  if (hasWaves) useDiceStore.getState().beginSavedRollWaves(baseIds)
 
   try {
     publishPlan(plan, roll)
