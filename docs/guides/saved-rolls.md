@@ -3,22 +3,26 @@
 > Part of the [Harness documentation system](../../CLAUDE.md). Edit this file for detailed saved rolls guidance.
 
 ## Overview
-The saved rolls feature allows users to save dice roll configurations with bonuses (flat bonuses and per-die bonuses). The system intelligently manages bonus state to ensure bonuses only apply when appropriate.
+The saved rolls feature allows users to save dice roll configurations with bonuses (flat bonuses and per-die bonuses) and advanced mechanics (keep/drop, exploding, reroll, min/max clamps, success counting). The system intelligently manages bonus state to ensure bonuses only apply when appropriate.
 
 ## Architecture
 
 ### Core Components
-1. **`useDiceStore.ts`**: Manages `activeSavedRoll` state with bonus tracking
-2. **`SavedRollsPanel.tsx`**: Executes clear/spawn/roll through `useDiceBackend()`
-3. **`useMultiplayerStore.ts`**: Owns authoritative room dice and protocol acknowledgements
-4. **`Scene.tsx`**: Reads room dice and displays results with bonuses
-5. **`diceHelpers.ts`**: Formats saved roll formulas
+1. **`useDiceStore.ts`**: Manages `activeSavedRoll` state with bonus + plan tracking
+2. **`savedRollPlan.ts`**: Maps a roll's mechanics onto physical room dice, and scores them
+3. **`savedRollExecution.ts`**: Runs the roll as spawn waves over the room protocol
+4. **`SavedRollsPanel.tsx`**: Thin wrapper — latch, inline errors, panel close
+5. **`useMultiplayerStore.ts`**: Owns authoritative room dice and protocol acknowledgements
+6. **`Scene.tsx`**: Reads room dice and displays results with bonuses and kept/dropped state
+7. **`diceHelpers.ts`**: Formats saved roll formulas, badges and ranges
 
 ### Bonus State Structure
 ```typescript
 activeSavedRoll: {
-  flatBonus: number              // Flat bonus added to total (e.g., +4)
-  perDieBonuses: Map<string, number>  // Per-die bonuses (dice ID → bonus)
+  name: string
+  flatBonus: number                    // Flat bonus added to total (e.g., +4)
+  perDieBonuses: Map<string, number>   // Per-die bonuses (dice ID → bonus), group roots only
+  plan?: SavedRollPlan                 // Advanced mechanics, mapped to room dice ids
 } | null
 ```
 
@@ -35,9 +39,75 @@ When user executes a saved roll (e.g., "6d6 + 4"):
 
 ### 2. Result Display
 Shows total with bonuses:
-- **Grand Total**: `diceSum + perDieBonusesTotal + flatBonus`
+- **Grand Total**: `diceSum + perDieBonusesTotal + flatBonus`, or the plan's aggregate when the roll uses advanced mechanics
 - **Individual Dice**: Shows the reconciled per-die bonus next to each face value
-- **Flat Bonus**: Shows a separate bonus chip when non-zero
+- **Flat Bonus**: Shows a separate bonus chip when non-zero (hidden in success-counting mode, which ignores it)
+- **Dropped dice**: Dimmed and struck through, with an `N dropped` hint
+- **Roll notice**: A transient line for follow-up waves that ran out of table
+
+## Advanced Mechanics (physical execution)
+
+There is no server-side notion of a saved roll. `roll_player_dice` (`server/core/src/room.rs`) applies an impulse to **every** die the player owns, and `roll_complete.total` is a plain face sum. So every mechanic is orchestrated client-side as physical spawn waves over the existing protocol — this slice added **no** server, core or protocol changes.
+
+### Waves (`savedRollExecution.ts`)
+
+1. **Base** — clear our dice, spawn `rollCount` dice per entry, send `roll`, wait for all to settle. This is the **only** wave that sends `roll`; a second `roll` would re-roll the dice that already landed.
+2. **Reroll** — dice matching the condition are `remove_dice`d and respawned. A spawned die falls from `SPAWN_HEIGHT` and settles on its own, so **for follow-up waves the spawn IS the roll**. Once only: the replacement's face is final. Owned dice are respawned as themselves (removal is awaited first, or `addDie` refuses the duplicate).
+3. **Explosions** — each die showing the trigger face spawns one more die whose face **adds** to it. Repeats while dice keep exploding, bounded by `MAX_EXPLOSION_WAVES` (3) and by free room capacity.
+
+> **Known divergence.** `ExplodingConfig.limit` is honoured verbatim by the virtual `rollEngine.ts` (`limit ?? Infinity`), but the physical path uses `min(limit ?? 3, 3)` — every explosion costs a real room slot. An entry with `limit: 10` therefore chains up to 10 times virtually and at most 3 times on the table. `rollEngine.ts` has no production consumers, so this only matters if it ever gains one; the builder never offers a limit above the cap.
+
+The panel closes as soon as the base wave starts rolling, which splits error handling in two:
+- **Before** that point → the promise rejects and `SavedRollsPanel` renders its inline alert.
+- **After** → `useDiceStore.rollNotice`, rendered by the result HUD (the panel is gone).
+
+Either way `executingRef` is held for the whole sequence, so a second roll can never interleave with a half-finished plan.
+
+**Releasing `savedRollWavesPending` is the sequence's hard obligation.** `beginSavedRollWaves()` is claimed *before* `roll` is sent (so the settle handler already knows to hold the history row open), which means every path from that point on has to close it:
+- the follow-up waves run inside `try/finally`, so they release it however they end;
+- the base roll's `publishPlan` → `roll()` → ack window is wrapped in its own `try/catch` that releases it and rethrows.
+
+That second guard is not theoretical: an ack timeout, a socket drop (`SEND_FAILED`), a room rejection, or a spawn-id mismatch all abort between "claimed" and "waves running". A flag left set there is a session-wide lockout — every saved roll and the HUD's Roll button stay disabled, `recordDieSettled` never closes a cycle, and `roll_complete` stays suppressed until the page is reloaded.
+
+While `savedRollWavesPending` is true:
+- the HUD's Roll button is disabled (`roll` impulses **every** die the player owns, so it would re-roll dice that already landed and invalidate the plan);
+- reopening the saved-rolls panel shows "Still rolling — waiting for the follow-up dice to land" and its roll buttons are disabled, because the execution latch would silently reject them;
+- `roll_complete` for the local player is suppressed — `finishSavedRollWaves` writes the authoritative row instead, carrying the same player attribution `roll_complete` would have.
+
+### Invariant: the backend clears the saved-roll context on every spawn
+`useMultiplayerDiceBackend.addDie`/`addGenericDie` call `clearActiveSavedRoll()` as their first act — including the executor's own follow-up-wave spawns. Therefore:
+- `clearActiveSavedRoll` **must not** touch `savedRollWavesPending`; that flag is owned solely by `beginSavedRollWaves`/`finishSavedRollWaves`. (It did once, which tore down wave tracking on the first reroll or explosion spawn and split one roll across several history rows.)
+- every wave **must** re-`publishPlan` after its spawns and **before** `markDiceRolling`, so nothing can observe a settle while the plan is missing.
+
+Both are pinned by `src/lib/savedRollExecution.test.ts`: the fake room's spawn reproduces the `clearActiveSavedRoll` side effect, and one test drives the real `useMultiplayerDiceBackend` with only the protocol send stubbed.
+
+**Error scoping is per wave, not per wait.** Each wave opens with `beginWave()`, which clears `roomActionError`; every wait then fails on any error it sees, because that error can only have been raised by the wave in flight. Scoping *inside* the wait instead — ignoring an error that was already present when the wait began — looks equivalent but is not: an action and the error it raises are synchronous, so `backend.roll()` sets `roomActionError` *before* the ack wait starts, and such a wait would be blind to the very rejection it is waiting on.
+
+### Capacity budgeting
+`getRollDiceCount` counts `rollCount` (not `quantity`) toward the 30-die cap, so keep/drop is pre-validated in the builder and re-checked at execution. **Exploding is deliberately not pre-counted** — its worst case is unbounded. Each explosion wave is budgeted against whatever is actually free at that moment; anything that does not fit is skipped and reported through `rollNotice`.
+
+### Scoring (`savedRollPlan.ts`)
+A plan groups room dice into **chains** whose faces sum into one logical die result (an explosion joins its parent's chain; a reroll replaces the chain's member). Order of operations matches `rollEngine.ts`: clamp the chain total → add the per-die bonus → keep/drop on those values → sum, or count successes. A roll with any success-counting entry ignores the flat bonus. Dice that have not settled are ignored rather than counted as zero, so a partially settled table shows a running total.
+
+`keepMode` is optional on `DiceEntry` and nothing validates it at runtime, so it defaults to `KEEP_MODE_DEFAULT` (`'highest'`) in one place — `diceHelpers.ts` — and the notation, badges, `rollEngine` and the plan all read that same default.
+
+### Notation
+`formatDiceEntry` appends in a fixed order: exploding binds to the die (`4d6!`, `4d6!5`), then ` kh2`/` kl2`, ` r≤2`, ` ≥5`, ` [2 specific]`. Min/max clamps are a badge, not notation. `calculateDiceEntryRange` returns `{ min, max, open? }`; `open` marks an exploding entry, rendered as `Range: 4 - 12+`.
+
+### Percentile (d100) entries
+A d100 is a `d10tens` + `d10` PAIR combined into one 1-100 result, which changes what the mechanics can mean:
+
+- **Gated off in the builder**: exploding and reroll are hidden for a percentile entry, with an inline explanation — you cannot reroll or explode half a pair. `createSavedRollPlan` strips both, `formatDiceEntry`/`getDiceEntryBadges` omit them, and `selectRerollTargets`/`selectExplosionTargets` skip percentile groups, so a legacy row carrying those configs is dropped rather than half-applied or falsely advertised. The reroll-based quick presets (Great Weapon Fighting, Halfling Luck) are hidden for the same reason.
+- **Keep/drop IS supported**: keep/drop operates on whole pairs, which the plan expresses natively (each pair is one group), so the section and the Advantage / Disadvantage / Elven Accuracy presets stay available and `2d100 kh1` scores correctly.
+- **Still available**: min/max clamps and success counting, applied to the **combined** value. Their ceiling is `getEntryMax` (100), not the 90 of the tens half.
+- **One plan group per pair**, `memberIds: [tensDieId, onesDieId]`, flagged `percentile`. The group's value is `combinePercentile(tens, ones)` — `00 + 0` is 100 — not a sum. A half-settled pair scores nothing rather than reporting the tens face alone.
+- **The per-die bonus rides on the ones die** (`bonusMemberId`): the tens half is anonymous engine scaffolding that can never be an owned die.
+- **Capacity**: `getRollDiceCount` counts physical dice via `expandDiceEntrySpawns`, so 15 d100s is exactly the 30-die cap and 16 is refused.
+- **`percentileSumCorrection` is applied only to dice the plan does NOT own.** The plan combines its own pairs; correcting them again would double-count. Both the plan branch and the raw branch of `buildCycleSnapshot` and of `roll_complete` handle this.
+- **The HUD** renders a pair as ONE `D100` chip carrying the same `data-testid="result-die-chip"` / `data-dropped` contract as any other chip, so keep/drop dimming and the e2e assertions work unchanged.
+
+### Known limitation — remote viewers
+The plan is **client-side only** and never crosses the wire. A remote viewer in a multiplayer room sees each die's raw face and a raw face sum: no keep/drop, clamps, success counting or bonuses. Their history row is attributed (`displayName`) and carries no saved-roll name, so nothing they see is a mislabelled combined total — it is simply the unadorned dice. Correcting remote totals would need the plan on the protocol, which is out of scope for this slice.
 
 ### 3. Clear Bonuses
 `activeSavedRoll` is automatically cleared when:
@@ -144,3 +214,8 @@ When testing saved rolls:
 8. For percentile rolls, cover all three ways the pairing must survive: a table
    edit that clears `activeSavedRoll`, a **remote** player's `roll_complete` with
    no local roll state, and `00 + 0` reading 100 rather than 0
+9. Wave orchestration is unit-tested against a fake room with scripted faces
+   (`src/lib/savedRollExecution.test.ts`) — real dice are random, so browser
+   coverage (`e2e/roll-advanced.spec.ts`, `npm run test:e2e:roll-advanced`)
+   asserts relationships that hold for every outcome (the kept d20 is the
+   higher of the two) rather than fixed numbers

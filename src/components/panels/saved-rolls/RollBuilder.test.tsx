@@ -4,6 +4,7 @@ import { INVENTORY_DIE_DRAG_TYPE, serializeInventoryDieDragPayload } from '../..
 import {
   createAnonymousRollSource,
   createSpecificDieRollSource,
+  getRollDiceCount,
   getSpecificDieIds,
 } from '../../../lib/rollSources'
 import { useInventoryStore } from '../../../store/useInventoryStore'
@@ -211,14 +212,17 @@ describe('RollBuilder', () => {
     // Act
     setQuantity('D20 quantity', '2')
 
-    // Assert — the owned die survives and nothing is reported as removed
+    // Assert — the owned die survives; only the generics are given up, and the
+    // notice says so rather than discarding three dice silently.
     fireEvent.click(screen.getByRole('button', { name: /update roll/i }))
     const saved = onSave.mock.calls[0][0]
     expect(saved.dice[0].sources).toEqual([
       createSpecificDieRollSource(steel.id),
       createAnonymousRollSource(1),
     ])
-    expect(screen.queryByText(/Removed from this roll/i)).not.toBeInTheDocument()
+    const notice = screen.getByText(/Removed from this roll/i)
+    expect(notice).toHaveTextContent('3 generic dice')
+    expect(notice).not.toHaveTextContent('Steel d20')
   })
 
   it('names the owned dice a shrink had to remove', () => {
@@ -250,7 +254,7 @@ describe('RollBuilder', () => {
     expect(screen.getAllByText('4d6')).toHaveLength(2)
   })
 
-  it('clears keep/drop when the count is set by hand', () => {
+  it('keeps the keep/drop policy when the rolled count is set by hand', () => {
     // Arrange — a keep-highest entry: roll 4, keep 2
     const initialRoll = rollWithSources([createAnonymousRollSource(4)], {
       quantity: 2,
@@ -260,14 +264,37 @@ describe('RollBuilder', () => {
     const { onSave } = renderBuilder({ initialRoll })
     expect(screen.getAllByText('4d20 kh2').length).toBeGreaterThan(0)
 
-    // Act
+    // Act — the quantity field edits the ROLLED count
     setQuantity('D20 quantity', '3')
 
-    // Assert — a manual count cannot leave a stale rollCount behind
+    // Assert — keep/drop is editable in Advanced Options, so a count change
+    // moves the rolled count instead of throwing the policy away
+    expect(screen.getAllByText('3d20 kh2').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: /update roll/i }))
     const saved = onSave.mock.calls[0][0]
-    expect(saved.dice[0].quantity).toBe(3)
-    expect(saved.dice[0].rollCount).toBeUndefined()
+    expect(saved.dice[0].rollCount).toBe(3)
+    expect(saved.dice[0].quantity).toBe(2)
+    expect(saved.dice[0].keepMode).toBe('highest')
+    expect(getRollDiceCount(saved.dice)).toBe(3)
+  })
+
+  it('pulls the keep count down when the rolled count drops below it', () => {
+    // Arrange — roll 4, keep 2
+    const initialRoll = rollWithSources([createAnonymousRollSource(4)], {
+      quantity: 2,
+      rollCount: 4,
+      keepMode: 'highest',
+    })
+    const { onSave } = renderBuilder({ initialRoll })
+
+    // Act
+    setQuantity('D20 quantity', '1')
+
+    // Assert — an entry can never keep more dice than it rolls
+    fireEvent.click(screen.getByRole('button', { name: /update roll/i }))
+    const saved = onSave.mock.calls[0][0]
+    expect(saved.dice[0].rollCount).toBe(1)
+    expect(saved.dice[0].quantity).toBe(1)
   })
 
   it('keeps repeated increments as a single generic group', () => {
@@ -418,6 +445,94 @@ describe('RollBuilder', () => {
     expect(screen.getByRole('button', { name: /save roll/i })).toBeDisabled()
     expect(alertSpy).not.toHaveBeenCalled()
     alertSpy.mockRestore()
+  })
+
+  it('shows a closed range for a roll that cannot exceed its dice', () => {
+    // Arrange
+    renderBuilder({ initialRoll: rollWithSources([createAnonymousRollSource(1)]) })
+
+    // Assert
+    expect(screen.getByText('Range: 1 - 20')).toBeInTheDocument()
+  })
+
+  it('marks an exploding roll as open-ended at the top of its range', () => {
+    // Arrange — 1d20 that explodes on its maximum face
+    renderBuilder({
+      initialRoll: rollWithSources([createAnonymousRollSource(1)], { exploding: { on: 'max' } }),
+    })
+
+    // Assert — the maximum is a floor for the chain, not a ceiling
+    expect(screen.getByText('Range: 1 - 20+')).toBeInTheDocument()
+    expect(screen.queryByText('Range: 1 - 20')).not.toBeInTheDocument()
+  })
+
+  it('names the owned dice a quick preset had to remove', () => {
+    // Arrange — three owned d20s, no generics to give up
+    const steel = addNamedDie('Steel d20', 'd20')
+    const jade = addNamedDie('Jade d20', 'd20')
+    const bone = addNamedDie('Bone d20', 'd20')
+    renderBuilder({
+      initialRoll: rollWithSources([
+        createSpecificDieRollSource(steel.id),
+        createSpecificDieRollSource(jade.id),
+        createSpecificDieRollSource(bone.id),
+      ]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }))
+
+    // Act — advantage rolls two dice, so the entry has to shed the third
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Advantage to D20' }))
+
+    // Assert — a preset is as destructive as a hand-typed shrink, and says so
+    expect(screen.getByRole('status')).toHaveTextContent('Removed from this roll: Bone d20')
+  })
+
+  it('blocks a roll that mixes counting successes with adding dice up', () => {
+    // Arrange — a d6 pool and a d20 that sums
+    renderBuilder()
+    fireEvent.change(screen.getByLabelText(/roll name/i), { target: { value: 'Mixed modes' } })
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d6 die/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d20 die/i }))
+    const advancedToggles = screen.getAllByRole('button', { name: /advanced options/i })
+    fireEvent.click(advancedToggles[0])
+    fireEvent.click(advancedToggles[1])
+
+    // Act — only the d6 counts successes
+    fireEvent.click(screen.getByLabelText('Count D6 successes'))
+
+    // Assert — the whole roll would silently become a success count
+    const error = screen.getByTestId('roll-success-mode-error')
+    expect(error).toHaveTextContent(/no single total/i)
+    expect(error).toHaveTextContent(/every entry, or on none of them/i)
+    expect(screen.getByRole('button', { name: /save roll/i })).toBeDisabled()
+    expect(screen.getByLabelText('Count D20 successes')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Count D20 successes'))
+      .toHaveAttribute('aria-describedby', error.id)
+
+    // Act — make the roll consistent
+    fireEvent.click(screen.getByLabelText('Count D20 successes'))
+
+    // Assert
+    expect(screen.queryByTestId('roll-success-mode-error')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save roll/i })).toBeEnabled()
+    expect(screen.getByLabelText('Count D20 successes')).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('saves a roll where every entry counts successes', () => {
+    // Arrange
+    const { onSave } = renderBuilder()
+    fireEvent.change(screen.getByLabelText(/roll name/i), { target: { value: 'Dice pool' } })
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d6 die/i }))
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }))
+
+    // Act
+    fireEvent.click(screen.getByLabelText('Count D6 successes'))
+    fireEvent.click(screen.getByRole('button', { name: /save roll/i }))
+
+    // Assert — one entry counting successes is coherent on its own
+    expect(screen.queryByTestId('roll-success-mode-error')).not.toBeInTheDocument()
+    expect(onSave).toHaveBeenCalledOnce()
+    expect(onSave.mock.calls[0][0].dice[0].countSuccesses).toEqual({ targetNumber: 5 })
   })
 
   it('imports current table dice as grouped generic dice plus specific owned dice', () => {

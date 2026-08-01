@@ -79,7 +79,9 @@ export function SavedRollCard({
         className="text-sm mb-2"
         style={{ color: 'var(--color-text-secondary)' }}
       >
-        Range: {range.min}-{range.max}
+        {/* `open` marks an exploding roll, whose top end is unbounded — the
+            trailing "+" keeps the card from promising a ceiling it cannot hold. */}
+        Range: {range.min}-{range.max}{range.open ? '+' : ''}
       </div>
 
       {/* Badges for special mechanics */}

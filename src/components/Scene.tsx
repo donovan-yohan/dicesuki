@@ -26,6 +26,7 @@ import {
   groupPercentileResults,
   percentileSumCorrection,
 } from '../lib/percentileRolls'
+import { aggregateSavedRollPlan, facesFromSettled } from '../lib/savedRollPlan'
 import { detectRenderDeviceTier } from '../lib/deviceDetection'
 import {
   type DiceRenderContext,
@@ -486,6 +487,8 @@ function SceneContent({ onReady }: SceneProps) {
     [activeBackend]
   )
 
+  const savedRollWavesPending = useDiceStore((s) => s.savedRollWavesPending)
+
   const tableDice = useMemo<TableDieSummary[]>(() => {
     return Array.from(multiplayerDice.values())
       .filter((die) => !localPlayerId || die.ownerId === localPlayerId)
@@ -609,7 +612,10 @@ function SceneContent({ onReady }: SceneProps) {
         motionMode={motionMode}
         showShop={showShop}
         isDiceManagerOpen={isDiceManagerOpen}
-        canRoll={tableDice.length > 0}
+        // A saved roll's follow-up waves are still spawning: `roll` impulses
+        // every die the player owns, so it would re-roll the dice that already
+        // landed and invalidate the plan mid-sequence.
+        canRoll={tableDice.length > 0 && !savedRollWavesPending}
         onToggleUIVisibility={toggleUIVisibility}
         onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
         onOpenSavedRolls={() => setIsSavedRollsOpen(true)}
@@ -725,14 +731,21 @@ const CHIP_STYLES = {
 /**
  * Reusable chip component for displaying individual die results, rolling state, or bonuses
  */
-function DiceChip({ label, children, variant = 'solid', className = '' }: {
+function DiceChip({ label, children, variant = 'solid', className = '', testId, dropped }: {
   label: string
   children: React.ReactNode
   variant?: 'solid' | 'muted'
   className?: string
+  testId?: string
+  /** Marks a die excluded by keep/drop, so a browser test can read the split. */
+  dropped?: boolean
 }) {
   return (
-    <div className={`flex flex-col items-center gap-1 ${className}`}>
+    <div
+      className={`flex flex-col items-center gap-1 ${className}`}
+      data-testid={testId}
+      data-dropped={dropped === undefined ? undefined : String(dropped)}
+    >
       <span className="max-w-20 truncate text-[8px] text-gray-400 uppercase font-semibold" title={label}>
         {label}
       </span>
@@ -754,6 +767,7 @@ function ResultDisplay() {
   const settledDice = useDiceStore((s) => s.settledDice)
   const rollingDice = useDiceStore((s) => s.rollingDice)
   const activeSavedRoll = useDiceStore((s) => s.activeSavedRoll)
+  const rollNotice = useDiceStore((s) => s.rollNotice)
   const inventoryDice = useInventoryStore((s) => s.dice)
   const inventoryDiceById = useMemo(() => {
     const map = new Map<string, InventoryDie>()
@@ -803,20 +817,42 @@ function ResultDisplay() {
   const isAnyRolling = filteredRollingDice.size > 0
   const hasSettled = settledArray.length > 0
 
-  // Percentile (d100) pairs read `tens + ones`, except `00 + 0` which is 100.
-  // The room total stays a plain face sum by design, so the correction is applied
-  // here, client-side. Both are read off the dice's own presentation blocks, so a
-  // table edit, a remote player's roll or a post-refresh view all stay correct
-  // (see src/lib/percentileRolls.ts).
-  const percentileCorrection = percentileSumCorrection(settledArray)
+  // A percentile pair reads as ONE d100 result, so it renders as one chip.
   const resultGroups = groupPercentileResults(settledArray)
 
-  // Calculate grand total with bonuses
-  const perDieBonusTotal = activeSavedRoll
-    ? settledArray.reduce((acc, d) => acc + (activeSavedRoll.perDieBonuses.get(d.diceId) ?? 0), 0)
-    : 0
+  // Advanced mechanics (keep/drop, exploding, reroll, clamps, successes) are
+  // scored from the saved roll's plan; without one this is the plain sum.
+  const plan = activeSavedRoll?.plan
+  const aggregate = useMemo(
+    () => (plan ? aggregateSavedRollPlan(plan, facesFromSettled(filteredSettledDice)) : null),
+    [plan, filteredSettledDice],
+  )
+
   const flatBonus = activeSavedRoll?.flatBonus ?? 0
-  const grandTotal = rawSum + percentileCorrection + perDieBonusTotal + flatBonus
+  let grandTotal: number
+  if (aggregate) {
+    // Dice outside the plan — another player's, or ones dropped on the table by
+    // hand — keep contributing their face, as the HUD has always done. The plan
+    // combines its OWN percentile pairs, so the correction applies only to
+    // these; correcting a planned pair again would double-count it.
+    const unplanned = settledArray.filter((d) => !aggregate.dice.has(d.diceId))
+    grandTotal = aggregate.total
+      + unplanned.reduce((acc, d) => acc + d.value, 0)
+      + percentileSumCorrection(unplanned)
+  } else {
+    // Percentile (d100) pairs read `tens + ones`, except `00 + 0` which is 100.
+    // The room total stays a plain face sum by design, so the correction is
+    // applied here, client-side. Both are read off the dice's own presentation
+    // blocks, so a table edit, a remote player's roll or a post-refresh view all
+    // stay correct (see src/lib/percentileRolls.ts).
+    const perDieBonusTotal = activeSavedRoll
+      ? settledArray.reduce((acc, d) => acc + (activeSavedRoll.perDieBonuses.get(d.diceId) ?? 0), 0)
+      : 0
+    grandTotal = rawSum + percentileSumCorrection(settledArray) + perDieBonusTotal + flatBonus
+  }
+
+  const droppedCount = aggregate?.droppedCount ?? 0
+  const isSuccessCounting = aggregate?.isSuccessCounting ?? false
 
   // Animate sum changes
   useEffect(() => {
@@ -854,7 +890,7 @@ function ResultDisplay() {
 
         {/* Grand total */}
         <div className={`flex flex-col items-center gap-1 transition-transform ${shouldAnimate ? 'animate-bounce' : ''}`}>
-          <div className="text-5xl font-bold" style={{
+          <div data-testid="roll-grand-total" className="text-5xl font-bold" style={{
             color: 'var(--color-accent)',
             textShadow: '0 0 15px rgba(249, 135, 151, 0.5)'
           }}>
@@ -862,20 +898,51 @@ function ResultDisplay() {
           </div>
         </div>
 
+        {/* What the big number means, when it is not a plain sum */}
+        {isSuccessCounting && !isAnyRolling && (
+          <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--color-text-muted, rgba(255,255,255,0.5))' }}>
+            {Math.abs(grandTotal) === 1 ? 'success' : 'successes'}
+          </div>
+        )}
+        {droppedCount > 0 && !isAnyRolling && (
+          <div data-testid="roll-dropped-hint" className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--color-text-muted, rgba(255,255,255,0.5))' }}>
+            {droppedCount} dropped
+          </div>
+        )}
+
         {/* Individual dice chips + flat bonus */}
         <div className="flex gap-2 justify-center flex-wrap">
-          {/* Settled dice — a percentile pair shows as ONE combined d100 chip */}
+          {/* Settled dice. A percentile pair shows as ONE combined d100 chip.
+              A die dropped by keep/drop is dimmed and struck through rather
+              than hidden — the player rolled it and needs to see what it was,
+              but it must not read as part of the total. */}
           {resultGroups.map((group) => {
             if (group.kind === 'percentile') {
               const { tens, ones, value } = group
+              // Both halves belong to one plan group, so either reports the
+              // pair's kept state; the bonus rides on the ones die (the tens
+              // half is anonymous scaffolding — see `bonusMemberId`).
+              const scoredPair = aggregate?.dice.get(ones.diceId)
+              const isPairDropped = scoredPair !== undefined && !scoredPair.kept
               const bonusStr = formatBonus(
-                (activeSavedRoll?.perDieBonuses.get(tens.diceId) ?? 0)
-                + (activeSavedRoll?.perDieBonuses.get(ones.diceId) ?? 0),
+                scoredPair
+                  ? scoredPair.bonus
+                  : (activeSavedRoll?.perDieBonuses.get(tens.diceId) ?? 0)
+                    + (activeSavedRoll?.perDieBonuses.get(ones.diceId) ?? 0),
               )
               return (
-                <DiceChip key={`d100-${tens.diceId}`} label="D100">
-                  <span className="text-lg font-bold">{value}</span>
-                  {bonusStr && (
+                <DiceChip
+                  key={`d100-${tens.diceId}`}
+                  label={isPairDropped ? 'D100 (dropped)' : 'D100'}
+                  variant={isPairDropped ? 'muted' : 'solid'}
+                  className={isPairDropped ? 'opacity-60' : ''}
+                  testId="result-die-chip"
+                  dropped={scoredPair ? isPairDropped : undefined}
+                >
+                  <span className={`text-lg font-bold ${isPairDropped ? 'line-through' : ''}`}>
+                    {value}
+                  </span>
+                  {bonusStr && !isPairDropped && (
                     <span className="text-sm font-semibold ml-0.5" style={{ color: 'var(--color-accent)' }}>
                       {bonusStr}
                     </span>
@@ -885,11 +952,22 @@ function ResultDisplay() {
             }
 
             const die = group.die
-            const bonusStr = formatBonus(activeSavedRoll?.perDieBonuses.get(die.diceId) ?? 0)
+            const scored = aggregate?.dice.get(die.diceId)
+            const isDropped = scored !== undefined && !scored.kept
+            const bonusStr = formatBonus(
+              scored ? scored.bonus : activeSavedRoll?.perDieBonuses.get(die.diceId) ?? 0,
+            )
             return (
-              <DiceChip key={die.diceId} label={getResultDieLabel(die)}>
-                <span className="text-lg font-bold">{die.value}</span>
-                {bonusStr && (
+              <DiceChip
+                key={die.diceId}
+                label={isDropped ? `${getResultDieLabel(die)} (dropped)` : getResultDieLabel(die)}
+                variant={isDropped ? 'muted' : 'solid'}
+                className={isDropped ? 'opacity-60' : ''}
+                testId="result-die-chip"
+                dropped={scored ? isDropped : undefined}
+              >
+                <span className={`text-lg font-bold ${isDropped ? 'line-through' : ''}`}>{die.value}</span>
+                {bonusStr && !isDropped && (
                   <span className="text-sm font-semibold ml-0.5" style={{ color: 'var(--color-accent)' }}>
                     {bonusStr}
                   </span>
@@ -903,8 +981,9 @@ function ResultDisplay() {
               <span className="text-lg font-bold">?</span>
             </DiceChip>
           ))}
-          {/* Flat bonus chip */}
-          {activeSavedRoll && flatBonus !== 0 && !isAnyRolling && (
+          {/* Flat bonus chip. Success counting ignores the flat bonus
+              (see SavedRoll.flatBonus), so showing it would be a lie. */}
+          {activeSavedRoll && flatBonus !== 0 && !isSuccessCounting && !isAnyRolling && (
             <DiceChip label="Bonus">
               <span className="text-lg font-bold" style={{ color: 'var(--color-accent)' }}>
                 {formatBonus(flatBonus)}
@@ -912,6 +991,23 @@ function ResultDisplay() {
             </DiceChip>
           )}
         </div>
+
+        {/* Follow-up waves run after the saved-rolls panel closed, so this is
+            the only place they can report a budget or failure. */}
+        {rollNotice && (
+          <div
+            role="status"
+            data-testid="roll-notice"
+            className="max-w-xs text-center text-[11px] px-3 py-1.5 rounded-lg pointer-events-auto"
+            style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+              border: '1px solid rgba(249, 135, 151, 0.3)',
+              color: 'var(--color-text-secondary, rgba(255,255,255,0.75))',
+            }}
+          >
+            {rollNotice}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -3,7 +3,11 @@ import { nanoid } from 'nanoid'
 import { DicePool } from './DicePool'
 import { DiceEntryCard } from './DiceEntryCard'
 import { useInventoryStore } from '../../../store/useInventoryStore'
-import { calculateSavedRollRange, formatSavedRoll } from '../../../lib/diceHelpers'
+import {
+  calculateSavedRollRange,
+  formatSavedRoll,
+  isSuccessCountingRoll,
+} from '../../../lib/diceHelpers'
 import { parseInventoryDieDragPayload } from '../../../lib/inventoryDrag'
 import { ROLL_DICE_CAPACITY_MESSAGE, ROOM_DICE_CAPACITY } from '../../../config/roomCapacity'
 import { PERCENTILE_ONES_SHAPE } from '../../../lib/percentileRolls'
@@ -46,6 +50,7 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
   const nameErrorId = `${fieldPrefix}-name-error`
   const descriptionFieldId = `${fieldPrefix}-description`
   const capacityMessageId = `${fieldPrefix}-capacity`
+  const successModeMessageId = `${fieldPrefix}-success-mode`
 
   const inventoryDiceById = useMemo(() => {
     const map = new Map<string, InventoryDie>()
@@ -162,7 +167,17 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
   const capacityError = isOverCapacity
     ? `${ROLL_DICE_CAPACITY_MESSAGE}. This roll uses ${totalDiceCount}.`
     : null
-  const canSave = !isNameMissing && !isDiceMissing && !isOverCapacity
+  // Success counting is a property of the whole roll (`isSuccessCountingRoll`),
+  // not of one entry: as soon as any entry counts successes the total becomes a
+  // count of successes, and the summing entries plus the flat bonus are
+  // discarded. Rather than let that happen silently, a mixed roll is invalid.
+  const isSuccessModeMixed = isSuccessCountingRoll(previewRoll)
+    && dice.some((entry) => entry.countSuccesses === undefined)
+  const successModeError = isSuccessModeMixed
+    ? 'This roll mixes counting successes with adding dice up, so it has no single '
+      + 'total. Count successes on every entry, or on none of them.'
+    : null
+  const canSave = !isNameMissing && !isDiceMissing && !isOverCapacity && !isSuccessModeMixed
 
   const handleSave = () => {
     setNameTouched(true)
@@ -368,6 +383,21 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
               </p>
             )}
 
+            {successModeError && (
+              <p
+                id={successModeMessageId}
+                data-testid="roll-success-mode-error"
+                className="text-sm px-3 py-2 rounded-lg"
+                style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.14)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  color: '#fecaca',
+                }}
+              >
+                {successModeError}
+              </p>
+            )}
+
             {dice.length > 0 ? (
               dice.map((entry, index) => (
                 <DiceEntryCard
@@ -378,6 +408,8 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
                   inventoryDiceById={inventoryDiceById}
                   isOverCapacity={isOverCapacity}
                   capacityMessageId={isOverCapacity ? capacityMessageId : undefined}
+                  isSuccessModeMixed={isSuccessModeMixed}
+                  successModeMessageId={isSuccessModeMixed ? successModeMessageId : undefined}
                 />
               ))
             ) : (
@@ -459,8 +491,10 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
               <div className="text-2xl font-bold break-words">
                 {formula}
               </div>
+              {/* Exploding leaves the top of the range open, so it is shown as
+                  `max+` rather than a bound the roll can never exceed. */}
               <div className="text-sm opacity-90">
-                Range: {preview.min} - {preview.max}
+                {`Range: ${preview.min} - ${preview.max}${preview.open ? '+' : ''}`}
               </div>
               <div className="text-xs opacity-90">
                 {totalDiceCount} of {ROOM_DICE_CAPACITY} dice
@@ -487,7 +521,12 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
             <button
               onClick={handleSave}
               disabled={!canSave}
-              aria-describedby={isOverCapacity ? capacityMessageId : undefined}
+              aria-describedby={
+                [
+                  isOverCapacity ? capacityMessageId : null,
+                  isSuccessModeMixed ? successModeMessageId : null,
+                ].filter(Boolean).join(' ') || undefined
+              }
               className="flex-1 py-3 px-4 rounded-lg font-semibold transition-all disabled:opacity-50"
               style={{
                 backgroundColor: 'var(--color-accent)',

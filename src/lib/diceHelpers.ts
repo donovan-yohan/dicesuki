@@ -6,7 +6,9 @@
 
 import { DiceShape } from './geometries'
 import {
+  CompareMode,
   DiceEntry,
+  KeepMode,
   SavedRoll,
   QuickPreset,
 } from '../types/savedRolls'
@@ -200,6 +202,15 @@ export function formatBonus(bonus: number): string {
   return ''
 }
 
+/** Comparison operators as they appear in a reroll suffix (`r≤2`). */
+const COMPARE_SYMBOLS: Record<CompareMode, string> = {
+  equals: '=',
+  lessThan: '<',
+  lessOrEqual: '≤',
+  greaterThan: '>',
+  greaterOrEqual: '≥',
+}
+
 /**
  * Format a dice entry as readable text
  *
@@ -210,6 +221,12 @@ export function formatBonus(bonus: number): string {
  *
  * A percentile entry reads as its combined die, not its halves: `1d100`,
  * `4(d100+1)`.
+ *
+ * Advanced mechanics append in a fixed order so the same entry always reads the
+ * same way: exploding binds tightly to the die (`4d6!`, or `4d6!5` for a
+ * non-maximum trigger), then keep/drop (` kh1`), reroll (` r≤2`), success
+ * counting (` ≥5`) and finally the owned-dice tally (` [2 specific]`).
+ * Min/max clamps stay out of the formula — they are a badge, not notation.
  */
 export function formatDiceEntry(entry: DiceEntry): string {
   let text = ''
@@ -225,10 +242,32 @@ export function formatDiceEntry(entry: DiceEntry): string {
     text += `${rollCount}${dieLabel}`
   }
 
-  // Keep/drop
+  // A percentile pair cannot physically explode or reroll (half a pair is not
+  // a result), so a legacy/hand-edited entry carrying either must not RENDER
+  // them — the plan strips them too, and showing a suffix for something that
+  // will not happen is worse than dropping it silently.
+  const supportsPhysicalWaves = !isPercentileEntry(entry)
+
+  // Exploding — attached, not spaced, so it reads as part of the die
+  if (entry.exploding && supportsPhysicalWaves) {
+    text += entry.exploding.on === 'max' ? '!' : `!${entry.exploding.on}`
+  }
+
+  // Keep/drop. An absent keepMode means "keep highest" (see KEEP_MODE_DEFAULT),
+  // so the notation, the badges and the scoring all agree on advantage.
   if (entry.rollCount && entry.rollCount > entry.quantity) {
-    const mode = entry.keepMode === 'highest' ? 'kh' : 'kl'
+    const mode = entry.keepMode === 'lowest' ? 'kl' : 'kh'
     text += ` ${mode}${entry.quantity}`
+  }
+
+  // Reroll
+  if (entry.reroll && supportsPhysicalWaves) {
+    text += ` r${COMPARE_SYMBOLS[entry.reroll.condition]}${entry.reroll.value}`
+  }
+
+  // Success counting
+  if (entry.countSuccesses) {
+    text += ` ≥${entry.countSuccesses.targetNumber}`
   }
 
   const specificDieCount = getSpecificDieIds(entry).length
@@ -281,40 +320,113 @@ export function formatSavedRoll(roll: SavedRoll): string {
 }
 
 /**
- * Calculate expected value range for a dice entry
+ * Which dice a keep/drop entry keeps when the entry does not say.
+ *
+ * NOTE: this INVERTS the previous behaviour of `rollEngine.rollDiceEntry`,
+ * which kept the lowest when `keepMode` was absent, while the plan kept the
+ * highest and `formatDiceEntry` rendered `kl`. Real blast radius is zero —
+ * `validateDiceEntry` has no call sites, no UI has ever produced a keep/drop
+ * entry without a `keepMode`, and `rollEngine` has no production consumers —
+ * so the three were made to agree rather than preserving a default that only
+ * one of them implemented.
+ *
+ * `keepMode` is optional on `DiceEntry` and nothing validates it at runtime
+ * (`validateDiceEntry` has no call sites), so a legacy or hand-edited roll can
+ * reach scoring without one. Defaulting here — rather than at each read site —
+ * keeps the formula, the badges and the total from disagreeing about what a
+ * `2d20` keep-1 entry actually does. Highest matches the builder's own default
+ * and the far more common case, advantage.
  */
-export function calculateDiceEntryRange(entry: DiceEntry): { min: number; max: number } {
+export const KEEP_MODE_DEFAULT: KeepMode = 'highest'
+
+/**
+ * Does this entry keep fewer dice than it rolls?
+ *
+ * `quantity` is the keep count and `rollCount` the rolled count, so keep/drop
+ * is active exactly when a valid `rollCount` exceeds it.
+ */
+export function hasKeepDrop(entry: Pick<DiceEntry, 'quantity' | 'rollCount'>): boolean {
+  return entry.rollCount !== undefined && entry.rollCount > entry.quantity
+}
+
+/** How many dice of an entry actually score, after keep/drop. */
+export function getKeptDiceCount(entry: DiceEntry): number {
+  return hasKeepDrop(entry) ? entry.quantity : getDiceEntrySourceQuantity(entry)
+}
+
+export interface DiceRange {
+  min: number
+  max: number
+  /**
+   * True when exploding makes the upper bound unreachable-by-construction, so
+   * the UI renders `min - max+` instead of a closed interval.
+   */
+  open?: boolean
+}
+
+/**
+ * Calculate expected value range for a dice entry
+ *
+ * Accounts for keep/drop (only kept dice score), min/max clamps (which pull the
+ * per-face bounds in, never outside the die's own range), success counting
+ * (the range becomes a range of success *counts*, not a sum) and exploding
+ * (the sum is open-ended, so `max` is the no-explosion bound flagged `open`).
+ * Rerolling does not move either bound: it re-rolls within the same faces.
+ */
+export function calculateDiceEntryRange(entry: DiceEntry): DiceRange {
+  // Per-ENTRY bounds, not per-shape: a percentile pair reads 1-100, not the
+  // 0-90 of its tens half.
   const dieMin = getEntryMin(entry)
   const dieMax = getEntryMax(entry)
-  const quantity = entry.rollCount && entry.rollCount > entry.quantity
-    ? entry.quantity
-    : getDiceEntrySourceQuantity(entry)
+  const quantity = getKeptDiceCount(entry)
 
-  // Apply per-die bonus
-  const effectiveMin = Math.max(entry.minimum || dieMin, dieMin) + entry.perDieBonus
-  const effectiveMax = Math.min(entry.maximum || dieMax, dieMax) + entry.perDieBonus
+  // Clamps narrow the face range; they can never widen it past the real die.
+  const clampFace = (value: number) => Math.min(Math.max(value, dieMin), dieMax)
+  const lowFace = clampFace(entry.minimum ?? dieMin)
+  const highFace = Math.max(lowFace, clampFace(entry.maximum ?? dieMax))
 
-  // Multiply by kept quantity
-  return {
-    min: effectiveMin * quantity,
-    max: effectiveMax * quantity,
+  if (entry.countSuccesses) {
+    // Successes are counted, not summed: every kept die contributes at most one
+    // (two on a critical) and at worst zero (minus one on a botch).
+    return {
+      min: entry.countSuccesses.botchOn !== undefined ? -quantity : 0,
+      max: entry.countSuccesses.criticalOn !== undefined ? quantity * 2 : quantity,
+    }
   }
+
+  const min = (lowFace + entry.perDieBonus) * quantity
+  const max = (highFace + entry.perDieBonus) * quantity
+
+  // Exploding is only open-ended while nothing caps the die total. A maximum
+  // clamp applies to the whole chain, so the range closes again — and a
+  // percentile entry never explodes at all (`createSavedRollPlan` strips it),
+  // so a legacy row carrying the config must not advertise an open top end.
+  const isOpen = entry.exploding !== undefined
+    && entry.maximum === undefined
+    && !isPercentileEntry(entry)
+  return isOpen ? { min, max, open: true } : { min, max }
 }
 
 /**
  * Calculate expected value range for a complete saved roll
+ *
+ * The flat bonus is skipped when any entry counts successes, matching
+ * `SavedRoll.flatBonus` and `rollEngine.executeSavedRoll`.
  */
-export function calculateSavedRollRange(roll: SavedRoll): { min: number; max: number } {
-  let min = roll.flatBonus
-  let max = roll.flatBonus
+export function calculateSavedRollRange(roll: SavedRoll): DiceRange {
+  const includeFlatBonus = !isSuccessCountingRoll(roll)
+  let min = includeFlatBonus ? roll.flatBonus : 0
+  let max = includeFlatBonus ? roll.flatBonus : 0
+  let open = false
 
   for (const entry of roll.dice) {
     const range = calculateDiceEntryRange(entry)
     min += range.min
     max += range.max
+    open = open || range.open === true
   }
 
-  return { min, max }
+  return open ? { min, max, open: true } : { min, max }
 }
 
 /**
@@ -324,16 +436,17 @@ export function getDiceEntryBadges(entry: DiceEntry): string[] {
   const badges: string[] = []
 
   // Advantage/Disadvantage
-  if (entry.rollCount && entry.rollCount > entry.quantity) {
-    if (entry.keepMode === 'highest') {
-      badges.push('⬆️ ADV')
-    } else if (entry.keepMode === 'lowest') {
-      badges.push('⬇️ DIS')
-    }
+  if (hasKeepDrop(entry)) {
+    badges.push(entry.keepMode === 'lowest' ? '⬇️ DIS' : '⬆️ ADV')
   }
 
+  // Reroll and exploding are unavailable for a percentile pair (see
+  // formatDiceEntry) — badging them would advertise a mechanic that is stripped
+  // before it can run.
+  const supportsPhysicalWaves = !isPercentileEntry(entry)
+
   // Reroll
-  if (entry.reroll) {
+  if (entry.reroll && supportsPhysicalWaves) {
     if (entry.reroll.condition === 'lessOrEqual' && entry.reroll.value === 2) {
       badges.push('⚔️ GWF')
     } else if (entry.reroll.condition === 'equals' && entry.reroll.value === 1) {
@@ -344,7 +457,7 @@ export function getDiceEntryBadges(entry: DiceEntry): string[] {
   }
 
   // Exploding
-  if (entry.exploding) {
+  if (entry.exploding && supportsPhysicalWaves) {
     badges.push('💥 Explode')
   }
 

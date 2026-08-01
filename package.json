@@ -20,6 +20,7 @@
     "test:e2e:runtime-dice": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18182} playwright test e2e/cozy-forest-runtime.spec.ts",
     "test:e2e:hud-layout": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18183} playwright test e2e/hud-layout.spec.ts",
     "test:e2e:roll-builder": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18184} playwright test e2e/roll-builder.spec.ts",
+    "test:e2e:roll-advanced": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18185} playwright test e2e/roll-advanced.spec.ts",
     "test:coverage": "vitest --coverage",
     "generate:collectible-catalog": "node scripts/generate-collectible-catalog.js",
     "check:collectible-catalog": "node scripts/generate-collectible-catalog.js --check",
