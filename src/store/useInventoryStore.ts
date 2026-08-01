@@ -410,12 +410,17 @@ function dropSeededStarterDice(state: Record<string, unknown>): {
   const pruneAssignments = (value: unknown) => Object.fromEntries(
     Object.entries(asAssignments(value)).filter(([, dieId]) => !removed.has(dieId)),
   )
+  const purge = (value: unknown) => collect(value).filter(die => !isSeededStarter(die))
 
   return {
     state: {
       ...state,
-      dice: collect(state.dice).filter(die => !isSeededStarter(die)),
-      localDice: collect(state.localDice).filter(die => !isSeededStarter(die)),
+      dice: purge(state.dice),
+      // A pre-v4 payload has no `localDice` at all. Writing `[]` rather than
+      // leaving it undefined is deliberate: the field is required from v4 on,
+      // and an undefined one would make `selectRetainedLocalInventory` read a
+      // shape the rest of the store does not expect.
+      localDice: purge(state.localDice),
       assignments: pruneAssignments(state.assignments),
       localAssignments: pruneAssignments(state.localAssignments),
     },
@@ -445,7 +450,15 @@ export function migratePersistedInventory(
     return { state: emptyPersistedInventory(), removedStarterDieIds: [] }
   }
   const state = persistedState as Record<string, unknown>
-  if (!Array.isArray(state.dice)) return { state: persistedState, removedStarterDieIds: [] }
+  if (!Array.isArray(state.dice)) {
+    // A payload with no `dice` array is malformed as far as the v1-v3 catalog
+    // pass is concerned, but it may still carry `localDice` — and those starter
+    // rows become the visible inventory on the next sign-out. Returning early
+    // without purging is what let a starter die survive the migration entirely,
+    // so the v5 step still runs on whatever IS there.
+    const purged = dropSeededStarterDice(state)
+    return { state: purged.state, removedStarterDieIds: purged.removedDieIds }
+  }
   const dice = (version >= 3 ? state.dice : state.dice.map(value => {
     if (!value || typeof value !== 'object') return value
     const die = value as InventoryDie

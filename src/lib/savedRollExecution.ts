@@ -43,7 +43,12 @@ import {
   percentileTensPresentation,
   PERCENTILE_TENS_SHAPE,
 } from './percentileRolls'
-import { expandDiceEntrySpawns, getRollDiceCount, type RollSpawn } from './rollSources'
+import {
+  expandDiceEntrySpawns,
+  getRollDiceCount,
+  getSpecificDieIds,
+  type RollSpawn,
+} from './rollSources'
 import { isBasicDiePresentation } from './basicDice'
 import {
   MAX_EXPLOSION_WAVES,
@@ -317,6 +322,18 @@ function describeBasicFill(count: number): string {
     : `You ran out of owned dice, so ${count} basic dice filled in.`
 }
 
+/**
+ * Add a line to the roll notice without dropping what is already there.
+ *
+ * Waves report at different times — a base-wave substitution, a reroll
+ * substitution, a skipped explosion — and each is still true when the next one
+ * lands, so they accumulate into the HUD's one line instead of overwriting.
+ */
+function appendRollNotice(line: string): void {
+  const existing = useDiceStore.getState().rollNotice
+  useDiceStore.getState().setRollNotice(existing ? `${existing} ${line}` : line)
+}
+
 /** Where each of an entry's base-wave dice came from, for the roll notice. */
 interface EntrySpawnLedger {
   /** Dice the roll pinned by inventory id. A basic here means the die is gone. */
@@ -451,6 +468,10 @@ async function runRerollWave(
   await waitForRemovals(doomedIds)
 
   const spawnedIds: string[] = []
+  // Dice that were owned before the reroll but came back basic — the die left
+  // the collection mid-roll (sold in another tab, a revoked server copy). Same
+  // failure the base wave reports, so it gets the same sentence.
+  const rerolledNamedIds: string[] = []
   try {
     targets.forEach((target, index) => {
       // A rerolled OWNED die comes back as itself; a rerolled plain die stays
@@ -462,6 +483,7 @@ async function runRerollWave(
         target.type,
         inventoryDieId,
       )
+      if (inventoryDieId) rerolledNamedIds.push(id)
       replaceGroupMembers(plan, target.entryId, target.groupIndex, id)
       spawnedIds.push(id)
     })
@@ -484,6 +506,11 @@ async function runRerollWave(
   // plan). Nothing may observe a settle while the plan is missing.
   publishPlan(plan, roll)
   await waitForSpawns(spawnedIds, ownerId)
+
+  // The room has echoed the replacements, so a substitution is now visible.
+  const substituted = countBasicSpawns(rerolledNamedIds)
+  if (substituted > 0) appendRollNotice(describeMissingNamedDice(substituted))
+
   useDiceStore.getState().markDiceRolling(spawnedIds)
   await waitForSettle(spawnedIds)
   return true
@@ -578,8 +605,19 @@ export async function executePhysicalSavedRoll(
   const plan = createSavedRollPlan(roll)
   const ledger: EntrySpawnLedger = { named: [], ownedFirst: [] }
 
-  for (const entry of roll.dice) {
-    spawnEntry(backend, plan, entry, ledger)
+  // Claim every die this roll pins BEFORE any of it spawns. Plain entries fill
+  // owned-first from the same collection, so without this an entry listed before
+  // a pinned one could take that exact die — an outcome that varied with entry
+  // order and with `Math.random`, and that reported a still-owned die as gone.
+  // Released as soon as the base wave is issued: later waves never pick
+  // owned-first (rerolls respawn a named die, explosions are always basic).
+  diceStore.reserveInventoryDice(roll.dice.flatMap(getSpecificDieIds))
+  try {
+    for (const entry of roll.dice) {
+      spawnEntry(backend, plan, entry, ledger)
+    }
+  } finally {
+    useDiceStore.getState().clearInventoryDiceReservations()
   }
 
   // The plan is the single record of which dice this roll owns; deriving the
@@ -643,16 +681,7 @@ export async function executePhysicalSavedRoll(
     await waitForSettle(baseIds)
     await runRerollWave(plan, roll, options)
     const skipped = await runExplosionWaves(plan, roll, options)
-    if (skipped > 0) {
-      // Appended, not replaced: a substitution notice from the base wave is
-      // still true, and the HUD shows one line.
-      const existing = useDiceStore.getState().rollNotice
-      useDiceStore.getState().setRollNotice(
-        existing
-          ? `${existing} ${describeSkippedExplosions(skipped)}`
-          : describeSkippedExplosions(skipped),
-      )
-    }
+    if (skipped > 0) appendRollNotice(describeSkippedExplosions(skipped))
   } catch (error) {
     useDiceStore.getState().setRollNotice(
       error instanceof Error

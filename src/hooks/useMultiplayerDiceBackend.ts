@@ -73,9 +73,19 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
     ])
 
     const inventoryCandidates = inventoryStore.getDiceByType(type)
+    // Dice a roll being spawned has PINNED by id but not yet put on the table.
+    // Excluded from owned-first picks only — a NAMED spawn is allowed (indeed
+    // required) to claim the die reserved for it. Without this a plain source
+    // could take a pinned die first, leaving the pinned source to degrade to a
+    // basic and wrongly report the die as missing.
+    const reservedIds = useDiceStore.getState().reservedInventoryDieIds
+    const unavailableForRandomPick = reservedIds.size === 0
+      ? inUseInventoryIds
+      : new Set([...inUseInventoryIds, ...reservedIds])
+
     const requestedDie = inventoryDieId
       ? inventoryStore.dice.find((die) => die.id === inventoryDieId)
-      : selectRandomAvailableDie(inventoryCandidates, inUseInventoryIds)
+      : selectRandomAvailableDie(inventoryCandidates, unavailableForRandomPick)
 
     // A saved roll can outlive the die it names (sold, revoked with a server
     // copy, or dropped by the starter-inventory cleanup). Substituting a basic

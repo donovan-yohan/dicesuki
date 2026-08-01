@@ -14,6 +14,7 @@ import {
   stopSync,
   hydrateTarget,
   initDataSync,
+  createRealTargets,
   __resetDataSyncForTests,
   type SyncTarget,
 } from './dataSync'
@@ -295,6 +296,70 @@ describe('dataSync', () => {
       // cleanup
       useInventoryStore.getState().reset()
       useSavedRollsStore.setState({ savedRolls: [] })
+      stopSync()
+    })
+
+    it('stamps the inventory payload at the store\'s current persist version', () => {
+      // A blob written here is read back through the SAME migration chain, so a
+      // stale stamp would re-run migrations that have already been applied.
+      const targets = createRealTargets()
+      const inv = targets.find((t) => t.table === 'inventory')!
+
+      expect(inv.getPayload().v).toBe(5)
+    })
+
+    it('repairs saved rolls when a remote v4 blob still carries starter dice', async () => {
+      // A device that has not synced since the starter cleanup can push a v4
+      // blob back. Applying it must drop the starter rows AND rewrite the saved
+      // rolls that pinned them — otherwise a dangling reference rides back in
+      // from the other device and never gets repaired again.
+      const starter = {
+        id: 'die_starter_remote',
+        type: 'd4',
+        rarity: 'common',
+        setId: 'adventurer-starter',
+        source: 'starter',
+        stats: {},
+        assignedToRolls: [],
+      }
+      useSavedRollsStore.setState({
+        savedRolls: [{
+          id: 'roll-remote',
+          name: 'Pinned to a starter',
+          flatBonus: 0,
+          createdAt: 1,
+          dice: [{
+            id: 'entry-1',
+            type: 'd4',
+            quantity: 1,
+            perDieBonus: 0,
+            sources: [{ kind: 'specific', dieId: 'die_starter_remote' }],
+          }],
+        }],
+        currentlyEditing: null,
+      })
+      const { client } = makeFakeClient({
+        inventory: {
+          data: {
+            v: 4,
+            dice: [starter],
+            localDice: [starter],
+            currency: { coins: 0, gems: 0, standardTokens: 0, premiumTokens: 0 },
+            assignments: {},
+          },
+          updated_at: new Date().toISOString(),
+        },
+      })
+
+      const inv = createRealTargets().find((t) => t.table === 'inventory')!
+      await hydrateTarget(client, 'user-1', inv)
+
+      expect(useInventoryStore.getState().dice).toHaveLength(0)
+      expect(useSavedRollsStore.getState().savedRolls[0].dice[0].sources)
+        .toEqual([{ kind: 'anonymous', quantity: 1 }])
+
+      useInventoryStore.getState().reset()
+      useSavedRollsStore.setState({ savedRolls: [], currentlyEditing: null })
       stopSync()
     })
   })

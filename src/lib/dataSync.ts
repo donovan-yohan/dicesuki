@@ -30,10 +30,11 @@
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient'
 import { useAuthStore } from '../store/useAuthStore'
 import {
-  migratePersistedInventoryState,
+  migratePersistedInventory,
   selectRetainedLocalInventory,
   useInventoryStore,
 } from '../store/useInventoryStore'
+import { pruneSavedRollsForRemovedDice } from './savedRollDieCleanup'
 import { useSavedRollsStore, normalizePersistedSavedRollsState } from '../store/useSavedRollsStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -75,7 +76,10 @@ export function createRealTargets(): SyncTarget[] {
         const s = useInventoryStore.getState()
         const retained = selectRetainedLocalInventory(s)
         return {
-          v: 4,
+          // Tracks the inventory store's persist version: a blob written here is
+          // read back through the SAME migration chain, so a stale stamp would
+          // re-run migrations that have already been applied.
+          v: 5,
           dice: retained.dice,
           currency: s.currency,
           assignments: retained.assignments,
@@ -84,12 +88,19 @@ export function createRealTargets(): SyncTarget[] {
       applyPayload: (data) => {
         const d = asRecord(data)
         const version = typeof d.v === 'number' ? d.v : 2
-        const migrated = asRecord(migratePersistedInventoryState(d, version))
+        // A blob written by another device can predate the v5 starter cleanup,
+        // so it gets the same treatment as a local rehydrate: the seeded starter
+        // rows are dropped AND the saved rolls that pinned them are repaired.
+        // Skipping the second half would let a dangling reference ride back in
+        // from a device that has not synced yet.
+        const { state, removedStarterDieIds } = migratePersistedInventory(d, version)
+        const migrated = asRecord(state)
         useInventoryStore.setState({
           dice: Array.isArray(migrated.dice) ? (migrated.dice as never[]) : [],
           currency: asRecord(migrated.currency) as never,
           assignments: asRecord(migrated.assignments) as never,
         })
+        pruneSavedRollsForRemovedDice(removedStarterDieIds)
       },
       subscribe: (listener) => useInventoryStore.subscribe(listener),
     },

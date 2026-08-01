@@ -228,6 +228,36 @@ describe('useInventoryStore server-copy slice', () => {
       expect(migrated.currency.coins).toBe(4)
     })
 
+    it('still purges localDice when the payload has no dice array', () => {
+      // The v1-v3 catalog pass needs `dice` to be an array and used to bail out
+      // here — which skipped the starter purge entirely, so a starter row in
+      // `localDice` survived and became the visible inventory on sign-out.
+      const { state, removedStarterDieIds } = migratePersistedInventory({
+        localDice: [starterDie('die_starter_a'), keptDie('die_reward_b')],
+        localAssignments: { 'roll:entry:0': 'die_starter_a' },
+      }, 4)
+
+      const migrated = state as {
+        localDice: NewInventoryDie[]
+        localAssignments: Record<string, string>
+      }
+      expect(removedStarterDieIds).toEqual(['die_starter_a'])
+      expect(migrated.localDice.map(die => die.id)).toEqual(['die_reward_b'])
+      expect(migrated.localAssignments).toEqual({})
+    })
+
+    it('normalizes a missing localDice to an empty array when purging', () => {
+      // A pre-v4 payload has no `localDice` at all; leaving it undefined would
+      // hand the store a shape it does not expect.
+      const { state } = migratePersistedInventory({
+        dice: [starterDie('die_starter_a')],
+        assignments: {},
+      }, 4)
+
+      expect((state as { localDice: unknown }).localDice).toEqual([])
+      expect((state as { dice: unknown[] }).dice).toEqual([])
+    })
+
     it('is a no-op for an inventory with no starter rows', () => {
       const persisted = {
         dice: [keptDie('die_reward_b')],
