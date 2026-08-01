@@ -686,24 +686,33 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       case 'dice_removed': {
         const { dice } = get()
         const newDice = new Map(dice)
-        const { players: removalPlayers, localPlayerId: removalLocalId } = get()
-        const remover = removalLocalId ? removalPlayers.get(removalLocalId) : undefined
+        // Removing a die the room still tracks for an explicit roll cancels that
+        // roll (`remove_dice` drops `pending_roll`), so no `roll_complete` will
+        // follow and the roll would leave no trace. Mark the cycle ONCE for the
+        // whole message, before anything is deleted — the owner has to be read
+        // off the die while it is still here, and it is the ROLL's owner, not
+        // whoever happens to be local: a remote player's trashed roll must be
+        // attributed to them, exactly as their `roll_complete` row would be.
+        const { players: removalPlayers } = get()
+        const cycleDice = useDiceStore.getState().currentRollCycleDice
+        const cancelledId = msg.diceIds.find((id) => cycleDice.has(id))
+        const rollOwnerId = cancelledId === undefined
+          ? undefined
+          : dice.get(cancelledId)?.ownerId
+        const rollOwner = rollOwnerId ? removalPlayers.get(rollOwnerId) : undefined
+        useDiceStore.getState().orphanRollCycleForRemoval(
+          msg.diceIds,
+          rollOwnerId && rollOwner
+            ? { id: rollOwnerId, displayName: rollOwner.displayName, color: rollOwner.color }
+            : undefined,
+        )
+
         for (const id of msg.diceIds) {
           newDice.delete(id)
           // Mirror the removal into the roll-result store so the top-of-screen
           // total and per-die chips drop the deleted die's face — otherwise its
           // settled value lingers and later rolls appear to add to a stale sum.
-          //
-          // The player is passed so that a removal which cancels a roll still in
-          // flight can record an attributed partial row: the room drops its
-          // `pending_roll` when a tracked die is removed, so no `roll_complete`
-          // follows and the roll would otherwise leave no trace.
-          useDiceStore.getState().removeDieState(
-            id,
-            remover && removalLocalId
-              ? { id: removalLocalId, displayName: remover.displayName, color: remover.color }
-              : undefined,
-          )
+          useDiceStore.getState().removeDieState(id)
         }
         set({ dice: newDice })
         break

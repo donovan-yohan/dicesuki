@@ -143,6 +143,19 @@ interface DiceStore {
    */
   suppressedRollDiceIds: readonly string[] | null
   /**
+   * Set when a removal has cancelled the roll this cycle belongs to, so no
+   * `roll_complete` is ever coming for it — carrying whoever owned that roll.
+   *
+   * A mark, not a snapshot. The removal is decided once per `dice_removed`
+   * message, but the row is written later, by the ordinary drain, from whatever
+   * has settled BY THEN. Recording at removal time instead would take the total
+   * at the wrong moment: a die removed before any of the roll had landed found
+   * nothing settled and recorded nothing at all, and dice still in the air when
+   * the message arrived — the normal case, since a removal races the physics —
+   * were dropped from a roll the old settle-drain would have counted.
+   */
+  orphanedCycle: { player?: RollSnapshot['player'] } | null
+  /**
    * Inventory dice a roll being spawned has PINNED by id but has not put on the
    * table yet.
    *
@@ -168,11 +181,16 @@ interface DiceStore {
   recordDieSettled: (diceId: string, value: number, type: string, presentation?: DicePresentationMetadata) => void
   /** Record a finished roll. The row's `id` is minted here, not by the caller. */
   addRollToHistory: (snapshot: Omit<RollSnapshot, 'id'>) => void
+  removeDieState: (diceId: string) => void
   /**
-   * Drop a die. `player` attributes the compensating row written when the die
-   * belonged to a roll still in flight — see the implementation.
+   * Note that one `dice_removed` message cancelled the open roll, attributing
+   * the eventual row to `player` (the roll's owner, who may be a remote player).
+   * Call ONCE per message, before the dice are removed. See `orphanedCycle`.
    */
-  removeDieState: (diceId: string, player?: RollSnapshot['player']) => void
+  orphanRollCycleForRemoval: (
+    removedIds: readonly string[],
+    player?: RollSnapshot['player'],
+  ) => void
   clearAllDieStates: () => void
   setActiveSavedRoll: (roll: ActiveSavedRoll) => void
   clearActiveSavedRoll: () => void
@@ -224,6 +242,41 @@ function buildCycleSnapshot(
   return { id: newRollSnapshotId(), dice: cycleDice, sum, timestamp: Date.now() }
 }
 
+/**
+ * Close the roll cycle if the table has gone still, and record it if it was
+ * orphaned. Returns null when the roll is still running.
+ *
+ * Stillness is reached two ways — the last die SETTLES, or the last rolling die
+ * is REMOVED — so both mutations ask this rather than only the settle path. A
+ * removal that takes the last die in the air off the table is precisely the
+ * cancelled-roll case, and no further settle would ever arrive to close it.
+ */
+function closeCycleIfStill(
+  state: DiceStore,
+  newSettled: Map<string, DieSettledState>,
+  newRolling: Set<string>,
+  newCycleDice: Set<string>,
+): Partial<DiceStore> | null {
+  if (newRolling.size > 0 || newCycleDice.size === 0) return null
+  // A saved roll's waves keep the cycle open across the gaps between them;
+  // `finishSavedRollWaves` closes and records it.
+  if (state.savedRollWavesPending) return null
+
+  const orphan = state.orphanedCycle
+  if (!orphan) return { currentRollCycleDice: new Set<string>() }
+
+  // No `roll_complete` is coming for this roll, so the row is written here from
+  // everything that made it to the table.
+  const snapshot = buildCycleSnapshot(newSettled, newCycleDice, state.activeSavedRoll)
+  return {
+    currentRollCycleDice: new Set<string>(),
+    orphanedCycle: null,
+    rollHistory: snapshot
+      ? [...state.rollHistory, orphan.player ? { ...snapshot, player: orphan.player } : snapshot]
+      : state.rollHistory,
+  }
+}
+
 export const useDiceStore = create<DiceStore>()(
   persist(
     (set) => ({
@@ -234,6 +287,7 @@ export const useDiceStore = create<DiceStore>()(
       activeSavedRoll: null,
       savedRollWavesPending: false,
       suppressedRollDiceIds: null,
+      orphanedCycle: null,
       reservedInventoryDieIds: new Set(),
       rollNotice: null,
 
@@ -265,7 +319,9 @@ export const useDiceStore = create<DiceStore>()(
             settledDice: newSettled,
             rollingDice: newRolling,
             currentRollCycleDice: newCycleDice,
-            ...(startsFreshCycle ? { suppressedRollDiceIds: null } : {}),
+            // A fresh cycle is a fresh roll: neither the previous roll's claim
+            // nor its orphan mark may leak into it.
+            ...(startsFreshCycle ? { suppressedRollDiceIds: null, orphanedCycle: null } : {}),
           }
         })
       },
@@ -306,27 +362,24 @@ export const useDiceStore = create<DiceStore>()(
           //     close below is gated on the same latch so the cycle stays open
           //     across the waves and that snapshot sees every die.
           //  3. A die of the roll is REMOVED → the room cancels `pending_roll`
-          //     and no `roll_complete` ever comes. `removeDieState` compensates
-          //     by recording what had settled.
+          //     and no `roll_complete` ever comes. The cycle is marked orphaned
+          //     (`orphanedCycle`) and this drain records it instead, from
+          //     everything that had settled by the time the table went still.
           //
           // Clearing the cycle here is also what stops a later knock and
           // re-settle from resurrecting a finished roll (`dice_knocked` never
           // reopens a cycle, so the re-settle lands with an empty cycle set).
-          if (
-            newRolling.size === 0
-            && state.currentRollCycleDice.size > 0
-            && !state.savedRollWavesPending
-          ) {
-            return {
-              settledDice: newSettled,
-              rollingDice: newRolling,
-              currentRollCycleDice: new Set<string>(),
-            }
-          }
+          const closed = closeCycleIfStill(
+            state,
+            newSettled,
+            newRolling,
+            state.currentRollCycleDice,
+          )
 
           return {
             settledDice: newSettled,
             rollingDice: newRolling,
+            ...(closed ?? {}),
           }
         })
       },
@@ -337,7 +390,7 @@ export const useDiceStore = create<DiceStore>()(
         }))
       },
 
-      removeDieState: (diceId: string, player?: RollSnapshot['player']) => {
+      removeDieState: (diceId: string) => {
         set((state) => {
           const newSettled = new Map(state.settledDice)
           newSettled.delete(diceId)
@@ -348,44 +401,56 @@ export const useDiceStore = create<DiceStore>()(
           const newCycleDice = new Set(state.currentRollCycleDice)
           newCycleDice.delete(diceId)
 
-          // Removing a die the room is still tracking for an explicit roll
-          // CANCELS that roll server-side (`remove_dice` drops `pending_roll` in
-          // `server/core/src/room.rs`), so no `roll_complete` is ever coming and
-          // the roll would leave no trace at all. Record what settled — a
-          // partial row, the way the old settle-drain behaved — rather than lose
-          // it. Compensation only; the real fix is the room completing or
-          // explicitly cancelling the roll, which is a core change for both
-          // targets and is tracked separately.
-          //
-          // Only for a cycle that is genuinely OPEN mid-roll. A die removed from
-          // a settled table has already been recorded (the cycle closed on
-          // drain), and the wave path removes rerolled dice on purpose, which is
-          // its own business — hence the latch check.
-          const cancelsRollInFlight = state.currentRollCycleDice.has(diceId)
-            && !state.savedRollWavesPending
-
-          if (cancelsRollInFlight) {
-            const snapshot = newCycleDice.size > 0
-              ? buildCycleSnapshot(newSettled, newCycleDice, state.activeSavedRoll)
-              : null
-            if (snapshot) {
-              return {
-                settledDice: newSettled,
-                rollingDice: newRolling,
-                currentRollCycleDice: new Set<string>(),
-                rollHistory: [
-                  ...state.rollHistory,
-                  player ? { ...snapshot, player } : snapshot,
-                ],
-              }
-            }
-          }
+          // Taking the last die in the air off the table ends the roll just as
+          // surely as it settling would have, and no settle will follow to
+          // notice — so the close is checked here too.
+          const closed = closeCycleIfStill(state, newSettled, newRolling, newCycleDice)
 
           return {
             settledDice: newSettled,
             rollingDice: newRolling,
             currentRollCycleDice: newCycleDice,
+            ...(closed ?? {}),
           }
+        })
+      },
+
+      /**
+       * Removing a die the room is still tracking for an explicit roll CANCELS
+       * that roll server-side (`remove_dice` drops `pending_roll` in
+       * `server/core/src/room.rs`), so no `roll_complete` is ever broadcast and
+       * the roll would leave no trace. Mark the cycle so the drain records it.
+       *
+       * Compensation only; the real fix is the room completing the roll from the
+       * survivors or emitting an explicit cancellation, which is a core change
+       * affecting both targets and is tracked separately.
+       *
+       * Decided ONCE for the whole message. Asking per die id would make the
+       * answer depend on the order ids happen to appear in: the first id could
+       * empty the cycle, leaving the rest to find nothing to cancel.
+       *
+       * Two cases are deliberately NOT orphaned:
+       * - no removed die is in the cycle → either no roll is in flight or the
+       *   cycle already closed and its row is written; tidying a settled table
+       *   must not add a second one;
+       * - the removed dice belong to a roll a wave sequence has CLAIMED → that
+       *   is the reroll wave discarding its own dice, and `finishSavedRollWaves`
+       *   owns that row. A remote player's roll being trashed is still orphaned
+       *   even while we hold a claim, since our claim says nothing about theirs.
+       */
+      orphanRollCycleForRemoval: (
+        removedIds: readonly string[],
+        player?: RollSnapshot['player'],
+      ) => {
+        set((state) => {
+          if (state.orphanedCycle !== null) return state
+          const cancelled = removedIds.filter((id) => state.currentRollCycleDice.has(id))
+          if (cancelled.length === 0) return state
+
+          const claim = state.suppressedRollDiceIds
+          if (claim !== null && cancelled.some((id) => claim.includes(id))) return state
+
+          return { orphanedCycle: { player } }
         })
       },
 
@@ -394,6 +459,8 @@ export const useDiceStore = create<DiceStore>()(
           settledDice: new Map(),
           rollingDice: new Set(),
           currentRollCycleDice: new Set(),
+          // The cycle is gone, so a pending orphan mark has nothing left to record.
+          orphanedCycle: null,
           // The notice describes the roll being cleared away, so it goes with it.
           rollNotice: null,
         })
@@ -466,6 +533,8 @@ export const useDiceStore = create<DiceStore>()(
           return {
             savedRollWavesPending: false,
             currentRollCycleDice: new Set<string>(),
+            // This closes the cycle, so any orphan mark on it is spent.
+            orphanedCycle: null,
             // This row stands in for the `roll_complete` row the wave path
             // suppresses, so it carries the same attribution — otherwise a
             // multiplayer wave roll would land in history with no player. The
@@ -516,6 +585,7 @@ export const useDiceStore = create<DiceStore>()(
           activeSavedRoll: null,
           savedRollWavesPending: false,
           suppressedRollDiceIds: null,
+          orphanedCycle: null,
           reservedInventoryDieIds: new Set(),
           rollNotice: null,
         })
@@ -528,11 +598,14 @@ export const useDiceStore = create<DiceStore>()(
       /**
        * v1 gave every history row a stable `id` (`RollSnapshot.id`). Rows saved
        * before that have none, and the list used to key on `timestamp`, so
-       * backfill an id per row rather than leaving the UI to collide on ties.
+       * backfill an id for any row lacking one rather than leaving the UI to
+       * collide on ties.
        */
       migrate: (persistedState) => {
-        // No version check: `persist` only calls this when the stored version is
-        // BELOW the current one, so v0 is the only input this can ever see.
+        // `persist` runs this on ANY version mismatch, a stored version above
+        // this one included (a downgrade, after a rollback). So this backfills
+        // per row and leaves an existing `id` alone rather than assuming the
+        // input is v0 and reminting everything.
         const state = persistedState as { rollHistory?: RollSnapshot[] } | null | undefined
         if (!state) return { rollHistory: [] } as unknown as DiceStore
         return {

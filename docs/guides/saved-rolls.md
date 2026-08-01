@@ -81,7 +81,13 @@ While `savedRollWavesPending` is true:
 - The claim is dropped when a new cycle opens (`markDiceRolling` on a fresh cycle), so re-rolling an unchanged table cannot inherit it.
 - `finishSavedRollWaves` writes the row, carrying the same player attribution `roll_complete` would have. If dice are still in the air it records **what has settled** rather than nothing; if nothing settled at all it releases the claim so `roll_complete` still writes the row. Either way the roll is never lost.
 
-**Known gap (compensated, not fixed).** Removing a die the room is tracking for an explicit roll makes `remove_dice` drop `pending_roll`, so no `roll_complete` ever arrives. `removeDieState` compensates by recording the dice that had settled — a partial row instead of a vanished roll. The proper fix (the room completing the roll from the survivors, or emitting an explicit cancellation) is a `dicesuki-core` change affecting both targets and is tracked separately.
+**Known gap (compensated, not fixed).** Removing a die the room is tracking for an explicit roll makes `remove_dice` drop `pending_roll`, so no `roll_complete` ever arrives and the roll would leave no trace.
+
+The `dice_removed` handler decides **once per message** whether that message cancels the open cycle, and if so *marks* it (`orphanedCycle`) rather than recording anything there and then. The row is written when the table next goes still — by the settle drain, or by the removal itself if it took the last die out of the air — so it contains everything that *eventually* landed. Recording at removal time instead got the moment wrong in three ways: a removal that beat every die to the table found nothing settled and recorded nothing; dice still tumbling when the message arrived (the normal case, since a removal races the physics) were dropped; and deciding per die id made the outcome depend on the order ids happened to appear in a batch.
+
+The row is attributed to the **roll's owner**, read off the die before it is deleted — a remote player's trashed roll is attributed to them, exactly as their `roll_complete` row would be, never to whoever is local. A wave sequence's own claimed dice are exempt, since that is the reroll wave discarding its dice and `finishSavedRollWaves` owns that row; a remote player's roll is still orphaned even while we hold a claim.
+
+The proper fix (the room completing the roll from the survivors, or emitting an explicit cancellation) is a `dicesuki-core` change affecting both targets and is tracked separately.
 
 ### Invariant: the backend clears the saved-roll context on every spawn
 `useMultiplayerDiceBackend.addDie`/`addGenericDie` call `clearActiveSavedRoll()` as their first act — including the executor's own follow-up-wave spawns. Therefore:
