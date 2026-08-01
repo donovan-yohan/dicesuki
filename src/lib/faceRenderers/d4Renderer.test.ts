@@ -36,31 +36,10 @@ describe('D4 Classic Renderer', () => {
       expect(D4_FACE_NUMBERS.length).toBe(4)
     })
 
-    it('each face has exactly 3 numbers', () => {
-      for (const nums of D4_FACE_NUMBERS) {
-        expect(nums.length).toBe(3)
-      }
-    })
-
-    it('each face shows only numbers 1-4', () => {
-      for (const nums of D4_FACE_NUMBERS) {
-        for (const n of nums) {
-          expect(n).toBeGreaterThanOrEqual(1)
-          expect(n).toBeLessThanOrEqual(4)
-        }
-      }
-    })
-
-    it('no face shows its own value among its numbers', () => {
-      // Face 0 has value 1, so shouldn't show "1"
-      // Face 1 has value 2, so shouldn't show "2"
-      // etc.
-      for (let faceIndex = 0; faceIndex < 4; faceIndex++) {
-        const faceValue = faceIndex + 1
-        const numbers = D4_FACE_NUMBERS[faceIndex]
-        expect(numbers).not.toContain(faceValue)
-      }
-    })
+    // Three weaker cases ('exactly 3 numbers', 'only numbers 1-4', 'no face
+    // shows its own value') were folded into the exact-set assertion below: a
+    // `toEqual` against the sorted complement pins the count, the membership,
+    // and the absence of the face's own value in one shot.
 
     it('each face shows the values of the other 3 faces', () => {
       for (let faceIndex = 0; faceIndex < 4; faceIndex++) {
@@ -129,11 +108,8 @@ describe('D4 Classic Renderer', () => {
       expect(mockCtx.fillRect).toHaveBeenCalledWith(0, 0, 256, 256)
     })
 
-    it('draws exactly 3 numbers for each face', () => {
-      renderD4Classic(mockCtx, 1, 256, '#ff6b35')
-      // fillText is called 3 times (once per vertex number)
-      expect(mockCtx.fillText).toHaveBeenCalledTimes(3)
-    })
+    // 'draws exactly 3 numbers' ran the identical render as the next test,
+    // whose `toEqual(['2', '3', '4'])` already pins the count.
 
     it('draws the correct 3 numbers for face value 1', () => {
       renderD4Classic(mockCtx, 1, 256, '#ff6b35')

@@ -92,18 +92,11 @@ describe('DeviceMotionButton', () => {
       })
     })
 
-    it('should show shake indicator when shaking', async () => {
-      // Auto-grant permission
-      mutableDeviceMotionEvent().requestPermission = undefined
-
-      renderWithProvider(<DeviceMotionButton />)
-
-      const button = screen.getByRole('button')
-      fireEvent.click(button)
-
-      // Note: Testing shake indicator would require triggering devicemotion events
-      // which is complex in a unit test. This would be better tested in an integration test.
-    })
+    // A 'should show shake indicator when shaking' case used to sit here with no
+    // `expect` at all — its own comment conceded that driving `devicemotion`
+    // is out of reach in jsdom. Shake handling is covered where it can actually
+    // be driven: `src/hooks/useDeviceMotion.test.tsx` (tilt/accel fusion) and
+    // `src/lib/motionField.test.ts` (deadzone + axis mapping).
   })
 
   describe('permission denied state', () => {
@@ -136,22 +129,10 @@ describe('DeviceMotionButton', () => {
     })
   })
 
-  describe('visual states', () => {
-    it('should have distinct styling for each state', async () => {
-      const mockRequestPermission = vi.fn().mockResolvedValue('granted')
-      mutableDeviceMotionEvent().requestPermission = mockRequestPermission
-
-      renderWithProvider(<DeviceMotionButton />)
-
-      const promptButton = screen.getByRole('button')
-      expect(promptButton.className).toContain('bg-')
-
-      fireEvent.click(promptButton)
-
-      await waitFor(() => {
-        const grantedButton = screen.getByRole('button')
-        expect(grantedButton.className).toContain('bg-')
-      })
-    })
-  })
+  // 'should have distinct styling for each state' used to live here. It asserted
+  // `className` contained `'bg-'` before and after granting — never comparing the
+  // two — so it passed for *any* background utility, including the same one
+  // twice, and could not fail on the very thing it named. The states are
+  // distinguished by their user-visible copy above ('Motion Enabled',
+  // 'Motion Blocked'), which is what a player actually reads.
 })

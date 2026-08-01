@@ -21,23 +21,10 @@ describe('useDiceStore', () => {
     useDiceStore.getState().reset()
   })
 
-  describe('initial state', () => {
-    it('should start with empty settledDice', () => {
-      expect(useDiceStore.getState().settledDice.size).toBe(0)
-    })
-
-    it('should start with empty rollingDice', () => {
-      expect(useDiceStore.getState().rollingDice.size).toBe(0)
-    })
-
-    it('should start with empty currentRollCycleDice', () => {
-      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(0)
-    })
-
-    it('should start with empty rollHistory', () => {
-      expect(useDiceStore.getState().rollHistory).toEqual([])
-    })
-  })
+  // An 'initial state' block used to assert these five defaults with nothing
+  // between `beforeEach`'s `reset()` and the assertion. The `reset` suite at the
+  // bottom of this file asserts the same five fields *after* real mutation,
+  // which is the only version that can catch a broken `reset()`.
 
   describe('markDiceRolling', () => {
     it('should add dice IDs to rollingDice set', () => {
@@ -302,10 +289,6 @@ describe('useDiceStore', () => {
   })
 
   describe('activeSavedRoll', () => {
-    it('should start with null activeSavedRoll', () => {
-      expect(useDiceStore.getState().activeSavedRoll).toBeNull()
-    })
-
     it('should store active roll data via setActiveSavedRoll', () => {
       const perDieBonuses = new Map([['die-1', 2], ['die-2', 2]])
       useDiceStore.getState().setActiveSavedRoll({

@@ -122,12 +122,9 @@ describe('TableHud (Layout A)', () => {
     }
   })
 
-  it('keeps the eye reachable whenever the UI is hidden, since overlays close with it', () => {
-    // "UI hidden" and "overlay open" are mutually exclusive states, so the eye
-    // can never be suppressed while it is the only way back to the HUD.
-    renderHud({ isUIVisible: false, isOverlayOpen: false })
-    expect(screen.getByRole('button', { name: 'Show UI' })).toBeInTheDocument()
-  })
+  // 'keeps the eye reachable whenever the UI is hidden' rendered the identical
+  // props as 'drops every control except the eye…' above (`isOverlayOpen: false`
+  // is already the default) and made the identical assertion.
 
   it('hides the motion toggle on desktop but keeps rotate and the eye', () => {
     renderHud({ isMobile: false })

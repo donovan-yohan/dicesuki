@@ -25,9 +25,8 @@ const DICE_TYPES: DiceShape[] = ['d4', 'd6', 'd8', 'd10', 'd10tens', 'd12', 'd20
 
 describe('D6 Geometry', () => {
   describe('D6_FACE_NORMALS', () => {
-    it('should have 6 face normals', () => {
-      expect(D6_FACE_NORMALS).toHaveLength(6)
-    })
+    // Length and unit-length are asserted for *every* shape (d6 included) by
+    // "Face normal arrays - structural validation" at the bottom of this file.
 
     it('should have correct normals for each face value', () => {
       // Face 1 (bottom): -Y
@@ -53,13 +52,6 @@ describe('D6 Geometry', () => {
       // Face 4 (left): -X
       expect(D6_FACE_NORMALS[3].value).toBe(4)
       expect(D6_FACE_NORMALS[3].normal.x).toBeCloseTo(-1, 5)
-    })
-
-    it('should have unit-length normals', () => {
-      D6_FACE_NORMALS.forEach(({ normal }) => {
-        const length = Math.sqrt(normal.x ** 2 + normal.y ** 2 + normal.z ** 2)
-        expect(length).toBeCloseTo(1, 5)
-      })
     })
   })
 

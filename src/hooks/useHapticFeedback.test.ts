@@ -39,11 +39,10 @@ describe('useHapticFeedback', () => {
   })
 
   describe('initialization', () => {
-    it('should start with haptics enabled by default', () => {
-      const { result } = renderHook(() => useHapticFeedback())
-
-      expect(result.current.isEnabled).toBe(true)
-    })
+    // The two removed cases here ('starts enabled by default', 'checks if
+    // haptics are supported') each asserted the value `beforeEach` had just
+    // set, so they passed equally for a hook that hardcoded `true`. The
+    // flipped-input cases below are the ones with discriminating power.
 
     it('should restore enabled state from localStorage', () => {
       localStorage.setItem('hapticFeedbackEnabled', 'false')
@@ -52,12 +51,6 @@ describe('useHapticFeedback', () => {
       const { result } = renderHook(() => useHapticFeedback())
 
       expect(result.current.isEnabled).toBe(false)
-    })
-
-    it('should check if haptics are supported', () => {
-      const { result } = renderHook(() => useHapticFeedback())
-
-      expect(result.current.isSupported).toBe(true)
     })
 
     it('should return false for isSupported when navigator.vibrate is not available', () => {
