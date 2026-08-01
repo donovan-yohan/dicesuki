@@ -125,7 +125,7 @@ interface DiceStore {
   setActiveSavedRoll: (roll: ActiveSavedRoll) => void
   clearActiveSavedRoll: () => void
   beginSavedRollWaves: () => void
-  finishSavedRollWaves: () => void
+  finishSavedRollWaves: (player?: RollSnapshot['player']) => void
   setRollNotice: (notice: string | null) => void
   clearHistory: () => void
   reset: () => void
@@ -281,8 +281,20 @@ export const useDiceStore = create<DiceStore>()(
         set({ activeSavedRoll: roll })
       },
 
+      /**
+       * Forget the saved-roll context.
+       *
+       * MUST NOT touch `savedRollWavesPending`. Every spawn goes through
+       * `useMultiplayerDiceBackend.addDie`/`addGenericDie`, whose first act is
+       * to call this — including the spawns that `savedRollExecution` itself
+       * issues for reroll and explosion waves. Clearing the wave flag here
+       * tore down wave tracking on the first follow-up spawn, splitting the
+       * roll across several history rows. The flag is owned exclusively by
+       * `beginSavedRollWaves` / `finishSavedRollWaves`; the executor
+       * re-publishes the plan after each wave's spawns.
+       */
       clearActiveSavedRoll: () => {
-        set({ activeSavedRoll: null, savedRollWavesPending: false })
+        set({ activeSavedRoll: null })
       },
 
       beginSavedRollWaves: () => {
@@ -297,7 +309,7 @@ export const useDiceStore = create<DiceStore>()(
        * `savedRollWavesPending` stuck true, which would suppress every later
        * roll's history entry.
        */
-      finishSavedRollWaves: () => {
+      finishSavedRollWaves: (player?: RollSnapshot['player']) => {
         set((state) => {
           if (!state.savedRollWavesPending) return state
           if (state.rollingDice.size > 0 || state.currentRollCycleDice.size === 0) {
@@ -313,7 +325,12 @@ export const useDiceStore = create<DiceStore>()(
           return {
             savedRollWavesPending: false,
             currentRollCycleDice: new Set<string>(),
-            rollHistory: snapshot ? [...state.rollHistory, snapshot] : state.rollHistory,
+            rollHistory: snapshot
+              // This row stands in for the `roll_complete` row the wave path
+              // suppresses, so it carries the same attribution — otherwise a
+              // multiplayer wave roll would land in history with no player.
+              ? [...state.rollHistory, player ? { ...snapshot, player } : snapshot]
+              : state.rollHistory,
           }
         })
       },

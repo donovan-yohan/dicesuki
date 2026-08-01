@@ -3,6 +3,10 @@ import { expect, test, type Page } from '@playwright/test'
 /**
  * Advanced roll mechanics, measured in a real browser against the live wasm room.
  *
+ * NOTE: every advanced numeric field commits on blur/Enter, not per keystroke
+ * (typing "10" must not pass through "1" and be clamped), so `fill()` is always
+ * followed by `blur()` here.
+ *
  * The mechanics themselves are unit-tested deterministically in
  * `src/lib/savedRollPlan.test.ts` (scoring) and
  * `src/lib/savedRollExecution.test.ts` (wave orchestration, against a fake room
@@ -69,6 +73,7 @@ for (const viewport of VIEWPORTS) {
       await rolled.blur()
       await page.getByLabel('Keep only some D6 dice').check()
       await page.getByLabel('D6 dice to keep').fill('2')
+      await page.getByLabel('D6 dice to keep').blur()
       await expect(page.getByText('Roll 4, keep best 2')).toBeVisible()
       await expect(page.getByText('4d6 kh2').first()).toBeVisible()
       await expect(page.getByText('⬆️ ADV').first()).toBeVisible()
@@ -86,24 +91,29 @@ for (const viewport of VIEWPORTS) {
       await expect(page.getByText(/^Range: .*\+$/)).toBeVisible()
 
       await page.getByLabel('D6 explodes on').fill('5')
+      await page.getByLabel('D6 explodes on').blur()
       await expect(page.getByText('4d6!5 kl2').first()).toBeVisible()
       await page.getByLabel('D6 explodes on').fill('6')
+      await page.getByLabel('D6 explodes on').blur()
 
       // ── Reroll ──────────────────────────────────────────────────────────
       await page.getByLabel('Reroll low D6 dice').check()
       await page.getByLabel('D6 reroll at or below').fill('2')
+      await page.getByLabel('D6 reroll at or below').blur()
       await expect(page.getByText('4d6! kl2 r≤2').first()).toBeVisible()
       await expect(page.getByText('⚔️ GWF').first()).toBeVisible()
 
       // ── Success counting ────────────────────────────────────────────────
       await page.getByLabel('Count D6 successes').check()
       await page.getByLabel('D6 success on or above').fill('5')
+      await page.getByLabel('D6 success on or above').blur()
       await expect(page.getByText('4d6! kl2 r≤2 ≥5').first()).toBeVisible()
       await expect(page.getByText('✓5+').first()).toBeVisible()
       await page.getByLabel('Count D6 successes').uncheck()
 
       // ── Min / max clamps ────────────────────────────────────────────────
       await page.getByLabel('D6 minimum value').fill('2')
+      await page.getByLabel('D6 minimum value').blur()
       await expect(page.getByText('🎯 Limits').first()).toBeVisible()
       // Clamps are a badge, not notation
       await expect(page.getByText('4d6! kl2 r≤2').first()).toBeVisible()
@@ -212,19 +222,30 @@ test.describe('physical execution at 390x844', () => {
     // Assert — the roll resolves; explosions may or may not have fired, but the
     // table always comes to rest with at least the three base dice and a total.
     await expect(page.getByRole('button', { name: 'Roll Exploding burst' })).toHaveCount(0)
-    const chips = page.getByTestId('result-die-chip')
+
+    // Read the total and every face in ONE evaluate, retried as a unit. An
+    // explosion wave can land between two separate reads, which would compare
+    // a total from before the wave against faces from after it.
     await expect(async () => {
-      expect(await chips.count()).toBeGreaterThanOrEqual(3)
-    }).toPass({ timeout: 60_000 })
-    await expect(page.getByTestId('roll-grand-total')).not.toHaveText('?', { timeout: 60_000 })
+      const snapshot = await page.evaluate(() => {
+        const totalText = document.querySelector('[data-testid="roll-grand-total"]')?.textContent
+        const chips = Array.from(document.querySelectorAll('[data-testid="result-die-chip"]'))
+        return {
+          totalText,
+          dropped: chips.filter((c) => c.getAttribute('data-dropped') === 'true').length,
+          faces: chips.map((c) => Number(c.querySelectorAll('span')[1]?.textContent ?? 'NaN')),
+        }
+      })
 
-    // Every die that landed is counted — exploding never drops dice
-    await expect(page.locator('[data-dropped="true"]')).toHaveCount(0)
-
-    const total = Number(await page.getByTestId('roll-grand-total').innerText())
-    const faces = await chips.evaluateAll((nodes) => nodes.map((node) => (
-      Number(node.querySelectorAll('span')[1]?.textContent ?? '0')
-    )))
-    expect(total).toBe(faces.reduce((sum, face) => sum + face, 0))
+      expect(snapshot.totalText).toBeDefined()
+      expect(snapshot.totalText).not.toBe('?')
+      expect(snapshot.faces.length).toBeGreaterThanOrEqual(3)
+      expect(snapshot.faces.every(Number.isFinite)).toBe(true)
+      // Exploding never drops dice — every face that landed counts
+      expect(snapshot.dropped).toBe(0)
+      expect(Number(snapshot.totalText)).toBe(
+        snapshot.faces.reduce((sum, face) => sum + face, 0),
+      )
+    }).toPass({ timeout: 90_000 })
   })
 })

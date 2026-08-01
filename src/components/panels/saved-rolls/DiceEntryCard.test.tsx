@@ -62,6 +62,38 @@ function renderAdvanced(entry = makeEntry()) {
   return { updates, latest: () => updates[updates.length - 1] }
 }
 
+/**
+ * Mount the card inside the sheet with Advanced Options already open, for the
+ * Escape contract on the advanced numeric fields.
+ */
+function renderAdvancedInSheet(entry = makeEntry()) {
+  const onClose = vi.fn()
+  const onUpdate = vi.fn()
+
+  render(
+    <BottomSheet isOpen onClose={onClose} title="My Dice Rolls">
+      <DiceEntryCard entry={entry} onUpdate={onUpdate} onRemove={vi.fn()} />
+    </BottomSheet>,
+  )
+  fireEvent.click(screen.getByRole('button', { name: /advanced options/i }))
+
+  return { onClose, onUpdate }
+}
+
+/**
+ * Type into an advanced numeric field and commit it the way a user would.
+ *
+ * Every advanced field owns a draft while it is being typed into and commits
+ * on blur (or Enter), so a test that only fires `change` is describing a
+ * half-finished edit, not a committed one.
+ */
+function setAdvanced(label: string, value: string) {
+  const field = screen.getByLabelText(label)
+  fireEvent.change(field, { target: { value } })
+  fireEvent.blur(field)
+  return field
+}
+
 /** A d20 entry that rolls a single die, the shape presets act on. */
 function d20Entry(overrides: Partial<DiceEntry> = {}): DiceEntry {
   return makeEntry({
@@ -231,7 +263,7 @@ describe('DiceEntryCard keep / drop', () => {
 
     // Act
     fireEvent.change(screen.getByLabelText('D6 keep mode'), { target: { value: 'lowest' } })
-    fireEvent.change(screen.getByLabelText('D6 dice to keep'), { target: { value: '2' } })
+    setAdvanced('D6 dice to keep', '2')
 
     // Assert
     expect(latest()).toMatchObject({ rollCount: 4, quantity: 2, keepMode: 'lowest' })
@@ -245,7 +277,7 @@ describe('DiceEntryCard keep / drop', () => {
     fireEvent.click(screen.getByLabelText('Keep only some D6 dice'))
 
     // Act — ask to keep more dice than the entry rolls
-    fireEvent.change(screen.getByLabelText('D6 dice to keep'), { target: { value: '9' } })
+    setAdvanced('D6 dice to keep', '9')
 
     // Assert
     expect(latest().quantity).toBe(4)
@@ -314,14 +346,14 @@ describe('DiceEntryCard exploding dice', () => {
     fireEvent.click(screen.getByLabelText('Exploding D6 dice'))
 
     // Act
-    fireEvent.change(screen.getByLabelText('D6 explodes on'), { target: { value: '5' } })
+    setAdvanced('D6 explodes on', '5')
 
     // Assert
     expect(latest().exploding).toEqual({ on: 5 })
     expect(screen.getByText('4d6!5')).toBeInTheDocument()
 
     // Act — back up to the die's own maximum
-    fireEvent.change(screen.getByLabelText('D6 explodes on'), { target: { value: '6' } })
+    setAdvanced('D6 explodes on', '6')
 
     // Assert
     expect(latest().exploding).toEqual({ on: 'max' })
@@ -361,7 +393,7 @@ describe('DiceEntryCard reroll', () => {
     expect(latest().reroll).toEqual({ condition: 'lessOrEqual', value: 1, maxRerolls: 1 })
 
     // Act
-    fireEvent.change(screen.getByLabelText('D6 reroll at or below'), { target: { value: '2' } })
+    setAdvanced('D6 reroll at or below', '2')
 
     // Assert — still once only; the physical table cannot reroll forever
     expect(latest().reroll).toEqual({ condition: 'lessOrEqual', value: 2, maxRerolls: 1 })
@@ -375,15 +407,15 @@ describe('DiceEntryCard min / max clamps', () => {
     const { latest } = renderAdvanced()
 
     // Act
-    fireEvent.change(screen.getByLabelText('D6 minimum value'), { target: { value: '3' } })
-    fireEvent.change(screen.getByLabelText('D6 maximum value'), { target: { value: '5' } })
+    setAdvanced('D6 minimum value', '3')
+    setAdvanced('D6 maximum value', '5')
 
     // Assert
     expect(latest()).toMatchObject({ minimum: 3, maximum: 5 })
     expect(screen.getByText('🎯 Limits')).toBeInTheDocument()
 
     // Act — an empty field means "no limit", not zero
-    fireEvent.change(screen.getByLabelText('D6 minimum value'), { target: { value: '' } })
+    setAdvanced('D6 minimum value', '')
 
     // Assert
     expect(latest().minimum).toBeUndefined()
@@ -394,10 +426,10 @@ describe('DiceEntryCard min / max clamps', () => {
   it('refuses to let the minimum climb past the maximum', () => {
     // Arrange
     const { latest } = renderAdvanced()
-    fireEvent.change(screen.getByLabelText('D6 maximum value'), { target: { value: '4' } })
+    setAdvanced('D6 maximum value', '4')
 
     // Act
-    fireEvent.change(screen.getByLabelText('D6 minimum value'), { target: { value: '6' } })
+    setAdvanced('D6 minimum value', '6')
 
     // Assert
     expect(latest()).toMatchObject({ minimum: 4, maximum: 4 })
@@ -419,7 +451,7 @@ describe('DiceEntryCard success counting', () => {
     expect(latest().countSuccesses).toEqual({ targetNumber: 5 })
 
     // Act
-    fireEvent.change(screen.getByLabelText('D6 success on or above'), { target: { value: '4' } })
+    setAdvanced('D6 success on or above', '4')
 
     // Assert
     expect(latest().countSuccesses).toEqual({ targetNumber: 4 })
@@ -434,5 +466,134 @@ describe('DiceEntryCard success counting', () => {
     // Assert
     expect(screen.getByText(/counted, not summed/i)).toBeInTheDocument()
     expect(screen.getByText(/flat bonus is ignored/i)).toBeInTheDocument()
+  })
+})
+
+describe('DiceEntryCard advanced numeric drafts', () => {
+  it('takes a two-digit maximum without the first digit rewriting the field', () => {
+    // Arrange — a minimum of 3 is what made the old per-keystroke clamp
+    // destructive: committing "1" rewrote the field to "3", so the second
+    // keystroke typed "30" and the user got the die maximum instead of 10.
+    const { latest } = renderAdvanced(d20Entry({ minimum: 3 }))
+    const field = screen.getByLabelText('D20 maximum value') as HTMLInputElement
+
+    // Act — one change per keystroke of "10", each carrying whatever the field
+    // is actually showing, exactly as a browser would
+    fireEvent.change(field, { target: { value: '1' } })
+    fireEvent.change(field, { target: { value: `${field.value}0` } })
+    fireEvent.blur(field)
+
+    // Assert
+    expect(latest().maximum).toBe(10)
+    expect(field).toHaveValue(10)
+  })
+
+  it('commits a two-digit success target once, when the edit is finished', () => {
+    // Arrange
+    const { latest, updates } = renderAdvanced(d20Entry())
+    fireEvent.click(screen.getByLabelText('Count D20 successes'))
+    const committedBefore = updates.length
+    const field = screen.getByLabelText('D20 success on or above')
+
+    // Act — the intermediate "1" must not reach the entry
+    fireEvent.change(field, { target: { value: '1' } })
+
+    // Assert
+    expect(latest().countSuccesses).toEqual({ targetNumber: 19 })
+
+    // Act
+    fireEvent.change(field, { target: { value: '10' } })
+    fireEvent.blur(field)
+
+    // Assert — one commit for the whole edit
+    expect(latest().countSuccesses).toEqual({ targetNumber: 10 })
+    expect(updates).toHaveLength(committedBefore + 1)
+  })
+
+  it('commits a two-digit explode trigger once, when the edit is finished', () => {
+    // Arrange
+    const { latest, updates } = renderAdvanced(d20Entry())
+    fireEvent.click(screen.getByLabelText('Exploding D20 dice'))
+    const committedBefore = updates.length
+    const field = screen.getByLabelText('D20 explodes on')
+
+    // Act
+    fireEvent.change(field, { target: { value: '1' } })
+
+    // Assert
+    expect(latest().exploding).toEqual({ on: 'max' })
+
+    // Act
+    fireEvent.change(field, { target: { value: '12' } })
+    fireEvent.blur(field)
+
+    // Assert
+    expect(latest().exploding).toEqual({ on: 12 })
+    expect(updates).toHaveLength(committedBefore + 1)
+  })
+
+  it('commits an advanced field on Enter, without leaving it', () => {
+    // Arrange
+    const { latest } = renderAdvanced(d20Entry())
+    fireEvent.click(screen.getByLabelText('Exploding D20 dice'))
+    const field = screen.getByLabelText('D20 explodes on')
+
+    // Act
+    fireEvent.change(field, { target: { value: '15' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+
+    // Assert
+    expect(latest().exploding).toEqual({ on: 15 })
+  })
+
+  it('reverts an unusable draft to the committed value', () => {
+    // Arrange — a trigger has no "no limit" state, unlike the clamps
+    const { latest, updates } = renderAdvanced(d20Entry())
+    fireEvent.click(screen.getByLabelText('Exploding D20 dice'))
+    const committedBefore = updates.length
+    const field = screen.getByLabelText('D20 explodes on')
+
+    // Act
+    fireEvent.change(field, { target: { value: '' } })
+    fireEvent.blur(field)
+
+    // Assert
+    expect(updates).toHaveLength(committedBefore)
+    expect(latest().exploding).toEqual({ on: 'max' })
+    expect(field).toHaveValue(20)
+  })
+})
+
+describe('DiceEntryCard advanced fields inside the sheet', () => {
+  it('abandons an advanced draft on Escape without closing the sheet', () => {
+    // Arrange
+    const { onClose, onUpdate } = renderAdvancedInSheet(makeEntry({ minimum: 3 }))
+    const field = screen.getByLabelText('D6 minimum value')
+    fireEvent.change(field, { target: { value: '5' } })
+    expect(field).toHaveValue(5)
+
+    // Act
+    fireEvent.keyDown(field, { key: 'Escape' })
+
+    // Assert — the draft is abandoned, the session survives
+    expect(field).toHaveValue(3)
+    expect(onUpdate).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'My Dice Rolls' })).toBeInTheDocument()
+  })
+
+  it('lets Escape close the sheet once there is no advanced draft to abandon', () => {
+    // Arrange
+    const { onClose } = renderAdvancedInSheet(makeEntry({ minimum: 3 }))
+    const field = screen.getByLabelText('D6 minimum value')
+    fireEvent.change(field, { target: { value: '5' } })
+    fireEvent.keyDown(field, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+
+    // Act
+    fireEvent.keyDown(field, { key: 'Escape' })
+
+    // Assert
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })

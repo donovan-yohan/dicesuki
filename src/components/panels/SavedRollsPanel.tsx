@@ -35,6 +35,8 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
   // pre-commit double-tap could re-enter before isExecuting renders true.
   const executingRef = useRef(false)
   const backend = useDiceBackend()
+  // Survives the panel closing and reopening, unlike `isExecuting`.
+  const wavesPending = useDiceStore((s) => s.savedRollWavesPending)
 
   const {
     savedRolls,
@@ -154,6 +156,24 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
       {view === 'list' ? (
         // List View
         <>
+          {/* Follow-up waves keep spawning after the panel closes. If the
+              player reopens it mid-sequence the roll buttons are inert (the
+              execution latch rejects reentry), so say why rather than looking
+              broken. */}
+          {wavesPending && (
+            <div
+              role="status"
+              data-testid="saved-roll-waves-pending"
+              className="mb-4 rounded-lg px-4 py-3 text-sm"
+              style={{
+                backgroundColor: 'rgba(249, 135, 151, 0.12)',
+                border: '1px solid rgba(249, 135, 151, 0.3)',
+                color: 'var(--color-text-secondary)',
+              }}
+            >
+              Still rolling — waiting for the follow-up dice to land.
+            </div>
+          )}
           {executionError && (
             <div
               role="alert"
@@ -249,7 +269,7 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onToggleFavorite={() => toggleFavorite(roll.id)}
-                  disabled={isExecuting}
+                  disabled={isExecuting || wavesPending}
                 />
               ))}
             </>
@@ -274,7 +294,7 @@ export function SavedRollsPanel({ isOpen, onClose, tableDice = [] }: SavedRollsP
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onToggleFavorite={() => toggleFavorite(roll.id)}
-                  disabled={isExecuting}
+                  disabled={isExecuting || wavesPending}
                 />
               ))}
             </>

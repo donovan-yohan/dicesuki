@@ -8,7 +8,6 @@ import {
   createSavedRollPlan,
   getExplodeFace,
   getPlanDiceIds,
-  getPlanGroupRootIds,
   getPlanPerDieBonuses,
   markGroupRerolled,
   replaceGroupMembers,
@@ -845,7 +844,6 @@ describe('plan selectors', () => {
 
     // Act / Assert
     expect(getPlanDiceIds(plan)).toEqual(['a1', 'a1-boom', 'a2', 'b1'])
-    expect(getPlanGroupRootIds(plan)).toEqual(['a1', 'a2', 'b1'])
   })
 
   it('returns an empty id list before any dice are planned', () => {
@@ -854,7 +852,6 @@ describe('plan selectors', () => {
 
     // Act / Assert
     expect(getPlanDiceIds(plan)).toEqual([])
-    expect(getPlanGroupRootIds(plan)).toEqual([])
     expect(getPlanPerDieBonuses(plan).size).toBe(0)
   })
 
@@ -911,7 +908,30 @@ describe('cloneSavedRollPlan', () => {
     expect(getPlanDiceIds(plan)).toEqual(['die-a'])
     expect(plan.entries[0].groups).toEqual([{ memberIds: ['die-a'] }])
     expect(plan.entries[0].groups[0].rerolled).toBeUndefined()
-    expect(getPlanDiceIds(clone)).toEqual(['die-a', 'die-boom', 'die-b'])
+    // The clone took every mutation; `markGroupRerolled` retires group 0 by
+    // emptying it, because its dice are already off the table.
+    expect(clone.entries[0].groups[0]).toEqual({
+      memberIds: [],
+      rerolled: true,
+      explosionDepth: 1,
+    })
+    expect(getPlanDiceIds(clone)).toEqual(['die-b'])
+  })
+
+  it('empties a retired group so it cannot reference removed dice', () => {
+    // Arrange — a group whose reroll replacement never spawned
+    const plan = createSavedRollPlan(makeRoll([makeEntry({ id: 'e1' })], 0))
+    addGroup(plan, 'e1', 'die-gone')
+    addGroup(plan, 'e1', 'die-kept')
+
+    // Act
+    markGroupRerolled(plan, 'e1', 0)
+
+    // Assert — retired, and contributing nothing to the score
+    expect(plan.entries[0].groups[0]).toEqual({ memberIds: [], rerolled: true })
+    const aggregate = aggregateSavedRollPlan(plan, new Map([['die-kept', 4]]))
+    expect(aggregate.total).toBe(4)
+    expect(aggregate.dice.has('die-gone')).toBe(false)
   })
 
   it('copies the scalar plan fields verbatim', () => {

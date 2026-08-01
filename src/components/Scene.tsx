@@ -487,6 +487,8 @@ function SceneContent({ onReady }: SceneProps) {
     [activeBackend]
   )
 
+  const savedRollWavesPending = useDiceStore((s) => s.savedRollWavesPending)
+
   const tableDice = useMemo<TableDieSummary[]>(() => {
     return Array.from(multiplayerDice.values())
       .filter((die) => !localPlayerId || die.ownerId === localPlayerId)
@@ -610,7 +612,10 @@ function SceneContent({ onReady }: SceneProps) {
         motionMode={motionMode}
         showShop={showShop}
         isDiceManagerOpen={isDiceManagerOpen}
-        canRoll={tableDice.length > 0}
+        // A saved roll's follow-up waves are still spawning: `roll` impulses
+        // every die the player owns, so it would re-roll the dice that already
+        // landed and invalidate the plan mid-sequence.
+        canRoll={tableDice.length > 0 && !savedRollWavesPending}
         onToggleUIVisibility={toggleUIVisibility}
         onOpenDiceManager={() => setIsDiceManagerOpen(!isDiceManagerOpen)}
         onOpenSavedRolls={() => setIsSavedRollsOpen(true)}

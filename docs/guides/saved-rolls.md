@@ -55,11 +55,27 @@ There is no server-side notion of a saved roll. `roll_player_dice` (`server/core
 2. **Reroll** — dice matching the condition are `remove_dice`d and respawned. A spawned die falls from `SPAWN_HEIGHT` and settles on its own, so **for follow-up waves the spawn IS the roll**. Once only: the replacement's face is final. Owned dice are respawned as themselves (removal is awaited first, or `addDie` refuses the duplicate).
 3. **Explosions** — each die showing the trigger face spawns one more die whose face **adds** to it. Repeats while dice keep exploding, bounded by `MAX_EXPLOSION_WAVES` (3) and by free room capacity.
 
+> **Known divergence.** `ExplodingConfig.limit` is honoured verbatim by the virtual `rollEngine.ts` (`limit ?? Infinity`), but the physical path uses `min(limit ?? 3, 3)` — every explosion costs a real room slot. An entry with `limit: 10` therefore chains up to 10 times virtually and at most 3 times on the table. `rollEngine.ts` has no production consumers, so this only matters if it ever gains one; the builder never offers a limit above the cap.
+
 The panel closes as soon as the base wave starts rolling, which splits error handling in two:
 - **Before** that point → the promise rejects and `SavedRollsPanel` renders its inline alert.
 - **After** → `useDiceStore.rollNotice`, rendered by the result HUD (the panel is gone).
 
 Either way `executingRef` is held for the whole sequence, so a second roll can never interleave with a half-finished plan, and `finishSavedRollWaves()` always runs so the history row closes and `savedRollWavesPending` never sticks.
+
+While `savedRollWavesPending` is true:
+- the HUD's Roll button is disabled (`roll` impulses **every** die the player owns, so it would re-roll dice that already landed and invalidate the plan);
+- reopening the saved-rolls panel shows "Still rolling — waiting for the follow-up dice to land" and its roll buttons are disabled, because the execution latch would silently reject them;
+- `roll_complete` for the local player is suppressed — `finishSavedRollWaves` writes the authoritative row instead, carrying the same player attribution `roll_complete` would have.
+
+### Invariant: the backend clears the saved-roll context on every spawn
+`useMultiplayerDiceBackend.addDie`/`addGenericDie` call `clearActiveSavedRoll()` as their first act — including the executor's own follow-up-wave spawns. Therefore:
+- `clearActiveSavedRoll` **must not** touch `savedRollWavesPending`; that flag is owned solely by `beginSavedRollWaves`/`finishSavedRollWaves`. (It did once, which tore down wave tracking on the first reroll or explosion spawn and split one roll across several history rows.)
+- every wave **must** re-`publishPlan` after its spawns and **before** `markDiceRolling`, so nothing can observe a settle while the plan is missing.
+
+Both are pinned by `src/lib/savedRollExecution.test.ts`: the fake room's spawn reproduces the `clearActiveSavedRoll` side effect, and one test drives the real `useMultiplayerDiceBackend` with only the protocol send stubbed.
+
+A wait started mid-sequence only fails on a room error raised **after** it began (identity comparison against the error present at wait start) — a stale error from before the roll must not abort a wave that is doing nothing wrong.
 
 ### Capacity budgeting
 `getRollDiceCount` counts `rollCount` (not `quantity`) toward the 30-die cap, so keep/drop is pre-validated in the builder and re-checked at execution. **Exploding is deliberately not pre-counted** — its worst case is unbounded. Each explosion wave is budgeted against whatever is actually free at that moment; anything that does not fit is skipped and reported through `rollNotice`.

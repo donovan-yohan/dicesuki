@@ -1,4 +1,7 @@
+import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useMultiplayerDiceBackend } from '../hooks/useMultiplayerDiceBackend'
 
 import { ROOM_DICE_CAPACITY } from '../config/roomCapacity'
 import { useDiceStore } from '../store/useDiceStore'
@@ -65,6 +68,12 @@ function createFakeRoom(faceQueue: number[]) {
   }
 
   function spawn(type: DiceShape, inventoryDieId?: string): string | null {
+    // The real `useMultiplayerDiceBackend.addDie`/`addGenericDie` clear the
+    // saved-roll context on every spawn — including the executor's own
+    // follow-up-wave spawns. Reproducing it here is what pins the regression
+    // where wave tracking was torn down by the first reroll/explosion spawn.
+    useDiceStore.getState().clearActiveSavedRoll()
+
     if (failNextSpawn) {
       useMultiplayerStore.setState({
         roomActionError: { code: 'DICE_LIMIT', message: failNextSpawn },
@@ -487,19 +496,166 @@ describe('executePhysicalSavedRoll', () => {
       expect(history[0].sum).toBe(6)
     })
 
-    it('records a plain roll without a plan exactly as before', async () => {
-      // Arrange — no advanced mechanics at all
+    it('corrects the roll_complete row for a wave-less roll', async () => {
+      // Arrange — no advanced mechanics, so the room's own roll_complete lands
+      useMultiplayerStore.setState({
+        players: new Map([[OWNER, {
+          id: OWNER, displayName: 'Solo', color: '#fff', isHost: true,
+        } as never]]),
+      })
       const room = createFakeRoom([3, 4])
       const roll = makeRoll({ quantity: 2, sources: [{ kind: 'anonymous', quantity: 2 }] }, 5)
 
       // Act
       await run(roll, room.backend)
       await room.quiesce()
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'roll_complete',
+        playerId: OWNER,
+        total: 7,
+        results: [
+          { diceId: 'die-1', diceType: 'd6', faceValue: 3 },
+          { diceId: 'die-2', diceType: 'd6', faceValue: 4 },
+        ],
+      } as never)
 
-      // Assert — the plan still scores it, flat bonus included
+      // Assert — the roller's row carries the flat bonus the room cannot know
+      // about, not the room's raw `total: 7`.
+      const history = useDiceStore.getState().rollHistory
+      const attributed = history.filter((row) => row.player !== undefined)
+      expect(attributed).toHaveLength(1)
+      expect(attributed[0].sum).toBe(12)
+    })
+
+    it('leaves a remote player\'s roll_complete row as the raw face sum', async () => {
+      // Arrange — someone else's roll; we hold no plan for their dice
+      useMultiplayerStore.setState({
+        players: new Map([['player-2', {
+          id: 'player-2', displayName: 'Rival', color: '#0f0', isHost: false,
+        } as never]]),
+      })
+
+      // Act
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'roll_complete',
+        playerId: 'player-2',
+        total: 9,
+        results: [
+          { diceId: 'their-1', diceType: 'd6', faceValue: 4 },
+          { diceId: 'their-2', diceType: 'd6', faceValue: 5 },
+        ],
+      } as never)
+
+      // Assert — documented limitation: remote viewers see raw faces
       const history = useDiceStore.getState().rollHistory
       expect(history).toHaveLength(1)
-      expect(history[0].sum).toBe(12)
+      expect(history[0].sum).toBe(9)
+      expect(history[0].player?.displayName).toBe('Rival')
+    })
+
+    it('attributes the wave row the way roll_complete would have', async () => {
+      // Arrange — a multiplayer room where we have a player record
+      useMultiplayerStore.setState({
+        players: new Map([[OWNER, {
+          id: OWNER, displayName: 'Me', color: '#f00', isHost: true,
+        } as never]]),
+      })
+      const room = createFakeRoom([6, 2])
+      const roll = makeRoll({ quantity: 1, exploding: { on: 'max' } })
+
+      // Act
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      // Assert — the suppressed roll_complete row's attribution is preserved
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].player?.displayName).toBe('Me')
+      expect(history[0].sum).toBe(8)
+    })
+  })
+
+  describe('wave tracking survives the backend clearing the saved-roll context', () => {
+    it('keeps the plan and one history row across reroll and explosion waves', async () => {
+      // Arrange — a roll that needs BOTH follow-up waves
+      const room = createFakeRoom([1, 6, 6, 2])
+      const roll = makeRoll({
+        quantity: 1,
+        reroll: { condition: 'equals', value: 1, maxRerolls: 1 },
+        exploding: { on: 'max' },
+      })
+
+      // Act
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      // Assert — the 1 was rerolled into a 6, which exploded into a 6, which
+      // exploded into a 2: one logical die worth 14 across four physical dice.
+      expect(useDiceStore.getState().activeSavedRoll?.plan).toBeDefined()
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      expect(room.spawnLog).toHaveLength(4)
+      expect(activeTotal()).toBe(14)
+    })
+
+    it('survives the REAL backend, whose spawns clear activeSavedRoll', async () => {
+      // Arrange — drive useMultiplayerDiceBackend itself, stubbing only the
+      // protocol send, so the production side effects are all present.
+      const spawned: string[] = []
+      let nextId = 0
+      const faces = [1, 6]
+      useMultiplayerStore.setState({
+        spawnDice: ((type: DiceShape) => {
+          const id = `real-${++nextId}`
+          spawned.push(id)
+          useMultiplayerStore.setState((state) => ({
+            dice: new Map(state.dice).set(id, roomDie(id, type)),
+          }))
+          const face = faces.shift() ?? 1
+          setTimeout(() => {
+            const die = useMultiplayerStore.getState().dice.get(id)
+            if (!die) return
+            useDiceStore.getState().recordDieSettled(id, face, die.diceType)
+          }, 0)
+          return id
+        }) as never,
+        removeDice: ((ids: string[]) => {
+          useMultiplayerStore.setState((state) => {
+            const dice = new Map(state.dice)
+            for (const id of ids) dice.delete(id)
+            return { dice }
+          })
+          for (const id of ids) useDiceStore.getState().removeDieState(id)
+        }) as never,
+        roll: (() => {
+          const mine = Array.from(useMultiplayerStore.getState().dice.values())
+            .filter((die) => die.ownerId === OWNER).map((die) => die.id)
+          useMultiplayerStore.setState((state) => ({
+            rollStartedSequence: state.rollStartedSequence + 1,
+            lastRollStartedDiceIds: mine,
+          }))
+          useDiceStore.getState().markDiceRolling(mine)
+        }) as never,
+      })
+
+      const { result } = renderHook(() => useMultiplayerDiceBackend())
+      const roll = makeRoll({
+        quantity: 1,
+        reroll: { condition: 'equals', value: 1, maxRerolls: 1 },
+      })
+
+      // Act
+      await executePhysicalSavedRoll(roll, { backend: result.current, ownerId: OWNER })
+      await waitFor(() => {
+        expect(useDiceStore.getState().settledDice.has('real-2')).toBe(true)
+      })
+
+      // Assert — the plan is still published and the roll is one history row
+      expect(spawned).toEqual(['real-1', 'real-2'])
+      expect(useDiceStore.getState().activeSavedRoll?.plan).toBeDefined()
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      expect(useDiceStore.getState().rollHistory[0].sum).toBe(6)
     })
   })
 

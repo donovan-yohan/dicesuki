@@ -463,6 +463,75 @@ describe('RollBuilder', () => {
     expect(screen.queryByText('Range: 1 - 20')).not.toBeInTheDocument()
   })
 
+  it('names the owned dice a quick preset had to remove', () => {
+    // Arrange — three owned d20s, no generics to give up
+    const steel = addNamedDie('Steel d20', 'd20')
+    const jade = addNamedDie('Jade d20', 'd20')
+    const bone = addNamedDie('Bone d20', 'd20')
+    renderBuilder({
+      initialRoll: rollWithSources([
+        createSpecificDieRollSource(steel.id),
+        createSpecificDieRollSource(jade.id),
+        createSpecificDieRollSource(bone.id),
+      ]),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }))
+
+    // Act — advantage rolls two dice, so the entry has to shed the third
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Advantage to D20' }))
+
+    // Assert — a preset is as destructive as a hand-typed shrink, and says so
+    expect(screen.getByRole('status')).toHaveTextContent('Removed from this roll: Bone d20')
+  })
+
+  it('blocks a roll that mixes counting successes with adding dice up', () => {
+    // Arrange — a d6 pool and a d20 that sums
+    renderBuilder()
+    fireEvent.change(screen.getByLabelText(/roll name/i), { target: { value: 'Mixed modes' } })
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d6 die/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d20 die/i }))
+    const advancedToggles = screen.getAllByRole('button', { name: /advanced options/i })
+    fireEvent.click(advancedToggles[0])
+    fireEvent.click(advancedToggles[1])
+
+    // Act — only the d6 counts successes
+    fireEvent.click(screen.getByLabelText('Count D6 successes'))
+
+    // Assert — the whole roll would silently become a success count
+    const error = screen.getByTestId('roll-success-mode-error')
+    expect(error).toHaveTextContent(/no single total/i)
+    expect(error).toHaveTextContent(/every entry, or on none of them/i)
+    expect(screen.getByRole('button', { name: /save roll/i })).toBeDisabled()
+    expect(screen.getByLabelText('Count D20 successes')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Count D20 successes'))
+      .toHaveAttribute('aria-describedby', error.id)
+
+    // Act — make the roll consistent
+    fireEvent.click(screen.getByLabelText('Count D20 successes'))
+
+    // Assert
+    expect(screen.queryByTestId('roll-success-mode-error')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save roll/i })).toBeEnabled()
+    expect(screen.getByLabelText('Count D20 successes')).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('saves a roll where every entry counts successes', () => {
+    // Arrange
+    const { onSave } = renderBuilder()
+    fireEvent.change(screen.getByLabelText(/roll name/i), { target: { value: 'Dice pool' } })
+    fireEvent.click(screen.getByRole('button', { name: /add 1 d6 die/i }))
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }))
+
+    // Act
+    fireEvent.click(screen.getByLabelText('Count D6 successes'))
+    fireEvent.click(screen.getByRole('button', { name: /save roll/i }))
+
+    // Assert — one entry counting successes is coherent on its own
+    expect(screen.queryByTestId('roll-success-mode-error')).not.toBeInTheDocument()
+    expect(onSave).toHaveBeenCalledOnce()
+    expect(onSave.mock.calls[0][0].dice[0].countSuccesses).toEqual({ targetNumber: 5 })
+  })
+
   it('imports current table dice as grouped generic dice plus specific owned dice', () => {
     const die = addNamedDie('Lucky D20', 'd20')
     const { onSave } = renderBuilder({

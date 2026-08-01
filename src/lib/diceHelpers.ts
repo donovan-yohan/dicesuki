@@ -316,6 +316,14 @@ export function formatSavedRoll(roll: SavedRoll): string {
 /**
  * Which dice a keep/drop entry keeps when the entry does not say.
  *
+ * NOTE: this INVERTS the previous behaviour of `rollEngine.rollDiceEntry`,
+ * which kept the lowest when `keepMode` was absent, while the plan kept the
+ * highest and `formatDiceEntry` rendered `kl`. Real blast radius is zero —
+ * `validateDiceEntry` has no call sites, no UI has ever produced a keep/drop
+ * entry without a `keepMode`, and `rollEngine` has no production consumers —
+ * so the three were made to agree rather than preserving a default that only
+ * one of them implemented.
+ *
  * `keepMode` is optional on `DiceEntry` and nothing validates it at runtime
  * (`validateDiceEntry` has no call sites), so a legacy or hand-edited roll can
  * reach scoring without one. Defaulting here — rather than at each read site —
@@ -383,7 +391,10 @@ export function calculateDiceEntryRange(entry: DiceEntry): DiceRange {
   const min = (lowFace + entry.perDieBonus) * quantity
   const max = (highFace + entry.perDieBonus) * quantity
 
-  return entry.exploding ? { min, max, open: true } : { min, max }
+  // Exploding is only open-ended while nothing caps the die total. A maximum
+  // clamp applies to the whole chain, so the range closes again.
+  const isOpen = entry.exploding !== undefined && entry.maximum === undefined
+  return isOpen ? { min, max, open: true } : { min, max }
 }
 
 /**

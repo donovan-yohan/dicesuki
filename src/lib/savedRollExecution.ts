@@ -40,7 +40,9 @@ import {
   cloneSavedRollPlan,
   createSavedRollPlan,
   facesFromSettled,
+  getPlanDiceIds,
   getPlanPerDieBonuses,
+  markGroupRerolled,
   replaceGroupMembers,
   selectExplosionTargets,
   selectRerollTargets,
@@ -93,6 +95,10 @@ function waitForStore<S>(
   predicate: (state: S) => boolean,
   timeoutMs: number,
 ): Promise<void> {
+  // Any room error present during a wait aborts it. Scoping is done by the
+  // CALLER clearing `roomActionError` before each wave (see `beginWave`), not
+  // by filtering here: an action and the error it raises are synchronous, so a
+  // wait must be able to see the error its own trigger just produced.
   const evaluate = (state: S) => {
     const roomError = useMultiplayerStore.getState().roomActionError
     if (roomError) throw new Error(roomError.message)
@@ -176,6 +182,30 @@ function publishPlan(plan: SavedRollPlan, roll: SavedRoll): void {
   })
 }
 
+/**
+ * Who to credit for the wave row, matching what `roll_complete` would have
+ * attributed. Undefined when the room has no player record for us.
+ */
+function localRollingPlayer() {
+  const { players, localPlayerId } = useMultiplayerStore.getState()
+  if (!localPlayerId) return undefined
+  const player = players.get(localPlayerId)
+  if (!player) return undefined
+  return { id: localPlayerId, displayName: player.displayName, color: player.color }
+}
+
+/**
+ * Open a wave.
+ *
+ * Follow-up waves run long after the panel closed, so a stale `roomActionError`
+ * — a rejected manual spawn from before the roll, say — would otherwise abort a
+ * wave that is doing nothing wrong. Clearing here means every error a wave's
+ * waits can see was raised by that wave.
+ */
+function beginWave(): void {
+  useMultiplayerStore.getState().clearRoomActionError()
+}
+
 function currentFaces(): Map<string, number> {
   return facesFromSettled(useDiceStore.getState().settledDice)
 }
@@ -246,6 +276,8 @@ async function runRerollWave(
   const targets = selectRerollTargets(plan, currentFaces())
   if (targets.length === 0) return false
 
+  beginWave()
+
   const doomedIds = targets.flatMap((target) => target.memberIds)
   // Owned dice are re-spawned as themselves so a reroll keeps the die's look.
   const inventoryDieIds = targets.map((target) => (
@@ -258,15 +290,32 @@ async function runRerollWave(
   await waitForRemovals(doomedIds)
 
   const spawnedIds: string[] = []
-  targets.forEach((target, index) => {
-    const id = spawnDie(backend, target.type, inventoryDieIds[index])
-    replaceGroupMembers(plan, target.entryId, target.groupIndex, id)
-    spawnedIds.push(id)
-  })
+  try {
+    targets.forEach((target, index) => {
+      const id = spawnDie(backend, target.type, inventoryDieIds[index])
+      replaceGroupMembers(plan, target.entryId, target.groupIndex, id)
+      spawnedIds.push(id)
+    })
+  } catch (error) {
+    // The dice for the unspawned targets are already gone from the table.
+    // Retire their groups so the plan stops referencing dice that will never
+    // settle — otherwise the HUD and the history row disagree about which
+    // dice this roll owns.
+    for (const target of targets) {
+      const group = plan.entries
+        .find((entry) => entry.entryId === target.entryId)?.groups[target.groupIndex]
+      if (group && !group.rerolled) markGroupRerolled(plan, target.entryId, target.groupIndex)
+    }
+    publishPlan(plan, roll)
+    throw error
+  }
 
+  // Published before `markDiceRolling`: every spawn above ran through
+  // `addDie`/`addGenericDie`, which clear `activeSavedRoll` (and with it the
+  // plan). Nothing may observe a settle while the plan is missing.
+  publishPlan(plan, roll)
   await waitForSpawns(spawnedIds, ownerId)
   useDiceStore.getState().markDiceRolling(spawnedIds)
-  publishPlan(plan, roll)
   await waitForSettle(spawnedIds)
   return true
 }
@@ -289,6 +338,8 @@ async function runExplosionWaves(
     const targets = selectExplosionTargets(plan, currentFaces())
     if (targets.length === 0) break
 
+    beginWave()
+
     const budget = availableRoomCapacityNow()
     const affordable = targets.slice(0, budget)
     skipped += targets.length - affordable.length
@@ -304,9 +355,11 @@ async function runExplosionWaves(
       spawnedIds.push(id)
     }
 
+    // Republished before anything can observe a settle: the spawns above
+    // cleared `activeSavedRoll` via the backend's own side effect.
+    publishPlan(plan, roll)
     await waitForSpawns(spawnedIds, ownerId)
     useDiceStore.getState().markDiceRolling(spawnedIds)
-    publishPlan(plan, roll)
     await waitForSettle(spawnedIds)
 
     if (affordable.length < targets.length) break
@@ -352,7 +405,6 @@ export async function executePhysicalSavedRoll(
 
   // ── Base wave ───────────────────────────────────────────────────────────
   const plan = createSavedRollPlan(roll)
-  const baseIds: string[] = []
 
   for (const entry of roll.dice) {
     for (const source of expandDiceEntrySources(entry)) {
@@ -362,9 +414,12 @@ export async function executePhysicalSavedRoll(
         source.kind === 'specific' ? source.dieId : undefined,
       )
       addGroup(plan, entry.id, id)
-      baseIds.push(id)
     }
   }
+
+  // The plan is the single record of which dice this roll owns; deriving the
+  // wait set from it keeps a second parallel list from drifting out of sync.
+  const baseIds = getPlanDiceIds(plan)
 
   if (baseIds.length === 0) {
     throw new Error('This saved roll has no dice to roll.')
@@ -406,7 +461,8 @@ export async function executePhysicalSavedRoll(
     )
   } finally {
     // Always closes the history row and releases the wave latch, so a failed
-    // sequence cannot suppress the next roll's history entry.
-    useDiceStore.getState().finishSavedRollWaves()
+    // sequence cannot suppress the next roll's history entry. The attribution
+    // mirrors the `roll_complete` row this path suppresses.
+    useDiceStore.getState().finishSavedRollWaves(localRollingPlayer())
   }
 }

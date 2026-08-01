@@ -193,15 +193,6 @@ export function getPlanDiceIds(plan: SavedRollPlan): string[] {
   return plan.entries.flatMap((entry) => entry.groups.flatMap((group) => group.memberIds))
 }
 
-/** Root die id of every group — the dice that carry a per-die bonus chip. */
-export function getPlanGroupRootIds(plan: SavedRollPlan): string[] {
-  return plan.entries.flatMap((entry) =>
-    entry.groups
-      .map((group) => group.memberIds[0])
-      .filter((id): id is string => id !== undefined),
-  )
-}
-
 /**
  * Per-die bonus map for `ActiveSavedRoll`, keyed by room die id.
  *
@@ -253,10 +244,19 @@ export function replaceGroupMembers(
   group.rerolled = true
 }
 
-/** Mark a group reroll-spent without replacing it (the wave could not spawn). */
+/**
+ * Retire a group whose reroll replacement could not be spawned.
+ *
+ * The original die was already removed from the table, so the group has no
+ * dice left and never will: it is emptied as well as marked spent, otherwise
+ * it would keep pointing at a die that can never settle and the HUD and the
+ * history row would disagree about which dice the roll owns.
+ */
 export function markGroupRerolled(plan: SavedRollPlan, entryId: string, groupIndex: number): void {
   const group = plan.entries.find((entry) => entry.entryId === entryId)?.groups[groupIndex]
-  if (group) group.rerolled = true
+  if (!group) return
+  group.rerolled = true
+  group.memberIds = []
 }
 
 function clampFace(value: number, entry: PlannedEntry): number {

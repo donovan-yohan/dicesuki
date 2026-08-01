@@ -3,6 +3,7 @@ import { DiceIconWithNumber } from '../../icons/DiceIconWithNumber'
 import type { DiceEntry, KeepMode, QuickPreset } from '../../../types/savedRolls'
 import type { InventoryDie } from '../../../types/inventory'
 import {
+  KEEP_MODE_DEFAULT,
   applyQuickPreset,
   formatDiceEntry,
   getDiceEntryBadges,
@@ -51,6 +52,100 @@ function clampToRange(value: number, min: number, max: number): number {
   return Math.min(Math.max(Math.floor(value), min), ceiling)
 }
 
+interface AdvancedNumberFieldProps {
+  /**
+   * The field's accessible name. These strings are addressed verbatim by
+   * `e2e/roll-advanced.spec.ts`, so they are passed in whole rather than
+   * assembled here.
+   */
+  label: string
+  /** The committed value, shown whenever the field is not mid-edit. */
+  value: number | undefined
+  min: number
+  max: number
+  /** True when an empty field is meaningful ("no limit"), as for min/max. */
+  allowEmpty?: boolean
+  /**
+   * Called once per commit with the typed integer (or `undefined` for a
+   * cleared field). Clamping belongs to the caller, which owns the entry and
+   * therefore the real bounds.
+   */
+  onCommit: (value: number | undefined) => void
+}
+
+/**
+ * One advanced numeric field, with the draft-commit contract every numeric
+ * control in this card shares.
+ *
+ * A committed-on-keystroke field rewrites itself while it is being typed into:
+ * the first digit of "10" commits as 1, is clamped, and is written back to the
+ * input, so the second digit lands on the clamped text instead ("3" + "0" =
+ * 30 → clamped to the die maximum). The draft owns the displayed text until
+ * the user says they are done — blur or Enter — and only that commit clamps.
+ * Escape abandons the draft.
+ */
+function AdvancedNumberField({
+  label,
+  value,
+  min,
+  max,
+  allowEmpty = false,
+  onCommit,
+}: AdvancedNumberFieldProps) {
+  const [draft, setDraft] = useState<string | null>(null)
+
+  /** Commit the draft, or revert to the committed value if it is unusable. */
+  const commitDraft = () => {
+    if (draft === null) return
+
+    const trimmed = draft.trim()
+    setDraft(null)
+
+    if (trimmed === '') {
+      if (allowEmpty) onCommit(undefined)
+      return
+    }
+
+    const parsed = Number.parseInt(trimmed, 10)
+    if (Number.isInteger(parsed)) onCommit(parsed)
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commitDraft()
+      return
+    }
+
+    // Escape is only ours while a draft is in flight, where it means "abandon
+    // what I typed". The panel listens for Escape on `document` to close the
+    // sheet, so swallowing it unconditionally would trap the user in the
+    // builder; letting it bubble when there is no draft keeps sheet-close the
+    // expected behaviour.
+    if (event.key === 'Escape' && draft !== null) {
+      event.preventDefault()
+      event.stopPropagation()
+      setDraft(null)
+    }
+  }
+
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      value={draft ?? value ?? ''}
+      onChange={(event) => setDraft(event.target.value)}
+      onFocus={(event) => event.currentTarget.select()}
+      onBlur={commitDraft}
+      onKeyDown={handleKeyDown}
+      aria-label={label}
+      className={NUMBER_FIELD_CLASS}
+      style={FIELD_STYLE}
+    />
+  )
+}
+
 interface DiceEntryCardProps {
   entry: DiceEntry
   onUpdate: (entry: DiceEntry) => void
@@ -60,6 +155,14 @@ interface DiceEntryCardProps {
   isOverCapacity?: boolean
   /** Id of the builder's capacity message, for aria-describedby. */
   capacityMessageId?: string
+  /**
+   * True when the roll mixes success-counting entries with summing ones, which
+   * has no coherent total. The offending affordance is this checkbox on every
+   * card — the mix is a whole-roll condition and any card can resolve it.
+   */
+  isSuccessModeMixed?: boolean
+  /** Id of the builder's success-mode message, for aria-describedby. */
+  successModeMessageId?: string
 }
 
 /**
@@ -73,6 +176,8 @@ export function DiceEntryCard({
   inventoryDiceById,
   isOverCapacity = false,
   capacityMessageId,
+  isSuccessModeMixed = false,
+  successModeMessageId,
 }: DiceEntryCardProps) {
   const [showAdvanced, setShowAdvanced] = useState(false)
   // The draft owns the displayed text while the field is being typed into, and
@@ -93,7 +198,7 @@ export function DiceEntryCard({
   // Sources always total the ROLLED count, which is what the room spawns.
   const rolledCount = getDiceEntrySourceQuantity(entry)
   const keepDropOn = entry.rollCount !== undefined
-  const keepMode: KeepMode = entry.keepMode ?? 'highest'
+  const keepMode: KeepMode = entry.keepMode ?? KEEP_MODE_DEFAULT
   const explodeTrigger = entry.exploding ? getExplodeFace(entry.type, entry.exploding) : dieMax
 
   /**
@@ -120,7 +225,7 @@ export function DiceEntryCard({
       ...next,
       quantity: keep,
       rollCount: keepsSome ? rolled : undefined,
-      keepMode: keepsSome ? next.keepMode ?? 'highest' : undefined,
+      keepMode: keepsSome ? next.keepMode ?? KEEP_MODE_DEFAULT : undefined,
       sources,
     })
   }
@@ -179,6 +284,10 @@ export function DiceEntryCard({
   }
 
   const handleBonusChange = (bonus: number) => {
+    // Clear any "Removed from this roll" notice: it described a previous count
+    // change, and leaving it up next to an unrelated edit reads as if THIS edit
+    // dropped an owned die.
+    setDroppedDieNames([])
     onUpdate({ ...entry, perDieBonus: bonus })
   }
 
@@ -212,23 +321,21 @@ export function DiceEntryCard({
     commitEntry({ ...entry, keepMode: mode })
   }
 
-  const handleKeepCountChange = (raw: string) => {
-    const parsed = Number.parseInt(raw, 10)
-    if (!Number.isFinite(parsed)) return
-    commitEntry({ ...entry, quantity: clampToRange(parsed, 1, rolledCount) })
+  const handleKeepCountCommit = (value: number | undefined) => {
+    if (value === undefined) return
+    commitEntry({ ...entry, quantity: clampToRange(value, 1, rolledCount) })
   }
 
   const handleExplodingToggle = (enabled: boolean) => {
     commitEntry({ ...entry, exploding: enabled ? { on: 'max' } : undefined })
   }
 
-  const handleExplodingTriggerChange = (raw: string) => {
-    const parsed = Number.parseInt(raw, 10)
-    if (!Number.isFinite(parsed)) return
+  const handleExplodingTriggerCommit = (raw: number | undefined) => {
+    if (raw === undefined) return
 
     // Store the die's own maximum as `'max'` so the entry keeps meaning "on a
     // max face" if it is ever retyped as another die.
-    const value = clampToRange(parsed, 1, dieMax)
+    const value = clampToRange(raw, 1, dieMax)
     commitEntry({
       ...entry,
       exploding: { ...entry.exploding, on: value === dieMax ? 'max' : value },
@@ -242,11 +349,10 @@ export function DiceEntryCard({
     })
   }
 
-  const handleRerollValueChange = (raw: string) => {
-    const parsed = Number.parseInt(raw, 10)
-    if (!Number.isFinite(parsed)) return
+  const handleRerollValueCommit = (raw: number | undefined) => {
+    if (raw === undefined) return
 
-    const value = clampToRange(parsed, 1, dieMax)
+    const value = clampToRange(raw, 1, dieMax)
     // The field is an "at or below" threshold, so moving it commits that
     // comparison. An unchanged value is left alone so Halfling Luck's
     // equivalent `= 1` survives a no-op edit.
@@ -256,26 +362,20 @@ export function DiceEntryCard({
     commitEntry({ ...entry, reroll: { condition, value, maxRerolls: 1 } })
   }
 
-  const handleMinimumChange = (raw: string) => {
-    if (raw.trim() === '') {
-      commitEntry({ ...entry, minimum: undefined })
-      return
-    }
-
-    const parsed = Number.parseInt(raw, 10)
-    if (!Number.isFinite(parsed)) return
-    commitEntry({ ...entry, minimum: clampToRange(parsed, 1, entry.maximum ?? dieMax) })
+  // A cleared clamp means "no limit", so `undefined` is a legitimate commit
+  // here rather than an unusable draft.
+  const handleMinimumCommit = (raw: number | undefined) => {
+    commitEntry({
+      ...entry,
+      minimum: raw === undefined ? undefined : clampToRange(raw, 1, entry.maximum ?? dieMax),
+    })
   }
 
-  const handleMaximumChange = (raw: string) => {
-    if (raw.trim() === '') {
-      commitEntry({ ...entry, maximum: undefined })
-      return
-    }
-
-    const parsed = Number.parseInt(raw, 10)
-    if (!Number.isFinite(parsed)) return
-    commitEntry({ ...entry, maximum: clampToRange(parsed, entry.minimum ?? 1, dieMax) })
+  const handleMaximumCommit = (raw: number | undefined) => {
+    commitEntry({
+      ...entry,
+      maximum: raw === undefined ? undefined : clampToRange(raw, entry.minimum ?? 1, dieMax),
+    })
   }
 
   const handleSuccessToggle = (enabled: boolean) => {
@@ -285,12 +385,11 @@ export function DiceEntryCard({
     })
   }
 
-  const handleSuccessTargetChange = (raw: string) => {
-    const parsed = Number.parseInt(raw, 10)
-    if (!Number.isFinite(parsed)) return
+  const handleSuccessTargetCommit = (raw: number | undefined) => {
+    if (raw === undefined) return
     commitEntry({
       ...entry,
-      countSuccesses: { ...entry.countSuccesses, targetNumber: clampToRange(parsed, 1, dieMax) },
+      countSuccesses: { ...entry.countSuccesses, targetNumber: clampToRange(raw, 1, dieMax) },
     })
   }
 
@@ -554,15 +653,12 @@ export function DiceEntryCard({
                       <option value="highest">best</option>
                       <option value="lowest">worst</option>
                     </select>
-                    <input
-                      type="number"
+                    <AdvancedNumberField
+                      label={`${typeLabel} dice to keep`}
+                      value={entry.quantity}
                       min={1}
                       max={rolledCount}
-                      value={entry.quantity}
-                      onChange={(event) => handleKeepCountChange(event.target.value)}
-                      aria-label={`${typeLabel} dice to keep`}
-                      className={NUMBER_FIELD_CLASS}
-                      style={FIELD_STYLE}
+                      onCommit={handleKeepCountCommit}
                     />
                   </div>
                   <p className={HELPER_CLASS} style={HELPER_STYLE}>
@@ -595,15 +691,12 @@ export function DiceEntryCard({
                   <span className={INLINE_LABEL_CLASS} style={INLINE_LABEL_STYLE}>
                     Explodes on
                   </span>
-                  <input
-                    type="number"
+                  <AdvancedNumberField
+                    label={`${typeLabel} explodes on`}
+                    value={explodeTrigger}
                     min={1}
                     max={dieMax}
-                    value={explodeTrigger}
-                    onChange={(event) => handleExplodingTriggerChange(event.target.value)}
-                    aria-label={`${typeLabel} explodes on`}
-                    className={NUMBER_FIELD_CLASS}
-                    style={FIELD_STYLE}
+                    onCommit={handleExplodingTriggerCommit}
                   />
                   <span className={INLINE_LABEL_CLASS} style={INLINE_LABEL_STYLE}>
                     exactly
@@ -635,15 +728,12 @@ export function DiceEntryCard({
                   <span className={INLINE_LABEL_CLASS} style={INLINE_LABEL_STYLE}>
                     Reroll at or below
                   </span>
-                  <input
-                    type="number"
+                  <AdvancedNumberField
+                    label={`${typeLabel} reroll at or below`}
+                    value={entry.reroll.value}
                     min={1}
                     max={dieMax}
-                    value={entry.reroll.value}
-                    onChange={(event) => handleRerollValueChange(event.target.value)}
-                    aria-label={`${typeLabel} reroll at or below`}
-                    className={NUMBER_FIELD_CLASS}
-                    style={FIELD_STYLE}
+                    onCommit={handleRerollValueCommit}
                   />
                 </div>
               )}
@@ -663,28 +753,24 @@ export function DiceEntryCard({
                 <span className={INLINE_LABEL_CLASS} style={INLINE_LABEL_STYLE}>
                   Min
                 </span>
-                <input
-                  type="number"
+                <AdvancedNumberField
+                  label={`${typeLabel} minimum value`}
+                  value={entry.minimum}
                   min={1}
                   max={dieMax}
-                  value={entry.minimum ?? ''}
-                  onChange={(event) => handleMinimumChange(event.target.value)}
-                  aria-label={`${typeLabel} minimum value`}
-                  className={NUMBER_FIELD_CLASS}
-                  style={FIELD_STYLE}
+                  allowEmpty
+                  onCommit={handleMinimumCommit}
                 />
                 <span className={INLINE_LABEL_CLASS} style={INLINE_LABEL_STYLE}>
                   Max
                 </span>
-                <input
-                  type="number"
+                <AdvancedNumberField
+                  label={`${typeLabel} maximum value`}
+                  value={entry.maximum}
                   min={1}
                   max={dieMax}
-                  value={entry.maximum ?? ''}
-                  onChange={(event) => handleMaximumChange(event.target.value)}
-                  aria-label={`${typeLabel} maximum value`}
-                  className={NUMBER_FIELD_CLASS}
-                  style={FIELD_STYLE}
+                  allowEmpty
+                  onCommit={handleMaximumCommit}
                 />
               </div>
 
@@ -702,6 +788,8 @@ export function DiceEntryCard({
                   checked={entry.countSuccesses !== undefined}
                   onChange={(event) => handleSuccessToggle(event.target.checked)}
                   aria-label={`Count ${typeLabel} successes`}
+                  aria-invalid={isSuccessModeMixed ? true : undefined}
+                  aria-describedby={isSuccessModeMixed ? successModeMessageId : undefined}
                   className="w-4 h-4"
                   style={{ accentColor: 'var(--color-accent)' }}
                 />
@@ -713,15 +801,12 @@ export function DiceEntryCard({
                   <span className={INLINE_LABEL_CLASS} style={INLINE_LABEL_STYLE}>
                     Success on
                   </span>
-                  <input
-                    type="number"
+                  <AdvancedNumberField
+                    label={`${typeLabel} success on or above`}
+                    value={entry.countSuccesses.targetNumber}
                     min={1}
                     max={dieMax}
-                    value={entry.countSuccesses.targetNumber}
-                    onChange={(event) => handleSuccessTargetChange(event.target.value)}
-                    aria-label={`${typeLabel} success on or above`}
-                    className={NUMBER_FIELD_CLASS}
-                    style={FIELD_STYLE}
+                    onCommit={handleSuccessTargetCommit}
                   />
                   <span className={INLINE_LABEL_CLASS} style={INLINE_LABEL_STYLE}>
                     or above
