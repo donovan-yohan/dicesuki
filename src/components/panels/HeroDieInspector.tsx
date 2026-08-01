@@ -14,12 +14,16 @@ import {
   type DiceRenderLodPolicy,
   type RenderDeviceTier,
 } from '../../lib/renderLod'
+import { SceneAssetErrorBoundary } from '../SceneAssetErrorBoundary'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import type { InventoryDie } from '../../types/inventory'
 import type { Theme } from '../../themes/tokens'
 
 /** Static tilt applied to the previewed die so faces read clearly. */
 const HERO_DIE_ROTATION: [number, number, number] = [0.45, 0.6, 0.2]
+
+/** drei HDR preset lighting the inspector's preview stage. */
+const HERO_ENVIRONMENT_PRESET = 'city' as const
 
 interface HeroDieInspectorProps {
   die: InventoryDie
@@ -280,13 +284,32 @@ function HeroDieStage({
         {/* Static preview — no physics. The die is a positioned mesh, matching the
             room-authoritative rendering model (issue #115). */}
         {die.customAsset ? (
-          <Suspense fallback={null}>
-            <CustomHeroDie die={die} />
-          </Suspense>
+          // A rejected GLB must degrade to the procedural die, not blank the
+          // panel: `<Canvas>`'s own boundary re-throws into the DOM tree, where
+          // nothing catches it (issue #210). `resetKey` is the model URL, so
+          // picking a different die retries the load.
+          <SceneAssetErrorBoundary
+            resetKey={die.customAsset.modelUrl}
+            fallback={<StandardHeroDie die={die} theme={theme} heroLod={heroLod} />}
+          >
+            <Suspense fallback={null}>
+              <CustomHeroDie die={die} />
+            </Suspense>
+          </SceneAssetErrorBoundary>
         ) : (
           <StandardHeroDie die={die} theme={theme} heroLod={heroLod} />
         )}
-        <Environment preset="city" />
+        {/* Decorative image-based lighting, fetched from drei's CDN. Isolated on
+            both axes like the table's map (`Scene.tsx`): its own `Suspense` so a
+            slow or blocked request cannot suspend the die alongside it, and its
+            own boundary so a failed one cannot blank the panel. `resetKey` is
+            constant on purpose — the preset never changes, and a CDN that just
+            failed should not be retried on every re-render. */}
+        <SceneAssetErrorBoundary resetKey={HERO_ENVIRONMENT_PRESET} fallback={null}>
+          <Suspense fallback={null}>
+            <Environment preset={HERO_ENVIRONMENT_PRESET} />
+          </Suspense>
+        </SceneAssetErrorBoundary>
       </Canvas>
     </div>
   )

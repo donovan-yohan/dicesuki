@@ -81,14 +81,70 @@ test('loads a connected solo room on / with no native server and no network room
   await expect(room).toHaveAttribute('data-local-player-ready', 'true')
   await expect(room).toHaveAttribute('data-engine-ready', 'true')
 
-  // The loader stays through the first rendered canvas frame, then leaves.
   await expect(page.getByTestId('solo-room-loading')).toHaveCount(0)
+
+  // The loader stays through the first rendered canvas frame, then leaves.
+  //
+  // Wait on the gate's own handover edge rather than polling for the splash to
+  // disappear. Connecting to the worker room is milliseconds; cold-starting the
+  // renderer behind it is seconds of main-thread work (module graph, shader
+  // compile, first draw — on CI, through a software GL backend), so the 5s
+  // Playwright applies to a bare `toHaveCount` was never a budget anyone chose
+  // for that step, and this test spent it racing the boot (issue #210). The
+  // absence assertion below is still the load-bearing one; it just runs after a
+  // signal that says the work is finished instead of guessing when it should be.
+  await expect(room).toHaveAttribute('data-table-revealed', 'true', { timeout: 30_000 })
   await expect(page.getByTestId('startup-splash')).toHaveCount(0)
 
   // No network WebSocket to any room server was opened — solo is served entirely
   // by the worker over postMessage.
   expect(roomSockets.urls).toEqual([])
 })
+
+/**
+ * Regression guard for issue #210 (the startup-splash flake).
+ *
+ * `<Canvas>` puts every child in ONE Suspense boundary, so any scene asset that
+ * loads with `useLoader` suspends the whole scene — including the first-frame
+ * signal that tells the splash to leave. The HDR environment map is the one
+ * runtime asset the table pulls from a third-party CDN, so a request that never
+ * lands (offline PWA, firewall, ad blocker, or just a slow CDN) used to pin the
+ * splash at `phase="rendering"` forever, and a request that *failed* took the
+ * whole app down with it.
+ *
+ * These two cases are deterministic, not timing-based: the routes below hang or
+ * fail the request outright, so the assertions fail closed the moment the
+ * splash is coupled to a scene asset again. `intercepted` must be non-empty so
+ * the guard can never pass vacuously if drei changes where the map comes from.
+ */
+for (const mode of ['never arrives', 'fails outright'] as const) {
+  test(`boots the table when the HDR environment map ${mode}`, async ({ page }) => {
+    test.setTimeout(60_000)
+
+    const intercepted: string[] = []
+    await page.route(/\.(hdr|exr)(\?|$)/, async (route) => {
+      intercepted.push(route.request().url())
+      if (mode === 'fails outright') return route.abort('failed')
+      await new Promise(() => {}) // hangs for the lifetime of the page
+    })
+
+    await page.goto('/')
+
+    const room = page.getByTestId('solo-room')
+    await expect(room).toHaveAttribute('data-connection-status', 'connected', { timeout: 30_000 })
+
+    // The table renders and the splash leaves on the first painted frame. The
+    // map is decorative and must never gate either one — losing it dims
+    // metallic dice by roughly a third and changes nothing else, which is a
+    // table you can still play on.
+    await expect(room).toHaveAttribute('data-table-revealed', 'true', { timeout: 30_000 })
+    await expect(page.getByTestId('startup-splash')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Roll dice' })).toBeVisible()
+    await expect(room).toHaveAttribute('data-room-dice-count', '1')
+
+    expect(intercepted.length).toBeGreaterThan(0)
+  })
+}
 
 test('executes a saved roll through the wasm room backend', async ({ page }) => {
   test.setTimeout(60_000)

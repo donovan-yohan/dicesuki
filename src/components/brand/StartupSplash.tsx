@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 export type StartupPhase =
   | 'boot'
@@ -68,6 +68,16 @@ interface StartupGateProps {
   phase: StartupPhase
   children: (onContentReady: () => void) => ReactNode
   revealDelayMs?: number
+  /**
+   * Fires whenever the gate hands the screen to `children` (`true`) or takes it
+   * back because `ready` dropped (`false`).
+   *
+   * The handover is the only moment that matters to anything watching the boot,
+   * and it is otherwise observable only as the *absence* of the splash — which
+   * forces watchers to poll and guess a budget. Hosts surface this as a DOM
+   * attribute so the handover is a positive edge to await (issue #210).
+   */
+  onRevealChange?: (revealed: boolean) => void
 }
 
 /**
@@ -80,6 +90,7 @@ export function StartupGate({
   phase,
   children,
   revealDelayMs = 220,
+  onRevealChange,
 }: StartupGateProps) {
   const [contentReady, setContentReady] = useState(false)
   const [revealed, setRevealed] = useState(false)
@@ -96,6 +107,17 @@ export function StartupGate({
     const timeout = window.setTimeout(() => setRevealed(true), revealDelayMs)
     return () => window.clearTimeout(timeout)
   }, [contentReady, ready, revealDelayMs])
+
+  // Report only real edges. Hosts pass an inline lambda more often than not, so
+  // a plain `[revealed, onRevealChange]` effect re-fires the same value on every
+  // parent render — and a host that turns the report into state would then feed
+  // its own render loop.
+  const lastReportedRef = useRef<boolean | null>(null)
+  useEffect(() => {
+    if (lastReportedRef.current === revealed) return
+    lastReportedRef.current = revealed
+    onRevealChange?.(revealed)
+  }, [revealed, onRevealChange])
 
   const markContentReady = useCallback(() => setContentReady(true), [])
 
