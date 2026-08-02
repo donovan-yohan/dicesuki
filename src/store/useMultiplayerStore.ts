@@ -840,6 +840,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           // check would find it already cleared and write the duplicate row all
           // over again. Only the base wave is ever an explicit roll, so exactly
           // one message per saved roll is ever dropped.
+          //
+          // The comparison stays an exact set because the CLAIM tracks the
+          // room's `pending_roll`: `applyDiceRemoval` shrinks it as dice leave
+          // the roll (issue #226), so it still names precisely the survivors
+          // the room reports. Matching a subset here instead would let a
+          // completion for a genuinely different, smaller roll be swallowed.
           const suppressed = diceState.suppressedRollDiceIds
           if (
             msg.playerId === localPlayerId

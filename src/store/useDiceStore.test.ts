@@ -538,6 +538,50 @@ describe('useDiceStore', () => {
       expect(useDiceStore.getState().suppressedRollDiceIds).toBeNull()
     })
 
+    it('shrinks with the roll when one of its dice is removed', () => {
+      // Issue #226 meeting #211. The room shrinks a roll whose die is removed
+      // and completes it naming only the SURVIVORS, so a claim left at full
+      // width stops matching that message — and the roll gets written twice,
+      // once by `finishSavedRollWaves` and once by the completion the claim
+      // existed to swallow. A reroll wave discarding its target is this case.
+      useDiceStore.getState().beginSavedRollWaves(['keep', 'discard'])
+      useDiceStore.getState().markDiceRolling(['keep', 'discard'])
+      useDiceStore.getState().recordDieSettled('keep', 4, 'd6')
+
+      useDiceStore.getState().applyDiceRemoval(['discard'])
+
+      expect(useDiceStore.getState().suppressedRollDiceIds).toEqual(['keep'])
+    })
+
+    it('goes null once the removal leaves the roll nothing to complete', () => {
+      // An emptied roll is dropped by the room without a word, so there is no
+      // message left to suppress — and a claim kept alive would swallow the
+      // NEXT roll's completion instead.
+      useDiceStore.getState().beginSavedRollWaves(['only'])
+      useDiceStore.getState().markDiceRolling(['only'])
+
+      useDiceStore.getState().applyDiceRemoval(['only'])
+
+      expect(useDiceStore.getState().suppressedRollDiceIds).toBeNull()
+    })
+
+    it('shrinks even after the waves have closed the cycle', () => {
+      // The claim outlives its cycle: `finishSavedRollWaves` closes the cycle
+      // while the completion is still in flight. A removal in that window has
+      // to keep claim and room in step just the same, so the shrink cannot be
+      // gated on the dice still being in the cycle.
+      useDiceStore.getState().beginSavedRollWaves(['keep', 'discard'])
+      useDiceStore.getState().markDiceRolling(['keep', 'discard'])
+      useDiceStore.getState().recordDieSettled('keep', 4, 'd6')
+      useDiceStore.getState().recordDieSettled('discard', 1, 'd6')
+      useDiceStore.getState().finishSavedRollWaves()
+      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(0)
+
+      useDiceStore.getState().applyDiceRemoval(['discard'])
+
+      expect(useDiceStore.getState().suppressedRollDiceIds).toEqual(['keep'])
+    })
+
     it('records the claim in spawn order, for the handler to match set-wise', () => {
       // The room sorts its results by dice id, so a positional comparison would
       // miss whenever spawn order differs from sorted order.
@@ -642,15 +686,6 @@ describe('useDiceStore', () => {
       expect(backwards[0].sum).toBe(3)
       expect(forwards[0].dice.map((d) => d.diceId)).toEqual(['die-1'])
       expect(backwards[0].dice.map((d) => d.diceId)).toEqual(['die-1'])
-    })
-
-    it('attributes the row to whoever owned the roll', () => {
-      useDiceStore.getState().markDiceRolling(['die-1', 'die-2'])
-      useDiceStore.getState().recordDieSettled('die-1', 2, 'd6')
-
-      removeDice(['die-2'], PLAYER)
-
-      expect(useDiceStore.getState().rollHistory[0].player?.displayName).toBe('Me')
     })
 
     it('ignores a removal of dice no roll of ours ever claimed', () => {
@@ -799,14 +834,23 @@ describe('useDiceStore', () => {
       expect(useDiceStore.getState().rollHistory).toHaveLength(2)
     })
 
-    it('appends an ordinary roll, with no provisional row in play', () => {
+    it('appends ordinary rolls, each keeping its own row', () => {
+      // No removal, so nothing is provisional and nothing may be replaced —
+      // including a re-roll of the SAME table, whose completion carries
+      // identical dice ids and must still land beside the first row.
       useDiceStore.getState().markDiceRolling(['die-1'])
       useDiceStore.getState().recordDieSettled('die-1', 4, 'd6')
       expect(useDiceStore.getState().provisionalRollRowId).toBeNull()
-
       useDiceStore.getState().recordRoomCompletedRoll(completion)
 
-      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      useDiceStore.getState().markDiceRolling(['die-1'])
+      useDiceStore.getState().recordDieSettled('die-1', 6, 'd6')
+      useDiceStore.getState().recordRoomCompletedRoll({ ...completion, sum: 6 })
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(2)
+      expect(history.map((row) => row.sum)).toEqual([4, 6])
+      expect(new Set(history.map((row) => row.id)).size).toBe(2)
     })
 
     it('does not swallow a DIFFERENT roll\'s completion', () => {

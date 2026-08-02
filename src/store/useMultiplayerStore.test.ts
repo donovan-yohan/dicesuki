@@ -985,6 +985,51 @@ describe('useMultiplayerStore', () => {
       expect(useDiceStore.getState().rollHistory).toHaveLength(2)
     })
 
+    it('still drops the claimed roll_complete after the roll was shrunk', () => {
+      // Issues #226 + #211. A wave sequence claims its roll by dice id, but the
+      // room now completes a SHRUNK roll naming only the survivors — which a
+      // reroll wave causes every time it discards a target. The claim shrinks
+      // with the room (`applyDiceRemoval`), so this message is still recognised
+      // and dropped; otherwise it lands as a second row beside the one
+      // `finishSavedRollWaves` wrote for the very same roll.
+      useDiceStore.getState().reset()
+      useMultiplayerStore.setState({
+        localPlayerId: 'p1',
+        players: new Map([['p1', {
+          id: 'p1', displayName: 'Me', color: '#f00', isHost: true,
+        }]]) as never,
+        dice: new Map([
+          ['keep', { id: 'keep', ownerId: 'p1', diceType: 'd6' }],
+          ['discard', { id: 'discard', ownerId: 'p1', diceType: 'd6' }],
+        ]) as never,
+      })
+
+      useDiceStore.getState().beginSavedRollWaves(['keep', 'discard'])
+      useDiceStore.getState().markDiceRolling(['keep', 'discard'])
+      useDiceStore.getState().recordDieSettled('keep', 4, 'd6')
+      useDiceStore.getState().recordDieSettled('discard', 1, 'd6')
+
+      // The reroll wave discards its target through the room.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'dice_removed',
+        diceIds: ['discard'],
+      } as never)
+      useDiceStore.getState().finishSavedRollWaves({
+        id: 'p1', displayName: 'Me', color: '#f00',
+      })
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+
+      // The room completes the shrunk roll: survivors only.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'roll_complete',
+        playerId: 'p1',
+        total: 4,
+        results: [{ diceId: 'keep', diceType: 'd6', faceValue: 4 }],
+      } as never)
+
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    })
+
     it('records a roll the room shrank exactly once, on the room\'s terms', () => {
       // Issues #226 + #211 together. Removing a tracked die makes the room
       // complete the roll from the SURVIVORS, so the row the local orphan path

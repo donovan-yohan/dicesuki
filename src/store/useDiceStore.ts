@@ -147,8 +147,17 @@ interface DiceStore {
    * second row (issue #211 again). Matching on the roll's dice-id set drops
    * exactly the spoken-for roll, whenever it lands.
    *
-   * One-shot: consumed on match, and dropped when a new cycle opens so a later
-   * roll of an unchanged table can never inherit it.
+   * Tracks the room's `pending_roll`, so it SHRINKS when one of its dice is
+   * removed and goes null once none are left (`applyDiceRemoval`, issue #226).
+   * The room completes a shrunk roll naming only the survivors; a claim left at
+   * full width would no longer match that message and the roll would be written
+   * twice.
+   *
+   * One-shot: consumed on match, and dropped when a fresh cycle opens so a
+   * later roll of an unchanged table can never inherit it. Note "fresh cycle"
+   * excludes the waves themselves — `markDiceRolling` only resets while no
+   * wave sequence is pending, which is exactly what lets the claim survive the
+   * follow-up spawns it was taken out for.
    */
   suppressedRollDiceIds: readonly string[] | null
   /**
@@ -606,11 +615,37 @@ export const useDiceStore = create<DiceStore>()(
           const orphan = state.orphanedCycle
             ?? (cancelled.length > 0 && !claimOwnsThese ? { player } : null)
 
+          // The claim names the dice of the roll the room is still tracking, so
+          // it has to shrink exactly as the room's `pending_roll` does when one
+          // of them is removed (issue #226). Left at full width it would no
+          // longer match: the room completes the shrunk roll naming only the
+          // SURVIVORS, the handler's set comparison would miss, and the roll
+          // would be written twice — once by `finishSavedRollWaves` and once by
+          // the completion the claim was supposed to swallow. A reroll wave
+          // discarding its own targets is precisely this case.
+          //
+          // Emptied, the claim becomes null: the room drops a roll it has no
+          // dice left for and never announces it, so there is nothing to
+          // suppress, and a stale claim would swallow some later roll instead.
+          //
+          // Deliberately NOT gated on the removed dice still being in the
+          // cycle: after `finishSavedRollWaves` closes the cycle, the claim
+          // outlives it while the completion is still in flight, and a removal
+          // in that window has to keep the two in step just the same.
+          let claimState: Pick<DiceStore, 'suppressedRollDiceIds'> | Record<string, never> = {}
+          if (claim !== null) {
+            const keptClaim = claim.filter((id) => !removedIds.includes(id))
+            if (keptClaim.length !== claim.length) {
+              claimState = { suppressedRollDiceIds: keptClaim.length > 0 ? keptClaim : null }
+            }
+          }
+
           const removed = {
             settledDice: newSettled,
             rollingDice: newRolling,
             currentRollCycleDice: newCycleDice,
             orphanedCycle: orphan,
+            ...claimState,
           }
 
           // The roll is gone rather than finished — nothing to report, and no
