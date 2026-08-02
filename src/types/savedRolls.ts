@@ -129,6 +129,15 @@ export interface SavedRoll {
 
   // Metadata
   createdAt: number
+  /**
+   * Last local mutation time, stamped by `useSavedRollsStore` on every change.
+   *
+   * This is the per-roll revision that cross-device sync uses to settle a
+   * conflict on the SAME roll (`src/lib/savedRollsMerge.ts`). Absent on every
+   * roll saved before sync merging shipped, which is why the merge falls back to
+   * `createdAt` — two devices then compare equal instead of arbitrarily.
+   */
+  updatedAt?: number
   lastUsed?: number
   description?: string
   tags?: string[]         // For organization: ['combat', 'spell', 'damage']

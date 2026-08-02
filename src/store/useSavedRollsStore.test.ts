@@ -105,6 +105,7 @@ describe('useSavedRollsStore roll source identity', () => {
     expect(normalizePersistedSavedRollsState('bad-state')).toEqual({
       savedRolls: [],
       currentlyEditing: null,
+      deletedRolls: {},
     })
 
     const migrated = normalizePersistedSavedRollsState({
@@ -117,5 +118,56 @@ describe('useSavedRollsStore roll source identity', () => {
 
     expect(migrated.savedRolls).toEqual([])
     expect(migrated.currentlyEditing?.dice).toEqual([])
+  })
+})
+
+describe('useSavedRollsStore sync revisions and tombstones', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    useSavedRollsStore.setState({ savedRolls: [], currentlyEditing: null, deletedRolls: {} })
+  })
+
+  it('stamps updatedAt on every mutating action', () => {
+    // The per-roll revision cross-device merge compares. An action that forgot
+    // to stamp would leave its edit looking older than a stale remote copy and
+    // lose the conflict it should win.
+    useSavedRollsStore.getState().addRoll({ ...baseRoll, id: 'r1' })
+    const added = useSavedRollsStore.getState().savedRolls[0].updatedAt
+    expect(added).toBeTypeOf('number')
+
+    useSavedRollsStore.getState().updateRoll('r1', { name: 'renamed' })
+    const renamed = useSavedRollsStore.getState().savedRolls[0].updatedAt!
+    expect(renamed).toBeGreaterThanOrEqual(added!)
+
+    useSavedRollsStore.getState().toggleFavorite('r1')
+    expect(useSavedRollsStore.getState().savedRolls[0].updatedAt).toBeGreaterThanOrEqual(renamed)
+
+    useSavedRollsStore.getState().markRollAsUsed('r1')
+    expect(useSavedRollsStore.getState().savedRolls[0].updatedAt).toBeGreaterThanOrEqual(renamed)
+
+    useSavedRollsStore.getState().duplicateRoll('r1')
+    expect(useSavedRollsStore.getState().savedRolls[1].updatedAt).toBeTypeOf('number')
+  })
+
+  it('records a tombstone on delete so the removal can propagate', () => {
+    useSavedRollsStore.getState().addRoll({ ...baseRoll, id: 'r1' })
+    useSavedRollsStore.getState().deleteRoll('r1')
+
+    expect(useSavedRollsStore.getState().savedRolls).toEqual([])
+    expect(useSavedRollsStore.getState().deletedRolls.r1).toBeTypeOf('number')
+  })
+
+  it('retires the tombstone when the same id is added back', () => {
+    // Left in place it would delete the new roll on the next merge.
+    useSavedRollsStore.getState().addRoll({ ...baseRoll, id: 'r1' })
+    useSavedRollsStore.getState().deleteRoll('r1')
+    useSavedRollsStore.getState().addRoll({ ...baseRoll, id: 'r1' })
+
+    expect(useSavedRollsStore.getState().savedRolls.map(r => r.id)).toEqual(['r1'])
+    expect(useSavedRollsStore.getState().deletedRolls).not.toHaveProperty('r1')
+  })
+
+  it('reads a legacy blob with no tombstone map as "no deletions known"', () => {
+    expect(normalizePersistedSavedRollsState({ savedRolls: [] }).deletedRolls).toEqual({})
   })
 })
