@@ -16,11 +16,36 @@ import {
   withNormalizedRollSources,
   withRollSources,
 } from '../lib/rollSources'
+import {
+  normalizeTombstones,
+  type SavedRollTombstones,
+} from '../lib/savedRollsMerge'
+
+/**
+ * Stamp a roll as locally modified.
+ *
+ * `updatedAt` is the per-roll revision cross-device sync compares when the SAME
+ * roll was edited on two devices (`src/lib/savedRollsMerge.ts`). Every mutating
+ * action routes through here so no path can produce a roll that looks older than
+ * it is — an unstamped edit would silently lose to a stale remote copy.
+ */
+function touchRoll(roll: SavedRoll, now: number = Date.now()): SavedRoll {
+  return { ...roll, updatedAt: now }
+}
 
 export interface SavedRollsStore {
   // State
   savedRolls: SavedRoll[]
   currentlyEditing: SavedRoll | null
+  /**
+   * Tombstones for rolls deleted on this device: roll id -> deletion time.
+   *
+   * Sync merges the two devices' roll lists by union, so a delete that left no
+   * trace would simply be undone by the other device's surviving copy. These
+   * rows are what make a deletion propagate. Garbage collected by
+   * `normalizeTombstones` (TTL + cap) so the blob stays bounded.
+   */
+  deletedRolls: SavedRollTombstones
 
   // Actions
   addRoll: (roll: SavedRoll) => void
@@ -65,6 +90,10 @@ export function normalizePersistedSavedRollsState(persistedState: unknown): Part
     ...state,
     savedRolls,
     currentlyEditing,
+    // Also the normalizer for REMOTE blobs (dataSync reuses this function), so a
+    // v1 blob — which has no tombstones at all — has to read back as "no
+    // deletions known", not `undefined`.
+    deletedRolls: normalizeTombstones(state.deletedRolls),
   }
 }
 
@@ -74,6 +103,7 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
       // Initial state
       savedRolls: [],
       currentlyEditing: null,
+      deletedRolls: {},
 
       // Add a new saved roll
       addRoll: (roll) => set((state) => {
@@ -81,21 +111,29 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
         if (state.savedRolls.some(r => r.id === roll.id)) {
           return state
         }
+        // Re-adding a previously deleted id retires its tombstone; leaving it
+        // would have the next merge delete the new roll on sight.
+        const deletedRolls = { ...state.deletedRolls }
+        delete deletedRolls[roll.id]
         return {
-          savedRolls: [...state.savedRolls, normalizeSavedRollSources(roll)]
+          savedRolls: [...state.savedRolls, touchRoll(normalizeSavedRollSources(roll))],
+          deletedRolls,
         }
       }),
 
       // Update an existing roll
       updateRoll: (id, updates) => set((state) => ({
         savedRolls: state.savedRolls.map(roll =>
-          roll.id === id ? normalizeSavedRollSources({ ...roll, ...updates }) : roll
+          roll.id === id ? touchRoll(normalizeSavedRollSources({ ...roll, ...updates })) : roll
         )
       })),
 
       // Delete a roll
       deleteRoll: (id) => set((state) => ({
-        savedRolls: state.savedRolls.filter(roll => roll.id !== id)
+        savedRolls: state.savedRolls.filter(roll => roll.id !== id),
+        // Recorded so the delete survives a merge with a device that still has
+        // its copy — a union of the two lists would otherwise resurrect it.
+        deletedRolls: normalizeTombstones({ ...state.deletedRolls, [id]: Date.now() }),
       })),
 
       // Duplicate a roll (creates a new roll with same settings)
@@ -103,13 +141,20 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
         const original = state.savedRolls.find(r => r.id === id)
         if (!original) return state
 
-        const duplicate: SavedRoll = normalizeSavedRollSources({
+        // `roll-${Date.now()}` is only millisecond-resolution, so two duplicates
+        // in the same tick used to mint the SAME id — and an id is what sync
+        // keys on, so the collision cost one of them.
+        const taken = new Set(state.savedRolls.map(r => r.id))
+        let candidate = `roll-${Date.now()}`
+        for (let n = 1; taken.has(candidate); n += 1) candidate = `roll-${Date.now()}-${n}`
+
+        const duplicate: SavedRoll = touchRoll(normalizeSavedRollSources({
           ...original,
-          id: `roll-${Date.now()}`,
+          id: candidate,
           name: `${original.name} (Copy)`,
           createdAt: Date.now(),
           lastUsed: undefined,
-        })
+        }))
 
         return {
           savedRolls: [...state.savedRolls, duplicate]
@@ -119,11 +164,16 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
       // Toggle favorite status
       toggleFavorite: (id) => set((state) => ({
         savedRolls: state.savedRolls.map(roll =>
-          roll.id === id ? { ...roll, isFavorite: !roll.isFavorite } : roll
+          roll.id === id ? touchRoll({ ...roll, isFavorite: !roll.isFavorite }) : roll
         )
       })),
 
       // Mark a roll as recently used
+      //
+      // Deliberately does NOT stamp `updatedAt`. `lastUsed` is display/sort
+      // metadata, not an edit to the roll: bumping the revision would let simply
+      // ROLLING a saved roll beat a rename made later on another device, and let
+      // it out-rank its own tombstone and come back from the dead.
       markRollAsUsed: (id) => set((state) => ({
         savedRolls: state.savedRolls.map(roll =>
           roll.id === id ? { ...roll, lastUsed: Date.now() } : roll
@@ -233,7 +283,12 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
     {
       name: 'dicesuki-saved-rolls', // localStorage key
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      // v1 -> v2 adds `deletedRolls` (delete tombstones) and per-roll
+      // `updatedAt`. The bump is what makes `migrate` run for everyone already
+      // holding a v1 blob — persist skips it when the version matches, which
+      // would leave `deletedRolls` undefined on exactly the installs that have
+      // saved rolls worth syncing.
+      version: 2,
       migrate: normalizePersistedSavedRollsState,
     }
   )
