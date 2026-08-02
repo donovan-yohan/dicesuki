@@ -69,7 +69,15 @@ async function seedOwnedDice(page: Page, count: number) {
 
 async function openBuilder(page: Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'My Dice Rolls' }).click({ timeout: 60_000 })
+  // Wait for the table's own reveal edge instead of hiding a cold 3D boot inside
+  // a click timeout (issue #222). A generous timeout on an action is a guess at
+  // how long booting takes; this is the boot reporting that it finished.
+  await expect(page.getByTestId('solo-room')).toHaveAttribute(
+    'data-table-revealed',
+    'true',
+    { timeout: 60_000 },
+  )
+  await page.getByRole('button', { name: 'My Dice Rolls' }).click()
   await page.getByRole('button', { name: /Create New Roll/i }).click()
   await expect(page.getByLabel('Roll name')).toBeVisible()
 }
@@ -183,7 +191,13 @@ test.describe('nested dialogs keep focus and Escape', () => {
     await seedOwnedDice(page, 3)
 
     await page.goto('/')
-    await page.getByRole('button', { name: 'Manage Dice' }).click({ timeout: 90_000 })
+    // Reveal edge instead of a 90s click timeout standing in for the boot.
+    await expect(page.getByTestId('solo-room')).toHaveAttribute(
+      'data-table-revealed',
+      'true',
+      { timeout: 90_000 },
+    )
+    await page.getByRole('button', { name: 'Manage Dice' }).click()
     await page.getByRole('button', { name: /open full dice inventory/i }).click()
     await page.getByRole('button', { name: /Inspect Owned d20 #3/ }).click()
 
@@ -219,7 +233,9 @@ test.describe('a pinned die reaches the table', () => {
     await page.goto('/')
     const room = page.getByTestId('solo-room')
     await expect(room).toHaveAttribute('data-connection-status', 'connected', { timeout: 60_000 })
-    await expect(page.getByTestId('startup-splash')).toHaveCount(0, { timeout: 60_000 })
+    // Reveal edge, then the (now instant) absence assertion — see issue #222.
+    await expect(room).toHaveAttribute('data-table-revealed', 'true', { timeout: 60_000 })
+    await expect(page.getByTestId('startup-splash')).toHaveCount(0)
 
     await page.getByRole('button', { name: 'My Dice Rolls' }).click()
     await page.getByRole('button', { name: /Create New Roll/i }).click()

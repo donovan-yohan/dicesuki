@@ -61,7 +61,16 @@ export default defineConfig({
         // chunk and its `.wasm` (~830KB) so solo boots offline. Generated from
         // the real build output, so sibling bundle changes (#115/#117) are
         // picked up automatically — nothing is hardcoded.
-        globPatterns: ['**/*.{js,css,html,wasm,svg,woff,woff2}'],
+        //
+        // `hdr` covers the two self-hosted environment maps in
+        // `public/textures/env/` (~3.2MB total, issue #222). They are precached
+        // rather than runtime-cached on purpose: image-based lighting is what
+        // gives metallic dice ~30-38% of their body brightness, so fetching it
+        // lazily would mean the first offline boot renders visibly dimmer than
+        // an online one. Precaching buys full lighting parity offline at the
+        // cost of a one-time install download. Keep `public/textures/env/` to
+        // maps the app actually renders — everything there ships to every user.
+        globPatterns: ['**/*.{js,css,html,wasm,svg,woff,woff2,hdr}'],
         // Artist/UV tooling assets aren't part of the runtime app shell.
         globIgnores: ['**/artist-resources/**'],
         // The wasm binary exceeds Workbox's 2 MiB default precache ceiling.

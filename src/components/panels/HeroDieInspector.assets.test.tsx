@@ -23,7 +23,7 @@ vi.mock('@react-three/fiber', () => ({
 
 vi.mock('@react-three/drei', () => ({
   Environment: () => {
-    throw new Error('Could not load city.hdr: Failed to fetch')
+    throw new Error('Could not load potsdamer_platz_1k.hdr: Failed to fetch')
   },
 }))
 

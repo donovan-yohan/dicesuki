@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router-dom'
-import { Canvas } from '@react-three/fiber'
-import { useMemo } from 'react'
+import { Canvas, useFrame } from '@react-three/fiber'
+import { useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import {
   type DiceShape,
@@ -17,6 +17,31 @@ import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { getFaceRendererForShape, type DiceFaceStyle } from '../../lib/faceRenderers'
 import { prepareGeometryForTexturing } from '../../lib/geometryTexturing'
 import { BASIC_DIE_BASE_COLOR } from '../../lib/basicDice'
+
+/**
+ * Reports the first frame the renderer actually draws.
+ *
+ * The harness's only observable "I have painted something" edge. It deliberately
+ * has no `Scene`, no `StartupGate` and no splash — it is a bare `<Canvas>` — so
+ * it cannot publish `data-table-revealed` the way `SoloRoom` does, and importing
+ * the scene's own signal here would couple a test surface to the production
+ * render path for no gain. A local `useFrame` one-shot is the honest equivalent.
+ *
+ * A first frame is a COMPLETE signal here, not an approximation: `useDiceMaterials`
+ * builds its face textures synchronously inside `useMemo`, so by the time any
+ * frame is drawn the numerals are already painted into it. Nothing else loads.
+ */
+function FirstFrameSignal({ onDrawn }: { onDrawn: () => void }) {
+  const didSignalRef = useRef(false)
+
+  useFrame(() => {
+    if (didSignalRef.current) return
+    didSignalRef.current = true
+    onDrawn()
+  })
+
+  return null
+}
 
 const FACE_NORMALS_MAP: Record<DiceShape, import('../../lib/geometries').DiceFace[]> = {
   d4: D4_FACE_NORMALS,
@@ -83,6 +108,8 @@ export default function DiceFaceTestHarness() {
   // be verified as real rendered pixels instead of asserted metadata.
   const faceStyle: DiceFaceStyle = searchParams.get('style') === 'basic' ? 'basic' : 'default'
 
+  const [frameDrawn, setFrameDrawn] = useState(false)
+
   const faceNormals = FACE_NORMALS_MAP[shape]
   const isValidFaceIndex = faceNormals && !Number.isNaN(faceIndex) && faceIndex < faceNormals.length && faceIndex >= 0
 
@@ -101,7 +128,11 @@ export default function DiceFaceTestHarness() {
   }
 
   return (
-    <div data-testid="dice-test-harness" style={{ width: '100vw', height: '100vh', background: '#111' }}>
+    <div
+      data-testid="dice-test-harness"
+      data-frame-drawn={frameDrawn ? 'true' : 'false'}
+      style={{ width: '100vw', height: '100vh', background: '#111' }}
+    >
       <div style={{ position: 'absolute', top: 10, left: 10, color: 'white', zIndex: 10, fontFamily: 'monospace' }}>
         <div data-testid="dice-type">{shape}</div>
         <div data-testid="face-style">{faceStyle}</div>
@@ -109,6 +140,7 @@ export default function DiceFaceTestHarness() {
         <div data-testid="expected-value">{face.value}</div>
       </div>
       <Canvas camera={{ position: [0.8, 3, 0.8], fov: 50, near: 0.1, far: 100 }}>
+        <FirstFrameSignal onDrawn={() => setFrameDrawn(true)} />
         <ambientLight intensity={1.2} />
         <directionalLight position={[0, 5, 0]} intensity={1.5} />
         <directionalLight position={[2, 3, 2]} intensity={0.5} />

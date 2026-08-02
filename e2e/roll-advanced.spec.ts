@@ -34,7 +34,15 @@ test.beforeEach(async ({ page }) => {
 
 async function openBuilder(page: Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'My Dice Rolls' }).click({ timeout: 60_000 })
+  // Wait for the table's own reveal edge instead of hiding a cold 3D boot inside
+  // a click timeout (issue #222). A generous timeout on an action is a guess at
+  // how long booting takes; this is the boot reporting that it finished.
+  await expect(page.getByTestId('solo-room')).toHaveAttribute(
+    'data-table-revealed',
+    'true',
+    { timeout: 60_000 },
+  )
+  await page.getByRole('button', { name: 'My Dice Rolls' }).click()
   await page.getByRole('button', { name: /Create New Roll/i }).click()
   await expect(page.getByLabel('Roll name')).toBeVisible()
 }

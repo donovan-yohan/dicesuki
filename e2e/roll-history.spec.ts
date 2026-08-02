@@ -68,7 +68,9 @@ async function openSoloRoom(page: Page) {
   await page.goto('/')
   const room = page.getByTestId('solo-room')
   await expect(room).toHaveAttribute('data-connection-status', 'connected', { timeout: 60_000 })
-  await expect(page.getByTestId('startup-splash')).toHaveCount(0, { timeout: 60_000 })
+  // Reveal edge, then the (now instant) absence assertion — see issue #222.
+  await expect(room).toHaveAttribute('data-table-revealed', 'true', { timeout: 60_000 })
+  await expect(page.getByTestId('startup-splash')).toHaveCount(0)
   return room
 }
 
