@@ -49,6 +49,12 @@ jobs:
       - run: npm run test:db:supabase
       - run: npm run lint
       - run: npm test -- --run
+      # Order-independence gate (issue #224). A second run at one *pinned*
+      # permutation: shuffling breaks the declaration order that hides leaked
+      # cross-test state, and pinning the seed keeps CI deterministic — a random
+      # seed per run would be flaky-by-design. Bump the seed deliberately (in its
+      # own PR) to sweep a new permutation; never to make a red run go away.
+      - run: npm test -- --run --sequence.shuffle --sequence.seed=20260802
       - run: npm run build
 
   server:

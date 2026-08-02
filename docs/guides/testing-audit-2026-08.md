@@ -428,6 +428,24 @@ cleared first. The policy guard deliberately does *not* assert shuffle-safety:
 it would fail on day one, and a guard that ships red teaches people to ignore
 guards.
 
+> **Resolved (issue #224).** Both candidates guessed above were wrong. The
+> framer-motion `opacity: 0; translateX(100px)` in the failure dump is just the
+> unadvanced jsdom initial state — it is present in *passing* runs too, and no
+> assertion depends on it. `vi.restoreAllMocks()` is also innocent: under Vitest
+> 4 it restores only `vi.spyOn` spies, and a probe confirmed the `vi.fn()` canvas
+> mock from `src/test/setup.ts:15` survives it.
+>
+> The actual contaminant was `serverUrl`. `useMultiplayerStore.reset()`
+> deliberately preserves it (`useMultiplayerStore.ts:1129` — it is connection
+> config, not room state), so the per-`describe` `beforeEach(reset)` could not
+> restore it. `PlayerPanel solo vs live room > shows the go-online controls …`
+> sets `serverUrl` to the `worker://solo` sentinel; every test scheduled after it
+> then rendered PlayerPanel's solo branch and lost the live-room controls it
+> asserts on. In declaration order that test is second-to-last and the last test
+> overwrites `serverUrl`, which is why the file looked clean. Test bug, not a
+> product bug. Fixed by pinning `serverUrl` in a file-level `beforeEach`/
+> `afterEach`; CI now runs a pinned-seed shuffled pass to keep it fixed.
+
 ## Candidates
 
 ### Shipped
@@ -498,7 +516,9 @@ e2e      9 specs, 9 npm scripts
 
 Shuffled runs (`--sequence.shuffle`) are **not** clean — see "Order dependence
 found by the shuffle run" above. That is pre-existing and tracked as a
-follow-up, not a gate this PR claims.
+follow-up, not a gate this PR claims. *(Cleared afterwards by issue #224: the
+suite is now shuffle-clean and CI asserts it at a pinned seed. See the Resolved
+note in that section.)*
 
 Note: `npm run lint` routed through the RTK proxy reports 11 phantom `no-undef`
 errors in `scripts/generate-pwa-icons.js` — a `.js` file that `--ext ts,tsx`

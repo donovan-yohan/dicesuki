@@ -331,12 +331,24 @@ leaked state. Run it when touching shared setup, and expect to run a few seeds �
 these failures are seed-specific. A test that only passes in declaration order
 is depending on another test, which means it is not testing what its name says.
 
-Two smells account for most of it: an `afterEach` that calls
-`vi.restoreAllMocks()` where its siblings reset the store (it can tear down
-globals `src/test/setup.ts` installed once per file, breaking everything
-scheduled after it), and state written in one `it` that a later `it` reads.
+The suite **is** shuffle-clean, and CI keeps it that way: `ci.yml` runs Vitest a
+second time at a pinned permutation
+(`npm test -- --run --sequence.shuffle --sequence.seed=20260802`). The seed is
+fixed on purpose — a fresh seed each run would be flaky-by-design, failing on
+permutations nobody can reproduce. Bump it deliberately, in its own PR, to sweep
+a new permutation; never to make a red run go away. If the shuffled run is red
+and the normal run is green, you have found leaked state, not a bad seed.
 
-The suite is **not** shuffle-clean today — see
-[testing-audit-2026-08.md](testing-audit-2026-08.md) for the known offenders.
-Do not add `sequence.shuffle` to the config until they are fixed; a gate that
-ships red trains people to ignore gates.
+The smell that accounts for most of it is state written by one `it` (or one
+`describe`) that a later one reads. Watch especially for **store fields a
+`reset()` intentionally does not clear**: that is exactly what broke
+`PlayerPanel.test.tsx` ([#224](https://github.com/donovan-yohan/dicesuki/issues/224),
+fixed) — `useMultiplayerStore.reset()` preserves `serverUrl` by design, so the
+one test that switched the store to the solo worker room poisoned every test
+scheduled after it. A `beforeEach` that calls `reset()` is only as good as what
+`reset()` actually resets; re-pin anything else the file mutates.
+
+Note that `vi.restoreAllMocks()` is **not** one of these smells. Under Vitest 4
+it restores only `vi.spyOn` spies and leaves plain `vi.fn()` assignments (such
+as the canvas mock `src/test/setup.ts` installs) intact — an earlier audit
+guessed otherwise, and measurement disproved it.
