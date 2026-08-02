@@ -21,6 +21,10 @@ test('rolls a d100 as a tens+ones pair and reports one 1-100 result', async ({ p
   await page.goto('/')
   const room = page.getByTestId('solo-room')
   await expect(room).toHaveAttribute('data-connection-status', 'connected', { timeout: 30_000 })
+  // Connected only means the room answered — the renderer behind it is still
+  // cold-starting, and this suite then drives the HUD and reads result chips off
+  // real rolls. Wait for the table to actually be up (issue #222).
+  await expect(room).toHaveAttribute('data-table-revealed', 'true', { timeout: 30_000 })
 
   await page.getByRole('button', { name: 'My Dice Rolls' }).click()
   await page.getByRole('button', { name: /create new roll/i }).click()
@@ -75,6 +79,10 @@ test('keeps the pair combined after a table edit clears the saved-roll context',
   await page.goto('/')
   const room = page.getByTestId('solo-room')
   await expect(room).toHaveAttribute('data-connection-status', 'connected', { timeout: 30_000 })
+  // Connected only means the room answered — the renderer behind it is still
+  // cold-starting, and this suite then drives the HUD and reads result chips off
+  // real rolls. Wait for the table to actually be up (issue #222).
+  await expect(room).toHaveAttribute('data-table-revealed', 'true', { timeout: 30_000 })
 
   await page.getByRole('button', { name: 'My Dice Rolls' }).click()
   await page.getByRole('button', { name: /create new roll/i }).click()
@@ -114,6 +122,10 @@ test('leaves an ordinary d10 roll unchanged (0-9, one die, no pairing)', async (
   await page.goto('/')
   const room = page.getByTestId('solo-room')
   await expect(room).toHaveAttribute('data-connection-status', 'connected', { timeout: 30_000 })
+  // Connected only means the room answered — the renderer behind it is still
+  // cold-starting, and this suite then drives the HUD and reads result chips off
+  // real rolls. Wait for the table to actually be up (issue #222).
+  await expect(room).toHaveAttribute('data-table-revealed', 'true', { timeout: 30_000 })
 
   await page.getByRole('button', { name: 'My Dice Rolls' }).click()
   await page.getByRole('button', { name: /create new roll/i }).click()

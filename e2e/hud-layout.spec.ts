@@ -32,7 +32,17 @@ async function openTable(page: Page) {
     'connected',
     { timeout: 45_000 },
   )
-  await expect(page.getByRole('button', { name: 'Manage Dice' })).toBeVisible({ timeout: 30_000 })
+  // Wait for the gate's handover, not for a HUD button to appear (issue #222).
+  // `Manage Dice` is rendered *underneath* the startup splash, so its visibility
+  // was never evidence that the table was up: this suite measures bounding boxes,
+  // and it could take them while the splash still covered the screen. The reveal
+  // edge is the state the measurements actually depend on.
+  await expect(page.getByTestId('solo-room')).toHaveAttribute(
+    'data-table-revealed',
+    'true',
+    { timeout: 30_000 },
+  )
+  await expect(page.getByRole('button', { name: 'Manage Dice' })).toBeVisible()
 }
 
 async function centerX(page: Page, name: string) {

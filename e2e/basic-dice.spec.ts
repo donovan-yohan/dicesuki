@@ -80,7 +80,14 @@ async function openSoloRoom(page: Page) {
   await expect(room).toHaveAttribute('data-connection-status', 'connected', { timeout: 60_000 })
   // The branded splash covers the table until the first frame is rendered;
   // screenshots taken before it leaves would show the splash, not the dice.
-  await expect(page.getByTestId('startup-splash')).toHaveCount(0, { timeout: 60_000 })
+  //
+  // Wait on the gate's own handover edge rather than polling for the splash to
+  // disappear (issue #222). Connecting is milliseconds; cold-starting the
+  // renderer behind it is seconds of main-thread work, and an absence poll can
+  // only guess at how many. The assertion below is unchanged and still the
+  // load-bearing one — it just runs after a signal that says the work is done.
+  await expect(room).toHaveAttribute('data-table-revealed', 'true', { timeout: 60_000 })
+  await expect(page.getByTestId('startup-splash')).toHaveCount(0)
   return room
 }
 
@@ -266,9 +273,14 @@ test.describe('basic die texture', () => {
     test(`renders a basic ${shape} as black numerals on a white body`, async ({ page }) => {
       test.setTimeout(120_000)
       await page.goto(`/test/dice-faces?type=${shape}&face=0&style=basic`)
-      await page.waitForSelector('[data-testid="dice-test-harness"]')
+      const harness = page.getByTestId('dice-test-harness')
       await expect(page.getByTestId('face-style')).toHaveText('basic')
-      await page.waitForTimeout(2500)
+      // Sample the frame the renderer has actually drawn, not whatever is on
+      // screen after a guessed delay (issue #222). The harness has no splash to
+      // watch, so it publishes its own first-frame edge; because its face
+      // textures are built synchronously, that edge also means the numerals are
+      // already painted into the frame this test is about to read back.
+      await expect(harness).toHaveAttribute('data-frame-drawn', 'true', { timeout: 60_000 })
 
       // A WebGL drawing buffer is cleared once composited, so it cannot be read
       // back in-page. The COMPOSITED frame Playwright captures can be — fed back

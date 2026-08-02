@@ -86,6 +86,20 @@ async function runRuntimeSetProof(
     { timeout: 30_000 },
   )
 
+  // The boot die is what this baseline is about: `SoloRoom` spawns one d20 as
+  // soon as the room is ready, and that die's GLB is the request being counted.
+  // `data-room-dice-count` is the real edge for "the die exists" — connecting
+  // says nothing about it, and the reveal edge is NOT ordered against it either
+  // (the splash uncovers on the renderer's first frame, which races the spawn's
+  // worker round-trip). So wait for the die itself, then leave a settle window
+  // for its request to actually leave the browser. Sampling early would
+  // understate the baseline and make the comparison below fail, blaming the
+  // inventory for what was really a boot-timing miss.
+  await expect(page.getByTestId('solo-room')).toHaveAttribute(
+    'data-room-dice-count',
+    '1',
+    { timeout: 30_000 },
+  )
   await page.waitForTimeout(1_500)
   const tableLoadBaseline = requestedModelPaths()
   const expectedD20ModelPaths = assets
@@ -100,6 +114,12 @@ async function runRuntimeSetProof(
   await page.getByLabel('Filter by set').selectOption(runtimeSet.setId)
   await expect(page.getByTestId('dice-thumbnail')).toHaveCount(6)
   await expect.poll(() => new Set(thumbnailRequests).size).toBe(6)
+  // DELIBERATE settle window, not a boot proxy — do not "convert" this one.
+  // The claim under test is a NEGATIVE ("browsing the inventory pulls thumbnails
+  // and never a full GLB"), and no edge can announce that something did not
+  // happen. The only way to earn that assertion is to let time pass with the
+  // request log open. 1.5s is comfortably longer than a GLB request takes to
+  // start once its thumbnails have already landed.
   await page.waitForTimeout(1_500)
   expect(requestedModelPaths()).toEqual(tableLoadBaseline)
 
@@ -119,6 +139,13 @@ async function runRuntimeSetProof(
 
   await page.getByRole('button', { name: 'Close panel' }).click()
   await expect(page.getByRole('heading', { name: 'Dice Collection' })).toHaveCount(0)
+  // DELIBERATE settle window, not a boot proxy — do not "convert" this one.
+  // The dice were just added to the table and are still falling; this waits for
+  // them to come to rest so the captured artifact shows a readable table. There
+  // is no "dice have settled" signal to wait on (the room publishes counts and
+  // types, not rest state), and the reveal edge fired long before this point.
+  // The screenshot is a diagnostic artifact, so an early capture would quietly
+  // degrade it rather than fail anything — which is exactly why it needs saying.
   await page.waitForTimeout(1_500)
   await page.screenshot({
     path: path.join(artifactRoot, 'table-desktop.png'),
@@ -130,6 +157,12 @@ async function runRuntimeSetProof(
   await expect(page.getByTestId('solo-room')).toHaveAttribute(
     'data-connection-status',
     'connected',
+    { timeout: 30_000 },
+  )
+  // Second cold boot in the same test — same reveal edge as the first (#222).
+  await expect(page.getByTestId('solo-room')).toHaveAttribute(
+    'data-table-revealed',
+    'true',
     { timeout: 30_000 },
   )
   await page.getByRole('button', { name: 'Manage Dice' }).click()
@@ -147,6 +180,7 @@ async function runRuntimeSetProof(
   await expect.poll(requestedModelPaths, { timeout: 30_000 }).toEqual(expectedSetModelPaths)
   await page.getByRole('button', { name: 'Close panel' }).click()
   await expect(page.getByRole('heading', { name: 'Dice Collection' })).toHaveCount(0)
+  // DELIBERATE settle window — same reason as the desktop capture above.
   await page.waitForTimeout(1_500)
   await page.screenshot({
     path: path.join(artifactRoot, 'table-mobile-mid.png'),
