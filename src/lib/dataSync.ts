@@ -12,15 +12,27 @@
  *   and an authenticated session.
  * - On sign-in we HYDRATE each domain from Supabase, then SUBSCRIBE to local
  *   store changes and PUSH them back (debounced).
- * - Conflict policy: last-write-wins keyed off the server `updated_at`
+ * - Conflict policy (default): last-write-wins keyed off the server `updated_at`
  *   timestamp. On hydrate, if the remote row is newer-or-equal to what this
  *   device last synced (tracked in `dicesuki-sync-meta`), the remote wins and is
  *   applied locally; otherwise the local state is pushed up. Because every meta
  *   timestamp is server-sourced, comparisons are consistent across devices.
+ * - Conflict policy (saved rolls): whole-blob LWW is only correct while at most
+ *   one device has unsynced work, so `saved_rolls` merges PER ROLL instead —
+ *   see {@link SyncTarget.mergePayload} and `src/lib/savedRollsMerge.ts`. That
+ *   is what keeps an offline edit on one device and an offline edit on another
+ *   from destroying each other.
+ * - Cache ownership: `dicesuki-sync-meta` records which account the local stores
+ *   currently hold, and its per-table stamps are namespaced by user id. Both
+ *   exist because sign-out deliberately leaves the local cache in place: without
+ *   them the next account to sign in on the same browser inherits the previous
+ *   account's stamps and data.
  * - First sign-in migration: when NO remote row exists yet, the existing local
  *   data is pushed up (the "localStorage -> account" moment). This is idempotent
  *   — it upserts on `user_id`, and on any later run the now-present remote row
  *   (equal timestamp) is simply re-applied, so there is no loss or duplication.
+ *   A guest signing in on a SECOND device (where a remote row already exists)
+ *   is handled by the saved-rolls merge, not by this path.
  *
  * Not synced (device-local / ephemeral, by design): custom-dice binary models
  * (IndexedDB blobs), haptic/motion prefs and UI visibility (`useUIStore`), owned
@@ -36,6 +48,12 @@ import {
 } from '../store/useInventoryStore'
 import { pruneSavedRollsForRemovedDice } from './savedRollDieCleanup'
 import { useSavedRollsStore, normalizePersistedSavedRollsState } from '../store/useSavedRollsStore'
+import {
+  mergeSavedRollsState,
+  savedRollsStateMatchesRemote,
+  SAVED_ROLLS_BLOB_VERSION,
+  type SavedRollsSyncState,
+} from './savedRollsMerge'
 import { useSettingsStore } from '../store/useSettingsStore'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
@@ -57,8 +75,31 @@ export interface SyncTarget {
   table: SyncTable
   /** Serializable snapshot of this domain's local state. */
   getPayload: () => Record<string, unknown>
-  /** Apply a remote snapshot into the local store. */
+  /** Apply a remote snapshot into the local store, replacing what was there. */
   applyPayload: (data: unknown) => void
+  /**
+   * Optional per-item MERGE of a remote snapshot into the local state, used in
+   * place of {@link applyPayload} whenever the local cache belongs to this user
+   * (or to a guest who is signing in for the first time).
+   *
+   * Whole-blob replacement is only correct when at most one device has unsynced
+   * work. A domain that can say something better — saved rolls are independent
+   * objects with stable ids — implements this instead and keeps both sides.
+   *
+   * Returns true when the merged result differs from the remote snapshot and
+   * therefore has to be pushed back up; without that push the merge would live
+   * only on this device.
+   */
+  mergePayload?: (data: unknown) => boolean
+  /**
+   * Drop local state belonging to a DIFFERENT account.
+   *
+   * Only consulted when this device's cache is owned by another user and the
+   * incoming account has no remote row yet — the one case where the
+   * "first sign-in migrates local data up" path would otherwise publish one
+   * player's data into another player's brand-new account.
+   */
+  resetLocal?: () => void
   /**
    * Optional repair that runs only AFTER every target has applied its payload.
    *
@@ -74,6 +115,23 @@ export interface SyncTarget {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+}
+
+/**
+ * Read a remote `saved_rolls` blob into merge-ready state.
+ *
+ * Runs the store's OWN normalizer so a remote blob is validated exactly the way
+ * a persisted localStorage blob is (Frontend-ADR-002) — a hostile or stale row
+ * cannot introduce a shape the store would not have accepted from disk. The
+ * objects it returns are the identities the merge compares against, so this must
+ * be called once per hydrate and the result shared.
+ */
+function readRemoteSavedRolls(data: unknown): SavedRollsSyncState {
+  const normalized = normalizePersistedSavedRollsState(data)
+  return {
+    savedRolls: normalized.savedRolls ?? [],
+    deletedRolls: normalized.deletedRolls ?? {},
+  }
 }
 
 /** Build the real sync targets bound to the live Zustand stores. */
@@ -134,13 +192,39 @@ export function createRealTargets(): SyncTarget[] {
       table: 'saved_rolls',
       getPayload: () => {
         const s = useSavedRollsStore.getState()
-        return { v: 1, savedRolls: s.savedRolls }
+        return {
+          v: SAVED_ROLLS_BLOB_VERSION,
+          savedRolls: s.savedRolls,
+          deletedRolls: s.deletedRolls,
+        }
       },
       applyPayload: (data) => {
-        // Reuse the store's own normalizer so remote blobs are validated the
-        // same way persisted localStorage blobs are (Frontend-ADR-002).
-        const normalized = normalizePersistedSavedRollsState(data)
-        useSavedRollsStore.setState({ savedRolls: normalized.savedRolls ?? [] })
+        const remote = readRemoteSavedRolls(data)
+        useSavedRollsStore.setState({
+          savedRolls: remote.savedRolls,
+          deletedRolls: remote.deletedRolls,
+        })
+      },
+      mergePayload: (data) => {
+        const remote = readRemoteSavedRolls(data)
+        const local = useSavedRollsStore.getState()
+        const merged = mergeSavedRollsState(
+          { savedRolls: local.savedRolls, deletedRolls: local.deletedRolls },
+          remote,
+        )
+        useSavedRollsStore.setState({
+          savedRolls: merged.savedRolls,
+          deletedRolls: merged.deletedRolls,
+        })
+        // A blob still on the old format is rewritten even when the merge itself
+        // was a no-op, so the account stops serving a snapshot with nowhere to
+        // record deletions.
+        const remoteVersion = typeof asRecord(data).v === 'number' ? (asRecord(data).v as number) : 1
+        return remoteVersion < SAVED_ROLLS_BLOB_VERSION
+          || !savedRollsStateMatchesRemote(merged, remote)
+      },
+      resetLocal: () => {
+        useSavedRollsStore.setState({ savedRolls: [], deletedRolls: {}, currentlyEditing: null })
       },
       subscribe: (listener) => useSavedRollsStore.subscribe(listener),
     },
@@ -167,30 +251,91 @@ export function createRealTargets(): SyncTarget[] {
 
 const SYNC_META_KEY = 'dicesuki-sync-meta'
 
-type SyncMeta = Partial<Record<SyncTable, number>>
+type TableStamps = Partial<Record<SyncTable, number>>
+
+/**
+ * Per-device sync bookkeeping.
+ *
+ * `users` is keyed by user id. It used to be a flat `{ table: ts }` map shared
+ * by every account that had ever signed in on the device, which was actively
+ * dangerous: the stamps outlive sign-out, and so do the local stores. User A
+ * syncs (stamp = T_A), signs out leaving A's data cached locally, then user B
+ * signs in. B's row is older than T_A, so the "local is ahead of the server"
+ * branch fired and pushed *A's* data into *B's* account — destroying B's rows
+ * and leaking A's. Namespacing the stamps makes B's stamp 0, so B correctly
+ * takes the server copy.
+ *
+ * `owner` records which account the local stores currently reflect (`null` = a
+ * guest who has never signed in here). It is the difference between "these local
+ * rolls are mine and must be merged up" and "these belong to someone else and
+ * must not touch this account".
+ */
+interface SyncMeta {
+  owner: string | null
+  users: Record<string, TableStamps>
+}
+
+const EMPTY_META: SyncMeta = { owner: null, users: {} }
 
 function readMeta(): SyncMeta {
   try {
     const raw = localStorage.getItem(SYNC_META_KEY)
-    return raw ? (JSON.parse(raw) as SyncMeta) : {}
+    if (!raw) return { ...EMPTY_META }
+    const parsed = JSON.parse(raw) as Partial<SyncMeta>
+    // A pre-namespacing (flat) blob is deliberately DISCARDED rather than
+    // adopted: its stamps cannot be attributed to an account, and guessing wrong
+    // is the exact cross-account clobber this shape exists to prevent. Dropping
+    // them degrades to "stamp 0" — the server copy wins, which is safe.
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.users !== 'object' || !parsed.users) {
+      return { ...EMPTY_META }
+    }
+    return {
+      owner: typeof parsed.owner === 'string' ? parsed.owner : null,
+      users: parsed.users as Record<string, TableStamps>,
+    }
   } catch {
-    return {}
+    return { ...EMPTY_META }
   }
 }
 
-function getLocalMeta(table: SyncTable): number {
-  return readMeta()[table] ?? 0
-}
-
-function setLocalMeta(table: SyncTable, updatedAt: number): void {
+function writeMeta(meta: SyncMeta): void {
   try {
-    const meta = readMeta()
-    meta[table] = updatedAt
     localStorage.setItem(SYNC_META_KEY, JSON.stringify(meta))
   } catch {
     // Best-effort: a full/blocked localStorage just means LWW falls back to
     // "remote wins on next hydrate", which is safe.
   }
+}
+
+function getLocalMeta(userId: string, table: SyncTable): number {
+  return readMeta().users[userId]?.[table] ?? 0
+}
+
+function setLocalMeta(userId: string, table: SyncTable, updatedAt: number): void {
+  const meta = readMeta()
+  meta.users[userId] = { ...meta.users[userId], [table]: updatedAt }
+  writeMeta(meta)
+}
+
+/**
+ * Is the locally cached data safe to merge into `userId`'s account?
+ *
+ * True for the account that last synced here (its own offline edits) and for a
+ * never-signed-in guest (the localStorage -> account migration). False when the
+ * cache belongs to a DIFFERENT account, in which case it is that account's data
+ * sitting in a shared browser and must not be merged or pushed anywhere.
+ */
+export function isLocalCacheOwnedBy(userId: string): boolean {
+  const owner = readMeta().owner
+  return owner === null || owner === userId
+}
+
+/** Record that the local stores now reflect `userId`'s data. */
+function setCacheOwner(userId: string): void {
+  const meta = readMeta()
+  if (meta.owner === userId) return
+  meta.owner = userId
+  writeMeta(meta)
 }
 
 // ---------------------------------------------------------------------------
@@ -216,19 +361,39 @@ export async function pushTarget(
 
   if (error || !isCurrent()) return
   const updatedAt = data?.updated_at ? Date.parse(data.updated_at as string) : Date.now()
-  setLocalMeta(target.table, Number.isNaN(updatedAt) ? Date.now() : updatedAt)
+  setLocalMeta(userId, target.table, Number.isNaN(updatedAt) ? Date.now() : updatedAt)
+}
+
+/** Run a store write without it echoing straight back out as a push. */
+function applyingRemoteWrite<T>(write: () => T): T {
+  applyingRemote = true
+  try {
+    return write()
+  } finally {
+    applyingRemote = false
+  }
 }
 
 /**
- * Hydrate one domain on sign-in. Applies the remote row if it is newer-or-equal
- * to this device's last sync; otherwise pushes local up. When no remote row
- * exists, performs the first-sign-in migration (push local up).
+ * Hydrate one domain on sign-in.
+ *
+ * Three outcomes, in priority order:
+ *
+ * 1. The cache belongs to ANOTHER account (`localIsOwn` false) — the remote row
+ *    replaces it outright, and a target that can be reset is emptied rather than
+ *    published when the account has no row yet. Never merge across accounts.
+ * 2. The target can merge and the cache is this user's (or a guest's) — union
+ *    the two sides and push the result back if it moved. This is what preserves
+ *    offline edits and carries guest rolls up on a second device.
+ * 3. Otherwise the legacy whole-blob rule: apply the remote row when it is
+ *    newer-or-equal to this device's last sync, else push local up.
  */
 export async function hydrateTarget(
   client: SupabaseClient,
   userId: string,
   target: SyncTarget,
   isCurrent: () => boolean = () => true,
+  localIsOwn: boolean = isLocalCacheOwnedBy(userId),
 ): Promise<void> {
   const { data: row, error } = await client
     .from(target.table)
@@ -239,25 +404,31 @@ export async function hydrateTarget(
   if (error || !isCurrent()) return
 
   if (!row) {
-    // First sign-in for this account: migrate existing local data up.
+    // First sign-in for this account: migrate existing local data up — unless
+    // that data is a previous user's, which must not be published here.
+    if (!localIsOwn && target.resetLocal) {
+      applyingRemoteWrite(() => target.resetLocal?.())
+    }
     await pushTarget(client, userId, target, isCurrent)
     return
   }
 
   const remoteUpdatedAt = row.updated_at ? Date.parse(row.updated_at as string) : 0
-  const localUpdatedAt = getLocalMeta(target.table)
+  const localUpdatedAt = getLocalMeta(userId, target.table)
 
-  if (remoteUpdatedAt >= localUpdatedAt) {
-    applyingRemote = true
-    try {
-      target.applyPayload(row.data)
-    } finally {
-      applyingRemote = false
-    }
-    setLocalMeta(target.table, remoteUpdatedAt)
+  if (target.mergePayload && localIsOwn) {
+    const needsPush = applyingRemoteWrite(() => target.mergePayload!(row.data))
+    setLocalMeta(userId, target.table, remoteUpdatedAt)
+    if (needsPush) await pushTarget(client, userId, target, isCurrent)
+    return
+  }
+
+  if (remoteUpdatedAt >= localUpdatedAt || !localIsOwn) {
+    applyingRemoteWrite(() => target.applyPayload(row.data))
+    setLocalMeta(userId, target.table, remoteUpdatedAt)
   } else {
     // Local is ahead of the server (offline edits) — push it up.
-    await pushTarget(client, userId, target)
+    await pushTarget(client, userId, target, isCurrent)
   }
 }
 
@@ -315,9 +486,14 @@ async function startSyncGeneration(
   const targets = options.targets ?? createRealTargets()
   const debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS
 
+  // Resolved ONCE, before any target runs. Reading it per target would be wrong
+  // the moment the first hydrate claimed ownership: every later target would see
+  // `owner === userId` and treat a previous account's cache as this user's.
+  const localIsOwn = isLocalCacheOwnedBy(userId)
+
   for (const target of targets) {
     if (!isCurrent()) return
-    await hydrateTarget(client, userId, target, isCurrent)
+    await hydrateTarget(client, userId, target, isCurrent, localIsOwn)
     if (!isCurrent()) return
     // Seed the change-dedupe baseline from the post-hydrate payload so the
     // hydrate itself never triggers a redundant echo push.
@@ -357,6 +533,10 @@ async function startSyncGeneration(
   }
 
   if (!isCurrent()) return
+
+  // Every domain has landed, so the local stores now reflect THIS account. Set
+  // after the loop for the same reason `localIsOwn` is read before it.
+  setCacheOwner(userId)
 
   // Server-authoritative economy/catalog reads are best-effort so the existing
   // local-first domains still hydrate offline. Entitlements are fetched here
@@ -422,7 +602,15 @@ export function startSync(userId: string, options: StartOptions = {}): Promise<v
   return pending
 }
 
-/** Stop syncing and tear down subscriptions/timers. Leaves local cache intact. */
+/**
+ * Stop syncing and tear down subscriptions/timers.
+ *
+ * Leaves the local cache intact — signing out drops back to guest mode, and a
+ * guest is expected to keep playing with the rolls that are already on screen.
+ * The `dicesuki-sync-meta` owner record survives too, which is what lets the
+ * same account merge its own cache back on the next sign-in while a DIFFERENT
+ * account correctly refuses to adopt it.
+ */
 export function stopSync(): void {
   syncGeneration += 1
   for (const unsub of unsubscribers) unsub()

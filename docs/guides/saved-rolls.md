@@ -228,6 +228,103 @@ Only `00 + 0` diverges: the **server reports 0** while the **client displays
 server total to match — it is intentional, and both values are correct for their
 own purpose.
 
+## Cross-Device Persistence
+
+Guests keep their rolls in `localStorage` (`dicesuki-saved-rolls`, the
+`useSavedRollsStore` persist layer). Signed-in players additionally sync through
+`src/lib/dataSync.ts` to the per-user `saved_rolls` jsonb row
+(`supabase/migrations/0002_user_data.sql`, own-row RLS).
+
+### Per-roll merge, not whole-blob LWW
+
+Every other sync target settles conflicts by whole-blob last-write-wins on the
+server `updated_at`. Saved rolls do **not**: they merge per roll
+(`src/lib/savedRollsMerge.ts`, wired via `SyncTarget.mergePayload`).
+
+Blob LWW is only correct while at most one device has unsynced work, which is not
+the normal case. It loses an edit whenever a push does not land before the tab
+closes (offline, or just inside the ~1s debounce — the device's stamp still
+equals the server's, so the next hydrate replays the server blob over the top),
+and it destroys one whole side when two devices each add a *different* roll.
+
+The merge is a union keyed on the stable roll `id`:
+
+| Situation | Result |
+|---|---|
+| Roll on one side only | Kept — this is what rescues offline work |
+| Same roll on both | Higher `SavedRoll.updatedAt` wins; ties go to **remote** so both devices agree |
+| Roll deleted on one side | Suppressed by a tombstone (see below) |
+| Roll re-created after its delete | Roll wins, tombstone retired |
+
+Local list order is preserved and remote-only rolls are appended. **Order is
+deliberately not part of the convergence contract** — if it were, two devices
+would push reordered blobs at each other forever.
+
+### Tombstones
+
+A union cannot express a delete: the other device's surviving copy just hands the
+roll back. So `deleteRoll` records `deletedRolls[id] = Date.now()`, persisted and
+synced alongside the rolls. Tombstones are GC'd (90-day TTL, 200 cap) so the blob
+stays bounded; one that ages out can no longer suppress a device that has been
+offline longer than the TTL.
+
+### Blob versioning
+
+`saved_rolls` blobs are `v2`: `{ v, savedRolls, deletedRolls }`. v2 is purely
+additive, so a v1 client still finds `savedRolls` where it expects it and
+degrades to the old whole-blob behavior rather than breaking — at the cost of
+dropping tombstones when it pushes, which can resurrect a roll once. A v1 blob
+read by a current client is rewritten at v2 on sign-in.
+
+### Cache ownership (`dicesuki-sync-meta`)
+
+Sign-out intentionally leaves the local cache in place so a guest keeps playing
+with the rolls already on screen. That makes the browser a shared space, so the
+meta record is namespaced by user id and also records an `owner` — which account
+the local stores currently reflect (`null` = never-signed-in guest):
+
+- **owner is `null` (guest)** → local rolls are merged up. This is the
+  `localStorage -> account` migration, and it now works on a *second* device too:
+  previously the "push local up" path only fired when no remote row existed, so a
+  guest signing into an established account had their work replaced.
+- **owner is this user** → merged (own offline edits survive).
+- **owner is a different user** → the remote row replaces local, and if the
+  incoming account has no row yet the local rolls are dropped rather than
+  published. Accepted cost: guest rolls built *after* someone else signed out on
+  this browser are not carried into a different account. Leaking one player's
+  rolls into another player's account is the worse failure.
+
+A pre-namespacing (flat) meta blob is discarded on read rather than adopted — its
+stamps cannot be attributed to an account, and guessing wrong is the
+cross-account clobber the shape exists to prevent.
+
+### Timestamps
+
+Row-level stamps used for LWW are **server**-sourced (`updated_at`, returned by
+the upsert's `.select('updated_at')`; set by the column default on insert and by
+`set_updated_at` on update), so they are comparable across devices.
+
+Per-roll `updatedAt` is necessarily a **client** clock — the server stamps the
+row, not the rolls inside it — so a badly skewed device can win a same-roll
+conflict it should lose. That only matters when the same roll was edited on two
+devices between syncs; rolls only one side touched merge by id and never consult
+a clock.
+
+### Dangling die references are handled at roll time, not sync time
+
+A roll can pin a specific die (`{ kind: 'specific', dieId }`). Server dice copies
+(`dice_copies` uuids) are stable across devices, but **device-local ids are not**,
+so a roll pinned to a guest/local die syncs to another device dangling.
+
+This is deliberately *not* normalized at sync time. Execution already degrades
+correctly — `addDie` substitutes a basic die and `savedRollExecution` reports it
+("…is no longer in your collection, so a basic die was rolled") — and sync-time
+rewriting would be actively wrong: server copies are ephemeral and absent until
+the `dice_copies` read lands, so a "is this die in inventory right now?" sweep
+during hydration would wipe references to dice the player genuinely owns. That is
+why `pruneSavedRollsForRemovedDice` is keyed on the specific ids a migration
+removed rather than on the current inventory.
+
 ## Common Issues
 
 ### Issue: Bonuses Not Displaying
