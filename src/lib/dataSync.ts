@@ -55,6 +55,7 @@ import {
   type SavedRollsSyncState,
 } from './savedRollsMerge'
 import { useSettingsStore } from '../store/useSettingsStore'
+import { defaultTheme } from '../themes/tokens'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   ensureStarterEntitlements,
@@ -186,6 +187,13 @@ export function createRealTargets(): SyncTarget[] {
         pruneSavedRollsForRemovedDice(pendingStarterRemovals)
         pendingStarterRemovals = []
       },
+      resetLocal: () => {
+        // Guest/custom dice, currency and assignments all survive sign-out, so
+        // without this a brand-new account inherits the previous player's
+        // collection AND publishes it as its own first-sign-in migration.
+        useInventoryStore.getState().reset()
+        pendingStarterRemovals = []
+      },
       subscribe: (listener) => useInventoryStore.subscribe(listener),
     },
     {
@@ -203,6 +211,10 @@ export function createRealTargets(): SyncTarget[] {
         useSavedRollsStore.setState({
           savedRolls: remote.savedRolls,
           deletedRolls: remote.deletedRolls,
+          // Wholesale replacement means the in-progress edit belongs to the
+          // state being discarded. Keeping it would carry one account's roll
+          // across into another's session.
+          currentlyEditing: null,
         })
       },
       mergePayload: (data) => {
@@ -239,6 +251,11 @@ export function createRealTargets(): SyncTarget[] {
         if (typeof d.themeId === 'string' && d.themeId) {
           useSettingsStore.getState().setThemeId(d.themeId)
         }
+      },
+      resetLocal: () => {
+        // The selected theme is a purchasable entitlement, so a new account must
+        // not start out wearing (or publishing) the previous player's choice.
+        useSettingsStore.getState().setThemeId(defaultTheme.id)
       },
       subscribe: (listener) => useSettingsStore.subscribe(listener),
     },
@@ -491,9 +508,29 @@ async function startSyncGeneration(
   // `owner === userId` and treat a previous account's cache as this user's.
   const localIsOwn = isLocalCacheOwnedBy(userId)
 
+  // A cache belonging to a DIFFERENT account is dropped up front, synchronously,
+  // across every target — and ownership is claimed BEFORE the first await.
+  //
+  // Claiming it afterwards was a leak. A hydrate is a network round trip per
+  // domain, and anything that cuts one short — signing out mid-flight, closing
+  // the tab, a PWA being backgrounded — left `owner` still naming the PREVIOUS
+  // user, so the next account to sign in adopted their cache and published it.
+  // Ownership has to be a promise made before the work starts rather than a
+  // receipt written after it finishes: a half-hydrated cache is genuinely this
+  // user's, because everything foreign was already cleared.
+  if (!localIsOwn) {
+    applyingRemoteWrite(() => {
+      for (const target of targets) target.resetLocal?.()
+    })
+  }
+  setCacheOwner(userId)
+
   for (const target of targets) {
     if (!isCurrent()) return
-    await hydrateTarget(client, userId, target, isCurrent, localIsOwn)
+    // Post-reset the cache is this user's — except for a target that had nothing
+    // to reset with, which still holds whatever the previous account left.
+    const targetIsOwn = localIsOwn || Boolean(target.resetLocal)
+    await hydrateTarget(client, userId, target, isCurrent, targetIsOwn)
     if (!isCurrent()) return
     // Seed the change-dedupe baseline from the post-hydrate payload so the
     // hydrate itself never triggers a redundant echo push.
@@ -533,10 +570,6 @@ async function startSyncGeneration(
   }
 
   if (!isCurrent()) return
-
-  // Every domain has landed, so the local stores now reflect THIS account. Set
-  // after the loop for the same reason `localIsOwn` is read before it.
-  setCacheOwner(userId)
 
   // Server-authoritative economy/catalog reads are best-effort so the existing
   // local-first domains still hydrate offline. Entitlements are fetched here

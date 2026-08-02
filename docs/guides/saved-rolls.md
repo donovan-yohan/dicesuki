@@ -255,18 +255,39 @@ The merge is a union keyed on the stable roll `id`:
 | Same roll on both | Higher `SavedRoll.updatedAt` wins; ties go to **remote** so both devices agree |
 | Roll deleted on one side | Suppressed by a tombstone (see below) |
 | Roll re-created after its delete | Roll wins, tombstone retired |
+| Same id twice in one list | Re-keyed, never collapsed (see below) |
 
 Local list order is preserved and remote-only rolls are appended. **Order is
 deliberately not part of the convergence contract** — if it were, two devices
 would push reordered blobs at each other forever.
 
+**`markRollAsUsed` deliberately does not move the revision.** `lastUsed` is
+display/sort metadata, not an edit. If rolling a saved roll bumped `updatedAt`,
+merely *using* a roll on one device would beat a rename made later on another —
+and could out-rank the roll's own tombstone and bring a deleted roll back.
+
+**Duplicate ids are re-keyed, not collapsed.** Keying a list that repeats an id
+would silently drop a roll, and it is reachable: `duplicateRoll` mints
+`roll-${Date.now()}` at millisecond resolution. The store now avoids minting a
+colliding id in the first place, and the merge re-keys any that arrive anyway
+(position-derived, so both devices agree), forcing one heal push.
+
 ### Tombstones
 
 A union cannot express a delete: the other device's surviving copy just hands the
 roll back. So `deleteRoll` records `deletedRolls[id] = Date.now()`, persisted and
-synced alongside the rolls. Tombstones are GC'd (90-day TTL, 200 cap) so the blob
-stays bounded; one that ages out can no longer suppress a device that has been
-offline longer than the TTL.
+synced alongside the rolls.
+
+Tombstones are GC'd so the blob cannot grow without bound, and **both limits are
+honestly lossy**:
+
+- **90-day TTL.** A device that has been offline longer than this re-supplies the
+  rolls whose tombstones aged out, and they come back. The TTL is the limit of
+  how long a delete is *guaranteed* to stick.
+- **200-entry cap.** Past 200 deletes the **oldest tombstones are evicted
+  regardless of age**, so the guarantee can lapse much sooner than 90 days for a
+  delete-heavy account. Deleting >200 rolls between two syncs of the same device
+  is the pathological case this trades against unbounded blob growth.
 
 ### Blob versioning
 
@@ -288,11 +309,24 @@ the local stores currently reflect (`null` = never-signed-in guest):
   previously the "push local up" path only fired when no remote row existed, so a
   guest signing into an established account had their work replaced.
 - **owner is this user** → merged (own offline edits survive).
-- **owner is a different user** → the remote row replaces local, and if the
-  incoming account has no row yet the local rolls are dropped rather than
+- **owner is a different user** → the foreign cache is dropped (every target's
+  `resetLocal`, including inventory and settings — guest dice, currency and the
+  selected theme survive sign-out too) and the remote row replaces it. If the
+  incoming account has no row yet, the local data is dropped rather than
   published. Accepted cost: guest rolls built *after* someone else signed out on
   this browser are not carried into a different account. Leaking one player's
   rolls into another player's account is the worse failure.
+
+**Ownership is claimed before the hydrate, not after it.** A hydrate is one
+network round trip per domain, and anything that cuts it short — signing out
+mid-flight, closing the tab, a PWA being backgrounded — used to leave `owner`
+unset while the cache already held the signed-in user's data. The next account
+then read it as a guest cache, merged it, and published it. So the foreign reset
+runs synchronously across every target and `owner` is written *before* the first
+`await`: a half-hydrated cache is genuinely this user's, because everything
+foreign was already cleared. `applyPayload` clears `currentlyEditing` for the
+same reason — a wholesale replace means the in-progress edit belongs to the state
+being discarded.
 
 A pre-namespacing (flat) meta blob is discarded on read rather than adopted — its
 stamps cannot be attributed to an account, and guessing wrong is the

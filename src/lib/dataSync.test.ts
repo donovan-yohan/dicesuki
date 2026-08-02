@@ -16,13 +16,16 @@ import {
   pushTarget,
   initDataSync,
   createRealTargets,
+  isLocalCacheOwnedBy,
   __resetDataSyncForTests,
   type SyncTarget,
 } from './dataSync'
 import { SAVED_ROLLS_BLOB_VERSION } from './savedRollsMerge'
 import { useInventoryStore } from '../store/useInventoryStore'
 import { useSavedRollsStore } from '../store/useSavedRollsStore'
+import { useSettingsStore } from '../store/useSettingsStore'
 import { useAuthStore } from '../store/useAuthStore'
+import { defaultTheme } from '../themes/tokens'
 import type { SavedRoll } from '../types/savedRolls'
 
 // ---------------------------------------------------------------------------
@@ -401,10 +404,49 @@ describe('dataSync', () => {
       localStorage.clear()
       __resetDataSyncForTests()
       useSavedRollsStore.setState({ savedRolls, currentlyEditing: null, deletedRolls: {} })
+      useInventoryStore.getState().reset()
+      useSettingsStore.getState().setThemeId(defaultTheme.id)
+    }
+
+    /**
+     * Wrap a fake client so sync is torn down mid-flight after `afterReads`
+     * round trips — a sign-out, a closed tab, a backgrounded PWA.
+     */
+    function makeInterruptingClient(
+      fake: ReturnType<typeof makeFakeClient>,
+      afterReads: number,
+    ): never {
+      let reads = 0
+      const inner = fake.client as unknown as {
+        from: (t: string) => Record<string, unknown>
+        rpc: unknown
+      }
+      return {
+        rpc: inner.rpc,
+        from: (table: string) => {
+          const builder = inner.from(table)
+          const maybeSingle = builder.maybeSingle as () => Promise<unknown>
+          builder.maybeSingle = async () => {
+            const result = await maybeSingle()
+            reads += 1
+            if (reads === afterReads) stopSync()
+            return result
+          }
+          return builder
+        },
+      } as never
     }
 
     function localRollIds(): string[] {
       return useSavedRollsStore.getState().savedRolls.map((r) => r.id)
+    }
+
+    /** Read a stored row through a call, so `delete` above does not narrow it away. */
+    function serverRow(
+      fake: ReturnType<typeof makeFakeClient>,
+      table: string,
+    ): FakeRow | undefined {
+      return fake.rows[table]
     }
 
     function serverRollIds(fake: ReturnType<typeof makeFakeClient>): string[] {
@@ -619,6 +661,147 @@ describe('dataSync', () => {
 
       expect(localRollIds().sort()).toEqual(['added-while-signed-out', 'mine'])
       expect(serverRollIds(fake).sort()).toEqual(['added-while-signed-out', 'mine'])
+    })
+
+    it('claims ownership BEFORE hydrating, so an interrupted sign-in cannot leak into the next account', async () => {
+      // Ownership used to be recorded only after the whole hydrate loop, and a
+      // hydrate is one network round trip per domain. Anything that cut it short
+      // left `owner` unset while the cache already held the signed-in user's
+      // data — so the NEXT account treated it as a guest cache, merged it, and
+      // published it.
+      const updated_at = new Date().toISOString()
+      const fake = makeFakeClient({
+        // Present so the inventory target reads once and does not also push,
+        // which keeps the read count aligned with the target sequence.
+        inventory: {
+          data: {
+            v: 5,
+            dice: [],
+            currency: { coins: 0, gems: 0, standardTokens: 0, premiumTokens: 0 },
+            assignments: {},
+          },
+          updated_at,
+        },
+        saved_rolls: {
+          data: { v: 2, savedRolls: [roll('user-a-private')], deletedRolls: {} },
+          updated_at,
+        },
+      })
+
+      // Fresh guest browser (owner null). user-1's rolls land on read 2, then
+      // read 3 (settings) is cut short before the run completes.
+      newDevice()
+      await startSync('user-1', {
+        client: makeInterruptingClient(fake, 3),
+        targets: createRealTargets(),
+        starterTimeoutMs: 0,
+      })
+      expect(localRollIds()).toEqual(['user-a-private'])
+      expect(isLocalCacheOwnedBy('user-1')).toBe(true)
+      expect(isLocalCacheOwnedBy('user-2')).toBe(false)
+      stopSync()
+
+      // user-2 signs in on a brand-new account: the cache is foreign, so it is
+      // dropped rather than merged and uploaded.
+      fake.rows.saved_rolls = undefined
+      await signIn(fake, 'user-2', createRealTargets())
+
+      expect(localRollIds()).toEqual([])
+      expect(serverRollIds(fake)).toEqual([])
+    })
+
+    it('does not publish a previous account\'s inventory or theme into a brand-new account', async () => {
+      // Guest/custom dice, currency and the selected theme all survive sign-out
+      // too, so saved rolls were only one of three doors onto the same leak.
+      const guestDie = {
+        id: 'guest-die', type: 'd20', rarity: 'rare', setId: 's', stats: {}, assignedToRolls: [],
+      }
+      const fake = makeFakeClient()
+
+      newDevice()
+      useInventoryStore.setState({
+        dice: [guestDie] as never,
+        localDice: [guestDie] as never,
+        currency: { coins: 777, gems: 0, standardTokens: 0, premiumTokens: 0 } as never,
+      })
+      useSettingsStore.getState().setThemeId('neon-cyber-city')
+      await signIn(fake, 'user-1', createRealTargets())
+      expect((serverRow(fake, 'inventory')?.data.dice as unknown[]).length).toBe(1)
+      stopSync()
+
+      // Brand-new account — no rows at all, so every target takes the
+      // first-sign-in migration path.
+      delete fake.rows.inventory
+      delete fake.rows.settings
+      delete fake.rows.saved_rolls
+      await signIn(fake, 'user-2', createRealTargets())
+
+      const pushedInventory = serverRow(fake, 'inventory')?.data
+      expect(pushedInventory?.dice).toEqual([])
+      expect((pushedInventory?.currency as { coins: number }).coins).toBe(0)
+      expect(serverRow(fake, 'settings')?.data.themeId).toBe(defaultTheme.id)
+      expect(useInventoryStore.getState().dice).toEqual([])
+      expect(useSettingsStore.getState().themeId).toBe(defaultTheme.id)
+    })
+
+    it('drops an in-progress edit when the roll list is replaced wholesale', () => {
+      // Same leak class as the cached list itself: a wholesale replace means the
+      // edit belongs to the state being discarded.
+      useSavedRollsStore.setState({
+        savedRolls: [],
+        currentlyEditing: roll('being-edited'),
+        deletedRolls: {},
+      })
+
+      savedRollsTarget().applyPayload({ v: 2, savedRolls: [roll('remote')], deletedRolls: {} })
+
+      expect(useSavedRollsStore.getState().currentlyEditing).toBeNull()
+      expect(localRollIds()).toEqual(['remote'])
+    })
+
+    it('DISCARDS a legacy flat sync-meta blob instead of adopting its stamps', async () => {
+      // The pre-namespacing shape cannot be attributed to an account. Adopting
+      // it makes local look "ahead" of the server, which pushes this browser's
+      // cache into whichever account signs in next.
+      newDevice()
+      localStorage.setItem(
+        'dicesuki-sync-meta',
+        JSON.stringify({ settings: Date.now() + 60_000 }),
+      )
+      const fake = makeFakeClient({
+        settings: { data: { v: 1, themeId: 'remote-theme' }, updated_at: new Date().toISOString() },
+      })
+      const ref = { value: { v: 1, themeId: 'local-theme' } }
+
+      // A per-test user id: a stamp some earlier test left under a shared id
+      // would satisfy the lookup and hide whether the legacy blob was consulted.
+      await hydrateTarget(fake.client, 'legacy-meta-user', makeStubTarget('settings', ref))
+
+      expect(ref.value).toEqual({ v: 1, themeId: 'remote-theme' })
+      expect(fake.upsertCalls).toHaveLength(0)
+    })
+
+    it('namespaces sync stamps per user, so one account never looks "ahead" for another', async () => {
+      newDevice()
+      const fake = makeFakeClient()
+      const ref = { value: { v: 1, themeId: 'user-1-theme' } }
+      const target = makeStubTarget('settings', ref)
+
+      // Per-test ids for the same reason as above.
+      await hydrateTarget(fake.client, 'ns-user-a', target)
+      expect(fake.upsertCalls).toHaveLength(1)
+
+      // user-2's row is older than that stamp. Sharing one stamp map would make
+      // user-2 look behind, and user-1's cached theme would be pushed into
+      // user-2's account.
+      fake.rows.settings = {
+        data: { v: 1, themeId: 'user-2-theme' },
+        updated_at: new Date(Date.now() - 60_000).toISOString(),
+      }
+      await hydrateTarget(fake.client, 'ns-user-b', target, () => true, true)
+
+      expect(ref.value).toEqual({ v: 1, themeId: 'user-2-theme' })
+      expect(fake.upsertCalls).toHaveLength(1)
     })
 
     it('upgrades a legacy v1 blob in place without losing its rolls', async () => {

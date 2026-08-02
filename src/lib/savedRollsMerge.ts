@@ -64,10 +64,26 @@ import type { SavedRoll } from '../types/savedRolls'
  */
 export const SAVED_ROLLS_BLOB_VERSION = 2
 
-/** Tombstones older than this are dropped. Long enough to outlive a device that has been offline for a season. */
+/**
+ * Tombstones older than this are dropped.
+ *
+ * Long enough to outlive a device that has been offline for a season. A device
+ * that has been away LONGER than this will re-supply the rolls whose tombstones
+ * have aged out, and they will appear to come back — the retention window is the
+ * honest limit of how long a delete is guaranteed to stick.
+ */
 export const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000
 
-/** Hard cap on retained tombstones, newest first, so a delete-heavy account cannot bloat the blob. */
+/**
+ * Hard cap on retained tombstones, newest first, so a delete-heavy account
+ * cannot bloat the blob.
+ *
+ * Eviction is lossy in exactly the same way the TTL is, but sooner: once an
+ * account accumulates more than this many deletes, the OLDEST tombstones are
+ * dropped regardless of age, and a device that has not synced since then will
+ * resurrect those rolls. Deleting >200 rolls between two syncs of the same
+ * device is the pathological case this trades against unbounded blob growth.
+ */
 export const MAX_TOMBSTONES = 200
 
 /** Roll id -> deletion timestamp (ms since epoch, client clock). */
@@ -113,6 +129,41 @@ export function normalizeTombstones(value: unknown, now: number = Date.now()): S
   return collectTombstones(entries, now)
 }
 
+/**
+ * Give every roll in one side a unique, usable id before it is keyed.
+ *
+ * The merge is keyed on `id`, and keying a list that repeats one would silently
+ * DROP a roll — `new Map(rolls.map(r => [r.id, r]))` keeps only the last. That
+ * is reachable, not theoretical: `duplicateRoll` mints `roll-${Date.now()}` at
+ * millisecond resolution, so two duplicates in the same tick collide, and a
+ * hand-edited or truncated blob can carry a missing id.
+ *
+ * Colliding and absent ids are therefore RE-KEYED rather than collapsed. The
+ * suffix is derived from position, so both devices re-key a given list the same
+ * way; the re-keyed roll is a new object, which makes it compare unequal to the
+ * remote snapshot and forces one heal push that leaves the stored blob unique.
+ */
+function ingestRolls(rolls: readonly SavedRoll[] | undefined): SavedRoll[] {
+  if (!Array.isArray(rolls)) return []
+
+  const seen = new Set<string>()
+  return rolls.map((roll) => {
+    const id = roll && typeof roll.id === 'string' ? roll.id : ''
+    if (id && !seen.has(id)) {
+      seen.add(id)
+      return roll
+    }
+    let suffix = 1
+    let candidate = `${id || 'roll'}~${suffix}`
+    while (seen.has(candidate)) {
+      suffix += 1
+      candidate = `${id || 'roll'}~${suffix}`
+    }
+    seen.add(candidate)
+    return { ...roll, id: candidate }
+  })
+}
+
 /** Apply the TTL + cap policy to a set of tombstone entries. */
 function collectTombstones(entries: Array<[string, number]>, now: number): SavedRollTombstones {
   const fresh = entries
@@ -147,8 +198,8 @@ export function mergeSavedRollsState(
   remote: SavedRollsSyncState,
   now: number = Date.now(),
 ): SavedRollsSyncState {
-  const localRolls = Array.isArray(local.savedRolls) ? local.savedRolls : []
-  const remoteRolls = Array.isArray(remote.savedRolls) ? remote.savedRolls : []
+  const localRolls = ingestRolls(local.savedRolls)
+  const remoteRolls = ingestRolls(remote.savedRolls)
 
   const remoteById = new Map(remoteRolls.map(roll => [roll.id, roll]))
   const localById = new Map(localRolls.map(roll => [roll.id, roll]))

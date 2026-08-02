@@ -107,15 +107,62 @@ describe('mergeSavedRollsState', () => {
     expect(merged.savedRolls.map(r => r.id)).toEqual(['b', 'a', 'z'])
   })
 
-  it('converges: merging an already-merged result changes nothing', () => {
+  it('converges against a SERIALIZED copy of itself, not just the same objects', () => {
+    // Merging `once` with itself would pass on reference identity alone. The
+    // round trip is what the real system does — the remote side always arrives
+    // as parsed JSON — so convergence has to hold structurally.
     const local = state([roll('l', { updatedAt: 3_000 })], { d: NOW - 100 })
     const remote = state([roll('r', { updatedAt: 4_000 })])
 
     const once = mergeSavedRollsState(local, remote, NOW)
-    const twice = mergeSavedRollsState(once, once, NOW)
+    const roundTripped = JSON.parse(JSON.stringify(once)) as SavedRollsSyncState
+    const twice = mergeSavedRollsState(once, roundTripped, NOW)
 
-    expect(twice.savedRolls.map(r => r.id)).toEqual(once.savedRolls.map(r => r.id))
+    expect(twice.savedRolls).toEqual(once.savedRolls)
     expect(twice.deletedRolls).toEqual(once.deletedRolls)
+    // And a third pass is a genuine fixed point: nothing left to push.
+    expect(savedRollsStateMatchesRemote(
+      mergeSavedRollsState(twice, twice, NOW),
+      twice,
+    )).toBe(true)
+  })
+
+  it('re-keys colliding ids instead of silently dropping a roll', () => {
+    // Keying a list that repeats an id keeps only the last entry. `duplicateRoll`
+    // mints `roll-${Date.now()}` at millisecond resolution, so this is reachable.
+    const merged = mergeSavedRollsState(
+      state([roll('dupe', { name: 'first' }), roll('dupe', { name: 'second' })]),
+      state([]),
+      NOW,
+    )
+
+    expect(merged.savedRolls).toHaveLength(2)
+    expect(merged.savedRolls.map(r => r.name)).toEqual(['first', 'second'])
+    expect(new Set(merged.savedRolls.map(r => r.id)).size).toBe(2)
+  })
+
+  it('re-keys a roll that arrives with no usable id', () => {
+    const merged = mergeSavedRollsState(
+      state([{ ...roll('keeper') }, { ...roll(''), name: 'nameless' }]),
+      state([]),
+      NOW,
+    )
+
+    expect(merged.savedRolls).toHaveLength(2)
+    expect(merged.savedRolls.every(r => typeof r.id === 'string' && r.id.length > 0)).toBe(true)
+  })
+
+  it('heals a colliding REMOTE blob in one push, then holds still', () => {
+    const remote = state([roll('dupe', { name: 'first' }), roll('dupe', { name: 'second' })])
+
+    const healed = mergeSavedRollsState(state([]), remote, NOW)
+    // The rewrite has to be pushed, or the server keeps serving the collision…
+    expect(savedRollsStateMatchesRemote(healed, remote)).toBe(false)
+    expect(healed.savedRolls).toHaveLength(2)
+
+    // …and once pushed, the next sign-in is a no-op rather than another rewrite.
+    const settled = mergeSavedRollsState(healed, healed, NOW)
+    expect(savedRollsStateMatchesRemote(settled, healed)).toBe(true)
   })
 })
 

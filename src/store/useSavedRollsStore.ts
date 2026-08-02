@@ -141,9 +141,16 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
         const original = state.savedRolls.find(r => r.id === id)
         if (!original) return state
 
+        // `roll-${Date.now()}` is only millisecond-resolution, so two duplicates
+        // in the same tick used to mint the SAME id — and an id is what sync
+        // keys on, so the collision cost one of them.
+        const taken = new Set(state.savedRolls.map(r => r.id))
+        let candidate = `roll-${Date.now()}`
+        for (let n = 1; taken.has(candidate); n += 1) candidate = `roll-${Date.now()}-${n}`
+
         const duplicate: SavedRoll = touchRoll(normalizeSavedRollSources({
           ...original,
-          id: `roll-${Date.now()}`,
+          id: candidate,
           name: `${original.name} (Copy)`,
           createdAt: Date.now(),
           lastUsed: undefined,
@@ -162,9 +169,14 @@ export const useSavedRollsStore = create<SavedRollsStore>()(
       })),
 
       // Mark a roll as recently used
+      //
+      // Deliberately does NOT stamp `updatedAt`. `lastUsed` is display/sort
+      // metadata, not an edit to the roll: bumping the revision would let simply
+      // ROLLING a saved roll beat a rename made later on another device, and let
+      // it out-rank its own tombstone and come back from the dead.
       markRollAsUsed: (id) => set((state) => ({
         savedRolls: state.savedRolls.map(roll =>
-          roll.id === id ? touchRoll({ ...roll, lastUsed: Date.now() }) : roll
+          roll.id === id ? { ...roll, lastUsed: Date.now() } : roll
         )
       })),
 
