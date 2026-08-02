@@ -436,9 +436,12 @@ guards.
 > mock from `src/test/setup.ts:15` survives it.
 >
 > The actual contaminant was `serverUrl`. `useMultiplayerStore.reset()`
-> deliberately preserves it (`useMultiplayerStore.ts:1129` — it is connection
-> config, not room state), so the per-`describe` `beforeEach(reset)` could not
-> restore it. `PlayerPanel solo vs live room > shows the go-online controls …`
+> deliberately preserves it — it is connection config, not room state, so
+> leaving a room must not forget which server the client is pointed at. The
+> per-`describe` `beforeEach(reset)` therefore could not restore it. (That
+> contract is now commented at the `reset()` call site and pinned by the
+> "reset preserves serverUrl" store test, which previously had no backpressure:
+> deleting the line left the whole suite green.) `PlayerPanel solo vs live room > shows the go-online controls …`
 > sets `serverUrl` to the `worker://solo` sentinel; every test scheduled after it
 > then rendered PlayerPanel's solo branch and lost the live-room controls it
 > asserts on. In declaration order that test is second-to-last and the last test

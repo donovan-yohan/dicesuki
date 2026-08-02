@@ -74,7 +74,6 @@ beforeEach(() => {
 
 afterEach(() => {
   resetMultiplayerStore()
-  vi.restoreAllMocks()
 })
 
 describe('connectionIndicator', () => {

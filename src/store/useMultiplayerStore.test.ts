@@ -4,9 +4,16 @@ import { useDiceStore } from './useDiceStore'
 import type { ServerMessage } from '../lib/multiplayerMessages'
 import { loadRoomSession, saveRoomSession } from '../lib/roomSession'
 
+// `reset()` deliberately preserves `serverUrl`, so it is the one field a
+// `reset()` in `beforeEach` cannot restore. Capture the pristine default and
+// re-pin it so a test that points the store at a custom server cannot leak that
+// into whatever the runner schedules next (issue #224).
+const DEFAULT_SERVER_URL = useMultiplayerStore.getState().serverUrl
+
 describe('useMultiplayerStore', () => {
   beforeEach(() => {
     useMultiplayerStore.getState().reset()
+    useMultiplayerStore.setState({ serverUrl: DEFAULT_SERVER_URL })
     localStorage.clear()
   })
 
@@ -516,6 +523,17 @@ describe('useMultiplayerStore', () => {
       expect(state.intentionalDisconnect).toBe(false)
       expect(state.reconnectToken).toBeNull()
       expect(state.lastJoin).toBeNull()
+    })
+
+    it('reset preserves serverUrl — connection config, not room state', () => {
+      // Leaving a room must not forget which server the client is pointed at,
+      // or reconnecting to a custom/self-hosted room server silently falls back
+      // to the default. This is the one field reset() deliberately carries over.
+      useMultiplayerStore.setState({ serverUrl: 'ws://custom.example:9000' })
+
+      useMultiplayerStore.getState().reset()
+
+      expect(useMultiplayerStore.getState().serverUrl).toBe('ws://custom.example:9000')
     })
   })
 

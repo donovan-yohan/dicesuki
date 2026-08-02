@@ -331,13 +331,25 @@ leaked state. Run it when touching shared setup, and expect to run a few seeds �
 these failures are seed-specific. A test that only passes in declaration order
 is depending on another test, which means it is not testing what its name says.
 
-The suite **is** shuffle-clean, and CI keeps it that way: `ci.yml` runs Vitest a
+The suite is **ordering-clean at the 10 seeds tried so far** (3, 7, 8, 11, 22,
+55, 101, 777, 2024, 20260802), and CI keeps it that way: `ci.yml` runs Vitest a
 second time at a pinned permutation
 (`npm test -- --run --sequence.shuffle --sequence.seed=20260802`). The seed is
 fixed on purpose — a fresh seed each run would be flaky-by-design, failing on
 permutations nobody can reproduce. Bump it deliberately, in its own PR, to sweep
 a new permutation; never to make a red run go away. If the shuffled run is red
 and the normal run is green, you have found leaked state, not a bad seed.
+
+Clean at ten seeds is evidence, not proof: an untried permutation may still
+surface a leak. Treat a red shuffled run as a real find and root-cause it.
+
+One caveat on the doubled run. `InventoryPanel.test.tsx > only mounts previews
+for the visible dice window` failed once across eight full shuffled runs during
+the 2026-08 audit and never reproduced at the same seed, which makes it
+load-sensitive rather than order-dependent. Running Vitest twice per CI job
+doubles the per-run odds of that unrelated flake appearing. If it fires, do not
+bump the shuffle seed — that hides a different bug. Fix the flake per the policy
+above.
 
 The smell that accounts for most of it is state written by one `it` (or one
 `describe`) that a later one reads. Watch especially for **store fields a
