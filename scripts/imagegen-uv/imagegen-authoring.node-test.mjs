@@ -31,6 +31,7 @@ import {
 } from './generate-authoring-kit.mjs'
 
 const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url))
+const REPO_ROOT = path.resolve(SCRIPT_DIRECTORY, '../..')
 
 test('all six geometry-derived manifests match the frozen canonical reference', () => {
   for (const shape of SUPPORTED_DICE_SHAPES) {
@@ -222,6 +223,53 @@ test('reviewed binary paths still enforce their approved size ceiling', async ()
       result.errors.join('; '),
       /public\/icons\/pwa-192x192\.png is 131073 bytes; approved maximum is 131072/,
     )
+    assert.doesNotMatch(result.errors.join('; '), /unapproved binary\/authoring payload/)
+  } finally {
+    await rm(repository, { recursive: true, force: true })
+  }
+})
+
+test('reviewed HDR environment maps are approved by digest, not by directory', async () => {
+  const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-imagegen-env-hdr-'))
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repository })
+    const envRoot = path.join(repository, 'public/textures/env')
+    await mkdir(envRoot, { recursive: true })
+
+    const approved = path.join(REPO_ROOT, 'public/textures/env/dikhololo_night_1k.hdr')
+    const approvedBytes = await readFile(approved)
+    await writeFile(path.join(envRoot, 'dikhololo_night_1k.hdr'), approvedBytes)
+    await writeFile(
+      path.join(envRoot, 'potsdamer_platz_1k.hdr'),
+      await readFile(path.join(REPO_ROOT, 'public/textures/env/potsdamer_platz_1k.hdr')),
+    )
+
+    // Baseline: exactly the two reviewed maps, unmodified, are accepted.
+    assert.equal(checkAuthoringBoundary(repository).valid, true)
+
+    // Negative control 1 — approval is per file, not per directory. A third map
+    // dropped beside them is still an unapproved binary.
+    const intruder = path.join(envRoot, 'some_other_map_1k.hdr')
+    await writeFile(intruder, approvedBytes)
+    assert.match(
+      checkAuthoringBoundary(repository).errors.join('; '),
+      /public\/textures\/env\/some_other_map_1k\.hdr is an unapproved binary/,
+    )
+    await rm(intruder)
+
+    // Negative control 2 — approval is of these BYTES. Editing an approved map
+    // (here: one flipped byte, so the size ceiling is untouched) fails on digest.
+    const tampered = Buffer.from(approvedBytes)
+    tampered[tampered.length - 1] ^= 0xff
+    await writeFile(path.join(envRoot, 'dikhololo_night_1k.hdr'), tampered)
+
+    const result = checkAuthoringBoundary(repository)
+    assert.equal(result.valid, false)
+    assert.match(
+      result.errors.join('; '),
+      /public\/textures\/env\/dikhololo_night_1k\.hdr has sha256 [0-9a-f]{64}; approved digest is 6861489f983cdc0c22435b781a3487171bd25f25f9cc52c46ac402d48e08249e/,
+    )
+    // It stays a reviewed path, so it must not also read as an unknown payload.
     assert.doesNotMatch(result.errors.join('; '), /unapproved binary\/authoring payload/)
   } finally {
     await rm(repository, { recursive: true, force: true })
