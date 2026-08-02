@@ -14,6 +14,7 @@ import {
   type DiceRenderLodPolicy,
   type RenderDeviceTier,
 } from '../../lib/renderLod'
+import { HERO_ENVIRONMENT_MAP_URL } from '../../config/environmentMaps'
 import { SceneAssetErrorBoundary } from '../SceneAssetErrorBoundary'
 import { useInventoryStore } from '../../store/useInventoryStore'
 import type { InventoryDie } from '../../types/inventory'
@@ -21,9 +22,6 @@ import type { Theme } from '../../themes/tokens'
 
 /** Static tilt applied to the previewed die so faces read clearly. */
 const HERO_DIE_ROTATION: [number, number, number] = [0.45, 0.6, 0.2]
-
-/** drei HDR preset lighting the inspector's preview stage. */
-const HERO_ENVIRONMENT_PRESET = 'city' as const
 
 interface HeroDieInspectorProps {
   die: InventoryDie
@@ -299,15 +297,17 @@ function HeroDieStage({
         ) : (
           <StandardHeroDie die={die} theme={theme} heroLod={heroLod} />
         )}
-        {/* Decorative image-based lighting, fetched from drei's CDN. Isolated on
-            both axes like the table's map (`Scene.tsx`): its own `Suspense` so a
-            slow or blocked request cannot suspend the die alongside it, and its
-            own boundary so a failed one cannot blank the panel. `resetKey` is
-            constant on purpose — the preset never changes, and a CDN that just
+        {/* Decorative image-based lighting, served from our own origin and
+            precached (issue #222). Isolated on both axes like the table's map
+            (`Scene.tsx`) because same-origin is not the same as infallible — a
+            corrupted or evicted cache entry still rejects or hangs: its own
+            `Suspense` so a slow request cannot suspend the die alongside it, and
+            its own boundary so a failed one cannot blank the panel. `resetKey`
+            is constant on purpose — the URL never changes, and a load that just
             failed should not be retried on every re-render. */}
-        <SceneAssetErrorBoundary resetKey={HERO_ENVIRONMENT_PRESET} fallback={null}>
+        <SceneAssetErrorBoundary resetKey={HERO_ENVIRONMENT_MAP_URL} fallback={null}>
           <Suspense fallback={null}>
-            <Environment preset={HERO_ENVIRONMENT_PRESET} />
+            <Environment files={HERO_ENVIRONMENT_MAP_URL} />
           </Suspense>
         </SceneAssetErrorBoundary>
       </Canvas>

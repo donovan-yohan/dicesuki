@@ -7,6 +7,7 @@ import * as THREE from 'three'
 // Config
 import { resolvePixelsPerUnit, arenaFitCameraHeight } from '../config/renderScale'
 import { useEngineConfig } from '../config/engineConfig'
+import { TABLE_ENVIRONMENT_MAP_URL } from '../config/environmentMaps'
 
 // Contexts
 import { useDiceBackend } from '../contexts/DiceBackendContext'
@@ -61,9 +62,6 @@ import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, Settin
 import type { TableDieSummary } from '../types/tableDice'
 
 const LOD_DEBUG_NAMESPACE = 'RenderLOD'
-
-/** drei HDR preset used for image-based lighting. See {@link ThemedEnvironmentMap}. */
-const ENVIRONMENT_PRESET = 'night' as const
 
 function isRenderLodDebugEnabled(): boolean {
   try {
@@ -298,13 +296,18 @@ function ThemedLighting() {
 /**
  * HDR image-based lighting for the table.
  *
- * The preset map is fetched from drei's asset CDN at runtime, which makes it the
- * one piece of the scene that depends on a third party — so it is isolated on
- * BOTH failure axes (issue #210):
+ * The map is served from our own origin and precached by the service worker
+ * (issue #222), so the common failure it used to have — drei's asset CDN being
+ * slow, blocked, or simply unreachable offline — is gone, and an offline boot
+ * now gets the same lighting as an online one.
+ *
+ * It stays isolated on BOTH failure axes anyway (issue #210), because "same
+ * origin" is not "cannot fail": a corrupted precache entry, an evicted cache on
+ * a storage-pressured device, or a partial response still reject or hang here.
  *
  * - `Suspense`, because `<Canvas>` puts every child in a single Suspense
  *   boundary: an unguarded suspend here also suspends {@link SceneReadySignal},
- *   so a slow, blocked, or offline request left the startup splash mounted with
+ *   so a slow or never-landing request left the startup splash mounted with
  *   nothing on screen to explain it.
  * - {@link SceneAssetErrorBoundary}, because a *rejected* request re-throws out
  *   of the Canvas into the DOM tree, where nothing catches it and the app blanks.
@@ -317,15 +320,15 @@ function ThemedLighting() {
  * table stays readable and playable — which is the trade we want against a
  * splash that never leaves.
  *
- * `resetKey` is constant on purpose. The preset never changes, and re-mounting
- * a CDN request that just failed on every re-render would be worse than the
- * dimmer lighting; the map is retried on the next page load.
+ * `resetKey` is constant on purpose. The URL never changes, and re-mounting a
+ * request that just failed on every re-render would be worse than the dimmer
+ * lighting; the map is retried on the next page load.
  */
 function ThemedEnvironmentMap() {
   return (
-    <SceneAssetErrorBoundary resetKey={ENVIRONMENT_PRESET} fallback={null}>
+    <SceneAssetErrorBoundary resetKey={TABLE_ENVIRONMENT_MAP_URL} fallback={null}>
       <Suspense fallback={null}>
-        <Environment preset={ENVIRONMENT_PRESET} />
+        <Environment files={TABLE_ENVIRONMENT_MAP_URL} />
       </Suspense>
     </SceneAssetErrorBoundary>
   )

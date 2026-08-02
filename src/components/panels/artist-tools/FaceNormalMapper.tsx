@@ -11,6 +11,7 @@ import { OrbitControls, Environment, useGLTF } from '@react-three/drei'
 import { Suspense, useState, useCallback, useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { ThreeEvent } from '@react-three/fiber'
+import { SceneAssetErrorBoundary } from '../../SceneAssetErrorBoundary'
 import { FaceNormal, EXPECTED_FACE_COUNTS } from '../../../types/customDice'
 import { DiceShape } from '../../../lib/geometries'
 
@@ -231,8 +232,21 @@ export function FaceNormalMapper({
                 onFaceClick={mappingMode === 'click' ? handleModelFaceClick : undefined}
               />
               <OrbitControls enablePan={false} enableZoom={true} />
-              <Environment preset="studio" />
             </Suspense>
+            {/* The one `<Environment preset>` still fetched from drei's CDN, and
+                the only in-Canvas loader here that a third party can fail. It is
+                off the solo path (artist tooling, reached from Settings) so it is
+                not worth 1 MB of precache to self-host — but it IS reachable by
+                real users, so it gets the same isolation as the table and the
+                inspector (issue #210): its own `Suspense` so a slow fetch cannot
+                suspend the model preview beside it, and its own boundary so a
+                rejected one cannot re-throw past `<Canvas>` and blank the app.
+                Decorative — the lights above carry the preview without it. */}
+            <SceneAssetErrorBoundary resetKey="studio" fallback={null}>
+              <Suspense fallback={null}>
+                <Environment preset="studio" />
+              </Suspense>
+            </SceneAssetErrorBoundary>
           </Canvas>
 
           {mappingMode === 'click' && selectedValue !== null && (
