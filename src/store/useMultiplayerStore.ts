@@ -1126,6 +1126,10 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     lastMotionFieldWasZero = false
     set({
       ...createInitialState(),
+      // `serverUrl` is connection configuration, not room state: leaving a room
+      // must not forget which server the client is pointed at, or reconnecting
+      // to a custom/self-hosted room server would silently fall back to the
+      // default. Covered by "reset preserves serverUrl" in the store tests.
       serverUrl: get().serverUrl,
     })
   },

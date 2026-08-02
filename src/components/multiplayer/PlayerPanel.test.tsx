@@ -14,6 +14,21 @@ vi.mock('./SoloRoomControls', () => ({
   SoloRoomControls: () => <div data-testid="solo-room-controls-stub" />,
 }))
 
+// `useMultiplayerStore.reset()` deliberately preserves `serverUrl` — it is
+// connection configuration, not room state, so leaving a room must not forget
+// which server the client is pointed at. That makes `serverUrl` the one field a
+// `reset()` in `beforeEach` cannot restore: the solo-room test below switches it
+// to the worker sentinel, and every later test would then render PlayerPanel's
+// solo branch and lose the live-room controls it asserts on (issue #224).
+// Capture the pristine default once at import time and re-pin it around every
+// test so this suite is order-independent.
+const DEFAULT_SERVER_URL = useMultiplayerStore.getState().serverUrl
+
+function resetMultiplayerStore() {
+  useMultiplayerStore.getState().reset()
+  useMultiplayerStore.setState({ serverUrl: DEFAULT_SERVER_URL })
+}
+
 const player = (id: string, name: string, color = '#8B5CF6'): PlayerInfo => ({
   id,
   displayName: name,
@@ -51,6 +66,16 @@ function renderPanel() {
   )
 }
 
+// One file-level pair instead of a per-describe copy: every test starts from the
+// same pristine store, whatever order the runner picks.
+beforeEach(() => {
+  resetMultiplayerStore()
+})
+
+afterEach(() => {
+  resetMultiplayerStore()
+})
+
 describe('connectionIndicator', () => {
   it('maps each status to a distinct label', () => {
     expect(connectionIndicator('connected').label).toBe('Connected')
@@ -61,14 +86,6 @@ describe('connectionIndicator', () => {
 })
 
 describe('PlayerPanel roster', () => {
-  beforeEach(() => {
-    useMultiplayerStore.getState().reset()
-  })
-
-  afterEach(() => {
-    useMultiplayerStore.getState().reset()
-  })
-
   it('lists every player with name, host badge, and a You tag for the local player', () => {
     // Arrange
     setRoster([player('a', 'Alice'), player('b', 'Bob')], {
@@ -141,14 +158,6 @@ describe('PlayerPanel roster', () => {
 })
 
 describe('PlayerPanel motion control', () => {
-  beforeEach(() => {
-    useMultiplayerStore.getState().reset()
-  })
-
-  afterEach(() => {
-    useMultiplayerStore.getState().reset()
-  })
-
   it('lets the host pick a motion mode and sends it to the server', () => {
     // Arrange: local player is the host with a connected socket.
     const send = vi.fn()
@@ -228,14 +237,6 @@ describe('PlayerPanel motion control', () => {
 })
 
 describe('PlayerPanel delegated roller', () => {
-  beforeEach(() => {
-    useMultiplayerStore.getState().reset()
-  })
-
-  afterEach(() => {
-    useMultiplayerStore.getState().reset()
-  })
-
   it('lets the host hand the dice to a player and sends it to the server', () => {
     // Arrange
     const send = vi.fn()
@@ -311,14 +312,6 @@ describe('PlayerPanel delegated roller', () => {
 })
 
 describe('PlayerPanel room theme', () => {
-  beforeEach(() => {
-    useMultiplayerStore.getState().reset()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('lets the host pick a shared room theme and sends it to the server', () => {
     // Arrange
     const send = vi.fn()
@@ -383,14 +376,6 @@ describe('PlayerPanel room theme', () => {
 })
 
 describe('PlayerPanel solo vs live room', () => {
-  beforeEach(() => {
-    useMultiplayerStore.getState().reset()
-  })
-
-  afterEach(() => {
-    useMultiplayerStore.getState().reset()
-  })
-
   it('shows the go-online controls and hides live-room controls in a solo room', () => {
     setRoster([player('a', 'You')], { localPlayerId: 'a', hostId: 'a' })
     useMultiplayerStore.setState({
