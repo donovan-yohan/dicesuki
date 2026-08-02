@@ -102,17 +102,26 @@ function totalWithPlan(
  * Each die independently reports when it starts moving (markDiceRolling)
  * and when it settles (recordDieSettled). The UI sums all settled dice.
  *
- * Roll cycles:
- * - A "roll cycle" starts when rollingDice goes from empty to non-empty
- * - All dice that enter rollingDice during the cycle accumulate in currentRollCycleDice
- * - When rollingDice empties, the cycle closes (currentRollCycleDice is cleared)
+ * Roll cycles track the LOCAL player's roll only (issue #221). Remote dice are
+ * still marked rolling — the HUD has to stop showing their stale faces while
+ * they tumble — but they never join the cycle, whose whole job is to say what
+ * OUR roll consists of. A rival rolling mid-wave used to reset the cycle and
+ * carry off our wave's dice with it.
+ * - A cycle starts when the local player's `roll_started` finds no roll of ours
+ *   in flight
+ * - Every die our own rolls put in the air during the cycle accumulates in
+ *   currentRollCycleDice
+ * - When the cycle's OWN dice have all settled (or left the table), it closes
+ *   and currentRollCycleDice is cleared
  *
  * History has exactly ONE writer per roll (issue #211):
  * - ordinary rolls (solo and multiplayer, local and remote): the `roll_complete`
- *   handler in `useMultiplayerStore` calls `addRollToHistory`
+ *   handler in `useMultiplayerStore` calls `recordRoomCompletedRoll`
  * - saved rolls with follow-up waves, where `roll_complete` is suppressed:
  *   `finishSavedRollWaves` snapshots the cycle
- * Closing a cycle never records one.
+ * - a roll no completion is coming for: the orphan path below, whose row the
+ *   room's `roll_complete` supersedes in place if one turns up after all
+ * Closing a cycle otherwise never records one.
  */
 interface DiceStore {
   settledDice: Map<string, DieSettledState>
@@ -143,8 +152,8 @@ interface DiceStore {
    */
   suppressedRollDiceIds: readonly string[] | null
   /**
-   * Set when a removal has cancelled the roll this cycle belongs to, so no
-   * `roll_complete` is ever coming for it — carrying whoever owned that roll.
+   * Set when a removal has taken dice out of the roll this cycle belongs to,
+   * carrying whoever owned that roll.
    *
    * A mark, not a snapshot. The removal is decided once per `dice_removed`
    * message, but the row is written later, by the ordinary drain, from whatever
@@ -153,8 +162,25 @@ interface DiceStore {
    * nothing settled and recorded nothing at all, and dice still in the air when
    * the message arrived — the normal case, since a removal races the physics —
    * were dropped from a roll the old settle-drain would have counted.
+   *
+   * The row it writes is PROVISIONAL. A current room completes a shrunk roll
+   * from its survivors (issue #226), and that message lands a frame after the
+   * table goes still; `recordRoomCompletedRoll` then supersedes this row rather
+   * than adding a second one. The row stands as written only where no
+   * completion is coming: a room old enough to still cancel the roll outright.
    */
   orphanedCycle: { player?: RollSnapshot['player'] } | null
+  /**
+   * The provisional row the orphan path wrote for the cycle now in hand, still
+   * open to being replaced by the room's own `roll_complete`. Null once
+   * superseded, and dropped whenever a fresh cycle opens or history is cleared.
+   *
+   * Transient (not persisted) and scoped to one cycle ON PURPOSE. A row left
+   * claimable across rolls would be cannibalised by a later roll of the SAME
+   * table, whose `roll_complete` carries the very same dice ids: that roll's
+   * row would overwrite the older one instead of joining it in history.
+   */
+  provisionalRollRowId: string | null
   /**
    * Inventory dice a roll being spawned has PINNED by id but has not put on the
    * table yet.
@@ -177,10 +203,25 @@ interface DiceStore {
    */
   rollNotice: string | null
 
-  markDiceRolling: (diceIds: string[]) => void
+  /**
+   * Mark dice as in flight.
+   *
+   * `ownRoll` (default true) says whether these dice belong to a roll of OURS,
+   * which is what may open or extend the roll cycle. A remote player's dice are
+   * marked rolling — so the HUD drops their stale faces — and nothing more
+   * (issue #221).
+   */
+  markDiceRolling: (diceIds: string[], options?: { ownRoll?: boolean }) => void
   recordDieSettled: (diceId: string, value: number, type: string, presentation?: DicePresentationMetadata) => void
   /** Record a finished roll. The row's `id` is minted here, not by the caller. */
   addRollToHistory: (snapshot: Omit<RollSnapshot, 'id'>) => void
+  /**
+   * Record a roll the ROOM completed, superseding the provisional row the
+   * orphan path may already have written for the same dice. The room is
+   * authoritative: its results are the survivors, so its row replaces the
+   * client's guess in place rather than joining it.
+   */
+  recordRoomCompletedRoll: (snapshot: Omit<RollSnapshot, 'id'>) => void
   /** Drop a single die. Does NOT decide roll cancellation — see `applyDiceRemoval`. */
   removeDieState: (diceId: string) => void
   /**
@@ -244,17 +285,35 @@ function buildCycleSnapshot(
 }
 
 /**
- * Close the roll cycle if the table has gone still, and record it if the roll
+ * Close the roll cycle if OUR roll has gone still, and record it if the roll
  * was orphaned. Returns null when the roll is still running.
+ *
+ * Stillness is asked of the cycle's own dice, not of the table: a rival's dice
+ * are in `rollingDice` too (the HUD needs them there) but say nothing about
+ * whether our roll is over, and holding the cycle open for them left it
+ * standing to be orphaned by a later tidy-up (issue #221). In solo, where every
+ * die is ours, this is the same question as "is the table still".
  *
  * Stillness is reached two ways — the last die SETTLES, or the last die in the
  * air is REMOVED — so the settle path and the removal path both ask this. A
- * removal that empties the table is precisely the cancelled-roll case, and no
+ * removal that empties the cycle is precisely the shrunk-roll case, and no
  * further settle would ever arrive to close it.
  *
  * `orphan` is passed rather than read off `state` because the removal path
  * decides it in the same update that applies the removal.
  */
+/**
+ * Is any die of the roll cycle still in the air? Rolling dice that are not part
+ * of the cycle are someone else's roll and are none of the cycle's business
+ * (issue #221).
+ */
+function hasCycleDiceInFlight(cycleDice: Set<string>, rolling: Set<string>): boolean {
+  for (const id of cycleDice) {
+    if (rolling.has(id)) return true
+  }
+  return false
+}
+
 function closeCycleIfStill(
   state: DiceStore,
   orphan: DiceStore['orphanedCycle'],
@@ -262,23 +321,44 @@ function closeCycleIfStill(
   newRolling: Set<string>,
   newCycleDice: Set<string>,
 ): Partial<DiceStore> | null {
-  if (newRolling.size > 0 || newCycleDice.size === 0) return null
+  if (newCycleDice.size === 0) return null
+  if (hasCycleDiceInFlight(newCycleDice, newRolling)) return null
   // A saved roll's waves keep the cycle open across the gaps between them;
   // `finishSavedRollWaves` closes and records it.
   if (state.savedRollWavesPending) return null
 
   if (!orphan) return { currentRollCycleDice: new Set<string>() }
 
-  // No `roll_complete` is coming for this roll, so the row is written here from
-  // everything that made it to the table.
+  // The roll lost dice, so the row is written here from everything that made it
+  // to the table. It is provisional: a current room completes the shrunk roll
+  // from its survivors a frame later, and `recordRoomCompletedRoll` replaces
+  // this row with that authoritative one (issue #226). Only where no completion
+  // follows — an older room that cancels the roll outright — does it stand.
   const snapshot = buildCycleSnapshot(newSettled, newCycleDice, state.activeSavedRoll)
   return {
     currentRollCycleDice: new Set<string>(),
     orphanedCycle: null,
+    provisionalRollRowId: snapshot?.id ?? null,
     rollHistory: snapshot
       ? [...state.rollHistory, orphan.player ? { ...snapshot, player: orphan.player } : snapshot]
       : state.rollHistory,
   }
+}
+
+/**
+ * Does the room's completion cover the provisional row — i.e. is it the same
+ * roll, spoken for authoritatively?
+ *
+ * The provisional row holds the survivors that had settled when the table went
+ * still; the room's results are the survivors it still tracked. Those coincide,
+ * but the containment check is one-directional on purpose: the room's word may
+ * legitimately include a die that had not reached us yet, while a row naming a
+ * die the room did not report is a different roll and must be left alone.
+ */
+function completionCoversRow(row: RollSnapshot, completion: Omit<RollSnapshot, 'id'>): boolean {
+  if (row.player && completion.player && row.player.id !== completion.player.id) return false
+  const completed = new Set(completion.dice.map((die) => die.diceId))
+  return row.dice.every((die) => completed.has(die.diceId))
 }
 
 export const useDiceStore = create<DiceStore>()(
@@ -292,19 +372,38 @@ export const useDiceStore = create<DiceStore>()(
       savedRollWavesPending: false,
       suppressedRollDiceIds: null,
       orphanedCycle: null,
+      provisionalRollRowId: null,
       reservedInventoryDieIds: new Set(),
       rollNotice: null,
 
-      markDiceRolling: (diceIds: string[]) => {
+      markDiceRolling: (diceIds: string[], options?: { ownRoll?: boolean }) => {
         set((state) => {
+          const ownRoll = options?.ownRoll ?? true
           const newSettled = new Map(state.settledDice)
-          const wasEmpty = state.rollingDice.size === 0
+          const newRolling = new Set(state.rollingDice)
+
+          // Someone else's dice: clear their stale faces and show them in
+          // flight, but do not touch the cycle. It describes OUR roll, and a
+          // rival rolling mid-sequence used to reset it — carrying off our
+          // wave's dice, our suppression ticket and our orphan mark with it
+          // (issue #221).
+          if (!ownRoll) {
+            for (const id of diceIds) {
+              newSettled.delete(id)
+              newRolling.add(id)
+            }
+            return { settledDice: newSettled, rollingDice: newRolling }
+          }
+
+          // "No roll of ours in flight" — asked of the cycle, not the table, so
+          // a rival's dice in the air cannot make our next roll join the last
+          // one instead of starting fresh.
+          const wasIdle = !hasCycleDiceInFlight(state.currentRollCycleDice, state.rollingDice)
           // A brand-new cycle means a brand-new explicit roll, so any unclaimed
           // ticket is stale. Without this, re-rolling an unchanged table after a
           // saved roll whose waves never triggered would present the SAME dice
           // ids and be swallowed as the already-recorded roll.
-          const startsFreshCycle = wasEmpty && !state.savedRollWavesPending
-          const newRolling = new Set(state.rollingDice)
+          const startsFreshCycle = wasIdle && !state.savedRollWavesPending
           // A saved roll's follow-up waves join the cycle that is already in
           // flight instead of starting a new one: the first wave's dice have
           // all settled by then, so without this each explosion wave would
@@ -323,9 +422,11 @@ export const useDiceStore = create<DiceStore>()(
             settledDice: newSettled,
             rollingDice: newRolling,
             currentRollCycleDice: newCycleDice,
-            // A fresh cycle is a fresh roll: neither the previous roll's claim
-            // nor its orphan mark may leak into it.
-            ...(startsFreshCycle ? { suppressedRollDiceIds: null, orphanedCycle: null } : {}),
+            // A fresh cycle is a fresh roll: neither the previous roll's claim,
+            // its orphan mark, nor its still-supersedable row may leak into it.
+            ...(startsFreshCycle
+              ? { suppressedRollDiceIds: null, orphanedCycle: null, provisionalRollRowId: null }
+              : {}),
           }
         })
       },
@@ -365,10 +466,13 @@ export const useDiceStore = create<DiceStore>()(
           //     `finishSavedRollWaves` writes the attributed row instead. The
           //     close below is gated on the same latch so the cycle stays open
           //     across the waves and that snapshot sees every die.
-          //  3. A die of the roll is REMOVED → the room cancels `pending_roll`
-          //     and no `roll_complete` ever comes. The cycle is marked orphaned
-          //     (`orphanedCycle`) and this drain records it instead, from
-          //     everything that had settled by the time the table went still.
+          //  3. Dice of the roll are REMOVED → the room shrinks the roll and
+          //     completes it from the survivors (issue #226), so ending 1 still
+          //     applies; the cycle is marked orphaned and this drain writes a
+          //     PROVISIONAL row that the arriving `roll_complete` supersedes.
+          //     That row is the whole answer only where no completion follows:
+          //     a room old enough to cancel the roll outright. A removal that
+          //     sweeps the roll away entirely ends both sides in silence.
           //
           // Clearing the cycle here is also what stops a later knock and
           // re-settle from resurrecting a finished roll (`dice_knocked` never
@@ -395,6 +499,37 @@ export const useDiceStore = create<DiceStore>()(
         }))
       },
 
+      /**
+       * The room is authoritative about what a roll came to.
+       *
+       * When a removal shrank the roll, the orphan path has already written a
+       * provisional row from the survivors that had landed, and the room's own
+       * completion for those same survivors arrives a frame later. Appending it
+       * would list the roll twice (issue #226 meeting #211's single-writer
+       * rule), and dropping it would keep the client's guess over the room's
+       * word — so it REPLACES the provisional row, in place. The row keeps its
+       * id, which is its React identity and its position in history.
+       *
+       * Anything else appends: an ordinary roll has no provisional row, and a
+       * completion for a different roll (a rival's, say) leaves ours claimable.
+       */
+      recordRoomCompletedRoll: (snapshot: Omit<RollSnapshot, 'id'>) => {
+        set((state) => {
+          const provisionalId = state.provisionalRollRowId
+          if (provisionalId !== null) {
+            const index = state.rollHistory.findIndex((row) => row.id === provisionalId)
+            if (index !== -1 && completionCoversRow(state.rollHistory[index], snapshot)) {
+              const rollHistory = [...state.rollHistory]
+              rollHistory[index] = { ...snapshot, id: provisionalId }
+              return { rollHistory, provisionalRollRowId: null }
+            }
+          }
+          return {
+            rollHistory: [...state.rollHistory, { ...snapshot, id: newRollSnapshotId() }],
+          }
+        })
+      },
+
       removeDieState: (diceId: string) => {
         set((state) => {
           const newSettled = new Map(state.settledDice)
@@ -417,17 +552,18 @@ export const useDiceStore = create<DiceStore>()(
       /**
        * Apply one whole `dice_removed` message.
        *
-       * Removing a die the room is still tracking for an explicit roll CANCELS
-       * that roll server-side (`remove_dice` drops `pending_roll` in
-       * `server/core/src/room.rs`), so no `roll_complete` is ever broadcast and
-       * the roll would leave no trace. This marks the cycle and, if the table is
-       * now still, records what landed.
+       * Removing a die the room is still tracking for an explicit roll shrinks
+       * that roll server-side to its survivors (`remove_dice` in
+       * `server/core/src/room.rs`), and the room completes it from them. This
+       * marks the cycle and, if our roll is now over, writes a PROVISIONAL row
+       * from what landed, which the arriving `roll_complete` then supersedes
+       * (`recordRoomCompletedRoll`).
        *
-       * Compensation only; the real fix is the room completing the roll from the
-       * survivors or emitting an explicit cancellation, which is a core change
-       * affecting both targets and is tracked separately.
+       * The mark still earns its keep in the one place a completion never
+       * comes: a room old enough to cancel `pending_roll` on removal, where
+       * this row is the roll's only trace (issue #211's third ending).
        *
-       * BOTH decisions — does this cancel the roll, and is the roll now over —
+       * BOTH decisions — does this shrink the roll, and is the roll now over —
        * are taken ONCE for the whole id set, which is why the message cannot be
        * applied one die at a time. Per-id, the answer depended on the order the
        * ids happened to appear in: removing an already-settled die last emptied
@@ -435,17 +571,19 @@ export const useDiceStore = create<DiceStore>()(
        * dropped; the reverse order recorded it.
        *
        * Two cases are deliberately NOT orphaned:
-       * - no removed die is in the cycle → either no roll is in flight or the
-       *   cycle already closed and its row is written; tidying a settled table
-       *   must not add a second one;
+       * - no removed die is in the cycle → either no roll of ours is in flight
+       *   or the cycle already closed and its row is written; tidying a settled
+       *   table must not add a second one. A rival's dice are never in our
+       *   cycle (issue #221), so their removals are this case: the room speaks
+       *   for their roll, as it does for the rest of it;
        * - the removed dice belong to a roll a wave sequence has CLAIMED → that
        *   is the reroll wave discarding its own dice, and `finishSavedRollWaves`
-       *   owns that row. A remote player's roll being trashed is still orphaned
-       *   even while we hold a claim, since our claim says nothing about theirs.
+       *   owns that row.
        *
        * And a removal that takes away the roll ENTIRELY records nothing: the
-       * player swept the table (Clear All), so there is no roll left to report.
-       * Only a roll with survivors is written.
+       * player swept the table (Clear All), so there is no roll left to report —
+       * which is what the room does with it too, dropping the emptied roll
+       * without announcing it. Only a roll with survivors is written.
        */
       applyDiceRemoval: (
         removedIds: readonly string[],
@@ -491,8 +629,10 @@ export const useDiceStore = create<DiceStore>()(
           settledDice: new Map(),
           rollingDice: new Set(),
           currentRollCycleDice: new Set(),
-          // The cycle is gone, so a pending orphan mark has nothing left to record.
+          // The cycle is gone, so a pending orphan mark has nothing left to
+          // record and its row is nobody's to supersede any more.
           orphanedCycle: null,
+          provisionalRollRowId: null,
           // The notice describes the roll being cleared away, so it goes with it.
           rollNotice: null,
         })
@@ -605,7 +745,8 @@ export const useDiceStore = create<DiceStore>()(
       },
 
       clearHistory: () => {
-        set({ rollHistory: [] })
+        // The row the mark pointed at is gone; a later completion must append.
+        set({ rollHistory: [], provisionalRollRowId: null })
       },
 
       reset: () => {
@@ -618,6 +759,7 @@ export const useDiceStore = create<DiceStore>()(
           savedRollWavesPending: false,
           suppressedRollDiceIds: null,
           orphanedCycle: null,
+          provisionalRollRowId: null,
           reservedInventoryDieIds: new Set(),
           rollNotice: null,
         })
