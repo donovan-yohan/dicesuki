@@ -1028,6 +1028,11 @@ impl Room {
     }
 
     /// Remove specific dice. Returns IDs that were actually removed.
+    ///
+    /// Dice belonging to an unfinished explicit roll are dropped from that
+    /// roll's pending set rather than cancelling it, so the roll still completes
+    /// from whatever survived (issue #226). A removal that takes the last
+    /// tracked die ends the roll silently.
     pub fn remove_dice(&mut self, player_id: &str, dice_ids: &[String]) -> Vec<String> {
         let mut removed = Vec::new();
         for id in dice_ids {
@@ -1041,19 +1046,48 @@ impl Room {
                 }
             }
         }
-        // Removing any die captured by an unfinished explicit roll invalidates
-        // that generation. Dice ids are client-supplied and reusable after
-        // removal, so retaining the pending set would let a replacement entity
-        // with the same id satisfy a roll it never participated in.
+        // Removing dice an unfinished explicit roll captured SHRINKS that roll to
+        // its survivors; it does not cancel it (issue #226). Cancelling meant the
+        // roll was never announced at all, so a player who tidied one die off the
+        // table lost the whole result.
+        //
+        // Dropping the removed ids from the set is also what keeps the safety
+        // property cancellation was there for: dice ids are client-supplied and
+        // reusable after removal, so an id left in the set would let a
+        // replacement entity spawned under it satisfy a roll it never joined.
+        // Out of the set, a reused id is simply not part of this generation.
+        let mut survivors_remain = false;
         if let Some(player) = self.players.get_mut(player_id) {
-            let invalidates_pending = player.pending_roll.as_ref().is_some_and(|pending| {
-                pending.dice_ids.iter().any(|id| removed.contains(id))
-            });
-            if invalidates_pending {
-                player.pending_roll = None;
+            if let Some(pending) = player.pending_roll.as_mut() {
+                let before = pending.dice_ids.len();
+                pending.dice_ids.retain(|id| !removed.contains(id));
+                let shrunk = pending.dice_ids.len() != before;
+                if pending.dice_ids.is_empty() {
+                    // The removal swept the whole roll away. That is a deliberate
+                    // sweep, not a result: the roll ends silently, with no
+                    // `RollComplete` — which is exactly what the client records
+                    // for it (nothing).
+                    player.pending_roll = None;
+                } else {
+                    survivors_remain = shrunk;
+                }
             }
-            // Clean up the seat's live dice index after invalidating the roll.
+            // Clean up the seat's live dice index after shrinking the roll.
             player.dice_ids.retain(|id| !removed.contains(id));
+        }
+        // Ask the host for a tick, because a shrunk roll whose survivors have
+        // ALL already settled is completable right now.
+        //
+        // Today the loop is certain to be running anyway — an unfinished roll
+        // always has a rolling or dragged die in it, and `physics_tick` keeps
+        // the loop alive for exactly those. But that is a liveness invariant of
+        // the tick, not a promise this function makes, and the completion must
+        // not quietly depend on it. Waking routes the completion through the one
+        // existing drain (`take_completed_rolls` → broadcast + roll reporting)
+        // rather than growing a second emission path per target. It costs one
+        // idle tick, which then releases the loop again.
+        if survivors_remain {
+            self.is_simulating = true;
         }
         self.touch();
         removed
@@ -1590,6 +1624,10 @@ impl Room {
     /// knocks/re-settles cannot emit another `RollComplete`. Spawn settling and
     /// drag/motion-only activity have no pending explicit command and therefore
     /// cannot manufacture a completion.
+    ///
+    /// "Originally tracked" is what `remove_dice` narrows: a roll whose dice were
+    /// partly removed completes from its survivors, and one whose dice were all
+    /// removed has no pending roll left to complete (issue #226).
     pub fn take_completed_rolls(&mut self) -> Vec<CompletedRoll> {
         let ready: Vec<(String, PendingRoll)> = self.players.iter()
             .filter_map(|(player_id, player)| {
@@ -2380,7 +2418,7 @@ mod tests {
     }
 
     #[test]
-    fn removing_tracked_die_cancels_generation_before_same_id_can_be_reused() {
+    fn removing_every_tracked_die_ends_the_roll_before_same_id_can_be_reused() {
         let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
@@ -2389,6 +2427,7 @@ mod tests {
             1
         );
 
+        // The removal sweeps the whole roll away: nothing survives to report.
         assert_eq!(room.remove_dice("p1", &["d1".to_string()]), ["d1"]);
         assert!(room.players["p1"].pending_roll.is_none());
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D20)]).unwrap();
@@ -2403,8 +2442,139 @@ mod tests {
         assert_eq!(
             room.roll_player_dice("p1").expect("replacement roll").generation,
             2,
-            "cancellation must not reuse the monotonic generation"
+            "ending the roll must not reuse the monotonic generation"
         );
+    }
+
+    #[test]
+    fn removing_part_of_a_roll_completes_it_from_the_settled_survivors() {
+        // Issue #226: a removal used to cancel `pending_roll`, so a player who
+        // tidied one die off the table lost the whole result. The survivors have
+        // all landed here, so the roll is completable the moment the die leaves.
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics(
+            "p1",
+            vec![
+                ("d1".to_string(), DiceType::D6),
+                ("d2".to_string(), DiceType::D6),
+                ("d3".to_string(), DiceType::D20),
+            ],
+        ).unwrap();
+        room.roll_player_dice("p1").expect("roll accepted");
+        for (dice_id, face) in [("d1", 4), ("d2", 5)] {
+            let die = room.dice.get_mut(dice_id).unwrap();
+            die.is_rolling = false;
+            die.face_value = Some(face);
+        }
+        // d3 is still in the air, so nothing completes yet.
+        assert!(room.take_completed_rolls().is_empty());
+
+        // Model a host that has released the loop. The removal takes away the
+        // very die keeping it alive, so the roll must be left ASKING for the
+        // tick that drains it rather than trusting the loop to still be there.
+        room.is_simulating = false;
+        assert_eq!(room.remove_dice("p1", &["d3".to_string()]), ["d3"]);
+        assert!(
+            room.is_simulating,
+            "the host must be woken to drain a roll that just became completable"
+        );
+
+        let completed = room.take_completed_rolls();
+        assert_eq!(completed.len(), 1);
+        assert_eq!(completed[0].generation, 1);
+        assert_eq!(
+            completed[0].results.iter().map(|r| r.dice_id.as_str()).collect::<Vec<_>>(),
+            ["d1", "d2"],
+            "the removed die must not appear in the results"
+        );
+        assert_eq!(completed[0].total, 9);
+        assert!(
+            room.take_completed_rolls().is_empty(),
+            "the shrunk roll is still consumed exactly once"
+        );
+    }
+
+    #[test]
+    fn a_shrunk_roll_completes_later_from_survivors_still_in_the_air() {
+        // The other half of #226: the removed die is the one that had ALREADY
+        // landed, so the roll stays open and finishes the ordinary way.
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics(
+            "p1",
+            vec![("d1".to_string(), DiceType::D6), ("d2".to_string(), DiceType::D6)],
+        ).unwrap();
+        room.roll_player_dice("p1").expect("roll accepted");
+        let settled = room.dice.get_mut("d1").unwrap();
+        settled.is_rolling = false;
+        settled.face_value = Some(3);
+
+        assert_eq!(room.remove_dice("p1", &["d1".to_string()]), ["d1"]);
+        assert!(
+            room.take_completed_rolls().is_empty(),
+            "a survivor is still rolling, so the roll is not finished"
+        );
+
+        let airborne = room.dice.get_mut("d2").unwrap();
+        airborne.is_rolling = false;
+        airborne.face_value = Some(6);
+        let completed = room.take_completed_rolls();
+        assert_eq!(completed.len(), 1);
+        assert_eq!(
+            completed[0].results.iter().map(|r| r.dice_id.as_str()).collect::<Vec<_>>(),
+            ["d2"]
+        );
+        assert_eq!(completed[0].total, 6);
+    }
+
+    #[test]
+    fn a_reused_id_cannot_rejoin_the_roll_it_was_removed_from() {
+        // The safety property the old cancellation existed for, under the new
+        // complete-from-survivors semantics: the removed id leaves the pending
+        // set, so an entity respawned under it is not part of that generation.
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics(
+            "p1",
+            vec![("d1".to_string(), DiceType::D6), ("d2".to_string(), DiceType::D6)],
+        ).unwrap();
+        room.roll_player_dice("p1").expect("roll accepted");
+
+        assert_eq!(room.remove_dice("p1", &["d1".to_string()]), ["d1"]);
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D20)]).unwrap();
+        for (dice_id, face) in [("d1", 17), ("d2", 2)] {
+            let die = room.dice.get_mut(dice_id).unwrap();
+            die.is_rolling = false;
+            die.face_value = Some(face);
+        }
+
+        let completed = room.take_completed_rolls();
+        assert_eq!(completed.len(), 1);
+        assert_eq!(
+            completed[0].results.iter().map(|r| r.dice_id.as_str()).collect::<Vec<_>>(),
+            ["d2"],
+            "a replacement entity must not satisfy a roll it never joined"
+        );
+        assert_eq!(completed[0].total, 2);
+    }
+
+    #[test]
+    fn removing_dice_outside_the_roll_leaves_it_untouched() {
+        // Negative control: only dice the roll captured shrink it. A die spawned
+        // after the roll started is not part of it, so removing it must neither
+        // shrink the set nor wake the host.
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.roll_player_dice("p1").expect("roll accepted");
+        room.spawn_dice_with_physics("p1", vec![("later".to_string(), DiceType::D6)]).unwrap();
+        room.is_simulating = false;
+
+        assert_eq!(room.remove_dice("p1", &["later".to_string()]), ["later"]);
+        assert_eq!(room.players["p1"].pending_roll.as_ref().unwrap().dice_ids, ["d1"]);
+        assert!(!room.is_simulating, "an unrelated removal must not wake the host");
+        assert!(room.take_completed_rolls().is_empty());
     }
 
     #[test]
