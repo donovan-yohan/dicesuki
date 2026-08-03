@@ -78,7 +78,12 @@ describe('collectible catalog', () => {
       roughness: 0.7,
       metalness: 0,
     }
-    for (const setId of ['cozy-forest-imagegen-set', 'cyberpunk-imagegen-set']) {
+    const setsWithoutAppearanceOverride = [
+      'cozy-forest-imagegen-set',
+      'cyberpunk-imagegen-set',
+      'fantasy-earth-imagegen-set',
+    ]
+    for (const setId of setsWithoutAppearanceOverride) {
       expect(appearancesFor(setId)).toEqual(
         Array.from({ length: 6 }, () => publishedDefault),
       )
