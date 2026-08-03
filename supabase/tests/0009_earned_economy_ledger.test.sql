@@ -271,13 +271,17 @@ set local role anon;
 do $$
 begin
   -- Editions are append-only and every published one stays public-readable.
-  -- 0030_earned_economy_rare_pity_10.sql appended earned-collection@2.
-  if (select count(*) from public.economy_editions) <> 2 or
+  -- 0030_earned_economy_rare_pity_10.sql appended earned-collection@2 and
+  -- 0032_earned_economy_dice_content_wave_1.sql appended earned-collection@3.
+  if (select count(*) from public.economy_editions) <> 3 or
      not exists (
        select 1 from public.economy_editions where id = 'earned-collection@1'
      ) or
      not exists (
        select 1 from public.economy_editions where id = 'earned-collection@2'
+     ) or
+     not exists (
+       select 1 from public.economy_editions where id = 'earned-collection@3'
      ) then
     raise exception 'Anonymous clients cannot read the public production edition';
   end if;

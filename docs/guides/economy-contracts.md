@@ -250,3 +250,68 @@ Behavioral suites written against a retired banner version clone it into an
 appended test-only family that heads its own lineage (for example
 `slice11-stars@1`); banner history itself stays append-only and is never
 rewritten or deleted.
+
+## Production edition 0003 and banner pool changes
+
+A **pool** change is a rate change. Adding a die to a tier changes every odds
+disclosure derived from that tier, so it follows the identical append rule as a
+guarantee-boundary change: a new contiguous production edition, a new anchored
+migration, a new banner version, and a new row in `EARNED_COLLECTION_BOUNDARIES`.
+
+`economy/production/editions/0003-earned-collection.json` is that append for Dice
+Content Wave 1. It is byte-identical to edition 0002 except for its append-only
+identity, its migration anchor, and pool membership: rare 9 → 27, epic 6 → 18,
+signature 6 → 12. Tier **weights** stay 72/23/4/1 and every guarantee boundary
+stays 10/25/20 — the tier a player lands in is unchanged; only what they can draw
+inside it grew. `selectedFeaturedUnowned.catalogItemIds` must remain exactly the
+signature tier (the validator asserts the arrays are equal), so expanding the
+signature tier necessarily expands the 20-pull selected-featured target.
+
+Its anchored migration is `0032_earned_economy_dice_content_wave_1.sql`, which
+seeds `earned-collection@3` and appends banner version `earned-collection-001@4`.
+Two details differ from 0030 and are worth copying for the next pool change:
+
+* the `pull_banner_tiers`/`pull_banner_items` rows are **derived from the pinned
+  edition JSON** the way `0011_earned_pull_preparation.sql` seeded version 1,
+  not copied-and-patched from the predecessor. The migration then diff-asserts
+  the derived rows against the predecessor's: zero retired items, an exact count
+  of added ones, and zero tier-weight difference. Derivation proves the served
+  pool is the reviewed pool; the diff proves the change was purely additive.
+* it creates **no function**. 0030's active-version guard resolves a family's
+  head dynamically, so appending `@4` retires `@3` from the player path with no
+  code change. `supabase/tests/0032_...test.sql` proves the retirement live.
+
+A catalog item may exist without belonging to any tier — that is how a set is
+held back. `ten-thousand-folds` ships in catalog edition 0005 and sits in no
+pool, reserved as the premium banner's featured candidate; both the migration and
+its behavioral suite fail closed if it ever leaks into a standard tier.
+
+### Expanding a featured pool moves targets and discharges banked pity
+
+Expanding the signature tier has two runtime effects on existing rows that no
+config diff shows. Both follow from one line: `private.prepare_pull_for_user`
+picks the selected-guarantee target as the **lowest-canonical-id unowned**
+featured item.
+
+**Every partial collector's target moves.** If the added set sorts below the
+incumbent one — `stormglass/...` sorts below every `void-crystal/...` — then a
+player who was most of the way to earning a specific incumbent die now has a
+die from the new set as their guarantee target instead. This is the larger
+cohort, and it is invisible unless you go looking.
+
+**Banked pity discharges.** `private.pull_selected_misses_after` resets the
+counter only when a featured non-duplicate is actually awarded, so a player who
+already owns every featured die has no eligible target on any pull, never
+satisfies the guarantee, and accumulates `selected_misses` without bound. The
+predicate is `selected_cursor + 1 >= selected_hard_guarantee_pull`, so a banked
+counter of `hardGuaranteePull - 1` or more fires. The moment the expanded
+version goes live, the newly added dice are unowned and eligible, and any such
+player is awarded a guaranteed signature die on their very next pull.
+
+Treat both as expected, and do **not** "fix" them by rewriting
+`pull_guarantee_states` in the migration — that confiscates pity a player
+earned. Instead, budget for the grant when sizing the expansion, and pin it with
+a behavioral case that seeds an owner of the retired featured set with a banked
+counter (see the banked-pity block in
+`supabase/tests/0032_earned_economy_dice_content_wave_1.test.sql`). Migrations in
+this lineage never touch guarantee counters, and their tests assert that.

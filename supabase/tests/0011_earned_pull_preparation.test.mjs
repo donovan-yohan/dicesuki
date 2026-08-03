@@ -3,7 +3,7 @@ const FIXTURE_BANNER = 'slice11-race@1'
 // Active-version fixture. 0030_earned_economy_rare_pity_10.sql restricted
 // preparation to a banner family's single highest version, and the
 // earned-collection family now heads at the ticket-funded
-// earned-collection-001@3. These deterministic race inversions need the
+// earned-collection-001@4. These deterministic race inversions need the
 // Stars-funded 160-per-pull offer, so they run against an appended test-only
 // family that clones earned-collection-001@1 byte for byte and heads its own
 // lineage. Banner history stays append-only; unlike the .sql suites this file

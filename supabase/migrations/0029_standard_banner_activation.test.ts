@@ -46,10 +46,21 @@ function regexEscape(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * Bind a raise to *its own* guard: `[^;]` cannot cross a plpgsql statement
+ * boundary, so the match starts at the `if` that actually raises rather than at
+ * any earlier one in the file.
+ *
+ * This proves the message is still the consequent of a guard. It does NOT prove
+ * the guard still constrains anything -- `if false then` contains no semicolon
+ * either, so a hollowed predicate still matches. Pair each call with a literal
+ * from the condition when that matters; the 0032 suite makes that literal a
+ * required parameter for exactly this reason.
+ */
 function expectIfRaise(source: string, message: string) {
   expect(source).toMatch(
     new RegExp(
-      `\\bif\\b[\\s\\S]*?\\bthen\\s+raise exception '${regexEscape(message)}'`,
+      `\\bif\\b[^;]*?\\bthen\\s+raise exception '${regexEscape(message)}'`,
       'i',
     ),
   )
@@ -142,7 +153,7 @@ describe('0029 standard banner activation', () => {
     )
     expectIfRaise(
       behavior,
-      'Standard discovery query did not return active earned-collection-001@3',
+      'Standard discovery query did not return active earned-collection-001@4',
     )
   })
 
@@ -183,17 +194,18 @@ describe('0029 standard banner activation', () => {
   it('backs every activation claim with behavioral and NULL-hole assertions', () => {
     const behavior = executable(behavioralSql)
     const evidence = [
-      'Standard discovery query did not return active earned-collection-001@3',
+      'Standard discovery query did not return active earned-collection-001@4',
       // 0030 retired the superseded versions from the player path, so the
       // behavioral suite now proves the rejection instead of the old
-      // Stars-funded @1 and ticket-funded @2 preparations.
+      // Stars-funded @1 and ticket-funded @2 preparations. 0032 appended the
+      // wave-1 pool as @4, so the lifecycle legs run on the new head.
       'Superseded version @1 is still player-callable',
       'Superseded version @2 is still player-callable',
       'A rejected superseded preparation still reserved funds',
-      'Version @3 did not reserve ten standard-roll tickets without touching Stars',
-      'Version @3 did not continue every family counter seeded under @1 and @2',
-      'Version @3 commit did not grant ten copies and debit exactly ten tickets',
-      'Pity read did not expose active version @3 counters, shallow thresholds, and NULL soft pity',
+      'Version @4 did not reserve ten standard-roll tickets without touching Stars',
+      'Version @4 did not continue every family counter seeded under @1 and @2',
+      'Version @4 commit did not grant ten copies and debit exactly ten tickets',
+      'Pity read did not expose active version @4 counters, shallow thresholds, and NULL soft pity',
       'Premium preparation no longer failed closed',
       'Standard activation NULL-hole audit failed',
     ]

@@ -12,15 +12,19 @@ const EDITION_FILE_PATTERN = /^(\d{4})-([a-z0-9]+(?:-[a-z0-9]+)*)\.json$/
 const MIGRATION_FILE_PATTERN = /^\d{4}_earned_economy_[a-z0-9_]+\.sql$/
 const EDITION_0001_SHA256 = '6e198c0f3a3a96975ada45b27334583b5c17d84549db9eefe4e3671b296aba09'
 const EDITION_0002_SHA256 = '62232a0a8913c8162ee0733532b0ce3c034fe2c9eda7276c6d2b7b4e37ca8626'
+const EDITION_0003_SHA256 = 'a1623cc4fd3c2b4d80bd41406a1a29bc90ba09bff5b3e98e58c474812b7ffc28'
 const BASE_FEATURED_RATE_RELATIVE_EPSILON = 1e-9
 
 // Per-edition production boundaries and frozen source hashes for the
-// earned-collection lineage. A rate change appends the next contiguous entry
-// instead of rewriting a published one, so every published edition keeps an
-// exact pin and only the deliberately tuned boundary differs between rows.
+// earned-collection lineage. Any published change -- a tuned pity boundary
+// (edition 2) or a banner pool expansion (edition 3) -- appends the next
+// contiguous entry instead of rewriting a published one, so every published
+// edition keeps an exact source pin and the row records the boundary that
+// edition actually shipped.
 const EARNED_COLLECTION_BOUNDARIES = new Map([
   [1, { sha256: EDITION_0001_SHA256, rareHardGuaranteePull: 8 }],
   [2, { sha256: EDITION_0002_SHA256, rareHardGuaranteePull: 10 }],
+  [3, { sha256: EDITION_0003_SHA256, rareHardGuaranteePull: 10 }],
 ])
 
 function compareStrings(left, right) {

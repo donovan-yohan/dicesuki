@@ -401,7 +401,7 @@ $$;
 -- Active-version fixture. 0030_earned_economy_rare_pity_10.sql restricted
 -- preparation to a banner family's single highest version, and the
 -- earned-collection family now heads at the ticket-funded
--- earned-collection-001@3. Every preparation case below therefore runs against
+-- earned-collection-001@4. Every preparation case below therefore runs against
 -- an appended test-only family that clones earned-collection-001@1 byte for
 -- byte and heads its own lineage, which keeps the Stars-funded 160/1600 offers,
 -- the 45-item pool, and the 8/25/20 boundaries this suite asserts. Banner
