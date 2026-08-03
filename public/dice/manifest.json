@@ -119,6 +119,42 @@
           "hasThumbnail": false
         }
       ]
+    },
+    {
+      "id": "fantasy-earth-imagegen-set",
+      "path": "fantasy-earth-imagegen-set",
+      "dice": [
+        {
+          "id": "aurelian-d20",
+          "path": "fantasy-earth-imagegen-set/aurelian-d20",
+          "hasThumbnail": true
+        },
+        {
+          "id": "emerald-crown-d12",
+          "path": "fantasy-earth-imagegen-set/emerald-crown-d12",
+          "hasThumbnail": true
+        },
+        {
+          "id": "greenwarden-d8",
+          "path": "fantasy-earth-imagegen-set/greenwarden-d8",
+          "hasThumbnail": true
+        },
+        {
+          "id": "oathstone-d6",
+          "path": "fantasy-earth-imagegen-set/oathstone-d6",
+          "hasThumbnail": true
+        },
+        {
+          "id": "runeleaf-d4",
+          "path": "fantasy-earth-imagegen-set/runeleaf-d4",
+          "hasThumbnail": true
+        },
+        {
+          "id": "sunspire-d10",
+          "path": "fantasy-earth-imagegen-set/sunspire-d10",
+          "hasThumbnail": true
+        }
+      ]
     }
   ]
 }

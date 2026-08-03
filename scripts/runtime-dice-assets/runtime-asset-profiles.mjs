@@ -53,6 +53,21 @@ export const RUNTIME_ASSET_PROFILES = Object.freeze({
       Object.freeze({ diceId: 'obsidian-fang-d8', diceType: 'd8', proofFace: 8, scale: 1.3888888888888888 }),
     ]),
   }),
+  'fantasy-earth-v1': Object.freeze({
+    displayName: 'Fantasy Earth',
+    setId: 'fantasy-earth-imagegen-set',
+    proofPrefix: 'fantasy-earth',
+    sourceLockFile: 'fantasy-earth-v1.lock.json',
+    sourceLockSupplementFiles: Object.freeze([]),
+    dice: Object.freeze([
+      Object.freeze({ diceId: 'aurelian-d20', diceType: 'd20', proofFace: 20, scale: 1.3888888888888888 }),
+      Object.freeze({ diceId: 'emerald-crown-d12', diceType: 'd12', proofFace: 12, scale: 1.25 }),
+      Object.freeze({ diceId: 'greenwarden-d8', diceType: 'd8', proofFace: 8, scale: 1.3888888888888888 }),
+      Object.freeze({ diceId: 'oathstone-d6', diceType: 'd6', proofFace: 6, scale: 1.1 }),
+      Object.freeze({ diceId: 'runeleaf-d4', diceType: 'd4', proofFace: 4, scale: 1.3888888888888888 }),
+      Object.freeze({ diceId: 'sunspire-d10', diceType: 'd10', proofFace: 9, scale: 1.3888888888888888 }),
+    ]),
+  }),
 })
 
 export function getRuntimeAssetProfile(profileId = DEFAULT_RUNTIME_ASSET_PROFILE) {
