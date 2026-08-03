@@ -76,8 +76,9 @@ function createFakeRoom(faceQueue: number[]) {
   let failRollWith: string | null = null
   /**
    * The dice of the explicit roll the room is tracking, mirroring
-   * `Player::pending_roll`. Removing any of them cancels the roll, so no
-   * `roll_complete` is ever broadcast for it (`remove_dice` in room.rs).
+   * `Player::pending_roll`. Removing one of them SHRINKS the roll to its
+   * survivors rather than cancelling it, and the roll is dropped only once
+   * nothing is left of it (`remove_dice` in room.rs, issue #226).
    */
   let pendingRollIds: string[] | null = null
 
@@ -105,11 +106,15 @@ function createFakeRoom(faceQueue: number[]) {
    * synchronously hid that ordering and with it the duplicate row for a saved
    * roll whose reroll/explosion never triggers.
    */
-  function completeRoll(ids: string[]) {
+  function completeRoll() {
     setTimeout(() => {
       if (activeRoomToken !== token) return
-      // A removal cancelled the roll server-side, so nothing is announced.
-      if (pendingRollIds === null) return
+      // Read the tracked set HERE, not at schedule time: the room decides what
+      // a roll came to when it drains, so a removal landing in between shrinks
+      // the results. Null means already announced, or swept away entirely — an
+      // emptied roll is dropped without a word (`remove_dice`).
+      const ids = pendingRollIds
+      if (ids === null) return
       pendingRollIds = null
       const roomDice = useMultiplayerStore.getState().dice
       const results = ids
@@ -133,6 +138,25 @@ function createFakeRoom(faceQueue: number[]) {
         total: results.reduce((acc, result) => acc + result.faceValue, 0),
       } as never)
     }, 0)
+  }
+
+  /**
+   * Announce the roll if every die the room still tracks has come to rest,
+   * mirroring `take_completed_rolls` running on each tick.
+   *
+   * Asked after a settle AND after a removal, because both can be the moment
+   * the tracked set goes quiet — the removal reaches it by taking the last die
+   * in the air out of the roll, which is why core wakes the sim there.
+   */
+  function announceIfRollFinished() {
+    const ids = pendingRollIds
+    if (ids === null) return
+    const roomDice = useMultiplayerStore.getState().dice
+    const allLanded = ids.every((id) => {
+      const die = roomDice.get(id)
+      return die !== undefined && !die.isRolling
+    })
+    if (allLanded) completeRoll()
   }
 
   function spawn(
@@ -177,18 +201,32 @@ function createFakeRoom(faceQueue: number[]) {
       spawn(type, undefined, presentation)),
     removeDie: vi.fn((id: string) => {
       removed.push(id)
-      // Removing a die the pending roll tracked invalidates that roll, exactly
-      // as `remove_dice` does server-side.
-      if (pendingRollIds?.includes(id)) pendingRollIds = null
+      // Removing a die the pending roll tracked SHRINKS that roll to its
+      // survivors, exactly as `remove_dice` does server-side (issue #226); the
+      // roll is dropped only when nothing is left of it.
+      if (pendingRollIds?.includes(id)) {
+        const survivors = pendingRollIds.filter((tracked) => tracked !== id)
+        pendingRollIds = survivors.length > 0 ? survivors : null
+      }
       useMultiplayerStore.setState((state) => {
         const dice = new Map(state.dice)
         dice.delete(id)
         return { dice }
       })
-      useDiceStore.getState().removeDieState(id)
+      // The real removal reaches the stores as a `dice_removed` broadcast, not
+      // as a direct store call — that handler is where the roll cycle and the
+      // suppression claim are kept in step with the room.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'dice_removed',
+        diceIds: [id],
+      } as never)
+      // A shrunk roll whose survivors have all already landed is completable
+      // the moment the die leaves — core wakes the sim for exactly this.
+      announceIfRollFinished()
     }),
     clearAll: vi.fn(() => {
-      // Clearing the table removes tracked dice, which cancels the roll.
+      // Clearing the table sweeps every tracked die out of the roll, which
+      // empties it — and an emptied roll is dropped without being announced.
       pendingRollIds = null
       const mine = Array.from(useMultiplayerStore.getState().dice.values())
         .filter((die) => die.ownerId === OWNER)
@@ -217,13 +255,13 @@ function createFakeRoom(faceQueue: number[]) {
       // `roll_started` wipes the faces of every die it launches.
       useDiceStore.getState().markDiceRolling(mine)
       pendingRollIds = [...mine]
-      let outstanding = mine.length
       for (const id of mine) {
         setTimeout(() => {
           settle(id)
-          // The room announces the roll complete only once the LAST die it
-          // launched has settled.
-          if (--outstanding === 0) completeRoll(mine)
+          // The room announces the roll complete once every die it is STILL
+          // tracking has come to rest — which a removal can reach early by
+          // taking the last one still in the air out of the roll.
+          announceIfRollFinished()
         }, 0)
       }
     }),
@@ -662,6 +700,31 @@ describe('executePhysicalSavedRoll', () => {
       const history = useDiceStore.getState().rollHistory
       expect(history).toHaveLength(1)
       expect(history[0].sum).toBe(5)
+    })
+
+    it('records ONE row when the reroll DOES fire', async () => {
+      // The twin of the test above, and the gap the duplicate row lived in.
+      // A reroll wave REMOVES its targets, so the room shrinks the roll and
+      // completes it naming only the survivors (issue #226). The suppression
+      // claim is the base wave's full set, so unless it shrinks with the room
+      // the completion no longer matches it: the message is written as a row
+      // of its own, next to the one `finishSavedRollWaves` writes for the same
+      // roll. Two dice, one of which is rerolled, is the smallest shape that
+      // leaves a survivor for the room to report.
+      const room = createFakeRoom([1, 4, 6])
+      const roll = makeRoll({
+        quantity: 2,
+        reroll: { condition: 'equals', value: 1, maxRerolls: 1 },
+      })
+
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      // The 1 was rerolled into a 6 and the 4 stood: the row is the wave
+      // sequence's, covering the replacement rather than the discarded die.
+      expect(history[0].sum).toBe(10)
     })
 
     it('leaves a remote player\'s roll_complete row as the raw face sum', async () => {

@@ -985,10 +985,105 @@ describe('useMultiplayerStore', () => {
       expect(useDiceStore.getState().rollHistory).toHaveLength(2)
     })
 
-    it('attributes a roll cancelled by dice_removed to the ROLL OWNER', () => {
-      // Removing a tracked die makes the room drop `pending_roll`, so no
-      // `roll_complete` follows. The owner has to be read off the die before it
-      // is deleted, and it is the roll's owner — never "us" for their roll.
+    it('still drops the claimed roll_complete after the roll was shrunk', () => {
+      // Issues #226 + #211. A wave sequence claims its roll by dice id, but the
+      // room now completes a SHRUNK roll naming only the survivors — which a
+      // reroll wave causes every time it discards a target. The claim shrinks
+      // with the room (`applyDiceRemoval`), so this message is still recognised
+      // and dropped; otherwise it lands as a second row beside the one
+      // `finishSavedRollWaves` wrote for the very same roll.
+      useDiceStore.getState().reset()
+      useMultiplayerStore.setState({
+        localPlayerId: 'p1',
+        players: new Map([['p1', {
+          id: 'p1', displayName: 'Me', color: '#f00', isHost: true,
+        }]]) as never,
+        dice: new Map([
+          ['keep', { id: 'keep', ownerId: 'p1', diceType: 'd6' }],
+          ['discard', { id: 'discard', ownerId: 'p1', diceType: 'd6' }],
+        ]) as never,
+      })
+
+      useDiceStore.getState().beginSavedRollWaves(['keep', 'discard'])
+      useDiceStore.getState().markDiceRolling(['keep', 'discard'])
+      useDiceStore.getState().recordDieSettled('keep', 4, 'd6')
+      useDiceStore.getState().recordDieSettled('discard', 1, 'd6')
+
+      // The reroll wave discards its target through the room.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'dice_removed',
+        diceIds: ['discard'],
+      } as never)
+      useDiceStore.getState().finishSavedRollWaves({
+        id: 'p1', displayName: 'Me', color: '#f00',
+      })
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+
+      // The room completes the shrunk roll: survivors only.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'roll_complete',
+        playerId: 'p1',
+        total: 4,
+        results: [{ diceId: 'keep', diceType: 'd6', faceValue: 4 }],
+      } as never)
+
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    })
+
+    it('records a roll the room shrank exactly once, on the room\'s terms', () => {
+      // Issues #226 + #211 together. Removing a tracked die makes the room
+      // complete the roll from the SURVIVORS, so the row the local orphan path
+      // writes when the table goes still is provisional: the completion that
+      // follows a frame later replaces it rather than listing the roll twice.
+      useDiceStore.getState().reset()
+      useMultiplayerStore.setState({
+        localPlayerId: 'p1',
+        players: new Map([
+          ['p1', { id: 'p1', displayName: 'Me', color: '#f00', isHost: true }],
+        ]) as never,
+        dice: new Map([
+          ['die-1', { id: 'die-1', ownerId: 'p1', diceType: 'd6' }],
+          ['die-2', { id: 'die-2', ownerId: 'p1', diceType: 'd6' }],
+        ]) as never,
+      })
+
+      const send = (message: unknown) =>
+        useMultiplayerStore.getState().handleServerMessage(message as never)
+
+      send({ type: 'roll_started', playerId: 'p1', diceIds: ['die-1', 'die-2'] })
+      send({
+        type: 'die_settled',
+        diceId: 'die-1',
+        faceValue: 2,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0, 1],
+      })
+      // die-2 is trashed while still in the air; the table is now still.
+      send({ type: 'dice_removed', diceIds: ['die-2'] })
+
+      const provisional = useDiceStore.getState().rollHistory
+      expect(provisional).toHaveLength(1)
+      expect(provisional[0].sum).toBe(2)
+
+      // The room completes the shrunk roll from what survived.
+      send({
+        type: 'roll_complete',
+        playerId: 'p1',
+        total: 2,
+        results: [{ diceId: 'die-1', diceType: 'd6', faceValue: 2 }],
+      })
+
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].id).toBe(provisional[0].id)
+      expect(history[0].sum).toBe(2)
+      expect(history[0].player?.id).toBe('p1')
+    })
+
+    it('records a REMOTE roll from its own roll_complete, cycle untouched', () => {
+      // Issue #221: a rival's `roll_started` used to fold their dice into our
+      // roll cycle, where a later removal would orphan it into a row we had no
+      // business writing. Their roll is the room's to report, start to finish.
       useDiceStore.getState().reset()
       useMultiplayerStore.setState({
         localPlayerId: 'p1',
@@ -1002,19 +1097,81 @@ describe('useMultiplayerStore', () => {
         ]) as never,
       })
 
-      useDiceStore.getState().markDiceRolling(['their-1', 'their-2'])
-      useDiceStore.getState().recordDieSettled('their-1', 2, 'd6')
+      const send = (message: unknown) =>
+        useMultiplayerStore.getState().handleServerMessage(message as never)
 
-      useMultiplayerStore.getState().handleServerMessage({
-        type: 'dice_removed',
-        diceIds: ['their-2'],
-      } as never)
+      send({ type: 'roll_started', playerId: 'p2', diceIds: ['their-1', 'their-2'] })
+      expect(useDiceStore.getState().currentRollCycleDice.size).toBe(0)
+      expect(useDiceStore.getState().rollingDice.has('their-1')).toBe(true)
+
+      send({
+        type: 'die_settled',
+        diceId: 'their-1',
+        faceValue: 2,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0, 1],
+      })
+      send({ type: 'dice_removed', diceIds: ['their-2'] })
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+
+      send({
+        type: 'roll_complete',
+        playerId: 'p2',
+        total: 2,
+        results: [{ diceId: 'their-1', diceType: 'd6', faceValue: 2 }],
+      })
 
       const history = useDiceStore.getState().rollHistory
       expect(history).toHaveLength(1)
       expect(history[0].sum).toBe(2)
       expect(history[0].player?.displayName).toBe('Rival')
       expect(history[0].player?.id).toBe('p2')
+    })
+
+    it('keeps a rival\'s roll out of OUR wave sequence', () => {
+      // The #221 repro: their `roll_started` landing between our waves reset
+      // the cycle, so the wave row was built from whatever came after it — and
+      // the claim that stops that row being written twice went with it.
+      useDiceStore.getState().reset()
+      useMultiplayerStore.setState({
+        localPlayerId: 'p1',
+        players: new Map([
+          ['p1', { id: 'p1', displayName: 'Me', color: '#f00', isHost: true }],
+          ['p2', { id: 'p2', displayName: 'Rival', color: '#0f0', isHost: false }],
+        ]) as never,
+        dice: new Map([
+          ['mine-1', { id: 'mine-1', ownerId: 'p1', diceType: 'd6' }],
+          ['theirs', { id: 'theirs', ownerId: 'p2', diceType: 'd6' }],
+        ]) as never,
+      })
+
+      const send = (message: unknown) =>
+        useMultiplayerStore.getState().handleServerMessage(message as never)
+
+      useDiceStore.getState().beginSavedRollWaves(['mine-1'])
+      send({ type: 'roll_started', playerId: 'p1', diceIds: ['mine-1'] })
+      send({
+        type: 'die_settled',
+        diceId: 'mine-1',
+        faceValue: 4,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0, 1],
+      })
+
+      // A rival rolls mid-sequence.
+      send({ type: 'roll_started', playerId: 'p2', diceIds: ['theirs'] })
+
+      expect([...useDiceStore.getState().currentRollCycleDice]).toEqual(['mine-1'])
+      expect(useDiceStore.getState().suppressedRollDiceIds).toEqual(['mine-1'])
+
+      // Our wave row still knows what our roll consisted of.
+      useDiceStore.getState().finishSavedRollWaves({
+        id: 'p1', displayName: 'Me', color: '#f00',
+      })
+      const history = useDiceStore.getState().rollHistory
+      expect(history).toHaveLength(1)
+      expect(history[0].dice.map((d) => d.diceId)).toEqual(['mine-1'])
+      expect(history[0].sum).toBe(4)
     })
 
     it('should not pair two loose d10s in a roll_complete', () => {

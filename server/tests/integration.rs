@@ -416,6 +416,56 @@ async fn remove_dice_after_spawn() {
     assert_eq!(removed[0], "die-1");
 }
 
+#[tokio::test]
+async fn removing_a_die_mid_roll_still_completes_the_roll_from_the_survivors() {
+    // Issue #226, on the wire and through the real 60Hz loop: a removal used to
+    // drop `pending_roll`, so `roll_complete` never arrived and the roll left no
+    // trace at all. It must now complete from what survived, naming only those
+    // dice.
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{addr}/ws/{room_id}");
+
+    let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
+    ws.send(Message::Text(json!({
+        "type": "join",
+        "roomId": room_id,
+        "displayName": "Player1",
+        "color": "#FF0000"
+    }).to_string())).await.unwrap();
+    let _ = recv_json(&mut ws).await; // room_state
+
+    ws.send(Message::Text(json!({
+        "type": "spawn_dice",
+        "dice": [{"id": "keeper", "diceType": "d6"}, {"id": "doomed", "diceType": "d6"}]
+    }).to_string())).await.unwrap();
+    let _ = recv_json(&mut ws).await; // dice_spawned
+
+    ws.send(Message::Text(json!({ "type": "roll" }).to_string())).await.unwrap();
+    ws.send(Message::Text(json!({
+        "type": "remove_dice",
+        "diceIds": ["doomed"]
+    }).to_string())).await.unwrap();
+
+    // Drain the snapshot traffic until the roll is announced complete. Bounded
+    // by wall clock, not by message count: the failure mode is silence.
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let mut completion = None;
+    while std::time::Instant::now() < deadline {
+        if let Some(msg) = try_recv_json(&mut ws).await {
+            if msg["type"] == "roll_complete" {
+                completion = Some(msg);
+                break;
+            }
+        }
+    }
+
+    let completion = completion.expect("a shrunk roll must still be completed");
+    let results = completion["results"].as_array().unwrap();
+    assert_eq!(results.len(), 1, "only the surviving die belongs to the roll");
+    assert_eq!(results[0]["diceId"], "keeper");
+}
+
 // ─── Multiplayer Flow Tests ──────────────────────────────────────
 
 #[tokio::test]

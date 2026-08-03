@@ -280,6 +280,17 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter:
                 if !removed.is_empty() {
                     room_guard.broadcast(&ServerMessage::DiceRemoved { dice_ids: removed });
                 }
+
+                // Removing dice from an unfinished roll can leave it completable
+                // at once. Core asks for a tick for that case by setting
+                // `is_simulating`; this honours the request whether or not the
+                // loop is still running, so the completion drains through the
+                // one path that broadcasts AND reports it (issue #226).
+                crate::simulation::maybe_start_simulation(
+                    &mut room_guard,
+                    room.clone(),
+                    reporter.clone(),
+                );
             }
 
             ClientMessage::Roll if is_joined => {

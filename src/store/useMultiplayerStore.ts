@@ -686,13 +686,18 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       case 'dice_removed': {
         const { dice } = get()
         const newDice = new Map(dice)
-        // Removing a die the room still tracks for an explicit roll cancels that
-        // roll (`remove_dice` drops `pending_roll`), so no `roll_complete` will
-        // follow and the roll would leave no trace. Mark the cycle ONCE for the
-        // whole message, before anything is deleted — the owner has to be read
-        // off the die while it is still here, and it is the ROLL's owner, not
-        // whoever happens to be local: a remote player's trashed roll must be
-        // attributed to them, exactly as their `roll_complete` row would be.
+        // Removing a die the room still tracks for an explicit roll shrinks that
+        // roll to its survivors and the room completes it from them (issue
+        // #226), so a `roll_complete` IS coming — the cycle is marked all the
+        // same, and the provisional row it writes is superseded when that
+        // message lands. Against a room old enough to cancel the roll instead,
+        // the mark is the roll's only trace.
+        //
+        // Mark ONCE for the whole message, before anything is deleted: the
+        // owner has to be read off the die while it is still here, and it is
+        // the ROLL's owner. Only our own dice are ever in the cycle (issue
+        // #221), so a rival's removals fall through this untouched — the room
+        // speaks for their roll, as it does for the rest of it.
         const { players: removalPlayers } = get()
         const cycleDice = useDiceStore.getState().currentRollCycleDice
         const cancelledId = msg.diceIds.find((id) => cycleDice.has(id))
@@ -718,7 +723,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }
 
       case 'roll_started': {
-        const { dice } = get()
+        const { dice, localPlayerId } = get()
         const newDice = new Map(dice)
         for (const id of msg.diceIds) {
           const die = newDice.get(id)
@@ -732,8 +737,16 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           lastRollStartedDiceIds: [...msg.diceIds],
         }))
 
-        // Also mark in unified dice store
-        useDiceStore.getState().markDiceRolling(msg.diceIds)
+        // Also mark in the unified dice store — but only OUR roll opens or
+        // extends the roll cycle (issue #221). Every player's `roll_started`
+        // used to, so a rival rolling mid-sequence reset the cycle and took our
+        // wave's dice with it, and their dice then sat in our cycle waiting to
+        // orphan it. Their dice are still marked rolling so the HUD drops their
+        // stale faces, and their roll is still recorded — by its own
+        // `roll_complete`, which is a different path entirely.
+        useDiceStore.getState().markDiceRolling(msg.diceIds, {
+          ownRoll: msg.playerId === localPlayerId,
+        })
         break
       }
 
@@ -827,6 +840,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           // check would find it already cleared and write the duplicate row all
           // over again. Only the base wave is ever an explicit roll, so exactly
           // one message per saved roll is ever dropped.
+          //
+          // The comparison stays an exact set because the CLAIM tracks the
+          // room's `pending_roll`: `applyDiceRemoval` shrinks it as dice leave
+          // the roll (issue #226), so it still names precisely the survivors
+          // the room reports. Matching a subset here instead would let a
+          // completion for a genuinely different, smaller roll be swallowed.
           const suppressed = diceState.suppressedRollDiceIds
           if (
             msg.playerId === localPlayerId
@@ -874,7 +893,11 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
             sum = dice.reduce((acc, d) => acc + d.value, 0) + percentileSumCorrection(dice)
           }
 
-          diceState.addRollToHistory({
+          // Supersedes the provisional row the orphan path writes when a removal
+          // shrinks a roll: the room completes that roll from the survivors
+          // (issue #226) and its word replaces the client's guess, keeping one
+          // row per roll. An ordinary roll simply appends.
+          diceState.recordRoomCompletedRoll({
             dice,
             sum,
             timestamp: now,
