@@ -2,11 +2,11 @@
   "contractVersion": 1,
   "sourceCommit": "caf9b01626a66bd71925b4fb62ecf5a7d193269b",
   "release": {
-    "tag": "imagegen-fantasy-earth-authoring-v1",
+    "tag": "imagegen-fantasy-earth-authoring-v2",
     "assetName": "fantasy-earth-imagegen-authoring-v1.tar.gz",
-    "url": "https://github.com/donovan-yohan/dicesuki/releases/download/imagegen-fantasy-earth-authoring-v1/fantasy-earth-imagegen-authoring-v1.tar.gz",
-    "bytes": 13136764,
-    "sha256": "6ac396e97ae9c4806fc44c6442a4ec9d0c78d3cf2715e49184ca5c82758be609"
+    "url": "https://github.com/donovan-yohan/dicesuki/releases/download/imagegen-fantasy-earth-authoring-v2/fantasy-earth-imagegen-authoring-v1.tar.gz",
+    "bytes": 35875601,
+    "sha256": "8aeeea8313a8d993d6fb819dee7f700c712a54bd7c751f12e4f8eb8f07993b35"
   },
   "files": [
     {
@@ -14,72 +14,72 @@
       "sha256": "1a90bca1bb4cd90273d2a02346d34fe1785cce302ab5023586c056a4b676edf6"
     },
     {
-      "path": "public/dice/fantasy-earth-imagegen-set/aurelian-d20/model.glb",
-      "sha256": "74ef0e182ee7c8ab2bcd04b48723224c5fdf869c984b4b0bb90ee630ba7937bc"
-    },
-    {
       "path": "public/dice/fantasy-earth-imagegen-set/aurelian-d20/metadata.json",
       "sha256": "48f34603d7271f7646e71be10415ab23758ce8e046eaf797b24d9e110c03fd3b"
+    },
+    {
+      "path": "public/dice/fantasy-earth-imagegen-set/aurelian-d20/model.glb",
+      "sha256": "74ef0e182ee7c8ab2bcd04b48723224c5fdf869c984b4b0bb90ee630ba7937bc"
     },
     {
       "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/fantasy-earth-aurelian-d20-face-20.png",
       "sha256": "acc9647967a5833a20c13f9e35612a57ddaf2889956ae34238055039d45685c1"
     },
     {
-      "path": "public/dice/fantasy-earth-imagegen-set/emerald-crown-d12/model.glb",
-      "sha256": "b43839be9e2cc859697bb4bb4abe90c00156b2c0d3adefb568e1a650b91f4363"
-    },
-    {
       "path": "public/dice/fantasy-earth-imagegen-set/emerald-crown-d12/metadata.json",
       "sha256": "568279a8c6696457aa7b5a3c3c93c61f37b4f13de4649625dfdd5182bd33d603"
+    },
+    {
+      "path": "public/dice/fantasy-earth-imagegen-set/emerald-crown-d12/model.glb",
+      "sha256": "b43839be9e2cc859697bb4bb4abe90c00156b2c0d3adefb568e1a650b91f4363"
     },
     {
       "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/fantasy-earth-emerald-crown-d12-face-12.png",
       "sha256": "bd044cbfb4b7df203efb22612313beec29db32a851d3758ae0ff62273ea89234"
     },
     {
-      "path": "public/dice/fantasy-earth-imagegen-set/greenwarden-d8/model.glb",
-      "sha256": "f3be0f19cb8fcf6cee11038b55cca3d75d898c9a55e8f534437af63e40b88a22"
-    },
-    {
       "path": "public/dice/fantasy-earth-imagegen-set/greenwarden-d8/metadata.json",
       "sha256": "1c615dc8e1121f7aba218ac16b47396123014a3c4871c139b63f5c54a5bf4376"
+    },
+    {
+      "path": "public/dice/fantasy-earth-imagegen-set/greenwarden-d8/model.glb",
+      "sha256": "f3be0f19cb8fcf6cee11038b55cca3d75d898c9a55e8f534437af63e40b88a22"
     },
     {
       "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/fantasy-earth-greenwarden-d8-face-8.png",
       "sha256": "040a3ea058a31e2f60339066cf0c772c76d9cb2bb36b8615324f5bbe17f1b2ff"
     },
     {
-      "path": "public/dice/fantasy-earth-imagegen-set/oathstone-d6/model.glb",
-      "sha256": "aa335930884050b7f8adbc334aa0e5c5110f83a1d54f0e7bf5685f84ede27044"
-    },
-    {
       "path": "public/dice/fantasy-earth-imagegen-set/oathstone-d6/metadata.json",
       "sha256": "ac4dc1fdacd11dc4c6f096c3c366a81b834c535039a7e91f292366ea11abe252"
+    },
+    {
+      "path": "public/dice/fantasy-earth-imagegen-set/oathstone-d6/model.glb",
+      "sha256": "aa335930884050b7f8adbc334aa0e5c5110f83a1d54f0e7bf5685f84ede27044"
     },
     {
       "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/fantasy-earth-oathstone-d6-face-6.png",
       "sha256": "8f3aea2f7626b746ec922eb65cd00845c8ea094bba7fffe12c026d265c171ee9"
     },
     {
-      "path": "public/dice/fantasy-earth-imagegen-set/runeleaf-d4/model.glb",
-      "sha256": "1fd21bee7e6683a9e74601dcd1998dbc990f9ffe9795a62d1168979892a18e33"
-    },
-    {
       "path": "public/dice/fantasy-earth-imagegen-set/runeleaf-d4/metadata.json",
       "sha256": "4775ec575eab0ad4efdf228153f46bb71a2da9aa6d3d235b7bbd7a72988fcce7"
+    },
+    {
+      "path": "public/dice/fantasy-earth-imagegen-set/runeleaf-d4/model.glb",
+      "sha256": "1fd21bee7e6683a9e74601dcd1998dbc990f9ffe9795a62d1168979892a18e33"
     },
     {
       "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/fantasy-earth-runeleaf-d4-face-4.png",
       "sha256": "a47c4a1b0c78081c2df99334191c3fa01f2b027ee0a3e96916142b55693b86e8"
     },
     {
-      "path": "public/dice/fantasy-earth-imagegen-set/sunspire-d10/model.glb",
-      "sha256": "9b03b54881f59e15bf8932e6399c72cb11d3eab876c76f7bdc37b0615a7cbcd3"
-    },
-    {
       "path": "public/dice/fantasy-earth-imagegen-set/sunspire-d10/metadata.json",
       "sha256": "d939441ed3522f058977b62230cd81883682b875db973c80d7656bb43bc3a8f6"
+    },
+    {
+      "path": "public/dice/fantasy-earth-imagegen-set/sunspire-d10/model.glb",
+      "sha256": "9b03b54881f59e15bf8932e6399c72cb11d3eab876c76f7bdc37b0615a7cbcd3"
     },
     {
       "path": "public/artist-resources/imagegen-uv/screenshots/theme-workshop/fantasy-earth-sunspire-d10-face-9.png",

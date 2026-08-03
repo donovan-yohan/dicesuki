@@ -61,8 +61,10 @@ to redirect the workshop root (handy for smoke runs).
 ```
 
 `source-root/` is deliberately laid out like a repository checkout so it can be
-tarred as the release archive and handed straight to
-`scripts/runtime-dice-assets/optimize.mjs --source`.
+handed straight to `scripts/runtime-dice-assets/optimize.mjs --source`. It is
+the *promotion payload* only — the release archive in step 7 wraps it together
+with the authoring inputs (raw atlases, prompts, template kit), because
+`source-root/` alone cannot re-bake the set.
 
 Set definitions (names, prompts, materials, physics) live in one place:
 [`scripts/imagegen-uv/theme-workshop-data.mjs`](../../scripts/imagegen-uv/theme-workshop-data.mjs).
@@ -163,7 +165,10 @@ Steps 1–7 are **done**. All six shapes were authored, registered (including th
 d20 coverage gate), normal-mapped, baked, and proofed; the source archive is
 published and pinned by
 [`sources/fantasy-earth-v1.lock.json`](../../scripts/runtime-dice-assets/sources/fantasy-earth-v1.lock.json)
-at release tag `imagegen-fantasy-earth-authoring-v1`.
+at release tag `imagegen-fantasy-earth-authoring-v2`. (`…-v1` shipped only the
+promotion payload and is marked superseded on GitHub; releases in this repo are
+immutable, so the corrected archive was published alongside rather than
+replacing it. The promotion-payload bytes are identical between the two.)
 
 Steps 8–9 are **not** done, and they cannot be split apart — see
 [Promotion and the catalog edition are one unit](#promotion-and-the-catalog-edition-are-one-unit).
@@ -171,7 +176,7 @@ The follow-up slice should register this profile verbatim:
 
 ```js
 'fantasy-earth-v1': Object.freeze({
-  displayName: 'Aurelian Wildwood',
+  displayName: 'Fantasy Earth',
   setId: 'fantasy-earth-imagegen-set',
   proofPrefix: 'fantasy-earth',
   sourceLockFile: 'fantasy-earth-v1.lock.json',
@@ -250,13 +255,43 @@ iterating on framing only.
 Runtime promotion consumes a **checksum-locked release archive**, not a local
 directory, so that `public/dice/**` is reproducible from an immutable source.
 
+The archive must carry **two** things: the promotion payload from `source-root/`,
+**and** the authoring inputs — above all the six `*-imagegen-atlas-raw.png`
+ImageGen originals, which cannot be regenerated identically and live nowhere
+else (`.artifacts/` is gitignored). Publishing only `source-root/` strands the
+set: it can be promoted but never re-baked. Stage both, mirroring the layout the
+released sets use:
+
 ```bash
-cd .artifacts/theme-workshop/fantasy-earth/source-root
-tar czf ../fantasy-earth-imagegen-authoring-v1.tar.gz public
-sha256sum ../fantasy-earth-imagegen-authoring-v1.tar.gz
+cd .artifacts/theme-workshop
+STAGE=$(mktemp -d)
+cp -r fantasy-earth/source-root/public "$STAGE/public"
+TS="$STAGE/public/artist-resources/imagegen-uv/theme-sets"
+for s in d4 d6 d8 d10 d12 d20; do
+  mkdir -p "$TS/fantasy-earth/$s" "$TS/templates/$s"
+  cp fantasy-earth/$s/fantasy-earth-$s-imagegen-atlas-raw.png \
+     fantasy-earth/$s/fantasy-earth-$s-imagegen-atlas.png \
+     fantasy-earth/$s/fantasy-earth-$s-normal.png \
+     fantasy-earth/$s/fantasy-earth-$s-prompt.md "$TS/fantasy-earth/$s/"
+  cp templates/$s/{imagegen-input.png,imagegen-input.svg,numbered-guide.png,\
+numbered-guide.svg,mask.png,mask.svg,manifest.json,prompt.md} "$TS/templates/$s/"
+done
+cp fantasy-earth/README.md "$TS/fantasy-earth/"
+mkdir -p "$TS/fantasy-earth/environment"
+cp fantasy-earth/environment/imagegen-prompts.md "$TS/fantasy-earth/environment/"
+
+# deterministic tar: same inputs must always give the same sha256
+cd "$STAGE" && tar --sort=name --owner=0 --group=0 --numeric-owner \
+  --mtime='2026-08-01 00:00:00 UTC' -czf fantasy-earth-imagegen-authoring-v1.tar.gz public
+sha256sum fantasy-earth-imagegen-authoring-v1.tar.gz
 gh release create imagegen-fantasy-earth-authoring-v1 \
-  ../fantasy-earth-imagegen-authoring-v1.tar.gz --notes "Fantasy Earth authoring sources"
+  fantasy-earth-imagegen-authoring-v1.tar.gz --notes "Fantasy Earth authoring sources"
 ```
+
+> **Releases in this repo are immutable.** `gh release upload --clobber` fails
+> with `Cannot delete asset from an immutable release`, so verify the archive
+> contents *before* publishing. If a published archive turns out wrong, publish
+> a new tag and mark the old one superseded — do not try to rewrite it.
 
 Then add `scripts/runtime-dice-assets/sources/fantasy-earth-v1.lock.json`
 following the shape of `cozy-forest-v1.lock.json`: `sourceCommit`, the release
@@ -313,13 +348,13 @@ npm run build   # runs catalog, economy, runtime-asset, and manifest checks
 
 Steps 8 and 9 **must land in the same commit** as the profile registration from
 step 7. The harness pins all three together, so any two of them without the
-third is a red build:
+third is red somewhere in CI:
 
-| You did | What fails |
-|---|---|
-| Registered the profile, did not promote | `runtime-dice-assets.node-test.mjs` asserts `public/dice/*/runtime-assets.json` and `RUNTIME_ASSET_PROFILES` are 1:1 — 3 tests fail |
-| Promoted, did not prepare the edition | `generate-collectible-catalog.js --check` (first step of `npm run build`) throws `Catalog has unprepared version changes` — the catalog is derived from whatever sits in `public/dice/**`, and there is no exclusion or "staging" flag |
-| Prepared an edition without its migration | `verifyPublishedEditions` requires `supabase/migrations/<edition.migration>` to match `renderEditionMigration` exactly |
+| You did | What fails | Caught by |
+|---|---|---|
+| Registered the profile, did not promote | `runtime-dice-assets.node-test.mjs` asserts `public/dice/*/runtime-assets.json` and `RUNTIME_ASSET_PROFILES` are 1:1 — 3 tests fail | `npm run test:runtime-dice-assets` **only**. `npm test` and `npm run build` both stay green, so a local `npm test && npm run build` will *not* catch this |
+| Promoted, did not prepare the edition | `generate-collectible-catalog.js --check` throws `Catalog has unprepared version changes` — the catalog is derived from whatever sits in `public/dice/**`, and there is no exclusion or "staging" flag | `npm run build` (its first step) |
+| Prepared an edition without its migration | `verifyPublishedEditions` requires `supabase/migrations/<edition.migration>` to match `renderEditionMigration` exactly | `npm run build` |
 
 `prepare:collectible-edition` writes `supabase/catalog/editions/000N-<slug>.json`,
 `src/generated/collectibleCatalog.json`, **and** a new
