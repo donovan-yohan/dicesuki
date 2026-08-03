@@ -142,7 +142,7 @@ value replaced by a rune or symbol; all numerals rotated upright; islands nudged
 or rescaled; art bleeding across the gaps between islands; a rendered/photographed
 die instead of a flat atlas; a visible watermark or signature.
 
-### Fantasy set (`fantasy-earth`) — the currently pending art pass
+### Fantasy set (`fantasy-earth`) — art pass complete, promotion pending
 
 | Shape | Dice id | Display name | Proof face |
 |---|---|---|---|
@@ -158,6 +158,34 @@ Direction: antique gilded heartwood and burnished-gold trim around deep emerald
 and moss-green enamel panels, engraved oath-rune borders, oak-leaf and laurel
 filigree, parchment patina in the recesses, tall raised antique-gold
 Trajan-style numerals. Earthy and reverent — not glossy, cartoony, or neon.
+
+Steps 1–7 are **done**. All six shapes were authored, registered (including the
+d20 coverage gate), normal-mapped, baked, and proofed; the source archive is
+published and pinned by
+[`sources/fantasy-earth-v1.lock.json`](../../scripts/runtime-dice-assets/sources/fantasy-earth-v1.lock.json)
+at release tag `imagegen-fantasy-earth-authoring-v1`.
+
+Steps 8–9 are **not** done, and they cannot be split apart — see
+[Promotion and the catalog edition are one unit](#promotion-and-the-catalog-edition-are-one-unit).
+The follow-up slice should register this profile verbatim:
+
+```js
+'fantasy-earth-v1': Object.freeze({
+  displayName: 'Aurelian Wildwood',
+  setId: 'fantasy-earth-imagegen-set',
+  proofPrefix: 'fantasy-earth',
+  sourceLockFile: 'fantasy-earth-v1.lock.json',
+  sourceLockSupplementFiles: Object.freeze([]),
+  dice: Object.freeze([
+    Object.freeze({ diceId: 'aurelian-d20', diceType: 'd20', proofFace: 20, scale: 1.3888888888888888 }),
+    Object.freeze({ diceId: 'emerald-crown-d12', diceType: 'd12', proofFace: 12, scale: 1.25 }),
+    Object.freeze({ diceId: 'greenwarden-d8', diceType: 'd8', proofFace: 8, scale: 1.3888888888888888 }),
+    Object.freeze({ diceId: 'oathstone-d6', diceType: 'd6', proofFace: 6, scale: 1.1 }),
+    Object.freeze({ diceId: 'runeleaf-d4', diceType: 'd4', proofFace: 4, scale: 1.3888888888888888 }),
+    Object.freeze({ diceId: 'sunspire-d10', diceType: 'd10', proofFace: 9, scale: 1.3888888888888888 }),
+  ]),
+}),
+```
 
 ## Step 3 — Register the atlases
 
@@ -276,9 +304,33 @@ drifts.
 Finally register the dice as collectibles:
 
 ```bash
-npm run prepare:collectible-edition
+npm run prepare:collectible-edition -- <migration-number> <slug>
+npm run generate-dice-manifest        # public/dice/manifest.json follows the new set
 npm run build   # runs catalog, economy, runtime-asset, and manifest checks
 ```
+
+### Promotion and the catalog edition are one unit
+
+Steps 8 and 9 **must land in the same commit** as the profile registration from
+step 7. The harness pins all three together, so any two of them without the
+third is a red build:
+
+| You did | What fails |
+|---|---|
+| Registered the profile, did not promote | `runtime-dice-assets.node-test.mjs` asserts `public/dice/*/runtime-assets.json` and `RUNTIME_ASSET_PROFILES` are 1:1 — 3 tests fail |
+| Promoted, did not prepare the edition | `generate-collectible-catalog.js --check` (first step of `npm run build`) throws `Catalog has unprepared version changes` — the catalog is derived from whatever sits in `public/dice/**`, and there is no exclusion or "staging" flag |
+| Prepared an edition without its migration | `verifyPublishedEditions` requires `supabase/migrations/<edition.migration>` to match `renderEditionMigration` exactly |
+
+`prepare:collectible-edition` writes `supabase/catalog/editions/000N-<slug>.json`,
+`src/generated/collectibleCatalog.json`, **and** a new
+`supabase/migrations/000N_*.sql`. Take the migration number late and rebase
+before merging — economy work lands migrations on the same counter, so a number
+picked early will collide.
+
+The lock file from step 7 is safe to land on its own ahead of all this: it is an
+append-only record of published bytes, nothing reads it until a profile names
+it, and per-die `scale` lives in the profile rather than the bake, so the locked
+bytes stay correct whatever scales the promotion slice chooses.
 
 ---
 
