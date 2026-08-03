@@ -45,10 +45,17 @@ function regexEscape(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * Bind a raise to *its own* guard. `[^;]` cannot cross a statement boundary --
+ * no plpgsql IF condition contains a semicolon -- so the match starts at the
+ * `if` that actually raises rather than at any earlier one in the file. The
+ * unbounded `[\s\S]*?` this replaced made the helper a mere presence check: it
+ * still matched after a guard had been hollowed out to `if false then`.
+ */
 function expectIfRaise(source: string, message: string) {
   expect(source).toMatch(
     new RegExp(
-      `\\bif\\b[\\s\\S]*?\\bthen\\s+raise exception '${regexEscape(message)}'`,
+      `\\bif\\b[^;]*?\\bthen\\s+raise exception '${regexEscape(message)}'`,
       'i',
     ),
   )
@@ -138,13 +145,19 @@ describe('0032 earned economy dice content wave 1', () => {
       /tier_id = 'standard'\) is distinct from 24::bigint[\s\S]*?tier_id = 'rare'\) is distinct from 27::bigint[\s\S]*?tier_id = 'epic'\) is distinct from 18::bigint[\s\S]*?tier_id = 'signature'\) is distinct from 12::bigint/i,
     )
     expect(statements).toMatch(/selected_featured\) is distinct from 12::bigint/i)
-    expectIfRaise(
-      executable(behavioralSql),
-      'Version 4 pools are not the reviewed 24/27/18/12 expansion',
+
+    // expectIfRaise proves a guard's message survives, not that its condition
+    // still constrains anything -- a hollowed `if false then` keeps the raise.
+    // Each behavioral guard is therefore also pinned by a literal only its real
+    // condition contains.
+    const behavior = executable(behavioralSql)
+    expectIfRaise(behavior, 'Version 4 pools are not the reviewed 24/27/18/12 expansion')
+    expect(behavior).toMatch(
+      /jsonb_build_object\(\s*'standard', 24, 'rare', 27, 'epic', 18, 'signature', 12\s*\)/i,
     )
-    expectIfRaise(
-      executable(behavioralSql),
-      'Version 3 changed while appending the wave-1 pool',
+    expectIfRaise(behavior, 'Version 3 changed while appending the wave-1 pool')
+    expect(behavior).toMatch(
+      /banner_version_id = 'earned-collection-001@3'\) is distinct from 45::bigint/i,
     )
   })
 
@@ -159,9 +172,11 @@ describe('0032 earned economy dice content wave 1', () => {
       /not \(catalog\.rarity = any \(coalesce\(/i,
     )
     expect(statements).toMatch(/mistiered_item_count is distinct from 0::bigint/i)
-    expectIfRaise(
-      executable(behavioralSql),
-      'A version 4 pool item does not match its tier rarity',
+
+    const behavior = executable(behavioralSql)
+    expectIfRaise(behavior, 'A version 4 pool item does not match its tier rarity')
+    expect(behavior).toMatch(
+      /not \(catalog\.rarity = any \(coalesce\([\s\S]{0,400}?when 'signature' then array\['legendary'\]/i,
     )
   })
 
@@ -176,6 +191,9 @@ describe('0032 earned economy dice content wave 1', () => {
     expectIfRaise(
       executable(behavioralSql),
       'The reserved premium featured set leaked into a pull banner',
+    )
+    expect(executable(behavioralSql)).toMatch(
+      /catalog\.set_id = 'ten-thousand-folds'/i,
     )
 
     // The set still ships in the catalog; only its banner membership is held
@@ -257,5 +275,33 @@ describe('0032 earned economy dice content wave 1', () => {
     expect(behavior).toMatch(
       /sealed\.resolution_reason is distinct from 'selected-guarantee'[\s\S]*?sealed\.catalog_item_id is distinct from 'stormglass\/d10\/legendary@1'/i,
     )
+  })
+
+  it('pins the banked selected-pity discharge this migration hands existing owners', () => {
+    const behavior = executable(behavioralSql)
+
+    // A player who already owned all six version-3 featured dice had no
+    // eligible guarantee target, so their selected_misses grew without bound.
+    // Version 4 gives them one and the banked guarantee pays out immediately.
+    // The migration deliberately does not rewrite pull_guarantee_states, so
+    // this is emergent runtime behavior that only a live assertion can hold.
+    expectIfRaise(behavior, 'The banked-pity fixture does not own the retired featured set')
+    expectIfRaise(
+      behavior,
+      'Banked selected pity did not discharge onto the expanded featured pool',
+    )
+    expect(behavior).toMatch(
+      /banner_version_id = 'earned-collection-001@3'\s*and items\.selected_featured\) is distinct from 6::bigint/i,
+    )
+    expect(behavior).toMatch(
+      /sealed\.selected_misses_before is distinct from 40::bigint[\s\S]{0,200}?sealed\.selected_misses_after is distinct from 0::bigint/i,
+    )
+
+    // The counters themselves are never rewritten -- confiscating earned pity
+    // would be the wrong fix for a player-favorable discharge.
+    expect(executable(sql)).not.toMatch(
+      /\b(?:update|delete|insert into|truncate)\s+(?:table\s+)?public\.pull_guarantee_states/i,
+    )
+    expect(sql).toMatch(/RUNTIME EFFECT ON EXISTING PLAYERS/)
   })
 })

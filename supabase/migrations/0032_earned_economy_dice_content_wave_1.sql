@@ -11,16 +11,38 @@
 -- edition anchor, and tier pool membership. Family-scoped guarantee counters
 -- carry into the highest version unchanged.
 --
--- The item rows are derived from the edition of record rather than copied and
--- patched: the seed block below pins the edition by hash first, so the pool the
--- database serves is provably the pool the reviewed JSON declares. The copied
--- predecessor rows are then diff-asserted against the derived ones, which is
--- what proves this is an expansion and not a silent re-tiering.
+-- The tier and item rows are derived from the edition of record rather than
+-- copied and patched: the seed block below pins the edition by hash first, so
+-- the pool the database serves is provably the pool the reviewed JSON declares.
+-- Those derived rows are then diff-asserted against version 3's, which is what
+-- proves this is an expansion and not a silent re-tiering. (The policy and
+-- offer diffs further down are a weaker, defensive check -- those rows are
+-- copied column-for-column, so their diff can only fire if a future trigger or
+-- column default rewrites a copied value.)
 --
 -- No function is re-created. 0030_earned_economy_rare_pity_10.sql already
 -- restricted private.prepare_pull_for_user to a family's single highest
 -- version, and that guard resolves the head dynamically, so appending version 4
 -- retires version 3 from the player path with no code change.
+--
+-- RUNTIME EFFECT ON EXISTING PLAYERS -- expanding a featured pool discharges
+-- banked selected-featured pity. private.prepare_pull_for_user picks the
+-- selected-guarantee target from *unowned* featured items only, and
+-- private.pull_selected_misses_after resets the counter only when a featured
+-- non-duplicate is actually awarded. A player who already owns all six
+-- void-crystal legendaries therefore has no eligible target on any pull, never
+-- satisfies the guarantee, and accumulates selected_misses without bound. The
+-- moment version 4 is live, stormglass is unowned and eligible, so any such
+-- player whose banked counter already reached 20 is awarded a guaranteed
+-- legendary on their very next pull.
+--
+-- That is the correct semantics of an unowned-target guarantee, and it is
+-- player-favorable, so this migration deliberately does not touch
+-- pull_guarantee_states -- rewriting counters to suppress it would retroactively
+-- confiscate pity a player earned. It is recorded here because it is a grant
+-- event to a specific cohort at migration time that no config diff shows, and
+-- it is pinned by the banked-counter case in
+-- supabase/tests/0032_earned_economy_dice_content_wave_1.test.sql.
 
 -- ---------------------------------------------------------------------------
 -- Seed immutable production edition 0003.

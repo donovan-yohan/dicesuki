@@ -46,10 +46,17 @@ function regexEscape(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * Bind a raise to *its own* guard. `[^;]` cannot cross a statement boundary --
+ * no plpgsql IF condition contains a semicolon -- so the match starts at the
+ * `if` that actually raises rather than at any earlier one in the file. The
+ * unbounded `[\s\S]*?` this replaced made the helper a mere presence check: it
+ * still matched after a guard had been hollowed out to `if false then`.
+ */
 function expectIfRaise(source: string, message: string) {
   expect(source).toMatch(
     new RegExp(
-      `\\bif\\b[\\s\\S]*?\\bthen\\s+raise exception '${regexEscape(message)}'`,
+      `\\bif\\b[^;]*?\\bthen\\s+raise exception '${regexEscape(message)}'`,
       'i',
     ),
   )

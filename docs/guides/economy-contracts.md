@@ -285,3 +285,26 @@ A catalog item may exist without belonging to any tier — that is how a set is
 held back. `ten-thousand-folds` ships in catalog edition 0005 and sits in no
 pool, reserved as the premium banner's featured candidate; both the migration and
 its behavioral suite fail closed if it ever leaks into a standard tier.
+
+### Expanding a featured pool discharges banked pity
+
+This is the one runtime effect a pool change has on existing rows, and no config
+diff shows it. `private.prepare_pull_for_user` picks the selected-guarantee
+target from **unowned** featured items only, and
+`private.pull_selected_misses_after` resets the counter only when a featured
+non-duplicate is actually awarded. A player who already owns every featured die
+therefore has no eligible target on any pull, never satisfies the guarantee, and
+accumulates `selected_misses` without bound.
+
+The moment the expanded version goes live, the newly added featured dice are
+unowned and eligible, so any such player whose banked counter already passed
+`selected_hard_guarantee_pull` is awarded a guaranteed signature die on their
+very next pull.
+
+Treat this as expected, and do **not** "fix" it by rewriting
+`pull_guarantee_states` in the migration — that confiscates pity a player
+earned. Instead, budget for the grant when sizing the expansion, and pin it with
+a behavioral case that seeds an owner of the retired featured set with a banked
+counter (see the banked-pity block in
+`supabase/tests/0032_earned_economy_dice_content_wave_1.test.sql`). Migrations in
+this lineage never touch guarantee counters, and their tests assert that.

@@ -260,10 +260,13 @@ $$;
 -- ---------------------------------------------------------------------------
 insert into auth.users (id) values
   ('d0320000-0000-4032-8032-000000000001'),
-  ('d0320000-0000-4032-8032-000000000020');
+  ('d0320000-0000-4032-8032-000000000020'),
+  ('d0320000-0000-4032-8032-000000000040');
 
 set local role service_role;
 do $$
+declare
+  owned_item record;
 begin
   perform public.record_roll_ticket_ledger_entry(
     'd0320000-0000-4032-8032-000000000001',
@@ -281,6 +284,33 @@ begin
     'slice22:ticket:seed:0020',
     '{}'::jsonb
   );
+  perform public.record_roll_ticket_ledger_entry(
+    'd0320000-0000-4032-8032-000000000040',
+    'standard_roll',
+    1,
+    'test.slice22.ticket.seed',
+    'slice22:ticket:seed:0040',
+    '{}'::jsonb
+  );
+
+  -- The banked-pity cohort: a player who completed the old six-item signature
+  -- set before version 4 existed. The idempotency key may not carry '/' or '@',
+  -- so it is keyed on the within-tier canonical order.
+  for owned_item in
+    select catalog_item_id, canonical_order
+    from public.pull_banner_items
+    where banner_version_id = 'earned-collection-001@3'
+      and selected_featured
+    order by canonical_order
+  loop
+    perform public.record_dice_copy_grant(
+      'd0320000-0000-4032-8032-000000000040',
+      owned_item.catalog_item_id,
+      'reward',
+      'test:slice22:preowned:' || owned_item.catalog_item_id,
+      'slice22:preowned:signature:' || owned_item.canonical_order::text
+    );
+  end loop;
 end;
 $$;
 reset role;
@@ -387,6 +417,74 @@ begin
      sealed.selected_target_catalog_item_id is distinct from
        'stormglass/d10/legendary@1' then
     raise exception 'The selected-featured guarantee did not award the new signature die';
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Banked selected-featured pity is discharged, not confiscated. A player who
+-- completed the old six-item signature set had no eligible guarantee target on
+-- any pull, so their selected_misses accumulated past 20 without ever firing.
+-- Version 4 gives them one, and the guarantee they already earned pays out on
+-- their next pull. This is the cohort effect the migration header records; the
+-- assertion exists so it stays a reviewed decision instead of a surprise.
+-- ---------------------------------------------------------------------------
+insert into public.pull_guarantee_states (
+  account_id,
+  user_id,
+  banner_family_id,
+  total_pulls,
+  rare_misses,
+  epic_misses,
+  selected_misses
+)
+select
+  accounts.id,
+  'd0320000-0000-4032-8032-000000000040',
+  'earned-collection',
+  40,
+  0,
+  0,
+  40
+from public.wallet_accounts as accounts
+where accounts.user_id = 'd0320000-0000-4032-8032-000000000040';
+
+set local "request.jwt.claims" =
+  '{"sub":"d0320000-0000-4032-8032-000000000040","is_anonymous":false}';
+
+do $$
+declare
+  sealed public.sealed_pull_results%rowtype;
+begin
+  -- Precondition: all six version-3 featured dice are owned, so under version 3
+  -- this player had no reachable guarantee at all.
+  if (select count(*)
+      from public.dice_copies as copies
+      join public.pull_banner_items as items
+        on items.catalog_item_id = copies.catalog_item_id
+      where copies.user_id = 'd0320000-0000-4032-8032-000000000040'
+        and copies.scrapped_at is null
+        and items.banner_version_id = 'earned-collection-001@3'
+        and items.selected_featured) is distinct from 6::bigint then
+    raise exception 'The banked-pity fixture does not own the retired featured set';
+  end if;
+
+  perform public.prepare_pull(
+    'earned-collection-001@4',
+    1::smallint,
+    'slice22:banked:pull-40'
+  );
+
+  select * into strict sealed
+  from public.sealed_pull_results
+  where user_id = 'd0320000-0000-4032-8032-000000000040';
+
+  if sealed.resolution_reason is distinct from 'selected-guarantee' or
+     sealed.catalog_item_id is distinct from 'stormglass/d10/legendary@1' or
+     sealed.is_duplicate is distinct from false or
+     sealed.selected_misses_before is distinct from 40::bigint or
+     sealed.selected_misses_after is distinct from 0::bigint then
+    raise exception 'Banked selected pity did not discharge onto the expanded featured pool';
   end if;
 end;
 $$;
