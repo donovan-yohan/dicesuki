@@ -1024,15 +1024,15 @@ Estimated size: a rendering slice, not a content slice. Route through
 
 1. Append the seven `configuredSets` blocks from §5 to
    `src/config/collectibleCatalogSource.json`.
-2. `npm run prepare:collectible-edition -- 0019 dice-content-wave-1`
+2. `npm run prepare:collectible-edition -- 0031 dice-content-wave-1`
    — migration number is four digits and the slug is kebab-case
    (`generate-collectible-catalog.js:790-795`). Next free catalog edition is
-   **0005**; next free global migration is **0019** (0018 is
-   `0018_soft_pity_ramp.sql`).
+   **0005**; next free global migration is **0031** (0030 is
+   `0030_earned_economy_rare_pity_10.sql`).
 3. `npm run generate:collectible-catalog`
 4. `npm run check:collectible-catalog` and
    `npm run check:immutable-catalog-history -- origin/main`
-5. To make them pullable, append **production economy edition 0002** with the
+5. To make them pullable, append **production economy edition 0003** with the
    new tier pools plus its own contiguous migration, then
    `npm run check:production-economy`. Catalog alone does not put a die in a
    banner — the three shipped `*-imagegen-set` sets are proof: they exist in the
