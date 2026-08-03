@@ -1,0 +1,949 @@
+{
+  "edition": 6,
+  "slug": "fantasy-earth",
+  "label": "EDITION_6_FANTASY_EARTH",
+  "migration": "0033_catalog_fantasy_earth.sql",
+  "items": [
+    {
+      "id": "fantasy-earth-imagegen-set/aurelian-d20@1",
+      "catalogKey": "fantasy-earth-imagegen-set/aurelian-d20",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "fantasy-earth-imagegen-set",
+      "diceType": "d20",
+      "rarity": "epic"
+    },
+    {
+      "id": "fantasy-earth-imagegen-set/emerald-crown-d12@1",
+      "catalogKey": "fantasy-earth-imagegen-set/emerald-crown-d12",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "fantasy-earth-imagegen-set",
+      "diceType": "d12",
+      "rarity": "rare"
+    },
+    {
+      "id": "fantasy-earth-imagegen-set/greenwarden-d8@1",
+      "catalogKey": "fantasy-earth-imagegen-set/greenwarden-d8",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "fantasy-earth-imagegen-set",
+      "diceType": "d8",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "fantasy-earth-imagegen-set/oathstone-d6@1",
+      "catalogKey": "fantasy-earth-imagegen-set/oathstone-d6",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "fantasy-earth-imagegen-set",
+      "diceType": "d6",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "fantasy-earth-imagegen-set/runeleaf-d4@1",
+      "catalogKey": "fantasy-earth-imagegen-set/runeleaf-d4",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "fantasy-earth-imagegen-set",
+      "diceType": "d4",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "fantasy-earth-imagegen-set/sunspire-d10@1",
+      "catalogKey": "fantasy-earth-imagegen-set/sunspire-d10",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "fantasy-earth-imagegen-set",
+      "diceType": "d10",
+      "rarity": "rare"
+    }
+  ],
+  "assetVersions": [
+    {
+      "id": "fantasy-earth-imagegen-set/aurelian-d20@1/asset@1",
+      "catalogItemId": "fantasy-earth-imagegen-set/aurelian-d20@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/fantasy-earth-imagegen-set/aurelian-d20/model.glb",
+      "modelSha256": "ae1ccd84dfe83af042edb3d9a7f476707a076c4b6de7e1101b80da2a3536132c",
+      "metadata": {
+        "source": "production",
+        "name": "Aurelian D20",
+        "description": "Aurelian D20 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d20",
+          "name": "Aurelian D20",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-08-01",
+          "scale": 1.3888888888888888,
+          "rarity": "epic",
+          "description": "Aurelian D20 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "fantasy-earth",
+            "high-fantasy",
+            "gilded",
+            "emerald",
+            "rune",
+            "codex-imagegen",
+            "d20",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0.934172,
+                0.356822
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0,
+                0.934172,
+                -0.356822
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.934172,
+                0.356822,
+                0
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.356822,
+                0,
+                0.934172
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.934172,
+                -0.356822,
+                0
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                -0.356822,
+                0,
+                -0.934172
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0.356822,
+                0,
+                0.934172
+              ]
+            },
+            {
+              "value": 13,
+              "normal": [
+                0.934172,
+                0.356822,
+                0
+              ]
+            },
+            {
+              "value": 14,
+              "normal": [
+                0.356822,
+                0,
+                -0.934172
+              ]
+            },
+            {
+              "value": 15,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 16,
+              "normal": [
+                0.934172,
+                -0.356822,
+                0
+              ]
+            },
+            {
+              "value": 17,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 18,
+              "normal": [
+                0,
+                -0.934172,
+                0.356822
+              ]
+            },
+            {
+              "value": 19,
+              "normal": [
+                0,
+                -0.934172,
+                -0.356822
+              ]
+            },
+            {
+              "value": 20,
+              "normal": [
+                0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.44,
+            "restitution": 0.28,
+            "friction": 0.68
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/fantasy-earth-imagegen-set/aurelian-d20/thumbnail.png",
+          "thumbnailSha256": "dd0db7abe2582e18be9b8ae676f2bd74d91ec00768fe358770d8d328fe96e70a",
+          "thumbnailBytes": 57398,
+          "modelBytes": 563188,
+          "embeddedTextureBytes": 559622,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "6fd7d72cfb4512926852ca25eec3dea6aa7c56040e471880570ab5f67908ad0a"
+    },
+    {
+      "id": "fantasy-earth-imagegen-set/emerald-crown-d12@1/asset@1",
+      "catalogItemId": "fantasy-earth-imagegen-set/emerald-crown-d12@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/fantasy-earth-imagegen-set/emerald-crown-d12/model.glb",
+      "modelSha256": "629c0e4639cf7b80a6fc38bafcda37cc470f48190cfa1f9cd345a7c4c889ab98",
+      "metadata": {
+        "source": "production",
+        "name": "Emerald Crown D12",
+        "description": "Emerald Crown D12 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d12",
+          "name": "Emerald Crown D12",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-08-01",
+          "scale": 1.25,
+          "rarity": "rare",
+          "description": "Emerald Crown D12 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "fantasy-earth",
+            "high-fantasy",
+            "gilded",
+            "emerald",
+            "rune",
+            "codex-imagegen",
+            "d12",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                0.850651,
+                0.525731
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.850651,
+                0.525731,
+                0
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.525731,
+                0,
+                -0.850651
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.525731,
+                0,
+                -0.850651
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0.850651,
+                -0.525731
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.850651,
+                0.525731,
+                0
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.850651,
+                -0.525731,
+                0
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                0,
+                -0.850651,
+                0.525731
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.525731,
+                0,
+                0.850651
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                -0.525731,
+                0,
+                0.850651
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.850651,
+                -0.525731,
+                0
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0,
+                -0.850651,
+                -0.525731
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.44,
+            "restitution": 0.28,
+            "friction": 0.68
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/fantasy-earth-imagegen-set/emerald-crown-d12/thumbnail.png",
+          "thumbnailSha256": "a2f47b524f43c660a927406ef461985d479c3b655f5a7b8a516e54ee6b91d3ae",
+          "thumbnailBytes": 63780,
+          "modelBytes": 731524,
+          "embeddedTextureBytes": 726408,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "cf96673b05620e24aa116f0b0ca86cec7101b77da19a08abc6103f387b7c83ea"
+    },
+    {
+      "id": "fantasy-earth-imagegen-set/greenwarden-d8@1/asset@1",
+      "catalogItemId": "fantasy-earth-imagegen-set/greenwarden-d8@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/fantasy-earth-imagegen-set/greenwarden-d8/model.glb",
+      "modelSha256": "b4d91c162aafb90193229cf264351ca3989ce489c4a72d3d81c36cc7ae4e2bc9",
+      "metadata": {
+        "source": "production",
+        "name": "Greenwarden D8",
+        "description": "Greenwarden D8 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d8",
+          "name": "Greenwarden D8",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-08-01",
+          "scale": 1.3888888888888888,
+          "rarity": "uncommon",
+          "description": "Greenwarden D8 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "fantasy-earth",
+            "high-fantasy",
+            "gilded",
+            "emerald",
+            "rune",
+            "codex-imagegen",
+            "d8",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.44,
+            "restitution": 0.28,
+            "friction": 0.68
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/fantasy-earth-imagegen-set/greenwarden-d8/thumbnail.png",
+          "thumbnailSha256": "a7be7b3fa27fb48b0566d9a6b6b2c3d08e8282117e09da3202dd260608b4d9dc",
+          "thumbnailBytes": 55736,
+          "modelBytes": 337284,
+          "embeddedTextureBytes": 334866,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "30ed0a369f51c22c3cdb7a7d2cf3751cac0da93aee7b158c77c4c7f86ed63993"
+    },
+    {
+      "id": "fantasy-earth-imagegen-set/oathstone-d6@1/asset@1",
+      "catalogItemId": "fantasy-earth-imagegen-set/oathstone-d6@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/fantasy-earth-imagegen-set/oathstone-d6/model.glb",
+      "modelSha256": "c708bd737badce255ac1dbe67f35e706d53b2aadb488dc07d2137d3a0645f034",
+      "metadata": {
+        "source": "production",
+        "name": "Oathstone D6",
+        "description": "Oathstone D6 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d6",
+          "name": "Oathstone D6",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-08-01",
+          "scale": 1.1,
+          "rarity": "uncommon",
+          "description": "Oathstone D6 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "fantasy-earth",
+            "high-fantasy",
+            "gilded",
+            "emerald",
+            "rune",
+            "codex-imagegen",
+            "d6",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                -1,
+                0
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0,
+                -1
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.44,
+            "restitution": 0.28,
+            "friction": 0.68
+          },
+          "colliderType": "roundCuboid",
+          "colliderArgs": {
+            "halfExtents": [
+              0.5,
+              0.5,
+              0.5
+            ],
+            "borderRadius": 0.06
+          }
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/fantasy-earth-imagegen-set/oathstone-d6/thumbnail.png",
+          "thumbnailSha256": "dc882ad3b7a373a0005bec20e0148357e566c33bb802ed15fdaf4e5491961e80",
+          "thumbnailBytes": 79193,
+          "modelBytes": 918920,
+          "embeddedTextureBytes": 916210,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "c10c756bc4f13cd9f4b1afecb471ffbf1b459ee4e18b7a75d85c141fa0925c7c"
+    },
+    {
+      "id": "fantasy-earth-imagegen-set/runeleaf-d4@1/asset@1",
+      "catalogItemId": "fantasy-earth-imagegen-set/runeleaf-d4@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/fantasy-earth-imagegen-set/runeleaf-d4/model.glb",
+      "modelSha256": "a74e4d3da7e3df2f8cd55e8581729cdf938ea5932d2886b7670f8dc4ab95341e",
+      "metadata": {
+        "source": "production",
+        "name": "Runeleaf D4",
+        "description": "Runeleaf D4 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d4",
+          "name": "Runeleaf D4",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-08-01",
+          "scale": 1.3888888888888888,
+          "rarity": "uncommon",
+          "description": "Runeleaf D4 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "fantasy-earth",
+            "high-fantasy",
+            "gilded",
+            "emerald",
+            "rune",
+            "codex-imagegen",
+            "d4",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map"
+          ],
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.57735,
+                0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.57735,
+                0.57735,
+                -0.57735
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.57735,
+                -0.57735,
+                0.57735
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.57735,
+                -0.57735,
+                -0.57735
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.44,
+            "restitution": 0.28,
+            "friction": 0.68
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/fantasy-earth-imagegen-set/runeleaf-d4/thumbnail.png",
+          "thumbnailSha256": "5a457cea47be84ad6734a3a12c5368c10ecf5c29e27b54e7fff8720d745cfb4c",
+          "thumbnailBytes": 39817,
+          "modelBytes": 686872,
+          "embeddedTextureBytes": 684836,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "acc1cda0dc517c432edf3da221efa9a8676f5e064cc27326d1637085ca69fd8a"
+    },
+    {
+      "id": "fantasy-earth-imagegen-set/sunspire-d10@1/asset@1",
+      "catalogItemId": "fantasy-earth-imagegen-set/sunspire-d10@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/fantasy-earth-imagegen-set/sunspire-d10/model.glb",
+      "modelSha256": "ef78ba6efa78459c4aaf87b4b31a216330c38fc9fa5dba9e4c731fd5d6faff12",
+      "metadata": {
+        "source": "production",
+        "name": "Sunspire D10",
+        "description": "Sunspire D10 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "diceType": "d10",
+          "name": "Sunspire D10",
+          "artist": "Codex ImageGen via Daisu UV Workflow",
+          "created": "2026-08-01",
+          "scale": 1.3888888888888888,
+          "rarity": "rare",
+          "description": "Sunspire D10 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+          "canonicalReferenceVersion": 2,
+          "tags": [
+            "fantasy-earth",
+            "high-fantasy",
+            "gilded",
+            "emerald",
+            "rune",
+            "codex-imagegen",
+            "d10",
+            "complete-polyhedral-set",
+            "numbered-faces",
+            "edge-parallel-numerals",
+            "uv-atlas",
+            "derived-normal-map",
+            "planar-kite-faces",
+            "two-triangles-per-kite"
+          ],
+          "faceNormals": [
+            {
+              "value": 0,
+              "normal": [
+                -0.741629,
+                0.67081,
+                0
+              ]
+            },
+            {
+              "value": 1,
+              "normal": [
+                0.229176,
+                -0.67081,
+                -0.705331
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                -0.229176,
+                0.67081,
+                -0.705331
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                -0.59999,
+                -0.67081,
+                -0.435919
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.599991,
+                0.67081,
+                -0.435918
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.599991,
+                -0.67081,
+                0.435918
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.59999,
+                0.67081,
+                0.435919
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.229176,
+                -0.67081,
+                0.705331
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.229176,
+                0.67081,
+                0.705331
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.741629,
+                -0.67081,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.44,
+            "restitution": 0.28,
+            "friction": 0.68
+          },
+          "colliderType": "hull",
+          "colliderArgs": {}
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/fantasy-earth-imagegen-set/sunspire-d10/thumbnail.png",
+          "thumbnailSha256": "7846e88743a628666140396b9fcaa5f07f8b630b66633dd06feb74e810df38d5",
+          "thumbnailBytes": 48582,
+          "modelBytes": 249324,
+          "embeddedTextureBytes": 245756,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2
+        }
+      },
+      "metadataSha256": "cb8dac7961b4824ba69e52f7946d138be63fdc5326d757684ded6b2173f46fac"
+    }
+  ]
+}

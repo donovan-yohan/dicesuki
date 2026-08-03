@@ -75,10 +75,11 @@ The catalog snapshot embeds delivery hashes, sizes, thumbnail path, texture
 format, texture dimension, and canonical reference version inside the immutable
 asset metadata. Edition `0002-cozy-forest.json` / migration
 `0006_catalog_cozy_forest.sql`, edition `0003-cyberpunk.json` / migration
-`0007_catalog_cyberpunk.sql`, and edition `0004-dark-dungeon.json` / migration
-`0008_catalog_dark_dungeon.sql` each append only their six new rows. They do not
-rewrite prior editions, the v1 SQL seed, prior migrations, or published asset
-bytes.
+`0007_catalog_cyberpunk.sql`, edition `0004-dark-dungeon.json` / migration
+`0008_catalog_dark_dungeon.sql`, and edition `0006-fantasy-earth.json` /
+migration `0033_catalog_fantasy_earth.sql` each append only their six new rows.
+They do not rewrite prior editions, the v1 SQL seed, prior migrations, or
+published asset bytes.
 
 Future byte or metadata changes require an asset-version bump. New GLB and
 thumbnail bytes belong under `/dice/<set>/<die>/versions/vN/`; never replace a

@@ -1,0 +1,116 @@
+{
+  "version": "1.0",
+  "diceType": "d10",
+  "name": "Sunspire D10",
+  "artist": "Codex ImageGen via Daisu UV Workflow",
+  "created": "2026-08-01",
+  "scale": 1.3888888888888888,
+  "rarity": "rare",
+  "description": "Sunspire D10 belongs to Aurelian Wildwood, with Codex ImageGen-authored face art and a derived tangent-space normal map.",
+  "canonicalReferenceVersion": 2,
+  "tags": [
+    "fantasy-earth",
+    "high-fantasy",
+    "gilded",
+    "emerald",
+    "rune",
+    "codex-imagegen",
+    "d10",
+    "complete-polyhedral-set",
+    "numbered-faces",
+    "edge-parallel-numerals",
+    "uv-atlas",
+    "derived-normal-map",
+    "planar-kite-faces",
+    "two-triangles-per-kite"
+  ],
+  "faceNormals": [
+    {
+      "value": 0,
+      "normal": [
+        -0.741629,
+        0.67081,
+        0
+      ]
+    },
+    {
+      "value": 1,
+      "normal": [
+        0.229176,
+        -0.67081,
+        -0.705331
+      ]
+    },
+    {
+      "value": 2,
+      "normal": [
+        -0.229176,
+        0.67081,
+        -0.705331
+      ]
+    },
+    {
+      "value": 3,
+      "normal": [
+        -0.59999,
+        -0.67081,
+        -0.435919
+      ]
+    },
+    {
+      "value": 4,
+      "normal": [
+        0.599991,
+        0.67081,
+        -0.435918
+      ]
+    },
+    {
+      "value": 5,
+      "normal": [
+        -0.599991,
+        -0.67081,
+        0.435918
+      ]
+    },
+    {
+      "value": 6,
+      "normal": [
+        0.59999,
+        0.67081,
+        0.435919
+      ]
+    },
+    {
+      "value": 7,
+      "normal": [
+        0.229176,
+        -0.67081,
+        0.705331
+      ]
+    },
+    {
+      "value": 8,
+      "normal": [
+        -0.229176,
+        0.67081,
+        0.705331
+      ]
+    },
+    {
+      "value": 9,
+      "normal": [
+        0.741629,
+        -0.67081,
+        0
+      ]
+    }
+  ],
+  "physics": {
+    "density": 0.44,
+    "restitution": 0.28,
+    "friction": 0.68
+  },
+  "colliderType": "hull",
+  "colliderArgs": {}
+}

@@ -45,8 +45,9 @@ describe('collectible catalog', () => {
   it('uses stable version-in-id contracts and excludes local artist dice', () => {
     expect(COLLECTIBLE_CATALOG.contractVersion).toBe(1)
     // 69 through catalog edition 0004; edition 0005 (dice-content-wave-1)
-    // appended 7 procedural sets x 6 shapes.
-    expect(COLLECTIBLE_CATALOG.items).toHaveLength(111)
+    // appended 7 procedural sets x 6 shapes; edition 0006 (fantasy-earth)
+    // appended the Aurelian Wildwood ImageGen set x 6 shapes.
+    expect(COLLECTIBLE_CATALOG.items).toHaveLength(117)
     expect(COLLECTIBLE_CATALOG.items.every(item => item.id === `${item.catalogKey}@1`)).toBe(true)
     expect(COLLECTIBLE_CATALOG.assetVersions.every(asset => (
       asset.id === `${asset.catalogItemId}/asset@${asset.assetVersion}`
@@ -77,7 +78,12 @@ describe('collectible catalog', () => {
       roughness: 0.7,
       metalness: 0,
     }
-    for (const setId of ['cozy-forest-imagegen-set', 'cyberpunk-imagegen-set']) {
+    const setsWithoutAppearanceOverride = [
+      'cozy-forest-imagegen-set',
+      'cyberpunk-imagegen-set',
+      'fantasy-earth-imagegen-set',
+    ]
+    for (const setId of setsWithoutAppearanceOverride) {
       expect(appearancesFor(setId)).toEqual(
         Array.from({ length: 6 }, () => publishedDefault),
       )

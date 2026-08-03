@@ -1,0 +1,155 @@
+{
+  "contractVersion": 1,
+  "setId": "fantasy-earth-imagegen-set",
+  "canonicalReferenceVersion": 2,
+  "budgets": {
+    "thumbnailMaxBytes": 153600,
+    "modelTargetBytes": 1572864,
+    "modelHardMaxBytes": 3145728,
+    "embeddedTextureMaxBytesPerDie": 1048576,
+    "completeSetMaxBytes": 10485760
+  },
+  "optimization": {
+    "tool": "@gltf-transform/cli",
+    "toolVersion": "4.4.1",
+    "maxTextureDimension": 1024,
+    "baseColor": {
+      "format": "webp",
+      "quality": 80,
+      "effort": 80
+    },
+    "normal": {
+      "format": "webp",
+      "lossless": true,
+      "effort": 80
+    },
+    "geometryCompression": "none"
+  },
+  "source": {
+    "tag": "imagegen-fantasy-earth-authoring-v2",
+    "archiveSha256": "8aeeea8313a8d993d6fb819dee7f700c712a54bd7c751f12e4f8eb8f07993b35",
+    "sourceCommit": "caf9b01626a66bd71925b4fb62ecf5a7d193269b"
+  },
+  "assets": [
+    {
+      "catalogKey": "fantasy-earth-imagegen-set/aurelian-d20",
+      "diceId": "aurelian-d20",
+      "diceType": "d20",
+      "model": {
+        "path": "/dice/fantasy-earth-imagegen-set/aurelian-d20/model.glb",
+        "bytes": 563188,
+        "sha256": "ae1ccd84dfe83af042edb3d9a7f476707a076c4b6de7e1101b80da2a3536132c",
+        "embeddedTextureBytes": 559622,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/fantasy-earth-imagegen-set/aurelian-d20/thumbnail.png",
+        "bytes": 57398,
+        "sha256": "dd0db7abe2582e18be9b8ae676f2bd74d91ec00768fe358770d8d328fe96e70a",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "fantasy-earth-imagegen-set/emerald-crown-d12",
+      "diceId": "emerald-crown-d12",
+      "diceType": "d12",
+      "model": {
+        "path": "/dice/fantasy-earth-imagegen-set/emerald-crown-d12/model.glb",
+        "bytes": 731524,
+        "sha256": "629c0e4639cf7b80a6fc38bafcda37cc470f48190cfa1f9cd345a7c4c889ab98",
+        "embeddedTextureBytes": 726408,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/fantasy-earth-imagegen-set/emerald-crown-d12/thumbnail.png",
+        "bytes": 63780,
+        "sha256": "a2f47b524f43c660a927406ef461985d479c3b655f5a7b8a516e54ee6b91d3ae",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "fantasy-earth-imagegen-set/greenwarden-d8",
+      "diceId": "greenwarden-d8",
+      "diceType": "d8",
+      "model": {
+        "path": "/dice/fantasy-earth-imagegen-set/greenwarden-d8/model.glb",
+        "bytes": 337284,
+        "sha256": "b4d91c162aafb90193229cf264351ca3989ce489c4a72d3d81c36cc7ae4e2bc9",
+        "embeddedTextureBytes": 334866,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/fantasy-earth-imagegen-set/greenwarden-d8/thumbnail.png",
+        "bytes": 55736,
+        "sha256": "a7be7b3fa27fb48b0566d9a6b6b2c3d08e8282117e09da3202dd260608b4d9dc",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "fantasy-earth-imagegen-set/oathstone-d6",
+      "diceId": "oathstone-d6",
+      "diceType": "d6",
+      "model": {
+        "path": "/dice/fantasy-earth-imagegen-set/oathstone-d6/model.glb",
+        "bytes": 918920,
+        "sha256": "c708bd737badce255ac1dbe67f35e706d53b2aadb488dc07d2137d3a0645f034",
+        "embeddedTextureBytes": 916210,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/fantasy-earth-imagegen-set/oathstone-d6/thumbnail.png",
+        "bytes": 79193,
+        "sha256": "dc882ad3b7a373a0005bec20e0148357e566c33bb802ed15fdaf4e5491961e80",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "fantasy-earth-imagegen-set/runeleaf-d4",
+      "diceId": "runeleaf-d4",
+      "diceType": "d4",
+      "model": {
+        "path": "/dice/fantasy-earth-imagegen-set/runeleaf-d4/model.glb",
+        "bytes": 686872,
+        "sha256": "a74e4d3da7e3df2f8cd55e8581729cdf938ea5932d2886b7670f8dc4ab95341e",
+        "embeddedTextureBytes": 684836,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/fantasy-earth-imagegen-set/runeleaf-d4/thumbnail.png",
+        "bytes": 39817,
+        "sha256": "5a457cea47be84ad6734a3a12c5368c10ecf5c29e27b54e7fff8720d745cfb4c",
+        "width": 320,
+        "height": 320
+      }
+    },
+    {
+      "catalogKey": "fantasy-earth-imagegen-set/sunspire-d10",
+      "diceId": "sunspire-d10",
+      "diceType": "d10",
+      "model": {
+        "path": "/dice/fantasy-earth-imagegen-set/sunspire-d10/model.glb",
+        "bytes": 249324,
+        "sha256": "ef78ba6efa78459c4aaf87b4b31a216330c38fc9fa5dba9e4c731fd5d6faff12",
+        "embeddedTextureBytes": 245756,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024
+      },
+      "thumbnail": {
+        "path": "/dice/fantasy-earth-imagegen-set/sunspire-d10/thumbnail.png",
+        "bytes": 48582,
+        "sha256": "7846e88743a628666140396b9fcaa5f07f8b630b66633dd06feb74e810df38d5",
+        "width": 320,
+        "height": 320
+      }
+    }
+  ]
+}

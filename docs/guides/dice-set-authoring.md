@@ -144,7 +144,7 @@ value replaced by a rune or symbol; all numerals rotated upright; islands nudged
 or rescaled; art bleeding across the gaps between islands; a rendered/photographed
 die instead of a flat atlas; a visible watermark or signature.
 
-### Fantasy set (`fantasy-earth`) — art pass complete, promotion pending
+### Fantasy set (`fantasy-earth`) — shipped
 
 | Shape | Dice id | Display name | Proof face |
 |---|---|---|---|
@@ -170,27 +170,20 @@ promotion payload and is marked superseded on GitHub; releases in this repo are
 immutable, so the corrected archive was published alongside rather than
 replacing it. The promotion-payload bytes are identical between the two.)
 
-Steps 8–9 are **not** done, and they cannot be split apart — see
+Steps 8–9 are **done** too, and they landed together in one commit because they
+cannot be split apart — see
 [Promotion and the catalog edition are one unit](#promotion-and-the-catalog-edition-are-one-unit).
-The follow-up slice should register this profile verbatim:
+Profile `fantasy-earth-v1` is registered in
+[`runtime-asset-profiles.mjs`](../../scripts/runtime-dice-assets/runtime-asset-profiles.mjs)
+(no `appearance` block — the set uses the generic runtime default, as
+`cozy-forest-v1` and `cyberpunk-v1` do), the promoted bundle is
+`public/dice/fantasy-earth-imagegen-set/` (6 dice, 3,831,618 bytes against a
+10 MiB set budget), and the collectibles are catalog edition
+`0006-fantasy-earth.json` / migration `0033_catalog_fantasy_earth.sql`.
 
-```js
-'fantasy-earth-v1': Object.freeze({
-  displayName: 'Fantasy Earth',
-  setId: 'fantasy-earth-imagegen-set',
-  proofPrefix: 'fantasy-earth',
-  sourceLockFile: 'fantasy-earth-v1.lock.json',
-  sourceLockSupplementFiles: Object.freeze([]),
-  dice: Object.freeze([
-    Object.freeze({ diceId: 'aurelian-d20', diceType: 'd20', proofFace: 20, scale: 1.3888888888888888 }),
-    Object.freeze({ diceId: 'emerald-crown-d12', diceType: 'd12', proofFace: 12, scale: 1.25 }),
-    Object.freeze({ diceId: 'greenwarden-d8', diceType: 'd8', proofFace: 8, scale: 1.3888888888888888 }),
-    Object.freeze({ diceId: 'oathstone-d6', diceType: 'd6', proofFace: 6, scale: 1.1 }),
-    Object.freeze({ diceId: 'runeleaf-d4', diceType: 'd4', proofFace: 4, scale: 1.3888888888888888 }),
-    Object.freeze({ diceId: 'sunspire-d10', diceType: 'd10', proofFace: 9, scale: 1.3888888888888888 }),
-  ]),
-}),
-```
+`availability` is `always`, so the set sits outside every banner pool — the same
+place the three earlier `*-imagegen-set` sets sit. Putting it on a banner is a
+separate production-economy edition, not part of promotion.
 
 ## Step 3 — Register the atlases
 
