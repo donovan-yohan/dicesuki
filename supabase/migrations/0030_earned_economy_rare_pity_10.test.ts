@@ -43,11 +43,15 @@ function regexEscape(value: string) {
 }
 
 /**
- * Bind a raise to *its own* guard. `[^;]` cannot cross a statement boundary --
- * no plpgsql IF condition contains a semicolon -- so the match starts at the
- * `if` that actually raises rather than at any earlier one in the file. The
- * unbounded `[\s\S]*?` this replaced made the helper a mere presence check: it
- * still matched after a guard had been hollowed out to `if false then`.
+ * Bind a raise to *its own* guard: `[^;]` cannot cross a plpgsql statement
+ * boundary, so the match starts at the `if` that actually raises rather than at
+ * any earlier one in the file.
+ *
+ * This proves the message is still the consequent of a guard. It does NOT prove
+ * the guard still constrains anything -- `if false then` contains no semicolon
+ * either, so a hollowed predicate still matches. Pair each call with a literal
+ * from the condition when that matters; the 0032 suite makes that literal a
+ * required parameter for exactly this reason.
  */
 function expectIfRaise(source: string, message: string) {
   expect(source).toMatch(

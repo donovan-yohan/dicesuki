@@ -456,17 +456,25 @@ do $$
 declare
   sealed public.sealed_pull_results%rowtype;
 begin
-  -- Precondition: all six version-3 featured dice are owned, so under version 3
-  -- this player had no reachable guarantee at all.
-  if (select count(*)
-      from public.dice_copies as copies
-      join public.pull_banner_items as items
-        on items.catalog_item_id = copies.catalog_item_id
-      where copies.user_id = 'd0320000-0000-4032-8032-000000000040'
-        and copies.scrapped_at is null
-        and items.banner_version_id = 'earned-collection-001@3'
-        and items.selected_featured) is distinct from 6::bigint then
-    raise exception 'The banked-pity fixture does not own the retired featured set';
+  -- Precondition, stated the way the engine states it: mirror the target
+  -- selection in private.prepare_pull_for_user against version 3. If any
+  -- version-3 featured die were still unowned this player would have had a
+  -- reachable guarantee under @3, the counter could never have banked, and the
+  -- discharge below would prove nothing about the documented mechanism.
+  if exists (
+    select 1
+    from public.pull_banner_items as items
+    where items.banner_version_id = 'earned-collection-001@3'
+      and items.selected_featured
+      and not exists (
+        select 1
+        from public.dice_copies as copies
+        where copies.user_id = 'd0320000-0000-4032-8032-000000000040'
+          and copies.catalog_item_id = items.catalog_item_id
+          and copies.scrapped_at is null
+      )
+  ) then
+    raise exception 'The banked-pity fixture still had a reachable version-3 guarantee target';
   end if;
 
   perform public.prepare_pull(

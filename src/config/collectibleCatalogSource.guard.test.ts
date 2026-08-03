@@ -105,10 +105,12 @@ const currentSets = sets.filter(set => !PRE_RULE_SETS.has(set.id))
 describe('configured collectible set authoring rules', () => {
   it('freezes the exemption list, so a new set cannot opt itself out', () => {
     // The two strongest rules below run over `currentSets`, i.e. everything not
-    // exempted. Without this assertion the whole file is bypassable by adding
-    // one id to PRE_RULE_SETS — including the roster check, which is derived
-    // from the same filter and so cannot notice. Pinning the list turns that
-    // bypass into a failing test a reviewer has to look at.
+    // exempted. The roster check and the contrast rule's `measured.length` both
+    // pin a cardinality, so they would notice an exemption — but the PBR rule
+    // has no count of its own, and cardinality pins are the first thing an
+    // author updates when adding a set. Freezing the list by value makes an
+    // exemption a failing test a reviewer has to look at, rather than something
+    // that rides along in an otherwise routine diff.
     expect([...PRE_RULE_SETS].sort()).toEqual([
       'adventurer-starter',
       'celestial-gold',

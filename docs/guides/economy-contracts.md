@@ -286,22 +286,29 @@ held back. `ten-thousand-folds` ships in catalog edition 0005 and sits in no
 pool, reserved as the premium banner's featured candidate; both the migration and
 its behavioral suite fail closed if it ever leaks into a standard tier.
 
-### Expanding a featured pool discharges banked pity
+### Expanding a featured pool moves targets and discharges banked pity
 
-This is the one runtime effect a pool change has on existing rows, and no config
-diff shows it. `private.prepare_pull_for_user` picks the selected-guarantee
-target from **unowned** featured items only, and
-`private.pull_selected_misses_after` resets the counter only when a featured
-non-duplicate is actually awarded. A player who already owns every featured die
-therefore has no eligible target on any pull, never satisfies the guarantee, and
-accumulates `selected_misses` without bound.
+Expanding the signature tier has two runtime effects on existing rows that no
+config diff shows. Both follow from one line: `private.prepare_pull_for_user`
+picks the selected-guarantee target as the **lowest-canonical-id unowned**
+featured item.
 
-The moment the expanded version goes live, the newly added featured dice are
-unowned and eligible, so any such player whose banked counter already passed
-`selected_hard_guarantee_pull` is awarded a guaranteed signature die on their
-very next pull.
+**Every partial collector's target moves.** If the added set sorts below the
+incumbent one — `stormglass/...` sorts below every `void-crystal/...` — then a
+player who was most of the way to earning a specific incumbent die now has a
+die from the new set as their guarantee target instead. This is the larger
+cohort, and it is invisible unless you go looking.
 
-Treat this as expected, and do **not** "fix" it by rewriting
+**Banked pity discharges.** `private.pull_selected_misses_after` resets the
+counter only when a featured non-duplicate is actually awarded, so a player who
+already owns every featured die has no eligible target on any pull, never
+satisfies the guarantee, and accumulates `selected_misses` without bound. The
+predicate is `selected_cursor + 1 >= selected_hard_guarantee_pull`, so a banked
+counter of `hardGuaranteePull - 1` or more fires. The moment the expanded
+version goes live, the newly added dice are unowned and eligible, and any such
+player is awarded a guaranteed signature die on their very next pull.
+
+Treat both as expected, and do **not** "fix" them by rewriting
 `pull_guarantee_states` in the migration — that confiscates pity a player
 earned. Instead, budget for the grant when sizing the expansion, and pin it with
 a behavioral case that seeds an owner of the retired featured set with a banked

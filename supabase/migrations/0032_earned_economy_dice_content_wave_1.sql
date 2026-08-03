@@ -25,23 +25,32 @@
 -- version, and that guard resolves the head dynamically, so appending version 4
 -- retires version 3 from the player path with no code change.
 --
--- RUNTIME EFFECT ON EXISTING PLAYERS -- expanding a featured pool discharges
--- banked selected-featured pity. private.prepare_pull_for_user picks the
--- selected-guarantee target from *unowned* featured items only, and
--- private.pull_selected_misses_after resets the counter only when a featured
--- non-duplicate is actually awarded. A player who already owns all six
--- void-crystal legendaries therefore has no eligible target on any pull, never
--- satisfies the guarantee, and accumulates selected_misses without bound. The
--- moment version 4 is live, stormglass is unowned and eligible, so any such
--- player whose banked counter already reached 20 is awarded a guaranteed
--- legendary on their very next pull.
+-- RUNTIME EFFECTS ON EXISTING PLAYERS. Both come from the same place --
+-- private.prepare_pull_for_user picks the selected-guarantee target as the
+-- lowest-canonical-id *unowned* featured item -- and neither shows up in a
+-- config diff.
+--
+-- 1. Every partial collector's guarantee target silently moves. stormglass/...
+--    sorts below every void-crystal/... id, so a player who was N pulls into
+--    earning a specific void-crystal die now has stormglass/d10/legendary@1 as
+--    their target instead. This is the larger cohort by far.
+--
+-- 2. Banked pity discharges. private.pull_selected_misses_after resets the
+--    counter only when a featured non-duplicate is actually awarded, so a
+--    player who already owns all six void-crystal legendaries has no eligible
+--    target on any pull, never satisfies the guarantee, and accumulates
+--    selected_misses without bound. The predicate is
+--    `selected_cursor + 1 >= selected_hard_guarantee_pull`, so a banked counter
+--    of 19 or more fires. The moment version 4 is live, stormglass is unowned
+--    and eligible, and any such player is awarded a guaranteed legendary on
+--    their very next pull.
 --
 -- That is the correct semantics of an unowned-target guarantee, and it is
 -- player-favorable, so this migration deliberately does not touch
 -- pull_guarantee_states -- rewriting counters to suppress it would retroactively
--- confiscate pity a player earned. It is recorded here because it is a grant
--- event to a specific cohort at migration time that no config diff shows, and
--- it is pinned by the banked-counter case in
+-- confiscate pity a player earned. Both effects are recorded here because they
+-- are runtime consequences no config diff shows, and effect 2 is pinned by the
+-- banked-counter case in
 -- supabase/tests/0032_earned_economy_dice_content_wave_1.test.sql.
 
 -- ---------------------------------------------------------------------------

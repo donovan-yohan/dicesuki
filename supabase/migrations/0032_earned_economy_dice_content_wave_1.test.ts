@@ -46,19 +46,27 @@ function regexEscape(value: string) {
 }
 
 /**
- * Bind a raise to *its own* guard. `[^;]` cannot cross a statement boundary --
- * no plpgsql IF condition contains a semicolon -- so the match starts at the
- * `if` that actually raises rather than at any earlier one in the file. The
- * unbounded `[\s\S]*?` this replaced made the helper a mere presence check: it
- * still matched after a guard had been hollowed out to `if false then`.
+ * Assert a guard, in two halves a caller cannot accidentally split.
+ *
+ * The message half proves the raise is the consequent of an `if` in the *same*
+ * statement: `[^;]` cannot cross a plpgsql statement boundary and no IF
+ * condition contains a semicolon, so it cannot bind to some earlier `if` in the
+ * file. That is all it proves. On its own it still matches a guard hollowed out
+ * to `if false then`, because `if false then` contains no semicolon either.
+ *
+ * `condition` is therefore required, not optional: a literal that appears only
+ * in this guard's real predicate. Hollowing the predicate deletes that literal
+ * and fails the test. Making it a parameter rather than a convention is the
+ * point -- a call site physically cannot omit the half that does the work.
  */
-function expectIfRaise(source: string, message: string) {
+function expectIfRaise(source: string, message: string, condition: RegExp) {
   expect(source).toMatch(
     new RegExp(
       `\\bif\\b[^;]*?\\bthen\\s+raise exception '${regexEscape(message)}'`,
       'i',
     ),
   )
+  expect(source).toMatch(condition)
 }
 
 describe('0032 earned economy dice content wave 1', () => {
@@ -96,10 +104,12 @@ describe('0032 earned economy dice content wave 1', () => {
     expectIfRaise(
       executable(behavioralSql),
       'Superseded version 3 is still player-callable',
+      /sqlerrm is distinct from\s*'Pull banner version earned-collection-001@3 is superseded by version 4 '/i,
     )
     expectIfRaise(
       executable(behavioralSql),
       'The superseded version 3 rejection still reserved tickets',
+      /roll_type = 'standard_roll'\) is distinct from 2::bigint/i,
     )
   })
 
@@ -119,10 +129,12 @@ describe('0032 earned economy dice content wave 1', () => {
     expectIfRaise(
       executable(sql),
       'earned-collection-001@4 policy drifted beyond the wave-1 pool expansion',
+      /target_banner\.banner_version is distinct from 4/i,
     )
     expectIfRaise(
       executable(behavioralSql),
       'Wave-1 expansion changed a standard banner tier weight',
+      /jsonb_build_object\(\s*'standard', 72, 'rare', 23, 'epic', 4, 'signature', 1\s*\)/i,
     )
   })
 
@@ -146,17 +158,15 @@ describe('0032 earned economy dice content wave 1', () => {
     )
     expect(statements).toMatch(/selected_featured\) is distinct from 12::bigint/i)
 
-    // expectIfRaise proves a guard's message survives, not that its condition
-    // still constrains anything -- a hollowed `if false then` keeps the raise.
-    // Each behavioral guard is therefore also pinned by a literal only its real
-    // condition contains.
     const behavior = executable(behavioralSql)
-    expectIfRaise(behavior, 'Version 4 pools are not the reviewed 24/27/18/12 expansion')
-    expect(behavior).toMatch(
+    expectIfRaise(
+      behavior,
+      'Version 4 pools are not the reviewed 24/27/18/12 expansion',
       /jsonb_build_object\(\s*'standard', 24, 'rare', 27, 'epic', 18, 'signature', 12\s*\)/i,
     )
-    expectIfRaise(behavior, 'Version 3 changed while appending the wave-1 pool')
-    expect(behavior).toMatch(
+    expectIfRaise(
+      behavior,
+      'Version 3 changed while appending the wave-1 pool',
       /banner_version_id = 'earned-collection-001@3'\) is distinct from 45::bigint/i,
     )
   })
@@ -173,9 +183,9 @@ describe('0032 earned economy dice content wave 1', () => {
     )
     expect(statements).toMatch(/mistiered_item_count is distinct from 0::bigint/i)
 
-    const behavior = executable(behavioralSql)
-    expectIfRaise(behavior, 'A version 4 pool item does not match its tier rarity')
-    expect(behavior).toMatch(
+    expectIfRaise(
+      executable(behavioralSql),
+      'A version 4 pool item does not match its tier rarity',
       /not \(catalog\.rarity = any \(coalesce\([\s\S]{0,400}?when 'signature' then array\['legendary'\]/i,
     )
   })
@@ -184,15 +194,11 @@ describe('0032 earned economy dice content wave 1', () => {
     expectIfRaise(
       executable(sql),
       'earned-collection@3 leaked the reserved premium featured set into a standard tier',
-    )
-    expect(executable(sql)).toMatch(
-      /catalog_item_id like 'ten-thousand-folds\/%'/i,
+      /item\.catalog_item_id like 'ten-thousand-folds\/%'/i,
     )
     expectIfRaise(
       executable(behavioralSql),
       'The reserved premium featured set leaked into a pull banner',
-    )
-    expect(executable(behavioralSql)).toMatch(
       /catalog\.set_id = 'ten-thousand-folds'/i,
     )
 
@@ -245,25 +251,51 @@ describe('0032 earned economy dice content wave 1', () => {
     expectIfRaise(
       executable(sql),
       'earned-collection-001@4 is not anchored to the wave-1 economy edition',
+      /target_banner\.economy_edition_id is distinct from 'earned-collection@3'/i,
     )
     expectIfRaise(
       executable(behavioralSql),
       'Version 4 is not anchored to the appended wave-1 economy edition',
+      /version_4\.source_config_sha256 is distinct from edition_3\.config_sha256/i,
     )
   })
 
   it('backs the shipped catalog payload and the new signature draw with live SQL', () => {
     const behavior = executable(behavioralSql)
 
-    for (const message of [
-      'Wave-1 set % did not publish six single-rarity dice',
-      'Wave-1 set % did not publish its authored d20 appearance',
-      'Wave-1 set % did not join its reviewed tier',
-      'Standard discovery did not activate earned-collection-001@4',
-      'Active version 4 did not prepare after the superseded rejection',
-      'The selected-featured guarantee did not award the new signature die',
-    ]) {
-      expectIfRaise(behavior, message)
+    const guards: [string, RegExp][] = [
+      [
+        'Wave-1 set % did not publish six single-rarity dice',
+        /count\(distinct dice_type\)[\s\S]{0,200}?is distinct from 6::bigint/i,
+      ],
+      [
+        'Wave-1 set % did not publish its authored d20 appearance',
+        /metadata -> 'appearance' ->> 'baseColor'\s*[\s\S]{0,300}?is distinct from wave_set\.base_color/i,
+      ],
+      [
+        'Wave-1 set % did not join its reviewed tier',
+        /catalog\.set_id = wave_set\.set_id\s*and items\.tier_id = wave_set\.tier_id\) is distinct from 6::bigint/i,
+      ],
+      [
+        'Standard discovery did not activate earned-collection-001@4',
+        /active_banner\.economy_edition_id is distinct from 'earned-collection@3'/i,
+      ],
+      [
+        'Active version 4 did not prepare after the superseded rejection',
+        /prepared\.banner_version_id is distinct from 'earned-collection-001@4'/i,
+      ],
+      [
+        // Unique to the pull-20 block: the banked block below asserts the same
+        // resolution and item, but never the selected *target*. Literal pins
+        // degrade as blocks are cloned, so each one anchors on something only
+        // its own block contains.
+        'The selected-featured guarantee did not award the new signature die',
+        /sealed\.selected_target_catalog_item_id is distinct from\s*'stormglass\/d10\/legendary@1'/i,
+      ],
+    ]
+
+    for (const [message, condition] of guards) {
+      expectIfRaise(behavior, message, condition)
     }
 
     // Adding Stormglass to the signature tier moves the lowest-canonical-id
@@ -285,15 +317,17 @@ describe('0032 earned economy dice content wave 1', () => {
     // Version 4 gives them one and the banked guarantee pays out immediately.
     // The migration deliberately does not rewrite pull_guarantee_states, so
     // this is emergent runtime behavior that only a live assertion can hold.
-    expectIfRaise(behavior, 'The banked-pity fixture does not own the retired featured set')
+    //
+    // The precondition mirrors the engine's own target selection against @3,
+    // so it proves *why* the counter banked rather than merely counting copies.
+    expectIfRaise(
+      behavior,
+      'The banked-pity fixture still had a reachable version-3 guarantee target',
+      /items\.banner_version_id = 'earned-collection-001@3'\s*and items\.selected_featured\s*and not exists/i,
+    )
     expectIfRaise(
       behavior,
       'Banked selected pity did not discharge onto the expanded featured pool',
-    )
-    expect(behavior).toMatch(
-      /banner_version_id = 'earned-collection-001@3'\s*and items\.selected_featured\) is distinct from 6::bigint/i,
-    )
-    expect(behavior).toMatch(
       /sealed\.selected_misses_before is distinct from 40::bigint[\s\S]{0,200}?sealed\.selected_misses_after is distinct from 0::bigint/i,
     )
 
@@ -302,6 +336,12 @@ describe('0032 earned economy dice content wave 1', () => {
     expect(executable(sql)).not.toMatch(
       /\b(?:update|delete|insert into|truncate)\s+(?:table\s+)?public\.pull_guarantee_states/i,
     )
-    expect(sql).toMatch(/RUNTIME EFFECT ON EXISTING PLAYERS/)
+    // Doc-presence pins only: the header block is the artifact a future author
+    // reads before touching guarantee state. Both effects must stay recorded --
+    // the target reassignment hits a far larger cohort than the discharge, and
+    // it was the effect most easily left out.
+    expect(sql).toMatch(/RUNTIME EFFECTS ON EXISTING PLAYERS/)
+    expect(sql).toMatch(/guarantee target silently moves/)
+    expect(sql).toMatch(/Banked pity discharges/)
   })
 })
