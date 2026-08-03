@@ -292,6 +292,12 @@ gh release create imagegen-fantasy-earth-authoring-v1 \
 > with `Cannot delete asset from an immutable release`, so verify the archive
 > contents *before* publishing. If a published archive turns out wrong, publish
 > a new tag and mark the old one superseded — do not try to rewrite it.
+>
+> That is exactly what happened to `fantasy-earth`: its `…-authoring-v1` tag was
+> published from `source-root/` alone, before this step staged the authoring
+> inputs, so the live set is pinned to `…-authoring-v2` and v1 is marked
+> superseded. A brand-new theme still starts at `v1` — the command above is
+> correct as written for the next set.
 
 Then add `scripts/runtime-dice-assets/sources/fantasy-earth-v1.lock.json`
 following the shape of `cozy-forest-v1.lock.json`: `sourceCommit`, the release
