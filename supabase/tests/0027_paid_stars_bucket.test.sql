@@ -3,7 +3,7 @@ begin;
 -- Active-version fixture. 0030_earned_economy_rare_pity_10.sql restricted
 -- preparation to a banner family's single highest version, and the
 -- earned-collection family now heads at the ticket-funded
--- earned-collection-001@3. The Stars-funded preparation this suite proves is
+-- earned-collection-001@4. The Stars-funded preparation this suite proves is
 -- therefore exercised on an appended test-only family that clones
 -- earned-collection-001@1 byte for byte and heads its own lineage. Banner
 -- history stays append-only: nothing published is rewritten.

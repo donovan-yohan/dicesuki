@@ -250,3 +250,38 @@ Behavioral suites written against a retired banner version clone it into an
 appended test-only family that heads its own lineage (for example
 `slice11-stars@1`); banner history itself stays append-only and is never
 rewritten or deleted.
+
+## Production edition 0003 and banner pool changes
+
+A **pool** change is a rate change. Adding a die to a tier changes every odds
+disclosure derived from that tier, so it follows the identical append rule as a
+guarantee-boundary change: a new contiguous production edition, a new anchored
+migration, a new banner version, and a new row in `EARNED_COLLECTION_BOUNDARIES`.
+
+`economy/production/editions/0003-earned-collection.json` is that append for Dice
+Content Wave 1. It is byte-identical to edition 0002 except for its append-only
+identity, its migration anchor, and pool membership: rare 9 → 27, epic 6 → 18,
+signature 6 → 12. Tier **weights** stay 72/23/4/1 and every guarantee boundary
+stays 10/25/20 — the tier a player lands in is unchanged; only what they can draw
+inside it grew. `selectedFeaturedUnowned.catalogItemIds` must remain exactly the
+signature tier (the validator asserts the arrays are equal), so expanding the
+signature tier necessarily expands the 20-pull selected-featured target.
+
+Its anchored migration is `0032_earned_economy_dice_content_wave_1.sql`, which
+seeds `earned-collection@3` and appends banner version `earned-collection-001@4`.
+Two details differ from 0030 and are worth copying for the next pool change:
+
+* the `pull_banner_tiers`/`pull_banner_items` rows are **derived from the pinned
+  edition JSON** the way `0011_earned_pull_preparation.sql` seeded version 1,
+  not copied-and-patched from the predecessor. The migration then diff-asserts
+  the derived rows against the predecessor's: zero retired items, an exact count
+  of added ones, and zero tier-weight difference. Derivation proves the served
+  pool is the reviewed pool; the diff proves the change was purely additive.
+* it creates **no function**. 0030's active-version guard resolves a family's
+  head dynamically, so appending `@4` retires `@3` from the player path with no
+  code change. `supabase/tests/0032_...test.sql` proves the retirement live.
+
+A catalog item may exist without belonging to any tier — that is how a set is
+held back. `ten-thousand-folds` ships in catalog edition 0005 and sits in no
+pool, reserved as the premium banner's featured candidate; both the migration and
+its behavioral suite fail closed if it ever leaks into a standard tier.

@@ -121,19 +121,22 @@ describe('0030 earned economy rare pity 10', () => {
     )
     expectIfRaise(
       executable(behavioralSql),
-      'Standard discovery did not activate earned-collection-001@3',
+      'Standard discovery did not activate earned-collection-001@4',
     )
   })
 
   it('backs the 10/25 boundaries and untouched version 2 with live SQL assertions', () => {
     const behavior = executable(behavioralSql)
+    // 0032_earned_economy_dice_content_wave_1.sql carried these boundaries
+    // unchanged into version 4 and retired version 3 from the player path, so
+    // the behavioral suite proves them on the version a player can prepare.
     const evidence = [
       'Version 2 changed while appending rare pity version 3',
-      'Rare guarantee fired at pull 8 under version 3',
-      'Rare guarantee fired at pull 9 under version 3',
-      'Rare guarantee did not fire at pull 10 under version 3',
-      'Epic guarantee did not fire at pull 25 under version 3',
-      'Pity read did not expose active version 3 thresholds and carried counters',
+      'Rare guarantee fired at pull 8 under version 4',
+      'Rare guarantee fired at pull 9 under version 4',
+      'Rare guarantee did not fire at pull 10 under version 4',
+      'Epic guarantee did not fire at pull 25 under version 4',
+      'Pity read did not expose active version 4 thresholds and carried counters',
     ]
 
     for (const message of evidence) {
@@ -234,7 +237,7 @@ describe('0030 earned economy rare pity 10', () => {
       'Superseded version 1 is still player-callable',
       'Superseded version 2 is still player-callable',
       'A rejected superseded preparation still reserved funds',
-      'Active version 3 did not prepare after the superseded rejections',
+      'Active version 4 did not prepare after the superseded rejections',
     ]) {
       expectIfRaise(executable(behavioralSql), message)
     }

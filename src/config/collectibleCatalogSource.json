@@ -202,6 +202,206 @@
         "description": "When rolling a complete Infernal set, all dice leave scorched trails",
         "effectId": "infernal-synergy"
       }
+    },
+    {
+      "id": "ten-thousand-folds",
+      "name": "Ten Thousand Folds",
+      "description": "A billet folded past counting, then acid-etched to reveal the record of its making. The pattern runs all the way through; no two faces repeat.",
+      "theme": {
+        "colorPalette": ["#2f343b", "#8d949e", "#d9c88a"],
+        "materialType": "metal",
+        "visualStyle": "fantasy"
+      },
+      "rarityVariants": {
+        "legendary": {
+          "appearance": {
+            "baseColor": "#2f343b",
+            "accentColor": "#d9c88a",
+            "material": "metal",
+            "metalness": 1.0,
+            "roughness": 0.28
+          },
+          "vfx": {
+            "trailEffect": "sparkles",
+            "impactEffect": "light-burst",
+            "rollSound": "metal_divine",
+            "criticalAnimation": "celestial-beam"
+          }
+        }
+      },
+      "availability": "limited",
+      "releaseDate": 0
+    },
+    {
+      "id": "stormglass",
+      "name": "Stormglass",
+      "description": "Grey stone that hides a storm. Tilt it and a single face ignites blue and gold, then goes dark again — the smith cannot promise which face, only that it is there.",
+      "theme": {
+        "colorPalette": ["#2b3a52", "#4a7fb5", "#c9a227"],
+        "materialType": "celestial",
+        "visualStyle": "fantasy"
+      },
+      "rarityVariants": {
+        "legendary": {
+          "appearance": {
+            "baseColor": "#2b3a52",
+            "accentColor": "#c9a227",
+            "material": "celestial",
+            "metalness": 0.2,
+            "roughness": 0.34,
+            "emissive": "#4a7fb5",
+            "emissiveIntensity": 0.28
+          },
+          "vfx": {
+            "trailEffect": "void-particles",
+            "impactEffect": "light-burst",
+            "rollSound": "crystal_ethereal",
+            "criticalAnimation": "celestial-beam"
+          }
+        }
+      },
+      "availability": "always",
+      "releaseDate": 0
+    },
+    {
+      "id": "bogwood-reliquary",
+      "name": "Bogwood Reliquary",
+      "description": "Oak that lay five thousand years in an airless swamp, stained black by tannin and mineral. Not carved to look ancient — simply ancient.",
+      "theme": {
+        "colorPalette": ["#2b1d14", "#5c4632", "#b08d57"],
+        "materialType": "wood",
+        "visualStyle": "fantasy"
+      },
+      "rarityVariants": {
+        "epic": {
+          "appearance": {
+            "baseColor": "#2b1d14",
+            "accentColor": "#b08d57",
+            "material": "wood",
+            "metalness": 0.02,
+            "roughness": 0.78
+          },
+          "vfx": {
+            "trailEffect": "sparkles",
+            "impactEffect": "jade-shatter",
+            "rollSound": "stone_mystical",
+            "criticalAnimation": "dragon-roar"
+          }
+        }
+      },
+      "availability": "always",
+      "releaseDate": 0
+    },
+    {
+      "id": "amberfall",
+      "name": "Amberfall",
+      "description": "Resin that fell before there were bees, and kept what fell in with it. Held to a lamp, something small and very old is still in there.",
+      "theme": {
+        "colorPalette": ["#6b380c", "#c17817", "#f0c987"],
+        "materialType": "resin",
+        "visualStyle": "fantasy"
+      },
+      "rarityVariants": {
+        "epic": {
+          "appearance": {
+            "baseColor": "#6b380c",
+            "accentColor": "#f0c987",
+            "material": "resin",
+            "metalness": 0.08,
+            "roughness": 0.42
+          },
+          "vfx": {
+            "trailEffect": "golden-sparkles",
+            "impactEffect": "light-burst",
+            "rollSound": "stone_mystical",
+            "criticalAnimation": "celestial-beam"
+          }
+        }
+      },
+      "availability": "always",
+      "releaseDate": 0
+    },
+    {
+      "id": "verdigris-vigil",
+      "name": "Verdigris Vigil",
+      "description": "Bronze left out on purpose. The green is not damage — it is the metal finishing itself, and polishing it back would undo the work.",
+      "theme": {
+        "colorPalette": ["#1f6b5e", "#3fa08c", "#cfa14a"],
+        "materialType": "metal",
+        "visualStyle": "fantasy"
+      },
+      "rarityVariants": {
+        "rare": {
+          "appearance": {
+            "baseColor": "#1f6b5e",
+            "accentColor": "#cfa14a",
+            "material": "metal",
+            "metalness": 1.0,
+            "roughness": 0.28
+          },
+          "vfx": {
+            "trailEffect": "sparkles",
+            "impactEffect": "jade-shatter",
+            "rollSound": "metal_light",
+            "criticalAnimation": "dragon-roar"
+          }
+        }
+      },
+      "availability": "always",
+      "releaseDate": 0
+    },
+    {
+      "id": "abyssal-glass",
+      "name": "Abyssal Glass",
+      "description": "Poured, not cut. A cobalt so deep it only admits to being blue at the edges, where the light gets through.",
+      "theme": {
+        "colorPalette": ["#12306b", "#2a5da8", "#9dc4f0"],
+        "materialType": "glass",
+        "visualStyle": "fantasy"
+      },
+      "rarityVariants": {
+        "rare": {
+          "appearance": {
+            "baseColor": "#12306b",
+            "accentColor": "#9dc4f0",
+            "material": "glass",
+            "metalness": 0.02,
+            "roughness": 0.14
+          },
+          "vfx": {
+            "trailEffect": "void-particles",
+            "impactEffect": "reality-crack",
+            "rollSound": "crystal_ethereal",
+            "criticalAnimation": "void-collapse"
+          }
+        }
+      },
+      "availability": "always",
+      "releaseDate": 0
+    },
+    {
+      "id": "ashvow",
+      "name": "Ashvow",
+      "description": "No shine, no story, no apology. One pour of charcoal sanded to dead matte, so the only thing you look at is the number.",
+      "theme": {
+        "colorPalette": ["#26292e", "#4a4f57", "#e8e8e8"],
+        "materialType": "stone",
+        "visualStyle": "minimalist"
+      },
+      "rarityVariants": {
+        "rare": {
+          "appearance": {
+            "baseColor": "#26292e",
+            "accentColor": "#e8e8e8",
+            "material": "stone",
+            "metalness": 0.02,
+            "roughness": 0.86
+          },
+          "vfx": {}
+        }
+      },
+      "availability": "always",
+      "releaseDate": 0
     }
   ],
   "standaloneItems": [

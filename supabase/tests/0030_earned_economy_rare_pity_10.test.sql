@@ -7,7 +7,10 @@ insert into auth.users (id) values
   ('d0300000-0000-4030-8030-000000000025');
 
 -- Reuse the client activation contract: ticket-bound standard banners ordered
--- by descending version, with the first row selected as active.
+-- by descending version, with the first row selected as active. The rare pity
+-- 10 boundary this suite exists to prove was introduced by @3 and carried
+-- unchanged into @4 by 0032_earned_economy_dice_content_wave_1.sql, so the
+-- boundary cases run on @4 -- the only version a player can still prepare.
 create temporary table slice21_standard_discovery
 on commit drop
 as
@@ -33,14 +36,14 @@ begin
   order by banner_version desc, id
   limit 1;
 
-  if (select count(*) from pg_temp.slice21_standard_discovery) is distinct from 2::bigint or
-     active_banner.id is distinct from 'earned-collection-001@3' or
+  if (select count(*) from pg_temp.slice21_standard_discovery) is distinct from 3::bigint or
+     active_banner.id is distinct from 'earned-collection-001@4' or
      active_banner.banner_id is distinct from 'earned-collection-001' or
-     active_banner.banner_version is distinct from 3 or
+     active_banner.banner_version is distinct from 4 or
      active_banner.banner_family_id is distinct from 'earned-collection' or
      active_banner.banner_class is distinct from 'standard' or
      active_banner.roll_type is distinct from 'standard_roll' then
-    raise exception 'Standard discovery did not activate earned-collection-001@3';
+    raise exception 'Standard discovery did not activate earned-collection-001@4';
   end if;
 end;
 $$;
@@ -121,8 +124,10 @@ end;
 $$;
 
 -- Superseded versions are not player-callable: the same authenticated caller
--- that can prepare the active version 3 is rejected on versions 1 and 2, so the
--- old 8-pull guarantee cannot be bought at the new ticket price.
+-- that can prepare the active version 4 is rejected on versions 1 and 2, so the
+-- old 8-pull guarantee cannot be bought at the new ticket price. Version 3 is
+-- superseded too; its rejection is proved by the suite for the migration that
+-- retired it, 0032_earned_economy_dice_content_wave_1.test.sql.
 insert into auth.users (id) values
   ('d0300000-0000-4030-8030-000000000099');
 
@@ -168,7 +173,7 @@ begin
     raise exception 'Superseded version 1 is still player-callable';
   exception when sqlstate '55000' then
     if sqlerrm is distinct from
-       'Pull banner version earned-collection-001@1 is superseded by version 3 '
+       'Pull banner version earned-collection-001@1 is superseded by version 4 '
        || 'of family earned-collection' then
       raise exception 'Superseded version 1 is still player-callable';
     end if;
@@ -183,7 +188,7 @@ begin
     raise exception 'Superseded version 2 is still player-callable';
   exception when sqlstate '55000' then
     if sqlerrm is distinct from
-       'Pull banner version earned-collection-001@2 is superseded by version 3 '
+       'Pull banner version earned-collection-001@2 is superseded by version 4 '
        || 'of family earned-collection' then
       raise exception 'Superseded version 2 is still player-callable';
     end if;
@@ -204,14 +209,14 @@ begin
 
   select * into strict prepared
   from public.prepare_pull(
-    'earned-collection-001@3',
+    'earned-collection-001@4',
     1::smallint,
-    'slice21:active:version-3'
+    'slice21:active:version-4'
   );
 
-  if prepared.banner_version_id is distinct from 'earned-collection-001@3' or
+  if prepared.banner_version_id is distinct from 'earned-collection-001@4' or
      prepared.held_amount is distinct from 1::bigint then
-    raise exception 'Active version 3 did not prepare after the superseded rejections';
+    raise exception 'Active version 4 did not prepare after the superseded rejections';
   end if;
 
   perform public.cancel_pull_session(prepared.session_id);
@@ -338,7 +343,7 @@ begin
       true
     );
     perform public.prepare_pull(
-      'earned-collection-001@3',
+      'earned-collection-001@4',
       1::smallint,
       target_key
     );
@@ -355,7 +360,7 @@ begin
     from public.sealed_pull_results
     where user_id = 'd0300000-0000-4030-8030-000000000008'
   ) is distinct from 'base' then
-    raise exception 'Rare guarantee fired at pull 8 under version 3';
+    raise exception 'Rare guarantee fired at pull 8 under version 4';
   end if;
 
   -- The pull immediately before the new boundary must still be unguaranteed,
@@ -365,7 +370,7 @@ begin
     from public.sealed_pull_results
     where user_id = 'd0300000-0000-4030-8030-000000000009'
   ) is distinct from 'base' then
-    raise exception 'Rare guarantee fired at pull 9 under version 3';
+    raise exception 'Rare guarantee fired at pull 9 under version 4';
   end if;
 
   if (
@@ -383,7 +388,7 @@ begin
        from public.sealed_pull_results
        where user_id = 'd0300000-0000-4030-8030-000000000010'
      ) < 1 then
-    raise exception 'Rare guarantee did not fire at pull 10 under version 3';
+    raise exception 'Rare guarantee did not fire at pull 10 under version 4';
   end if;
 
   if (
@@ -401,7 +406,7 @@ begin
        from public.sealed_pull_results
        where user_id = 'd0300000-0000-4030-8030-000000000025'
      ) < 2 then
-    raise exception 'Epic guarantee did not fire at pull 25 under version 3';
+    raise exception 'Epic guarantee did not fire at pull 25 under version 4';
   end if;
 
   perform set_config(
@@ -419,8 +424,8 @@ begin
   into strict pity
   from public.get_my_pull_pity('earned-collection');
 
-  if pity.banner_version_id is distinct from 'earned-collection-001@3' or
-     pity.banner_version is distinct from 3 or
+  if pity.banner_version_id is distinct from 'earned-collection-001@4' or
+     pity.banner_version is distinct from 4 or
      pity.total_pulls is distinct from 9::bigint or
      pity.rare_misses is distinct from 9::bigint or
      pity.epic_misses is distinct from 0::bigint or
@@ -428,7 +433,7 @@ begin
      pity.rare_hard_guarantee_pull is distinct from 10 or
      pity.epic_hard_guarantee_pull is distinct from 25 or
      pity.selected_hard_guarantee_pull is distinct from 20 then
-    raise exception 'Pity read did not expose active version 3 thresholds and carried counters';
+    raise exception 'Pity read did not expose active version 4 thresholds and carried counters';
   end if;
 end;
 $$;
