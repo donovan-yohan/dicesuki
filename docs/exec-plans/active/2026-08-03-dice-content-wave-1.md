@@ -242,6 +242,39 @@ tier's accent**: the new signature and epic sets are deliberately achromatic or
 cool-dark, letting the orange/purple rarity glow do the tier signalling rather
 than competing with it.
 
+#### The rare/epic glow is not distinguishable — measured
+
+Simulating the shipped palette (Viénot, Brettel & Mollon 1999 dichromat
+projection over linear sRGB) and taking WCAG contrast between adjacent tiers:
+
+| Adjacent tiers | Normal vision | Deuteranopia | Protanopia |
+|---|---|---|---|
+| uncommon vs rare | 3.52 | 3.41 | 3.71 |
+| **rare vs epic** | **1.01** | **1.12** | **1.31** |
+| epic vs legendary | 1.94 | 1.98 | 1.85 |
+| legendary vs mythic | 1.60 | 1.46 | 1.94 |
+
+`rare #0070dd` and `epic #a335ee` are **1.01:1 apart under normal colour
+vision** — they have almost identical relative luminance, so the two mid tiers
+are near-indistinguishable for *everyone*, not only for colour-blind players.
+Colour-vision deficiency is not the cause here; it merely keeps the pair
+collapsed (1.12 / 1.31). Under deuteranopia the palette also folds
+`uncommon #1eff00` and `legendary #ff8000` into the same yellow family
+(`#dbdb29` / `#b2b200`).
+
+This is a genre-wide trap, not a local mistake — the same 3★-blue/4★-purple
+collapse is measurable across shipped gacha palettes. The industry answer is
+that **rarity is never carried by hue alone**: star pips, frame shape, and a
+text label ride along as redundant channels.
+
+> **Requirement this places on the reveal minigame.** PO-locked decision 3 of
+> `2026-07-27-gacha-reveal-minigame.md` makes the settle glow *the* rarity tell.
+> A hue-only glow cannot distinguish rare from epic. The reveal needs at least
+> one redundant channel — glow **intensity/duration**, a particle count step, an
+> audio stinger, or the rarity label in the summary. Flagged for the reveal
+> slice owner; it is a design bug in the current spec, not a content problem,
+> and no choice of dice colours can fix it.
+
 ### 2.6 Per-die display names are generated, not authored (procedural path)
 
 `scripts/generate-collectible-catalog.js:227`:
@@ -368,6 +401,42 @@ rather than gold-five-star. The design consequence is the same either way:
 *escalation is carried by the tier accent, so the item body should not fight
 it.*
 
+**Escalation is on chroma, not brightness.** Measuring shipped assets rather
+than repeating folklore: Genshin's 5★ plate is a *muted amber* around `#E0AF5F`
+at roughly 68% saturation while its 1–4★ plates sit at 8–28%, with lightness
+held roughly flat — the tier climbs in **saturation**, not brightness, and the
+gold is emphatically **not** `#FFD700`. Star Rail escalates on **hue** instead:
+its 5★ gold (`#B28C6C`→`#CBAE83`) is *less* saturated than its own 3★ blue and
+reads premium only because it is the sole warm tier in the set. Neither game
+uses a flat fill — plates are a dark→light diagonal gradient. Community design
+tokens converge on 5★ `#FFD070`, 4★ `#AF86FF`, 3★ `#699DED`, 2★ `#68D391`,
+1★ `#AFAFAF`.
+
+Two things follow for us. First, the "make it gold and bright" instinct is
+wrong; **saturation and warmth carry rank, and a gradient reads richer than a
+flat fill** — relevant to the reveal glow and to any future rarity chrome, not
+to the dice themselves. Second, and more useful tonight: since our tier accents
+are fixed and partly collapsed (§2.5), the *dice* should stay low-chroma and let
+the accent be the saturated element. Every set in this wave is desaturated
+relative to its tier accent, which is the correct direction.
+
+**How much VFX is too much.** The most transferable statement of the principle
+is Riot's VFX style guide: *visual impact should represent gameplay impact* —
+escalate the **primary** element's value and saturation contrast, and actively
+*suppress* secondary elements (keep them small and low value-range) so the
+primary reads. Prestige comes from restraint and hierarchy, not particle count.
+Genre practice reinforces it by going **multi-channel rather than louder**: Star
+Rail changes the music before any colour is visible, FGO steps a ring
+blue→gold→rainbow, Genshin's Capturing Radiance tell is gold light turning
+purple and sparkling, and Wuthering Waves deliberately locks the colour at
+animation start so there is no mid-animation upgrade tease.
+
+> This is the design argument behind **Ashvow** (§5.7) and behind its empty
+> `vfx` block: at the point where every tier has a trail and a burst, the trail
+> and the burst stop meaning anything. It is also the argument for the reveal
+> room's staged finale being **colour + audio + one primary glow channel** and
+> nothing else.
+
 **Naming registers.** Genshin's five-star weapons read as possessive proper
 nouns and compound epithets — *Wolf's Gravestone*, *Primordial Jade
 Winged-Spear*, *Mistsplitter Reforged*, *Staff of Homa*, *Aquila Favonia*,
@@ -378,17 +447,45 @@ series, *The Widsith* — institutional and repeatable rather than singular.
 Artifact sets take the "X of Y" form: *Crimson Witch of Flames*, *Emblem of
 Severed Fate*, *Gladiator's Finale* ([artifact set list](https://game8.co/games/Genshin-Impact/archives/297493)).
 
+Cross-referencing the artifact corpus by rarity ceiling exposes the underlying
+**ladder**, which is more useful than the individual examples: low-rarity names
+are *possessive + literal object* (**Adventurer's** Flower, **Berserker's**
+Rose), while top-rarity names either drop the possessive or swap the literal
+object for an **abstract noun or a loanword** (Gladiator's **Triumphus**, Ornate
+**Kabuto**, **Shadow of the Sand King**). The axis is
+`possessive+concrete → abstract/foreign`. Note also the *Noblesse Oblige*
+pattern: a set-level name can be premium while individual piece names stay
+plain — which is exactly our situation, since procedural per-die names are
+forced to `"<Set Name> D20"` (§2.6).
+
 Adopted for this wave:
 
-| Tier | Naming register | Shape |
+| Tier | Position on the ladder | Shape |
 |---|---|---|
-| signature (legendary) | singular, mythic, non-repeatable | a proper noun or a compound epithet that could not name a *series* — *Ten Thousand Folds*, *Stormglass* |
-| epic | reliquary/provenance register | noun + institutional noun — *Bogwood Reliquary*, *Amberfall* |
+| signature (legendary) | abstract noun / dropped possessive | a phrase that could not name a *series* — *Ten Thousand Folds* (abstract quantity), *Stormglass* (compound, no possessive) |
+| epic | concrete noun + institutional noun | *Bogwood Reliquary*, *Amberfall* |
 | rare | plain compound noun, series-able | *Verdigris Vigil*, *Abyssal Glass*, *Ashvow* |
+
+The already-authored `fantasy-earth` set independently matches this ladder
+in-set — `runeleaf-d4` (literal) climbing to `aurelian-d20` (proper/abstract) —
+so the convention is consistent with work already in flight.
 
 No "Collection" suffix on new sets: the three existing `*-imagegen-set` sets
 already dropped it (*Cozy Forest Relics*, *Dark Dungeon Armory*, *Neon Street
 Overdrive*) and the shorter form reads more premium.
+
+**Banner names follow a different split from item names.** Permanent banners
+take **institutional** names (*Wanderlust Invocation*, *Stellar Warp*); limited
+banners take **bespoke poetic** ones, averaging about three words (*Ballad in
+Goblets*, *Nessun Dorma*). Applied to us:
+
+| Banner | Register | Suggestion |
+|---|---|---|
+| standard (permanent) | institutional | *Standing Invitation* / *Common Cast* |
+| premium (rotating) | bespoke poetic, ~3 words | *Ten Thousand Folds* rotation → **"Song of the Anvil"** |
+
+A rotating banner should be renamed each rotation; the set name and the banner
+name should **not** be the same string, so that the banner can outlive the set.
 
 ---
 
@@ -944,6 +1041,13 @@ Estimated size: a rendering slice, not a content slice. Route through
 Optionally add `requireConfiguredSet('<id>')` exports in
 `src/config/dieSets.ts:21-26` to match the existing pattern.
 
+`docs/guides/dice-set-authoring.md` step 9 gives the short form of steps 2–4 as
+`npm run prepare:collectible-edition` followed by `npm run build` (which runs
+the catalog, economy, runtime-asset and manifest checks together). The explicit
+argument form above is required because `createPreparedCatalogEdition`
+hard-rejects a missing four-digit migration number or non-kebab slug
+(`generate-collectible-catalog.js:790-795`).
+
 ### 7.2 ImageGen wave — priority order and one blocker
 
 Recommended order: **Ten Thousand Folds → Stormglass → Amberfall → Bogwood
@@ -952,6 +1056,19 @@ Reliquary → Verdigris Vigil → Abyssal Glass**. Ashvow needs no pass (§5.7).
 The first two are ranked highest because they are the two sets whose procedural
 fidelity is lowest *and* whose tier is highest — the largest gap between what
 the player is told they pulled and what they see.
+
+**The canonical process doc is `docs/guides/dice-set-authoring.md`** (9 steps,
+generate kit → art pass → register atlases → derive normals → bake GLBs →
+capture proofs → release archive+lock → promote to runtime → catalog edition).
+Follow it; the notes below are only the content-side deltas it does not cover.
+Its gate list is:
+
+```bash
+npm run test:imagegen-uv                 # contract + workshop tests + authoring boundary
+npm run validate:theme-workshop          # generated kit matches its source of truth
+npm run check:runtime-dice-assets        # runtime manifests match bytes on disk
+npm run check:immutable-imagegen-history # locks/manifests/fixtures unchanged
+```
 
 New `THEME_WORKSHOP` entries must satisfy
 `scripts/imagegen-uv/theme-workshop.node-test.mjs:41-67`:
@@ -970,6 +1087,14 @@ ride an existing theme's environment. Only five themes exist (`default`,
 authoring a genuinely new one means new floor/wall/skybox art plus tokens and
 contrast guards. **Recommendation: reuse `dungeon-castle` for Ten Thousand
 Folds and `default` for the rest**; treat bespoke environments as a later slice.
+
+> Cheap win the authoring guide records under "Known gaps": **environment
+> textures are optional and unused at runtime** — the workshop emits prompts and
+> derives normals for floor/wall/skybox, but no runtime code consumes
+> `.artifacts/theme-workshop/<themeId>/environment/` yet. The three
+> `>80`-character prompts are still **required to pass the unit tests**, so
+> write them, but do not spend art time on the environment pass for these sets
+> until something renders it. Budget the art pass on the six dice atlases only.
 
 > **BLOCKER — an ImageGen set cannot currently be legendary.**
 > `scripts/imagegen-uv/theme-workshop-data.mjs:49-56` hardcodes rarity **by
@@ -1059,7 +1184,8 @@ a "just make it a nicer colour" edit.
 
 ## 9. Sources
 
-**Repo evidence:** `src/types/inventory.ts`, `src/lib/diceMaterial.ts`,
+**Repo evidence:** `docs/guides/dice-set-authoring.md` (canonical ImageGen
+process + known gaps), `src/types/inventory.ts`, `src/lib/diceMaterial.ts`,
 `src/lib/rarityColor.ts`, `src/lib/faceRenderers/glyphStyle.ts`,
 `src/components/multiplayer/MultiplayerDie.tsx`,
 `src/components/panels/SharedInventoryDicePreviewCanvas.tsx`,
@@ -1124,3 +1250,21 @@ a "just make it a nicer colour" edit.
 [APL Japan — the illegality of Complete Gacha (PDF)](https://www.aplawjapan.com/archives/pdf/file/World_Online_Gambling_Law_Report_Journal_October2012.pdf) ·
 [Abe Legal — gacha regulation in Japan](https://abe-legal.jp/en/columns/game-gacha-legal-regulation) ·
 [Serkan Toto — 2012 kompu gacha regulation](https://www.serkantoto.com/2012/05/18/gacha-regulation-official/)
+
+**Rarity colour, VFX escalation & naming ladder.** The measured findings in
+§2.5 and §3.3 — Genshin's 5★ `#E0AF5F` at ~68% saturation with flat lightness,
+Star Rail's warm-hue-only escalation (`#B28C6C`→`#CBAE83`), the cross-game
+token set (5★ `#FFD070` / 4★ `#AF86FF` / 3★ `#699DED` / 2★ `#68D391` /
+1★ `#AFAFAF`), the dark→light gradient convention, the 3★/4★ CVD collapse, the
+Riot VFX style-guide principle ("visual impact should represent gameplay
+impact"; escalate the primary, suppress secondaries), the multi-channel
+escalation practice (HSR audio-before-colour, FGO blue→gold→rainbow, Genshin
+Capturing Radiance, WuWa colour-locked-at-start), the artifact naming ladder
+(`possessive+concrete → abstract/loanword`), the *Noblesse Oblige* set-vs-piece
+pattern, and the permanent-institutional / limited-poetic banner split — were
+supplied by the parallel rarity-visual-language research track, measured from
+shipped game assets and design documentation. Treat those specific hex values
+and the CVD claim as **second-hand**: the tier-collapse numbers in the §2.5
+table are my own computation over `src/lib/rarityColor.ts` and are independently
+reproducible from the Viénot–Brettel–Mollon (1999) projection, but the
+per-game hex measurements above were not re-derived here.
