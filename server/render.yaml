@@ -20,4 +20,4 @@ services:
       - key: PUBLIC_URL
         value: https://dicesuki.onrender.com
       - key: CORS_ORIGIN
-        value: https://dicesuki.vercel.app
+        value: https://dicesuki.donovanyohan.com

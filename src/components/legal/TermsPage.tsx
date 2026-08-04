@@ -28,10 +28,10 @@ export function TermsPage() {
             <p>
               Dicesuki is a 3D dice simulator web app available at{' '}
               <a
-                href="https://dicesuki.vercel.app"
+                href="https://dicesuki.donovanyohan.com"
                 className="text-theme-accent hover:underline"
               >
-                dicesuki.vercel.app
+                dicesuki.donovanyohan.com
               </a>
               . It is operated by an individual developer. In these terms, “we”
               and “us” refer to that operator. These terms describe the rules for
