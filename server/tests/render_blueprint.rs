@@ -40,7 +40,7 @@ fn render_blueprint_declares_safe_registry_environment() {
     assert_literal("RUST_LOG", "info");
     assert_literal("SUPABASE_URL", "https://nksxdfcjabgbxeefwkdc.supabase.co");
     assert_literal("PUBLIC_URL", "https://dicesuki.onrender.com");
-    assert_literal("CORS_ORIGIN", "https://dicesuki.vercel.app");
+    assert_literal("CORS_ORIGIN", "https://dicesuki.donovanyohan.com");
 
     let secret = env_block("SUPABASE_SECRET_KEY");
     assert!(secret.lines().any(|line| line.trim() == "sync: false"));
