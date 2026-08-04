@@ -31,10 +31,10 @@ export function PrivacyPage() {
               This policy explains how Dicesuki, a 3D dice simulator available
               at{' '}
               <a
-                href="https://dicesuki.vercel.app"
+                href="https://dicesuki.donovanyohan.com"
                 className="text-theme-accent hover:underline"
               >
-                dicesuki.vercel.app
+                dicesuki.donovanyohan.com
               </a>
               , handles information. Dicesuki is operated by an individual
               developer. In this policy, “we” and “us” refer to that operator.

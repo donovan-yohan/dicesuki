@@ -240,6 +240,6 @@ PUBLIC_URL=https://rooms.example.com \
 2. Set `SUPABASE_SECRET_KEY` to that value. Leave `SUPABASE_SERVICE_ROLE_KEY` unset after migration.
 3. Confirm `SUPABASE_URL=https://nksxdfcjabgbxeefwkdc.supabase.co`.
 4. Confirm `PUBLIC_URL=https://dicesuki.onrender.com`.
-5. Confirm `CORS_ORIGIN=https://dicesuki.vercel.app`.
+5. Confirm `CORS_ORIGIN=https://dicesuki.donovanyohan.com`.
 6. Save and deploy, then verify `/health` remains `200`, `rollReporter` is `healthy`, and a fresh `public.rooms` heartbeat appears within one interval. Logs name only the credential mode and never the key.
 7. Complete one authenticated multiplayer roll and verify exactly one new `public.authoritative_roll_completion_events` row with the expected `authority_kind`, plus at most one linked promotional-Star ledger entry. Repeat/reconnect/knock testing must not create a second event for that generation. Use owner-side database tooling; never print the secret or raw user id into deployment logs or a PR.
