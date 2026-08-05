@@ -94,6 +94,13 @@ export function RoomDiscordPost() {
     if (!roomId || !selectedChannelId) return
     setPosting(true)
     setPostError(null)
+    // Clear on the *action*, not just on the navigation steps that happen to
+    // precede it (opening the picker, picking a guild). Those cover today's only
+    // routes to this button, but tying the invariant — a success line always
+    // describes the most recent completed post — to the post itself keeps it true
+    // for any future route (a single-channel guild auto-advancing, a
+    // "post somewhere else" shortcut) instead of depending on the walk.
+    setSuccess(null)
     const result = await advertiseRoomToDiscord(roomId, selectedChannelId)
     if (!mounted.current) return
     setPosting(false)

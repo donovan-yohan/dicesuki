@@ -58,8 +58,28 @@ describe('hasDiscordIdentity', () => {
     expect(hasDiscordIdentity(user)).toBe(true)
   })
 
-  it('falls back to app_metadata when identities are not hydrated', () => {
+  it('is false after Discord is unlinked, even with stale app_metadata', () => {
+    // Arrange — unlinking empties `identities`, but Supabase leaves the stale
+    // provider record on app_metadata. The empty array is authoritative.
+    const user = makeUser({
+      identities: [] as unknown as User['identities'],
+      app_metadata: { provider: 'discord', providers: ['discord'] },
+    })
+    // Act / Assert
+    expect(hasDiscordIdentity(user)).toBe(false)
+  })
+
+  it('is false when identities list other providers despite stale app_metadata', () => {
+    const user = makeUser({
+      identities: [{ provider: 'email' }] as unknown as User['identities'],
+      app_metadata: { provider: 'discord', providers: ['discord', 'email'] },
+    })
+    expect(hasDiscordIdentity(user)).toBe(false)
+  })
+
+  it('falls back to app_metadata ONLY when identities are not hydrated', () => {
     const user = makeUser({ app_metadata: { provider: 'discord' } })
+    expect(user.identities).toBeUndefined()
     expect(hasDiscordIdentity(user)).toBe(true)
 
     const multi = makeUser({ app_metadata: { providers: ['email', 'discord'] } })

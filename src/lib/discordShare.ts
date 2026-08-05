@@ -128,12 +128,21 @@ export function describeDiscordShareError(code: DiscordShareErrorCode): string {
  */
 export function hasDiscordIdentity(user: User | null | undefined): boolean {
   if (!user) return false
+
+  // `identities` is the authoritative list of *currently linked* accounts, so
+  // whenever it is present it decides on its own — an empty array means "nothing
+  // linked" and must answer false. This matters because `app_metadata` keeps a
+  // stale `provider`/`providers` record after a user unlinks Discord: trusting it
+  // there would show the option to someone whose identity was revoked, and every
+  // request they made would come back NO_DISCORD_IDENTITY.
   const identities = user.identities
-  if (Array.isArray(identities) && identities.some((i) => i?.provider === 'discord')) {
-    return true
+  if (Array.isArray(identities)) {
+    return identities.some((i) => i?.provider === 'discord')
   }
-  // Fallback for sessions whose identities array was not hydrated: Supabase also
-  // records the linked providers on app_metadata.
+
+  // Only when the session carries no identities array at all (not hydrated) do we
+  // fall back to app_metadata. The server's NO_DISCORD_IDENTITY check remains the
+  // backstop for the window where that record is stale.
   const appMeta = user.app_metadata as
     | { provider?: unknown; providers?: unknown }
     | undefined

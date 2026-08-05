@@ -136,6 +136,26 @@ describe('RoomDiscordPost', () => {
       expect(container.querySelector('[data-testid="room-discord-post"]')).toBeNull()
     })
 
+    it('renders nothing for a user who unlinked Discord (stale app_metadata)', () => {
+      // Arrange — `identities` empties on unlink while app_metadata still says
+      // discord; the option must disappear with the identity.
+      useAuthStore.setState({
+        status: 'authenticated',
+        user: {
+          id: 'user-1',
+          aud: 'authenticated',
+          created_at: '2026-01-01T00:00:00Z',
+          app_metadata: { provider: 'discord', providers: ['discord'] },
+          user_metadata: {},
+          identities: [],
+        } as unknown as User,
+      })
+      // Act
+      const { container } = renderPicker()
+      // Assert
+      expect(container.querySelector('[data-testid="room-discord-post"]')).toBeNull()
+    })
+
     it('renders nothing for a Discord user who is not the host', () => {
       // The room protocol already carries hostId/isHost, so the client can gate
       // without a protocol change.
@@ -326,6 +346,76 @@ describe('RoomDiscordPost', () => {
 
       expect(await screen.findByTestId('room-discord-post-error')).toHaveTextContent(
         "Couldn't reach the room server. Check your connection and retry.",
+      )
+    })
+
+    it('does not carry a success line into a reopened picker', async () => {
+      // Arrange — post once, then close and reopen the picker.
+      mockServer({})
+      await openAndSelectGeneral()
+      await screen.findByTestId('room-discord-success')
+
+      // Act
+      fireEvent.click(screen.getByTestId('room-discord-toggle')) // close
+      fireEvent.click(screen.getByTestId('room-discord-toggle')) // reopen
+
+      // Assert — a stale "Posted to #general" must not greet the next pick.
+      expect(screen.queryByTestId('room-discord-success')).toBeNull()
+    })
+
+    it('does not carry a success line into a second post in the same session', async () => {
+      // Arrange — post to #general, then walk to #dice without closing.
+      mockServer({})
+      await openAndSelectGeneral()
+      await screen.findByTestId('room-discord-success')
+
+      // Act
+      fireEvent.click(screen.getByTestId('room-discord-guild-g1'))
+      fireEvent.click(screen.getByTestId('room-discord-channel-c2'))
+
+      // Assert — the confirm step for #dice shows no stale #general line.
+      expect(screen.queryByTestId('room-discord-success')).toBeNull()
+
+      // And the new post reports its own channel, never the previous one.
+      fireEvent.click(screen.getByTestId('room-discord-confirm'))
+      expect(await screen.findByTestId('room-discord-success')).toHaveTextContent(
+        'Posted to #dice',
+      )
+    })
+
+    it('clears a previous success while a new post is in flight', async () => {
+      // Arrange — hold the second advertise open so the in-flight state is
+      // observable: the success line must already be gone at that point.
+      let releaseSecond: (value: Response) => void = () => {}
+      let advertiseCalls = 0
+      const fetchMock = vi.fn<typeof fetch>(async (input) => {
+        const url = String(input)
+        if (url.includes('/api/discord/targets')) return jsonResponse({ guilds: GUILDS })
+        advertiseCalls += 1
+        if (advertiseCalls === 1) return jsonResponse({ roomId: 'ROOM42' }, 202)
+        return new Promise<Response>((resolve) => {
+          releaseSecond = resolve
+        })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      await openAndSelectGeneral()
+      await screen.findByTestId('room-discord-success')
+
+      // Act — start a second post and stop at the in-flight state.
+      fireEvent.click(screen.getByTestId('room-discord-guild-g1'))
+      fireEvent.click(screen.getByTestId('room-discord-channel-c2'))
+      fireEvent.click(screen.getByTestId('room-discord-confirm'))
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.getByTestId('room-discord-confirm')).toHaveTextContent('Posting…')
+      })
+      expect(screen.queryByTestId('room-discord-success')).toBeNull()
+
+      releaseSecond(jsonResponse({ roomId: 'ROOM42' }, 202))
+      expect(await screen.findByTestId('room-discord-success')).toHaveTextContent(
+        'Posted to #dice',
       )
     })
 
