@@ -44,6 +44,31 @@ const PROD_ALGORITHMS: &[Algorithm] = &[Algorithm::RS256, Algorithm::ES256];
 /// Supabase access tokens carry `aud: "authenticated"` for signed-in users.
 const EXPECTED_AUDIENCE: &str = "authenticated";
 
+/// Provider-scoped identity Supabase copies into a token's `user_metadata`.
+/// For a Discord sign-in these carry the caller's **Discord** user id, which the
+/// room server needs to answer "which guilds is this person in?" (#246).
+#[derive(Debug, Default, Deserialize)]
+pub struct SupabaseUserMetadata {
+    /// The provider's own user id. Supabase's canonical field for it.
+    #[serde(default)]
+    pub provider_id: Option<String>,
+    /// The provider's OIDC `sub`, which Discord sets to the same user id.
+    /// Present on some token vintages where `provider_id` is not.
+    #[serde(default)]
+    pub sub: Option<String>,
+}
+
+/// The provider bookkeeping Supabase puts in `app_metadata`. Read only to
+/// confirm the identity in `user_metadata` really is a Discord one before it is
+/// used as a Discord user id.
+#[derive(Debug, Default, Deserialize)]
+pub struct SupabaseAppMetadata {
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub providers: Vec<String>,
+}
+
 /// The subset of registered/Supabase claims we read. Registered-claim
 /// validation (`exp`, `aud`, `iss`) is performed by `jsonwebtoken` itself; this
 /// struct only needs the fields we consume downstream.
@@ -54,7 +79,45 @@ pub struct SupabaseClaims {
     /// Supabase role, e.g. `authenticated` or `anon`. Informational (logging).
     #[serde(default)]
     pub role: Option<String>,
+    /// Provider identity data. Absent on guest/email-only tokens.
+    #[serde(default)]
+    pub user_metadata: SupabaseUserMetadata,
+    /// Which providers this user signed in with.
+    #[serde(default)]
+    pub app_metadata: SupabaseAppMetadata,
 }
+
+impl SupabaseClaims {
+    /// Whether Discord is among this identity's linked providers.
+    #[must_use]
+    pub fn has_discord_provider(&self) -> bool {
+        self.app_metadata.provider.as_deref() == Some(DISCORD_PROVIDER)
+            || self
+                .app_metadata
+                .providers
+                .iter()
+                .any(|provider| provider == DISCORD_PROVIDER)
+    }
+
+    /// The caller's Discord user id as carried by the token, when the token
+    /// actually proves a Discord sign-in. Returns `None` for guests, email-only
+    /// accounts, and any token whose provider id is not a snowflake — callers
+    /// fall back to the Supabase admin API rather than guessing.
+    #[must_use]
+    pub fn discord_user_id(&self) -> Option<&str> {
+        if !self.has_discord_provider() {
+            return None;
+        }
+        self.user_metadata
+            .provider_id
+            .as_deref()
+            .or(self.user_metadata.sub.as_deref())
+            .filter(|id| crate::discord_api::is_snowflake(id))
+    }
+}
+
+/// Supabase's provider key for Discord OAuth.
+pub const DISCORD_PROVIDER: &str = "discord";
 
 /// Result of authenticating a `join`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -209,7 +272,26 @@ impl AuthVerifier {
             Some(t) if !t.trim().is_empty() => t,
             _ => return Ok(AuthOutcome::Guest),
         };
+        let claims = self.authenticate_claims(token).await?;
+        Ok(AuthOutcome::Authenticated {
+            user_id: claims.sub,
+        })
+    }
 
+    /// Verify a **required** token and return its full claims.
+    ///
+    /// Used by the authenticated HTTP endpoints (#246), which — unlike `join` —
+    /// have no guest mode: a missing token is the caller's problem, not a
+    /// silent downgrade. Also the only path that surfaces the provider identity
+    /// claims (`user_metadata`/`app_metadata`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError`] when the token cannot be verified.
+    pub async fn authenticate_claims(
+        &self,
+        token: &str,
+    ) -> Result<SupabaseClaims, AuthError> {
         // Which key signed this token? Refresh once if the kid is unknown.
         let kid = decode_header(token)
             .map_err(|e| AuthError::Invalid(format!("unreadable header: {e}")))?
@@ -224,11 +306,7 @@ impl AuthVerifier {
             keys = self.keys(true).await?;
         }
 
-        let claims =
-            verify_with_jwks(token, &keys, Some(&self.issuer), PROD_ALGORITHMS)?;
-        Ok(AuthOutcome::Authenticated {
-            user_id: claims.sub,
-        })
+        verify_with_jwks(token, &keys, Some(&self.issuer), PROD_ALGORITHMS)
     }
 
     /// Return the cached JWKS, fetching if empty/expired or `force`d. On a fetch
@@ -445,6 +523,55 @@ mod tests {
         )
         .expect_err("unknown kid rejected");
         assert_eq!(err.code(), "AUTH_INVALID");
+    }
+
+    fn claims_from(value: serde_json::Value) -> SupabaseClaims {
+        serde_json::from_value(value).expect("claims parse")
+    }
+
+    #[test]
+    fn discord_user_id_read_from_provider_id_when_discord_is_the_provider() {
+        let claims = claims_from(serde_json::json!({
+            "sub": "supabase-user",
+            "aud": EXPECTED_AUDIENCE,
+            "app_metadata": { "provider": "discord", "providers": ["discord"] },
+            "user_metadata": { "provider_id": "123456789012345678", "sub": "123456789012345678" }
+        }));
+        assert_eq!(claims.discord_user_id(), Some("123456789012345678"));
+
+        // Older tokens carry only `sub` inside user_metadata.
+        let sub_only = claims_from(serde_json::json!({
+            "sub": "supabase-user",
+            "app_metadata": { "providers": ["discord"] },
+            "user_metadata": { "sub": "123456789012345678" }
+        }));
+        assert_eq!(sub_only.discord_user_id(), Some("123456789012345678"));
+    }
+
+    #[test]
+    fn discord_user_id_absent_for_guests_email_only_and_non_snowflakes() {
+        // No provider metadata at all (email sign-in / anonymous).
+        let bare = claims_from(serde_json::json!({ "sub": "supabase-user" }));
+        assert!(bare.discord_user_id().is_none());
+        assert!(!bare.has_discord_provider());
+
+        // Signed in with a different provider — its provider_id is NOT a
+        // Discord id and must never be treated as one.
+        let google = claims_from(serde_json::json!({
+            "sub": "supabase-user",
+            "app_metadata": { "provider": "google", "providers": ["google"] },
+            "user_metadata": { "provider_id": "987654321098765432" }
+        }));
+        assert!(google.discord_user_id().is_none());
+
+        // Discord provider but a malformed id: rejected rather than sent into a
+        // REST path.
+        let malformed = claims_from(serde_json::json!({
+            "sub": "supabase-user",
+            "app_metadata": { "provider": "discord" },
+            "user_metadata": { "provider_id": "../../users/@me" }
+        }));
+        assert!(malformed.discord_user_id().is_none());
     }
 
     #[tokio::test]
