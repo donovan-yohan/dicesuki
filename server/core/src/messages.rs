@@ -190,7 +190,7 @@ pub struct VelocityHistoryEntry {
     pub time: f32,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum DiceType {
     D4,
@@ -208,6 +208,27 @@ pub enum DiceType {
     D10Tens,
     D12,
     D20,
+}
+
+impl DiceType {
+    /// The natural minimum and maximum face this die can land, for surfaces that
+    /// want to call out a crit. `None` where "natural extreme" carries no
+    /// meaning: [`DiceType::D10Tens`] is half of a percentile pair, and its `00`
+    /// reads as 100 rather than 0 when the ones die shows `0`, so neither of its
+    /// extremes is unambiguously a high or low roll.
+    #[must_use]
+    pub const fn natural_faces(self) -> Option<(u32, u32)> {
+        match self {
+            Self::D4 => Some((1, 4)),
+            Self::D6 => Some((1, 6)),
+            Self::D8 => Some((1, 8)),
+            // Engine faces read 0..=9; the 1–10 "virtual d10" is a client mapping.
+            Self::D10 => Some((0, 9)),
+            Self::D10Tens => None,
+            Self::D12 => Some((1, 12)),
+            Self::D20 => Some((1, 20)),
+        }
+    }
 }
 
 /// Messages sent from server to client
