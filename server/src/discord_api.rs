@@ -136,6 +136,17 @@ pub struct GuildMember {
     pub roles: Vec<String>,
 }
 
+/// A guild role from `GET /guilds/{id}/roles`. Needed to compute a *member's*
+/// guild-level permissions: unlike the bot, whose totals arrive precomputed on
+/// the partial guild, a caller's base permissions must be unioned from the roles
+/// they hold.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct GuildRole {
+    pub id: String,
+    #[serde(default)]
+    pub permissions: String,
+}
+
 /// Why a Discord call did not produce a usable answer. Deliberately carries no
 /// response body: Discord error payloads can echo request context, and this type
 /// is logged.
@@ -172,6 +183,8 @@ pub trait DiscordApi: Send + Sync {
     fn bot_guilds(&self) -> ApiFuture<'_, Vec<BotGuild>>;
     /// `GET /guilds/{guild_id}/channels`.
     fn guild_channels<'a>(&'a self, guild_id: &'a str) -> ApiFuture<'a, Vec<GuildChannel>>;
+    /// `GET /guilds/{guild_id}/roles`.
+    fn guild_roles<'a>(&'a self, guild_id: &'a str) -> ApiFuture<'a, Vec<GuildRole>>;
     /// `GET /guilds/{guild_id}/members/{user_id}`. `Ok(None)` means Discord
     /// answered 404 — an authoritative "not a member of this guild".
     fn guild_member<'a>(
@@ -220,7 +233,15 @@ impl HttpDiscordApi {
     #[must_use]
     pub fn new(bot_token: &str) -> Self {
         let mut authorization = reqwest::header::HeaderValue::from_str(&format!("Bot {bot_token}"))
-            .unwrap_or_else(|_| reqwest::header::HeaderValue::from_static("Bot invalid"));
+            .unwrap_or_else(|_| {
+                // A token with control characters or non-ASCII cannot be a
+                // header value. Say so once at construction — otherwise every
+                // Discord call 401s with no clue why.
+                log::error!(
+                    "DISCORD_BOT_TOKEN is not a valid HTTP header value; every Discord call will fail"
+                );
+                reqwest::header::HeaderValue::from_static("Bot invalid")
+            });
         authorization.set_sensitive(true);
         Self {
             client: reqwest::Client::builder()
@@ -264,11 +285,24 @@ impl HttpDiscordApi {
 }
 
 /// Map a non-success HTTP status onto [`DiscordApiError`].
+///
+/// Only 401 is [`DiscordApiError::Unauthorized`] — that is "this bot credential
+/// is bad", a global condition. A 403 stays a plain [`DiscordApiError::Status`]
+/// because it is *per-resource* ("the bot lost access to this channel"), and
+/// callers must be able to treat it as terminal for that one resource without
+/// concluding the whole token died.
 const fn classify(status: u16) -> DiscordApiError {
     match status {
-        401 | 403 => DiscordApiError::Unauthorized,
+        401 => DiscordApiError::Unauthorized,
         other => DiscordApiError::Status(other),
     }
+}
+
+/// Whether an error means "this specific message/channel is gone or off-limits"
+/// — permanent for that resource, so retrying it forever is pointless.
+#[must_use]
+pub const fn is_terminal_for_resource(error: DiscordApiError) -> bool {
+    matches!(error, DiscordApiError::Status(403 | 404 | 410))
 }
 
 #[derive(Deserialize)]
@@ -302,6 +336,19 @@ impl DiscordApi for HttpDiscordApi {
             Self::send_json(self.request(
                 reqwest::Method::GET,
                 format!("{DISCORD_API_BASE}/guilds/{guild_id}/channels"),
+            ))
+            .await
+        })
+    }
+
+    fn guild_roles<'a>(&'a self, guild_id: &'a str) -> ApiFuture<'a, Vec<GuildRole>> {
+        Box::pin(async move {
+            if !is_snowflake(guild_id) {
+                return Err(DiscordApiError::Status(400));
+            }
+            Self::send_json(self.request(
+                reqwest::Method::GET,
+                format!("{DISCORD_API_BASE}/guilds/{guild_id}/roles"),
             ))
             .await
         })
@@ -412,10 +459,29 @@ pub fn parse_permissions(value: &str) -> u64 {
     value.parse::<u64>().unwrap_or(0)
 }
 
+/// Discord's documented `computeBasePermissions`: the `@everyone` role (whose id
+/// is the guild id) unioned with every role the member holds.
+///
+/// Needed for a *caller*, whose guild totals Discord does not precompute for us
+/// — the bot's own base arrives ready-made on the partial guild's `permissions`
+/// field. Roles the member does not hold contribute nothing; an unknown role id
+/// contributes nothing (fail closed).
+#[must_use]
+pub fn compute_base_permissions(
+    guild_id: &str,
+    roles: &[GuildRole],
+    member_role_ids: &BTreeSet<String>,
+) -> u64 {
+    roles
+        .iter()
+        .filter(|role| role.id == guild_id || member_role_ids.contains(&role.id))
+        .fold(0_u64, |acc, role| acc | parse_permissions(&role.permissions))
+}
+
 /// Discord's documented channel permission computation for a member, given the
 /// member's already-computed guild-level `base` permissions (`@everyone` unioned
 /// with the member's roles — exactly what the `permissions` field on a partial
-/// guild carries).
+/// guild carries, and what [`compute_base_permissions`] derives for a caller).
 ///
 /// Overwrites are applied in the documented order: `@everyone` (the role whose
 /// id equals the guild id), then the union of the member's role overwrites
@@ -505,6 +571,12 @@ mod tests {
 
     fn roles(ids: &[&str]) -> BTreeSet<String> {
         ids.iter().map(|id| (*id).to_string()).collect()
+    }
+
+    /// Alias used by the base-permission tests, where `roles` names the role
+    /// *definitions* rather than the ids a member holds.
+    fn roles_set(ids: &[&str]) -> BTreeSet<String> {
+        roles(ids)
     }
 
     fn overwrite(id: &str, kind: u8, allow: u64, deny: u64) -> PermissionOverwrite {
@@ -711,7 +783,59 @@ mod tests {
             DiscordApiError::Status(429).to_string(),
             "discord returned status 429"
         );
-        assert_eq!(classify(403), DiscordApiError::Unauthorized);
+        assert_eq!(classify(401), DiscordApiError::Unauthorized);
         assert_eq!(classify(500), DiscordApiError::Status(500));
+    }
+
+    #[test]
+    fn per_resource_failures_are_distinguishable_from_a_dead_credential() {
+        // 403 is "the bot lost access to *this* channel", not "the token died",
+        // so it must stay a Status and read as terminal for that resource.
+        assert_eq!(classify(403), DiscordApiError::Status(403));
+        for terminal in [403, 404, 410] {
+            assert!(is_terminal_for_resource(DiscordApiError::Status(terminal)));
+        }
+        for retryable in [
+            DiscordApiError::Transport,
+            DiscordApiError::Unauthorized,
+            DiscordApiError::Status(429),
+            DiscordApiError::Status(500),
+        ] {
+            assert!(!is_terminal_for_resource(retryable));
+        }
+    }
+
+    #[test]
+    fn member_base_permissions_union_everyone_with_held_roles_only() {
+        let roles = vec![
+            GuildRole {
+                id: GUILD.to_string(),
+                permissions: PERMISSION_VIEW_CHANNEL.to_string(),
+            },
+            GuildRole {
+                id: ROLE.to_string(),
+                permissions: PERMISSION_SEND_MESSAGES.to_string(),
+            },
+            GuildRole {
+                id: OTHER_ROLE.to_string(),
+                permissions: PERMISSION_ADMINISTRATOR.to_string(),
+            },
+        ];
+
+        // No roles: @everyone only.
+        assert_eq!(
+            compute_base_permissions(GUILD, &roles, &roles_set(&[])),
+            PERMISSION_VIEW_CHANNEL
+        );
+        // One held role unions in; the unheld administrator role does not.
+        assert_eq!(
+            compute_base_permissions(GUILD, &roles, &roles_set(&[ROLE])),
+            PERMISSION_VIEW_CHANNEL | PERMISSION_SEND_MESSAGES
+        );
+        // An unknown role id contributes nothing.
+        assert_eq!(
+            compute_base_permissions(GUILD, &roles, &roles_set(&["999999999999999999"])),
+            PERMISSION_VIEW_CHANNEL
+        );
     }
 }
