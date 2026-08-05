@@ -3,11 +3,13 @@ import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useTheme } from '../../contexts/ThemeContext'
 import { buildRoomUrl, copyToClipboard, shareRoomLink } from '../../lib/roomLinks'
 import { QrCode } from './QrCode'
+import { RoomDiscordPost } from './RoomDiscordPost'
 
 /**
  * In-room sharing controls (issue #77): copy the canonical link, open the native
- * share sheet (with a copy fallback), and reveal a QR code sized for in-person
- * table play. Rendered inside the player roster panel.
+ * share sheet (with a copy fallback), reveal a QR code sized for in-person table
+ * play, and — for a Discord-linked host (#246) — post the room to a Discord
+ * channel. Rendered inside the player roster panel.
  */
 export function RoomShare() {
   const roomId = useMultiplayerStore((s) => s.roomId)
@@ -95,6 +97,9 @@ export function RoomShare() {
       >
         {showQr ? 'Hide QR code' : 'Show QR code'}
       </button>
+
+      {/* Renders nothing unless this client is the host AND has linked Discord. */}
+      <RoomDiscordPost />
 
       {showQr && (
         <div
