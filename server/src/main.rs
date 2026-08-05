@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use dicesuki_server::{
-    build_app_with_reporter, RollReporter, RoomManager, SharedRoomManager, INSTANCE_ID,
+    build_app_with_state, AppState, RollReporter, RoomManager, SharedRoomManager, INSTANCE_ID,
 };
 
 #[tokio::main]
@@ -17,7 +17,14 @@ async fn main() {
         error!("Authoritative roll reporter configuration error: {failure}");
         std::process::exit(78);
     });
-    let app = build_app_with_reporter(room_manager.clone(), roll_reporter);
+    // Discord integration (issues #84, #246). Shared between the HTTP handlers
+    // (which register host-chosen channels) and the advert sync loop below.
+    let discord = dicesuki_server::discord::DiscordService::from_env();
+    let app = build_app_with_state(AppState {
+        room_manager: room_manager.clone(),
+        roll_reporter,
+        discord: discord.clone(),
+    });
 
     // Rooms registry heartbeat (ADR 006): upsert this server's row into the
     // Supabase `rooms` table every N seconds so it appears in the public room
@@ -29,10 +36,11 @@ async fn main() {
         std::process::exit(78);
     });
 
-    // Discord room-advertisement bot (issue #84): posts/updates a room-status
-    // embed with a Join link (issue #85) per public room in a configured channel.
-    // No-op unless DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID + APP_BASE_URL are set.
-    dicesuki_server::discord::spawn_if_enabled(room_manager.clone());
+    // Discord room-advertisement sync loop (issues #84, #246): keeps every
+    // host-posted advert (and the optional legacy billboard) in step with live
+    // room state, archiving host-posted embeds when their room closes. No-op
+    // unless DISCORD_BOT_TOKEN + APP_BASE_URL are set.
+    dicesuki_server::discord::spawn_if_enabled(discord, room_manager.clone());
 
     // Spawn periodic room maintenance task (every 60s): expires reconnect grace
     // windows and cleans up stale empty rooms. A 60s cadence keeps grace expiry

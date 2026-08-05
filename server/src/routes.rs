@@ -5,11 +5,14 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use axum::http::{HeaderValue, Method};
+use axum::http::{HeaderMap, HeaderValue, Method};
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 use log::info;
 
+use crate::auth::SupabaseClaims;
+use crate::discord::{authorize_advertise, host_user_id, AdvertiseRejection, DiscordService};
+use crate::discord_targets::targets_response;
 use crate::room::RoomListing;
 use crate::{AppState, SharedRoomManager, INSTANCE_ID};
 
@@ -180,6 +183,185 @@ pub async fn get_room_info(
     }
 }
 
+/// Body of `POST /api/rooms/:room_id/advertise`.
+#[derive(Debug, Deserialize)]
+pub struct AdvertiseRequest {
+    #[serde(rename = "channelId")]
+    pub channel_id: String,
+}
+
+/// Extract the bearer token from an `Authorization` header, if present and
+/// well-formed. The scheme match is case-insensitive per RFC 7235.
+#[must_use]
+pub fn bearer_token(headers: &HeaderMap) -> Option<&str> {
+    let value = headers.get(axum::http::header::AUTHORIZATION)?.to_str().ok()?;
+    let (scheme, token) = value.split_once(' ')?;
+    scheme
+        .eq_ignore_ascii_case("bearer")
+        .then(|| token.trim())
+        .filter(|token| !token.is_empty())
+}
+
+/// Verify the caller's Supabase access token. Unlike `join`, the authenticated
+/// HTTP endpoints have **no guest mode**: an absent or unusable token is a 401,
+/// never a silent downgrade.
+async fn require_claims(headers: &HeaderMap) -> Result<SupabaseClaims, axum::response::Response> {
+    let unauthorized = |code: &'static str| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": code, "instanceId": *INSTANCE_ID })),
+        )
+            .into_response()
+    };
+    let Some(token) = bearer_token(headers) else {
+        return Err(unauthorized("AUTH_REQUIRED"));
+    };
+    crate::auth::verifier()
+        .authenticate_claims(token)
+        .await
+        .map_err(|error| unauthorized(error.code()))
+}
+
+/// Render an [`AdvertiseRejection`] as its HTTP response.
+fn rejection_response(rejection: AdvertiseRejection) -> axum::response::Response {
+    (
+        StatusCode::from_u16(rejection.status()).unwrap_or(StatusCode::FORBIDDEN),
+        Json(serde_json::json!({
+            "error": rejection.code(),
+            "instanceId": *INSTANCE_ID,
+        })),
+    )
+        .into_response()
+}
+
+/// `GET /api/discord/targets` (#246) — the Discord servers and channels the
+/// **calling user** may post a room to.
+///
+/// Requires a valid Supabase access token. The response contains only guilds
+/// where the bot is installed **and** the caller is a membership-verified member;
+/// the bot's raw guild list never leaves the server. A caller with no Discord
+/// identity (guest, email-only) gets an empty list with 200 — not an error, so
+/// the share sheet can simply hide the option.
+pub async fn discord_targets(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let claims = match require_claims(&headers).await {
+        Ok(claims) => claims,
+        Err(response) => return response,
+    };
+    let Some(service) = state.discord.clone() else {
+        return Json(targets_response(&[])).into_response();
+    };
+    // The listing fans out across every bot guild on a cold cache, against the
+    // bot's shared Discord budget — so it is metered like any other outbound
+    // amplifier, not left open because it is a GET.
+    if !service.targets_rate_limiter.try_acquire(&claims.sub).await {
+        return rejection_response(AdvertiseRejection::RateLimited);
+    }
+    Json(targets_response(&targets_for_claims(&service, &claims).await)).into_response()
+}
+
+/// Resolve a verified caller to their posting targets. Split out so the
+/// "no Discord identity yields nothing" rule is exercised directly in tests.
+async fn targets_for_claims(
+    service: &DiscordService,
+    claims: &SupabaseClaims,
+) -> Vec<crate::discord_targets::TargetGuild> {
+    match service.directory.resolve_discord_user_id(claims).await {
+        Some(discord_user_id) => service.directory.targets_for(&discord_user_id).await,
+        None => Vec::new(),
+    }
+}
+
+/// `POST /api/rooms/:room_id/advertise` (#246) — the room's **host** posts it to
+/// one channel they picked. From here the existing reconciler keeps the embed up
+/// to date and archives it when the room closes.
+/// The body is taken as `Option<Json<_>>` rather than `Json<_>` on purpose: an
+/// extractor rejection is emitted *before* the handler body runs, so a
+/// well-formed `Json<_>` would answer an unauthenticated caller with 400/422 and
+/// disclose that their body was the problem. Deferring the parse keeps
+/// authentication the first thing every request meets.
+pub async fn advertise_room(
+    State(state): State<AppState>,
+    Path(room_id): Path<String>,
+    headers: HeaderMap,
+    body: Option<Json<AdvertiseRequest>>,
+) -> impl IntoResponse {
+    let claims = match require_claims(&headers).await {
+        Ok(claims) => claims,
+        Err(response) => return response,
+    };
+    let Some(Json(body)) = body else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "INVALID_BODY",
+                "instanceId": *INSTANCE_ID,
+            })),
+        )
+            .into_response();
+    };
+    let Some(service) = state.discord.clone() else {
+        return rejection_response(AdvertiseRejection::Disabled);
+    };
+    match advertise(&state.room_manager, &service, &claims, &room_id, &body.channel_id).await {
+        Ok(()) => {
+            info!(
+                "[{}] Room {room_id} advertised to a host-chosen Discord channel",
+                *INSTANCE_ID
+            );
+            (
+                StatusCode::ACCEPTED,
+                Json(serde_json::json!({ "roomId": room_id, "instanceId": *INSTANCE_ID })),
+            )
+                .into_response()
+        }
+        Err(rejection) => rejection_response(rejection),
+    }
+}
+
+/// The authorization and registration core of `advertise`, with the caller
+/// already authenticated. Checks are ordered cheapest-and-least-revealing first:
+/// the rate limit before any outbound call, the host check before any Discord
+/// lookup, and the channel re-verification against **this server's own**
+/// membership view rather than anything the client asserted.
+///
+/// # Errors
+///
+/// Returns the [`AdvertiseRejection`] describing the first failed check.
+pub async fn advertise(
+    manager: &SharedRoomManager,
+    service: &DiscordService,
+    claims: &SupabaseClaims,
+    room_id: &str,
+    channel_id: &str,
+) -> Result<(), AdvertiseRejection> {
+    if !service.rate_limiter.try_acquire(&claims.sub).await {
+        return Err(AdvertiseRejection::RateLimited);
+    }
+
+    let room = {
+        let mgr = manager.read().await;
+        mgr.get_room(room_id)
+    }
+    .ok_or(AdvertiseRejection::RoomNotFound)?;
+    let host = host_user_id(&*room.read().await);
+    if host.as_deref() != Some(claims.sub.as_str()) {
+        return Err(AdvertiseRejection::NotHost);
+    }
+
+    let discord_user_id = service
+        .directory
+        .resolve_discord_user_id(claims)
+        .await
+        .ok_or(AdvertiseRejection::NoDiscordIdentity)?;
+    let verified = service.directory.verified_channel_ids(&discord_user_id).await;
+    authorize_advertise(host.as_deref(), &claims.sub, channel_id, &verified)?;
+
+    service.registry.register(room_id, channel_id).await
+}
+
 /// Fallback handler — logs requests that don't match any route.
 pub async fn fallback(req: Request) -> impl IntoResponse {
     info!(
@@ -235,7 +417,15 @@ pub async fn ws_upgrade(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::discord::DiscordService;
+    use crate::discord_targets::test_support::{FakeDiscord, FakeIdentities};
+    use crate::messages::ServerMessage;
+    use crate::player::Player;
     use crate::room::RoomListing;
+    use crate::sink::MessageSink;
+    use crate::RoomManager;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
 
     fn listing(id: &str) -> RoomListing {
         RoomListing {
@@ -293,5 +483,233 @@ mod tests {
         let (paged, _, _, _) = paginate_listings(listings, None, None);
         let ids: Vec<&str> = paged.iter().map(|l| l.room_id.as_str()).collect();
         assert_eq!(ids, ["alpha", "mike", "zeta"]);
+    }
+
+    // --- Discord host posting (#246) ---------------------------------------
+
+    const GUILD_X: &str = "100000000000000001";
+    const GUILD_Y: &str = "100000000000000002";
+    const CHANNEL_X: &str = "200000000000000001";
+    const CHANNEL_Y: &str = "200000000000000002";
+    const DISCORD_A: &str = "300000000000000001";
+    const DISCORD_B: &str = "300000000000000002";
+    const BOT: &str = "400000000000000001";
+
+    /// A sink that drops everything — the room only needs *a* destination.
+    struct NullSink;
+    impl MessageSink for NullSink {
+        fn send(&self, _msg: &ServerMessage) -> bool {
+            true
+        }
+    }
+
+    /// Claims for a Discord-linked Supabase user. The Discord id itself is NOT
+    /// carried by the token (it is end-user writable there); it comes from the
+    /// injected identity lookup, exactly as in production.
+    fn discord_claims(supabase_user_id: &str) -> SupabaseClaims {
+        serde_json::from_value(serde_json::json!({
+            "sub": supabase_user_id,
+            "app_metadata": { "provider": "discord", "providers": ["discord"] },
+        }))
+        .expect("claims parse")
+    }
+
+    /// Claims for an account with no Discord identity at all.
+    fn guest_claims(supabase_user_id: &str) -> SupabaseClaims {
+        serde_json::from_value(serde_json::json!({ "sub": supabase_user_id }))
+            .expect("claims parse")
+    }
+
+    /// A manager holding one room hosted by `host_user_id` (or by a guest when
+    /// `None`). Returns the manager and the room id.
+    async fn room_hosted_by(host_user_id: Option<&str>) -> (SharedRoomManager, String) {
+        let manager: SharedRoomManager = Arc::new(RwLock::new(RoomManager::new()));
+        let (room_id, room) = manager.write().await.create_room();
+        let mut player = Player::new(
+            "p1".to_string(),
+            "Alex".to_string(),
+            "#FFF".to_string(),
+            NullSink,
+        );
+        player.user_id = host_user_id.map(str::to_string);
+        room.write().await.add_player(player).expect("player joins");
+        (manager, room_id)
+    }
+
+    /// Guild X holds Discord user A, guild Y holds Discord user B, with an
+    /// authoritative identity record linking each Supabase account.
+    fn two_tenant_service() -> DiscordService {
+        DiscordService::with_identity_lookup(
+            Arc::new(
+                FakeDiscord::new(BOT)
+                    .with_guild(GUILD_X, "Xanadu", CHANNEL_X, &[DISCORD_A])
+                    .with_guild(GUILD_Y, "Yonder", CHANNEL_Y, &[DISCORD_B]),
+            ),
+            Some(FakeIdentities::of(&[
+                ("supabase-a", DISCORD_A),
+                ("supabase-b", DISCORD_B),
+            ])),
+            "https://dicesuki.app".to_string(),
+            None,
+        )
+    }
+
+    #[test]
+    fn bearer_tokens_are_parsed_case_insensitively_and_never_empty() {
+        let mut headers = HeaderMap::new();
+        assert!(bearer_token(&headers).is_none());
+
+        headers.insert(axum::http::header::AUTHORIZATION, "Bearer abc.def".parse().unwrap());
+        assert_eq!(bearer_token(&headers), Some("abc.def"));
+
+        headers.insert(axum::http::header::AUTHORIZATION, "bearer abc.def".parse().unwrap());
+        assert_eq!(bearer_token(&headers), Some("abc.def"));
+
+        for hostile in ["Basic abc", "Bearer", "Bearer   ", "abc.def"] {
+            headers.insert(axum::http::header::AUTHORIZATION, hostile.parse().unwrap());
+            assert!(bearer_token(&headers).is_none(), "{hostile} must not parse");
+        }
+    }
+
+    #[tokio::test]
+    async fn targets_are_scoped_per_caller_and_never_mention_another_tenant() {
+        let service = two_tenant_service();
+
+        let for_a = targets_for_claims(&service, &discord_claims("supabase-a")).await;
+        let for_b = targets_for_claims(&service, &discord_claims("supabase-b")).await;
+
+        assert_eq!(for_a.len(), 1);
+        assert_eq!(for_a[0].id, GUILD_X);
+        assert_eq!(for_b.len(), 1);
+        assert_eq!(for_b[0].id, GUILD_Y);
+
+        let body_a = targets_response(&for_a).to_string();
+        for leaked in [GUILD_Y, CHANNEL_Y, "Yonder"] {
+            assert!(!body_a.contains(leaked), "user A's response leaked {leaked}");
+        }
+        let body_b = targets_response(&for_b).to_string();
+        for leaked in [GUILD_X, CHANNEL_X, "Xanadu"] {
+            assert!(!body_b.contains(leaked), "user B's response leaked {leaked}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_caller_with_no_discord_identity_gets_an_empty_target_list() {
+        let service = two_tenant_service();
+        let targets = targets_for_claims(&service, &guest_claims("supabase-guest")).await;
+        assert!(targets.is_empty());
+        assert_eq!(
+            targets_response(&targets),
+            serde_json::json!({ "guilds": [] })
+        );
+    }
+
+    #[tokio::test]
+    async fn advertise_accepts_the_host_posting_to_their_own_guilds_channel() {
+        let (manager, room_id) = room_hosted_by(Some("supabase-a")).await;
+        let service = two_tenant_service();
+        let claims = discord_claims("supabase-a");
+
+        assert_eq!(
+            advertise(&manager, &service, &claims, &room_id, CHANNEL_X).await,
+            Ok(())
+        );
+        assert_eq!(
+            service.registry.snapshot().await[&room_id],
+            std::collections::BTreeSet::from([CHANNEL_X.to_string()])
+        );
+    }
+
+    #[tokio::test]
+    async fn advertise_rejects_a_caller_who_is_not_the_room_host() {
+        let (manager, room_id) = room_hosted_by(Some("supabase-a")).await;
+        let service = two_tenant_service();
+        // User B is a perfectly valid Discord-linked user, and CHANNEL_Y is a
+        // channel they may post to — but this is not their room.
+        let claims = discord_claims("supabase-b");
+
+        assert_eq!(
+            advertise(&manager, &service, &claims, &room_id, CHANNEL_Y).await,
+            Err(AdvertiseRejection::NotHost)
+        );
+        assert!(service.registry.snapshot().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn advertise_rejects_a_guest_hosted_room_nobody_can_prove_ownership_of() {
+        let (manager, room_id) = room_hosted_by(None).await;
+        let service = two_tenant_service();
+        assert_eq!(
+            advertise(
+                &manager,
+                &service,
+                &discord_claims("supabase-a"),
+                &room_id,
+                CHANNEL_X
+            )
+            .await,
+            Err(AdvertiseRejection::NotHost)
+        );
+    }
+
+    #[tokio::test]
+    async fn advertise_rejects_a_channel_outside_the_callers_verified_guilds() {
+        let (manager, room_id) = room_hosted_by(Some("supabase-a")).await;
+        let service = two_tenant_service();
+        let claims = discord_claims("supabase-a");
+
+        // The host aims at guild Y's channel, which they are not a member of.
+        assert_eq!(
+            advertise(&manager, &service, &claims, &room_id, CHANNEL_Y).await,
+            Err(AdvertiseRejection::ChannelNotVerified)
+        );
+        // ...and at a channel that does not exist anywhere.
+        assert_eq!(
+            advertise(&manager, &service, &claims, &room_id, "999999999999999999").await,
+            Err(AdvertiseRejection::ChannelNotVerified)
+        );
+        assert!(service.registry.snapshot().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn advertise_rejects_a_host_with_no_discord_identity() {
+        let (manager, room_id) = room_hosted_by(Some("supabase-guest")).await;
+        let service = two_tenant_service();
+        assert_eq!(
+            advertise(
+                &manager,
+                &service,
+                &guest_claims("supabase-guest"),
+                &room_id,
+                CHANNEL_X
+            )
+            .await,
+            Err(AdvertiseRejection::NoDiscordIdentity)
+        );
+    }
+
+    #[tokio::test]
+    async fn advertise_reports_an_unknown_room_and_exhausted_budgets() {
+        let (manager, room_id) = room_hosted_by(Some("supabase-a")).await;
+        let service = two_tenant_service();
+        let claims = discord_claims("supabase-a");
+
+        assert_eq!(
+            advertise(&manager, &service, &claims, "no-such-room", CHANNEL_X).await,
+            Err(AdvertiseRejection::RoomNotFound)
+        );
+
+        // The remaining budget is spent on repeats of a valid request; the next
+        // call is refused rather than served.
+        let mut refused = None;
+        for _ in 0..10 {
+            if let Err(rejection) =
+                advertise(&manager, &service, &claims, &room_id, CHANNEL_X).await
+            {
+                refused = Some(rejection);
+                break;
+            }
+        }
+        assert_eq!(refused, Some(AdvertiseRejection::RateLimited));
     }
 }

@@ -1204,3 +1204,88 @@ async fn host_transfers_to_next_player_on_disconnect() {
     }
     assert!(saw_host_changed, "Remaining player should be notified it became host");
 }
+
+// ─── Discord host posting: auth boundary (#246) ──────────────────
+
+/// Every authenticated Discord endpoint must refuse an unauthenticated caller
+/// *before* any Discord or room work happens — the endpoints exist to scope data
+/// to one identity, so "no identity" can never be served.
+#[tokio::test]
+async fn discord_endpoints_reject_unauthenticated_callers() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let client = reqwest::Client::new();
+
+    let targets = client
+        .get(format!("http://{addr}/api/discord/targets"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(targets.status(), 401);
+    assert_eq!(
+        targets.json::<Value>().await.unwrap()["error"],
+        "AUTH_REQUIRED"
+    );
+
+    let advertise = client
+        .post(format!("http://{addr}/api/rooms/{room_id}/advertise"))
+        .json(&json!({ "channelId": "200000000000000001" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(advertise.status(), 401);
+    assert_eq!(
+        advertise.json::<Value>().await.unwrap()["error"],
+        "AUTH_REQUIRED"
+    );
+
+    // A malformed body must not pre-empt the 401: an extractor rejection fires
+    // before the handler runs, so the body is parsed only after authentication.
+    // Otherwise an anonymous caller learns their body was the problem.
+    let malformed = client
+        .post(format!("http://{addr}/api/rooms/{room_id}/advertise"))
+        .header("Content-Type", "application/json")
+        .body("{ not json")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(malformed.status(), 401, "auth is checked before the body");
+    assert_eq!(
+        malformed.json::<Value>().await.unwrap()["error"],
+        "AUTH_REQUIRED"
+    );
+}
+
+/// A malformed bearer token is rejected as such, which also proves the routes
+/// are really mounted (a 401 rather than the router fallback's 404).
+#[tokio::test]
+async fn discord_endpoints_reject_malformed_tokens() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let client = reqwest::Client::new();
+
+    let targets = client
+        .get(format!("http://{addr}/api/discord/targets"))
+        .header("Authorization", "Bearer not-a-jwt")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(targets.status(), 401);
+    assert_eq!(
+        targets.json::<Value>().await.unwrap()["error"],
+        "AUTH_INVALID"
+    );
+
+    let advertise = client
+        .post(format!("http://{addr}/api/rooms/{room_id}/advertise"))
+        .header("Authorization", "Bearer not-a-jwt")
+        .json(&json!({ "channelId": "200000000000000001" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(advertise.status(), 401);
+    assert_eq!(
+        advertise.json::<Value>().await.unwrap()["error"],
+        "AUTH_INVALID"
+    );
+}
