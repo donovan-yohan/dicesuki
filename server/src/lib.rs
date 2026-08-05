@@ -6,6 +6,8 @@ pub use dicesuki_core::{dice, face_detection, messages, physics, player, room, s
 
 pub mod auth;
 pub mod discord;
+pub mod discord_api;
+pub mod discord_targets;
 pub mod registry;
 pub mod roll_reporting;
 pub mod room_manager;

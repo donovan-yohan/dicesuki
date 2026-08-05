@@ -197,6 +197,13 @@ impl SupabaseServiceConfig {
         format!("{}/rest/v1/rpc/{function}", self.root_url)
     }
 
+    /// URL for one user under the Supabase Auth **admin** API. Callers must
+    /// validate `user_id` before passing it (it originates from a token claim).
+    #[must_use]
+    pub fn auth_admin_user_url(&self, user_id: &str) -> String {
+        format!("{}/auth/v1/admin/users/{user_id}", self.root_url)
+    }
+
     /// Apply the privileged credential to a request. Credential values are
     /// marked sensitive so request Debug output redacts them.
     pub(crate) fn apply_auth(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
