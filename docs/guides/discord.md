@@ -32,13 +32,36 @@ returns only guilds where *both* hold:
 - the Dicesuki bot is installed, **and**
 - the calling user is a **membership-verified** member of that guild.
 
-Membership is proved bot-side with `GET /guilds/{guild.id}/members/{user.id}`
-using the caller's Discord user id (taken from their verified Supabase token, or
-from the Supabase admin API when the token predates the Discord link). That
-single-member lookup does **not** require the privileged `GUILD_MEMBERS` intent —
-Discord documents that requirement on the *List* Guild Members endpoint, not on
-the single-member GET — so the bot stays unprivileged and REST-only, and no extra
-OAuth scope or user token is involved.
+Membership is proved bot-side with `GET /guilds/{guild.id}/members/{user.id}`.
+That single-member lookup does **not** require the privileged `GUILD_MEMBERS`
+intent — Discord documents that requirement on the *List* Guild Members endpoint,
+not on the single-member GET — so the bot stays unprivileged and REST-only, and
+no extra OAuth scope or user token is involved.
+
+#### Where the caller's Discord id comes from — and where it must not
+
+The Discord user id is read **only** from the Supabase Auth admin API
+(`GET /auth/v1/admin/users/{id}` → `identities[]`), which Supabase writes on
+OAuth link and the end user cannot touch. It is deliberately **not** read from
+the access token: Supabase's `user_metadata` is `auth.users.raw_user_meta_data`,
+which any signed-in user can rewrite with `PUT /auth/v1/user {"data": {...}}`,
+and those keys ride along in their next token. Trusting a `provider_id` from
+there would let anyone with a throwaway Discord account claim someone else's
+identity and read their guild list. The token's `app_metadata` (Supabase-written,
+user-immutable) is consulted only as a *negative* filter, to skip the lookup for
+accounts with no Discord link.
+
+Consequence for operators: **host posting needs `SUPABASE_SECRET_KEY`.** Without
+a privileged credential there is no trustworthy identity source, so
+`/api/discord/targets` returns an empty list for everyone. The server logs a
+warning at startup when the bot is on but the credential is missing.
+
+A channel is offered only when the **caller** can see it too, not just when the
+bot can post there. The bot commonly holds `ADMINISTRATOR`, so filtering on its
+permissions alone would name every private channel to every member — and let a
+rank-and-file member make the bot post into a staff channel they cannot read.
+The caller's own `VIEW_CHANNEL` is computed from their guild roles
+(`GET /guilds/{id}/roles`) with the same documented algorithm.
 
 Consequences, all enforced server-side (client-side filtering would be no
 enforcement at all):
@@ -75,8 +98,15 @@ Both require `Authorization: Bearer <supabase access token>`.
 | `GET /api/discord/targets` | `{"guilds": [{"id", "name", "icon", "channels": [{"id", "name"}]}]}` — membership-filtered, cached. A guild the bot is in but cannot post to anywhere is still listed with an empty `channels` array |
 | `POST /api/rooms/:room_id/advertise` `{"channelId"}` | Host-only, rate-limited (5 burst, one refilled per 30s per user). `202` on success; `403 NOT_ROOM_HOST` / `403 CHANNEL_NOT_VERIFIED` / `403 NO_DISCORD_IDENTITY` / `404 ROOM_NOT_FOUND` / `409 TOO_MANY_ADVERTS` / `429 RATE_LIMITED` / `503 DISCORD_DISABLED` otherwise |
 
-Caching: bot guild list and per-guild channels ~60s; per-user membership ~5min;
-Supabase user → Discord user id ~10min. All caches are size-bounded.
+Caching: bot guild list, per-guild channels and roles ~60s; per-user membership
+~5min; Supabase user → Discord user id ~10min. All caches are size-bounded, and
+both endpoints are per-user rate limited (the listing fans out across every bot
+guild on a cold cache, against the bot's shared Discord budget).
+
+> **Caveat:** because `advertise` re-verifies against the same 5-minute
+> membership cache the listing uses, a user removed from a guild keeps the
+> ability to make the bot post there for up to `MEMBERSHIP_TTL`. Shorten that
+> constant if a tighter revocation window matters more than the request volume.
 
 ## Why a channel bot, not per-user Rich Presence
 
@@ -113,7 +143,7 @@ documented in the spike (#86); no Activity code lands here.**
 | `DISCORD_BOT_TOKEN` | **everything** | Bot fully OFF; server unchanged |
 | `APP_BASE_URL` | **everything** | Bot fully OFF (Join links are unbuildable) |
 | `DISCORD_CHANNEL_ID` | legacy billboard only (#84) | No billboard; host-posted adverts still work |
-| `SUPABASE_URL` + `SUPABASE_SECRET_KEY` | admin-API identity fallback | Only tokens that already carry the Discord provider claim resolve to a Discord identity |
+| `SUPABASE_URL` + `SUPABASE_SECRET_KEY` | **host posting** (identity resolution) | No caller can be linked to a Discord account, so `/api/discord/targets` is empty for everyone and nothing can be advertised. Logged as a warning at startup. The billboard is unaffected |
 
 The bot token is a **secret** — never committed, supplied via env/secret storage.
 

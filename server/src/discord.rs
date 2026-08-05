@@ -55,8 +55,8 @@ use std::time::{Duration, Instant};
 use log::{debug, info, warn};
 use tokio::sync::{Mutex, RwLock};
 
-use crate::discord_api::{DiscordApi, HttpDiscordApi};
-use crate::discord_targets::DiscordDirectory;
+use crate::discord_api::{is_terminal_for_resource, DiscordApi, HttpDiscordApi};
+use crate::discord_targets::{DiscordDirectory, IdentityLookup};
 use crate::messages::DiceType;
 use crate::room::{RecentRoll, RecentRollDie, Room};
 use crate::room_manager::RoomManager;
@@ -107,7 +107,11 @@ pub const MAX_ADVERTISED_ROOMS: usize = 512;
 const ADVERTISE_BURST: f64 = 5.0;
 /// Steady-state `advertise` refill rate (one every 30s).
 const ADVERTISE_REFILL_PER_SEC: f64 = 1.0 / 30.0;
-/// Size bound on the per-user rate-limit table.
+/// Burst of `targets` reads one user may make.
+const TARGETS_BURST: f64 = 20.0;
+/// Steady-state `targets` refill rate (one every 5s).
+const TARGETS_REFILL_PER_SEC: f64 = 1.0 / 5.0;
+/// Size bound on each per-user rate-limit table.
 const RATE_LIMIT_MAX_USERS: usize = 4096;
 
 /// Die types in the order a mixed pool is conventionally written (largest
@@ -800,17 +804,17 @@ struct TokenBucket {
 }
 
 impl TokenBucket {
-    fn new(now: Instant) -> Self {
+    fn new(burst: f64, now: Instant) -> Self {
         Self {
-            tokens: ADVERTISE_BURST,
+            tokens: burst,
             updated: now,
         }
     }
 
     /// Refill for elapsed time, then spend one token if any remain.
-    fn try_take(&mut self, now: Instant) -> bool {
+    fn try_take(&mut self, burst: f64, refill_per_sec: f64, now: Instant) -> bool {
         let elapsed = now.saturating_duration_since(self.updated).as_secs_f64();
-        self.tokens = (self.tokens + elapsed * ADVERTISE_REFILL_PER_SEC).min(ADVERTISE_BURST);
+        self.tokens = elapsed.mul_add(refill_per_sec, self.tokens).min(burst);
         self.updated = now;
         if self.tokens >= 1.0 {
             self.tokens -= 1.0;
@@ -822,18 +826,28 @@ impl TokenBucket {
 
     /// A full bucket is indistinguishable from an absent one, so it can be
     /// dropped when the table needs room.
-    fn is_full(&self) -> bool {
-        self.tokens >= ADVERTISE_BURST
+    fn is_full(&self, burst: f64) -> bool {
+        self.tokens >= burst
     }
 }
 
-/// Per-user token-bucket rate limiter for `advertise`.
-#[derive(Default)]
-pub struct AdvertiseRateLimiter {
+/// Per-user token-bucket rate limiter.
+pub struct UserRateLimiter {
     buckets: Mutex<HashMap<String, TokenBucket>>,
+    burst: f64,
+    refill_per_sec: f64,
 }
 
-impl AdvertiseRateLimiter {
+impl UserRateLimiter {
+    #[must_use]
+    pub fn new(burst: f64, refill_per_sec: f64) -> Self {
+        Self {
+            buckets: Mutex::new(HashMap::new()),
+            burst,
+            refill_per_sec,
+        }
+    }
+
     /// Spend one token for `user_id`, or refuse.
     pub async fn try_acquire(&self, user_id: &str) -> bool {
         self.try_acquire_at(user_id, Instant::now()).await
@@ -843,16 +857,45 @@ impl AdvertiseRateLimiter {
     async fn try_acquire_at(&self, user_id: &str, now: Instant) -> bool {
         let mut buckets = self.buckets.lock().await;
         if buckets.len() >= RATE_LIMIT_MAX_USERS {
-            buckets.retain(|_, bucket| !bucket.is_full());
-            if buckets.len() >= RATE_LIMIT_MAX_USERS {
-                buckets.clear();
+            // Full buckets carry no state worth keeping.
+            buckets.retain(|_, bucket| !bucket.is_full(self.burst));
+            // Still full: evict the least recently touched entries. Clearing the
+            // whole table would hand a fresh burst back to everyone currently
+            // throttled, which an attacker holding enough tokens could trigger
+            // on demand.
+            while buckets.len() >= RATE_LIMIT_MAX_USERS {
+                let Some(stalest) = buckets
+                    .iter()
+                    .min_by_key(|(_, bucket)| bucket.updated)
+                    .map(|(key, _)| key.clone())
+                else {
+                    break;
+                };
+                buckets.remove(&stalest);
             }
         }
         buckets
             .entry(user_id.to_string())
-            .or_insert_with(|| TokenBucket::new(now))
-            .try_take(now)
+            .or_insert_with(|| TokenBucket::new(self.burst, now))
+            .try_take(self.burst, self.refill_per_sec, now)
     }
+}
+
+/// Budget for `POST /api/rooms/:id/advertise`.
+#[must_use]
+pub fn advertise_rate_limiter() -> UserRateLimiter {
+    UserRateLimiter::new(ADVERTISE_BURST, ADVERTISE_REFILL_PER_SEC)
+}
+
+/// Budget for `GET /api/discord/targets`.
+///
+/// The listing is read-only but far from free: on a cold cache it fans out one
+/// membership lookup plus channel/role reads per bot guild, all against the
+/// bot's shared global Discord budget. More generous than `advertise` because a
+/// share sheet legitimately refetches.
+#[must_use]
+pub fn targets_rate_limiter() -> UserRateLimiter {
+    UserRateLimiter::new(TARGETS_BURST, TARGETS_REFILL_PER_SEC)
 }
 
 /// Which channels each room has been explicitly posted to by its host.
@@ -927,7 +970,8 @@ pub struct DiscordService {
     pub api: Arc<dyn DiscordApi>,
     pub directory: DiscordDirectory,
     pub registry: HostPostRegistry,
-    pub rate_limiter: AdvertiseRateLimiter,
+    pub rate_limiter: UserRateLimiter,
+    pub targets_rate_limiter: UserRateLimiter,
     /// Frontend origin for Join links.
     pub app_base_url: String,
     /// Legacy billboard channel, when configured (#84).
@@ -936,13 +980,22 @@ pub struct DiscordService {
 
 impl DiscordService {
     /// Build the service from the environment, or `None` when the feature is off.
-    /// A malformed privileged Supabase configuration only disables the admin-API
-    /// identity fallback (tokens that carry the Discord claim still work); the
-    /// room server's own startup validation owns that error surface.
+    ///
+    /// A privileged Supabase credential is **required for host posting to do
+    /// anything**: it is the only trustworthy source of a caller's Discord
+    /// identity (a token cannot be one — see `discord_targets`). Without it the
+    /// billboard still works, so this warns rather than failing startup; the
+    /// room server's own validation owns malformed-credential errors.
     #[must_use]
     pub fn from_env() -> Option<Arc<Self>> {
         let config = DiscordConfig::from_env()?;
         let supabase = SupabaseServiceConfig::from_env().ok().flatten();
+        if supabase.is_none() {
+            warn!(
+                "[{}] Discord host posting is inert without a privileged Supabase credential (set SUPABASE_URL + SUPABASE_SECRET_KEY); the legacy billboard is unaffected",
+                *INSTANCE_ID
+            );
+        }
         Some(Arc::new(Self::new(
             Arc::new(HttpDiscordApi::new(&config.bot_token)),
             supabase,
@@ -964,7 +1017,28 @@ impl DiscordService {
             directory: DiscordDirectory::new(api.clone(), supabase),
             api,
             registry: HostPostRegistry::default(),
-            rate_limiter: AdvertiseRateLimiter::default(),
+            rate_limiter: advertise_rate_limiter(),
+            targets_rate_limiter: targets_rate_limiter(),
+            app_base_url,
+            billboard_channel_id,
+        }
+    }
+
+    /// Construct with an explicit identity source, so tests can exercise the
+    /// endpoints without a live Supabase admin API.
+    #[must_use]
+    pub fn with_identity_lookup(
+        api: Arc<dyn DiscordApi>,
+        identity: Option<Arc<dyn IdentityLookup>>,
+        app_base_url: String,
+        billboard_channel_id: Option<String>,
+    ) -> Self {
+        Self {
+            directory: DiscordDirectory::with_identity_lookup(api.clone(), identity),
+            api,
+            registry: HostPostRegistry::default(),
+            rate_limiter: advertise_rate_limiter(),
+            targets_rate_limiter: targets_rate_limiter(),
             app_base_url,
             billboard_channel_id,
         }
@@ -1159,8 +1233,22 @@ pub async fn reconcile(
                         forget(tracked, &room_id, &channel_id);
                         service.registry.forget(&room_id, &channel_id).await;
                     }
-                    // Keep tracking so the next pass retries the archive: an
-                    // un-archived advert still shows a dead Join button.
+                    // A message a moderator deleted (404), a channel the bot
+                    // lost access to (403), or a gone resource (410) can never
+                    // be archived. Retrying forever would pin the tracking entry
+                    // and its registry slot for the process lifetime — a host
+                    // could exhaust MAX_ADVERTISED_ROOMS just by deleting the
+                    // bot's own messages. Give up on those.
+                    Err(error) if is_terminal_for_resource(error) => {
+                        warn!(
+                            "[{}] Discord archive is impossible for room {room_id} ({error}); dropping it",
+                            *INSTANCE_ID
+                        );
+                        forget(tracked, &room_id, &channel_id);
+                        service.registry.forget(&room_id, &channel_id).await;
+                    }
+                    // Transient: keep tracking so the next pass retries, because
+                    // an un-archived advert still shows a dead Join button.
                     Err(error) => warn!(
                         "[{}] Discord archive failed for room {room_id}: {error}",
                         *INSTANCE_ID
@@ -1826,6 +1914,63 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn an_unarchivable_advert_is_dropped_instead_of_retried_forever() {
+        // A host advertises a room in a guild they control, deletes the bot's
+        // message, then closes the room. The archive can never succeed, so it
+        // must not pin its tracking entry and registry slot for the process
+        // lifetime — 512 of those would lock every host out of the feature.
+        let api = Arc::new(FakeDiscord::new("400000000000000001"));
+        let service = service_with(api, None);
+        service.registry.register("a", HOST_CHANNEL).await.unwrap();
+        let mut tracked = HashMap::new();
+        reconcile(
+            &service,
+            &mut tracked,
+            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+        )
+        .await;
+
+        let gone = Arc::new({
+            let mut fake = FakeDiscord::new("400000000000000001");
+            // Discord's answer for a message that no longer exists.
+            fake.failure = Some(crate::discord_api::DiscordApiError::Status(404));
+            fake
+        });
+        let broken = service_with(gone, None);
+        // The registry is shared with the live service in production; here the
+        // tracked map is what matters for the leak.
+        reconcile(&broken, &mut tracked, &[]).await;
+        assert!(
+            tracked.is_empty(),
+            "a permanently unarchivable advert must be dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_full_rate_limit_table_evicts_rather_than_handing_everyone_a_new_burst() {
+        let limiter = advertise_rate_limiter();
+        let start = Instant::now();
+        // Exhaust one user's budget, then flood the table with fresh users.
+        for _ in 0..(ADVERTISE_BURST as usize) {
+            assert!(limiter.try_acquire_at("victim", start).await);
+        }
+        assert!(!limiter.try_acquire_at("victim", start).await);
+
+        for i in 0..RATE_LIMIT_MAX_USERS {
+            // Each new user spends one token, so no bucket is full and the
+            // "drop full buckets" pass cannot reclaim anything.
+            limiter
+                .try_acquire_at(&format!("flood-{i}"), start)
+                .await;
+        }
+
+        assert!(
+            !limiter.try_acquire_at("victim", start).await,
+            "flooding the table must not restore a throttled user's burst"
+        );
+    }
+
+    #[tokio::test]
     async fn a_registration_whose_room_died_before_it_was_posted_is_pruned() {
         let api = Arc::new(FakeDiscord::new("400000000000000001"));
         let service = service_with(api, None);
@@ -1863,7 +2008,7 @@ mod tests {
 
     #[tokio::test]
     async fn advertise_rate_limit_spends_a_burst_then_refills() {
-        let limiter = AdvertiseRateLimiter::default();
+        let limiter = advertise_rate_limiter();
         let start = Instant::now();
         for _ in 0..(ADVERTISE_BURST as usize) {
             assert!(limiter.try_acquire_at("user", start).await);

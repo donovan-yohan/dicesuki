@@ -253,6 +253,12 @@ pub async fn discord_targets(
     let Some(service) = state.discord.clone() else {
         return Json(targets_response(&[])).into_response();
     };
+    // The listing fans out across every bot guild on a cold cache, against the
+    // bot's shared Discord budget — so it is metered like any other outbound
+    // amplifier, not left open because it is a GET.
+    if !service.targets_rate_limiter.try_acquire(&claims.sub).await {
+        return rejection_response(AdvertiseRejection::RateLimited);
+    }
     Json(targets_response(&targets_for_claims(&service, &claims).await)).into_response()
 }
 
@@ -397,7 +403,7 @@ pub async fn ws_upgrade(
 mod tests {
     use super::*;
     use crate::discord::DiscordService;
-    use crate::discord_targets::test_support::FakeDiscord;
+    use crate::discord_targets::test_support::{FakeDiscord, FakeIdentities};
     use crate::messages::ServerMessage;
     use crate::player::Player;
     use crate::room::RoomListing;
@@ -482,12 +488,13 @@ mod tests {
         }
     }
 
-    /// Claims for a Discord-linked Supabase user.
-    fn discord_claims(supabase_user_id: &str, discord_user_id: &str) -> SupabaseClaims {
+    /// Claims for a Discord-linked Supabase user. The Discord id itself is NOT
+    /// carried by the token (it is end-user writable there); it comes from the
+    /// injected identity lookup, exactly as in production.
+    fn discord_claims(supabase_user_id: &str) -> SupabaseClaims {
         serde_json::from_value(serde_json::json!({
             "sub": supabase_user_id,
             "app_metadata": { "provider": "discord", "providers": ["discord"] },
-            "user_metadata": { "provider_id": discord_user_id },
         }))
         .expect("claims parse")
     }
@@ -514,15 +521,19 @@ mod tests {
         (manager, room_id)
     }
 
-    /// Guild X holds Discord user A, guild Y holds Discord user B.
+    /// Guild X holds Discord user A, guild Y holds Discord user B, with an
+    /// authoritative identity record linking each Supabase account.
     fn two_tenant_service() -> DiscordService {
-        DiscordService::new(
+        DiscordService::with_identity_lookup(
             Arc::new(
                 FakeDiscord::new(BOT)
                     .with_guild(GUILD_X, "Xanadu", CHANNEL_X, &[DISCORD_A])
                     .with_guild(GUILD_Y, "Yonder", CHANNEL_Y, &[DISCORD_B]),
             ),
-            None,
+            Some(FakeIdentities::of(&[
+                ("supabase-a", DISCORD_A),
+                ("supabase-b", DISCORD_B),
+            ])),
             "https://dicesuki.app".to_string(),
             None,
         )
@@ -549,8 +560,8 @@ mod tests {
     async fn targets_are_scoped_per_caller_and_never_mention_another_tenant() {
         let service = two_tenant_service();
 
-        let for_a = targets_for_claims(&service, &discord_claims("supabase-a", DISCORD_A)).await;
-        let for_b = targets_for_claims(&service, &discord_claims("supabase-b", DISCORD_B)).await;
+        let for_a = targets_for_claims(&service, &discord_claims("supabase-a")).await;
+        let for_b = targets_for_claims(&service, &discord_claims("supabase-b")).await;
 
         assert_eq!(for_a.len(), 1);
         assert_eq!(for_a[0].id, GUILD_X);
@@ -582,7 +593,7 @@ mod tests {
     async fn advertise_accepts_the_host_posting_to_their_own_guilds_channel() {
         let (manager, room_id) = room_hosted_by(Some("supabase-a")).await;
         let service = two_tenant_service();
-        let claims = discord_claims("supabase-a", DISCORD_A);
+        let claims = discord_claims("supabase-a");
 
         assert_eq!(
             advertise(&manager, &service, &claims, &room_id, CHANNEL_X).await,
@@ -600,7 +611,7 @@ mod tests {
         let service = two_tenant_service();
         // User B is a perfectly valid Discord-linked user, and CHANNEL_Y is a
         // channel they may post to — but this is not their room.
-        let claims = discord_claims("supabase-b", DISCORD_B);
+        let claims = discord_claims("supabase-b");
 
         assert_eq!(
             advertise(&manager, &service, &claims, &room_id, CHANNEL_Y).await,
@@ -617,7 +628,7 @@ mod tests {
             advertise(
                 &manager,
                 &service,
-                &discord_claims("supabase-a", DISCORD_A),
+                &discord_claims("supabase-a"),
                 &room_id,
                 CHANNEL_X
             )
@@ -630,7 +641,7 @@ mod tests {
     async fn advertise_rejects_a_channel_outside_the_callers_verified_guilds() {
         let (manager, room_id) = room_hosted_by(Some("supabase-a")).await;
         let service = two_tenant_service();
-        let claims = discord_claims("supabase-a", DISCORD_A);
+        let claims = discord_claims("supabase-a");
 
         // The host aims at guild Y's channel, which they are not a member of.
         assert_eq!(
@@ -666,7 +677,7 @@ mod tests {
     async fn advertise_reports_an_unknown_room_and_exhausted_budgets() {
         let (manager, room_id) = room_hosted_by(Some("supabase-a")).await;
         let service = two_tenant_service();
-        let claims = discord_claims("supabase-a", DISCORD_A);
+        let claims = discord_claims("supabase-a");
 
         assert_eq!(
             advertise(&manager, &service, &claims, "no-such-room", CHANNEL_X).await,
