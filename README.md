@@ -38,7 +38,7 @@ npm run preview
 ## 🏗️ Project Structure
 
 ```
-daisu-app/
+dicesuki/
 ├── src/
 │   ├── components/
 │   │   ├── Scene.tsx              # Main R3F Canvas wrapper
