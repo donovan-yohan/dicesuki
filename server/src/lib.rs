@@ -36,6 +36,10 @@ pub type SharedRoomManager = Arc<RwLock<RoomManager>>;
 pub struct AppState {
     pub room_manager: SharedRoomManager,
     pub roll_reporter: RollReporter,
+    /// Discord integration (issue #246), `None` when the bot is not configured.
+    /// Shared with the background advert sync loop so a host post registered by
+    /// an HTTP handler is picked up by the next reconcile pass.
+    pub discord: Option<Arc<discord::DiscordService>>,
 }
 
 impl FromRef<AppState> for SharedRoomManager {
@@ -53,21 +57,34 @@ pub fn build_app(room_manager: SharedRoomManager) -> Router {
     build_app_with_reporter(room_manager, RollReporter::disabled())
 }
 
-/// Build the runtime application with an explicitly injected roll reporter.
+/// Build the runtime application with an explicitly injected roll reporter and
+/// no Discord integration.
 pub fn build_app_with_reporter(
     room_manager: SharedRoomManager,
     roll_reporter: RollReporter,
 ) -> Router {
+    build_app_with_state(AppState {
+        room_manager,
+        roll_reporter,
+        discord: None,
+    })
+}
+
+/// Build the runtime application over a fully-constructed [`AppState`].
+pub fn build_app_with_state(state: AppState) -> Router {
     Router::new()
         .route("/health", get(routes::health))
         .route("/api/rooms", post(routes::create_room).get(routes::list_rooms))
         .route("/api/rooms/:room_id", get(routes::get_room_info))
+        // Host-initiated Discord posting (#246). axum 0.7 path syntax (`:param`).
+        .route(
+            "/api/rooms/:room_id/advertise",
+            post(routes::advertise_room),
+        )
+        .route("/api/discord/targets", get(routes::discord_targets))
         .route("/ws/:room_id", get(routes::ws_upgrade))
         .fallback(routes::fallback)
         .layer(routes::build_cors_layer())
         .layer(axum::middleware::from_fn(routes::log_requests))
-        .with_state(AppState {
-            room_manager,
-            roll_reporter,
-        })
+        .with_state(state)
 }

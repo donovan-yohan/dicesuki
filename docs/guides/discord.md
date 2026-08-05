@@ -1,16 +1,84 @@
 # Discord Integration
 
-How Dicesuki meets Discord today (issues #84, #85) and where true Rich Presence
-fits later (spike #86).
+How Dicesuki meets Discord today (issues #84, #85, #246) and where true Rich
+Presence fits later (spike #86).
 
 ## What ships now
 
 | Capability | Mechanism | Where |
 |-----------|-----------|-------|
-| Advertise live rooms with one-click Join (#84) | Server-side bot posts/updates a room-status **embed** per public room in a configured channel, via Discord REST | `server/src/discord.rs` |
+| **Host-initiated room posting (#246)** | A room's host picks one of *their own* Discord servers + a channel; the room's advert embed posts there and live-updates, then **archives** when the room closes | `server/src/discord.rs`, `server/src/discord_api.rs`, `server/src/discord_targets.rs` |
+| Legacy billboard (#84) | Optional: when `DISCORD_CHANNEL_ID` is set, every **public** room is also mirrored into that one operator-configured channel | `server/src/discord.rs` |
 | Join a room from a Discord link (#85) | Existing `/room/:id` deep-link join flow + OpenGraph unfurl so pasted links preview nicely | `api/og.js`, `vercel.json`, `index.html`, `src/components/multiplayer/MultiplayerRoom.tsx` (pre-existing) |
 
-### Why a channel bot, not per-user Rich Presence
+## Multi-tenant model (#246)
+
+Dicesuki's bot is **self-serve and multi-tenant**. There is no per-guild setup
+and no hardcoded channel:
+
+1. A guild admin installs the bot themselves via the invite URL.
+2. **Nothing is ever auto-posted to any guild.** A room appears in a channel only
+   because its host explicitly posted it from the Dicesuki share UI. (The
+   operator's own server uses this same flow; the #84 billboard is a separate,
+   optional legacy path.)
+3. The target channel is per-guild *data chosen at post time*, not deployment
+   configuration.
+
+### Privacy guarantee: no cross-user guild leakage
+
+**The bot's guild list never leaves the server.** `GET /api/discord/targets`
+returns only guilds where *both* hold:
+
+- the Dicesuki bot is installed, **and**
+- the calling user is a **membership-verified** member of that guild.
+
+Membership is proved bot-side with `GET /guilds/{guild.id}/members/{user.id}`
+using the caller's Discord user id (taken from their verified Supabase token, or
+from the Supabase admin API when the token predates the Discord link). That
+single-member lookup does **not** require the privileged `GUILD_MEMBERS` intent —
+Discord documents that requirement on the *List* Guild Members endpoint, not on
+the single-member GET — so the bot stays unprivileged and REST-only, and no extra
+OAuth scope or user token is involved.
+
+Consequences, all enforced server-side (client-side filtering would be no
+enforcement at all):
+
+- A caller with **no Discord identity** (guest, email-only) gets `{"guilds": []}`
+  with a 200, not an error, so the UI can simply hide the option.
+- `POST /api/rooms/:id/advertise` re-derives the caller's verified channel set
+  from the server's own caches and rejects any `channelId` outside it. The
+  client's claim about which guild a channel belongs to is never trusted.
+- Every failure mode fails **closed**: an unreachable Discord, an unparsable
+  permissions bitfield, or an errored membership lookup all yield "not a target".
+- Guild ids, guild names, and channel lists are never written to the log; only
+  counts are.
+
+### Advert lifecycle: archive, don't delete
+
+A host-posted embed is a **session record**, not just an advertisement:
+
+| Phase | Behaviour |
+|-------|-----------|
+| Room live | Reconciler `PATCH`es the embed as players/theme/rolls change (edits only on a real change) |
+| Room closes | One final `PATCH` rewrites it as an archive: the Join button is removed (`"components": []`), the colour goes grey, and a closing summary reports the final player list, session length, and the tail of the roll history |
+| After close | The message **stays in the channel** as history. It is never deleted |
+
+Legacy **billboard** posts keep the original #84 lifecycle and are deleted when
+their room closes or goes unlisted.
+
+### Endpoints (room server, authenticated)
+
+Both require `Authorization: Bearer <supabase access token>`.
+
+| Endpoint | Behaviour |
+|----------|-----------|
+| `GET /api/discord/targets` | `{"guilds": [{"id", "name", "icon", "channels": [{"id", "name"}]}]}` — membership-filtered, cached. A guild the bot is in but cannot post to anywhere is still listed with an empty `channels` array |
+| `POST /api/rooms/:room_id/advertise` `{"channelId"}` | Host-only, rate-limited (5 burst, one refilled per 30s per user). `202` on success; `403 NOT_ROOM_HOST` / `403 CHANNEL_NOT_VERIFIED` / `403 NO_DISCORD_IDENTITY` / `404 ROOM_NOT_FOUND` / `409 TOO_MANY_ADVERTS` / `429 RATE_LIMITED` / `503 DISCORD_DISABLED` otherwise |
+
+Caching: bot guild list and per-guild channels ~60s; per-user membership ~5min;
+Supabase user → Discord user id ~10min. All caches are size-bounded.
+
+## Why a channel bot, not per-user Rich Presence
 
 "Rich Presence" classically means the game showing on a player's Discord
 **profile**. That is not reachable from a pure web app:
@@ -34,31 +102,64 @@ Activity ships, `discordSdk.commands.setActivity(...)` provides real per-user
 presence and this bot can remain as the channel-level billboard. **The seam is
 documented in the spike (#86); no Activity code lands here.**
 
-## How the room bot works (#84)
+## How the room bot works (#84, #246)
 
 `server/src/discord.rs`, spawned from `main.rs` alongside the registry heartbeat.
 
-- **Feature-gated, off by default.** Activates only when `DISCORD_BOT_TOKEN` +
-  `DISCORD_CHANNEL_ID` + `APP_BASE_URL` are all set (see `.env.example`). Absent →
-  silent no-op, server unchanged.
-- Every `SYNC_INTERVAL` (30s) it reads **public** rooms from `RoomManager`
-  (`is_public()` gate — unlisted rooms are never advertised) and reconciles the
-  channel against live state:
-  - new room → `POST /channels/{id}/messages` (embed + link-button Join)
-  - changed room (players/name/theme) → `PATCH` the message (edits only on real
-    change — no rate-limit churn)
-  - vanished room → `DELETE` the message
-- The Join button is a **link button** (component type 2, style 5) pointing at
-  `<APP_BASE_URL>/room/<id>` — no interaction endpoint or gateway connection
-  needed. Reconciliation is a pure planner (`plan_actions`) so it is unit-tested
-  without a network.
+### Environment matrix
+
+| Variable | Required for | Effect when unset |
+|----------|--------------|-------------------|
+| `DISCORD_BOT_TOKEN` | **everything** | Bot fully OFF; server unchanged |
+| `APP_BASE_URL` | **everything** | Bot fully OFF (Join links are unbuildable) |
+| `DISCORD_CHANNEL_ID` | legacy billboard only (#84) | No billboard; host-posted adverts still work |
+| `SUPABASE_URL` + `SUPABASE_SECRET_KEY` | admin-API identity fallback | Only tokens that already carry the Discord provider claim resolve to a Discord identity |
+
+The bot token is a **secret** — never committed, supplied via env/secret storage.
+
+### The sync loop
+
+Every `SYNC_INTERVAL` (30s) it snapshots all rooms from `RoomManager`, resolves
+the set of adverts that *should* exist (`desired_adverts`), and reconciles:
+
+- billboard targets: **public** rooms only (`is_public()` gate)
+- host-posted targets: exactly the room whose host registered that channel —
+  listed or not, because the host opted in explicitly
+
+then applies the diff:
+
+- desired (room, channel) with no message → `POST /channels/{id}/messages`
+  (embed + link-button Join)
+- changed advert (players/name/theme/rolls) → `PATCH` the message (edits only on
+  a real change — no rate-limit churn)
+- retired billboard post → `DELETE`
+- retired host-posted advert → final archive `PATCH` (never deleted)
+
+The Join button is a **link button** (component type 2, style 5) pointing at
+`<APP_BASE_URL>/room/<id>` — no interaction endpoint or gateway connection
+needed. Reconciliation is a pure planner (`plan_actions`) and target resolution
+is a pure function (`desired_adverts`), so both are unit-tested without a
+network; the Discord REST surface sits behind the `DiscordApi` trait
+(`server/src/discord_api.rs`) and is mocked at that seam in tests.
+
+### Channel postability
+
+A channel is offered as a target only when it is a `GUILD_TEXT` (0) or
+`GUILD_ANNOUNCEMENT` (5) channel **and** the bot holds `VIEW_CHANNEL` +
+`SEND_MESSAGES` + `EMBED_LINKS` there. Permissions are computed with Discord's
+documented algorithm: the guild-level `permissions` from `GET /users/@me/guilds`
+(already `@everyone` ∪ the bot's roles) as the base, then the `@everyone`
+overwrite, then the union of the bot's role overwrites (all denies before all
+allows), then the bot's member overwrite — with an `ADMINISTRATOR` short-circuit.
 
 **Caveats (document for operators):**
 
 - Assumes a **single** advertising server instance per channel. If multiple room
   servers point at the same `DISCORD_CHANNEL_ID`, each posts its own embeds.
-- On server restart the in-memory message map resets, so existing rooms are
-  re-posted (old embeds may be orphaned until the room closes or you clear them).
+- Advert tracking is in-memory. On server restart the map resets, so live rooms
+  are re-posted and any previously posted embed is orphaned (a host-posted embed
+  is then never archived — persisting `room_adverts` in Supabase is the #246 v2
+  follow-up).
 
 ## How join-from-Discord works (#85)
 
@@ -91,21 +192,26 @@ to turn the bot on; nothing here is committed.
    OAuth in #81.)
 2. **Add a bot user**: *Bot* tab → *Add Bot*. Copy the **token** (this is the
    secret → `DISCORD_BOT_TOKEN`). You do **not** need any privileged gateway
-   intents — the bot only makes REST calls.
-3. **Invite the bot** to your server: *OAuth2 → URL Generator*, scope `bot`,
-   permissions **Send Messages** + **Manage Messages** (Manage Messages lets it
-   edit/delete its own advertisement embeds). Open the generated URL and add it to
-   the server.
-4. **Get the channel id**: enable *Developer Mode* (User Settings → Advanced),
-   right-click the target channel → *Copy Channel ID* → `DISCORD_CHANNEL_ID`.
-5. **Set the frontend origin**: `APP_BASE_URL` = your deployed frontend base
+   intents — the bot only makes REST calls, and the single-member membership
+   lookup it relies on is not gated by `GUILD_MEMBERS`.
+3. **Build the invite URL** that guild admins will use (this is the self-serve
+   install link the share sheet offers): *OAuth2 → URL Generator*, scope `bot`,
+   permissions **View Channel** + **Send Messages** + **Embed Links** +
+   **Manage Messages** (Manage Messages lets it edit/archive its own embeds).
+4. **Set the frontend origin**: `APP_BASE_URL` = your deployed frontend base
    (e.g. `https://dicesuki.app`), used to build `/room/<id>` join links.
-6. **Provide the three env vars** to the room server (env/secret storage, e.g.
-   the Docker deploy from #83). On next start the log prints
+5. *(Optional, legacy #84 billboard only)* **Get the channel id**: enable
+   *Developer Mode* (User Settings → Advanced), right-click the target channel →
+   *Copy Channel ID* → `DISCORD_CHANNEL_ID`. Leave unset for the host-posting
+   model.
+6. **Provide the env vars** to the room server (env/secret storage, e.g. the
+   Docker deploy from #83). On next start the log prints
    `Discord room bot enabled: ...`.
-7. **Verify**: create a **public** room, wait up to 30s, confirm an embed appears
-   in the channel with the room name/theme/player count and a working **Join
-   room** button. Change the player count and confirm the embed updates.
+7. **Verify**: sign in with Discord, open a room you host, post it to a server
+   from the share sheet, and confirm an embed appears with the room
+   name/theme/player count and a working **Join room** button. Change the player
+   count and confirm the embed updates; close the room and confirm the embed
+   turns into a closing summary with no Join button.
 
 For the OG unfurl (#85), no Discord setup is needed — it works for any pasted
 `/room/<id>` link once deployed on Vercel. Optional polish: drop a 1200×630
