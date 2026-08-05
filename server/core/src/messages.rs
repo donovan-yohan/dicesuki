@@ -55,7 +55,24 @@ pub enum ClientMessage {
         #[serde(rename = "diceIds")]
         dice_ids: Vec<String>,
     },
-    Roll,
+    /// Roll every die this seat owns.
+    ///
+    /// `savedRollName` is optional **client-provided display metadata** naming
+    /// the saved roll the command came from (issue #244). It carries the same
+    /// trust model as Shared-ADR-005 `presentation`: the room never interprets
+    /// it, never lets it change physics or scoring, and only keeps it so
+    /// out-of-band display surfaces (the Discord room advert) can say *what*
+    /// was rolled. Truncated on ingestion by
+    /// [`crate::room::sanitize_saved_roll_name`].
+    ///
+    /// The field is optional for back-compat: clients predating #244 send a
+    /// bare `{"type":"roll"}`, which must keep deserializing (a released client
+    /// and a newer server coexist on every deploy). See
+    /// `test_deserialize_roll_without_saved_roll_name`.
+    Roll {
+        #[serde(rename = "savedRollName", default)]
+        saved_roll_name: Option<String>,
+    },
     UpdateColor {
         color: String,
     },
@@ -490,11 +507,35 @@ mod tests {
         );
     }
 
+    /// Back-compat proof for #244: `Roll` became a struct variant, and every
+    /// already-released client sends the bare tag with no body at all. Both
+    /// spellings a client can produce — no key, and an explicit `null` — must
+    /// still land as a nameless roll rather than a deserialization error that
+    /// would silently break the Roll button mid-deploy.
     #[test]
-    fn test_deserialize_roll() {
-        let json = r#"{"type":"roll"}"#;
-        let msg: ClientMessage = serde_json::from_str(json).unwrap();
-        assert!(matches!(msg, ClientMessage::Roll));
+    fn test_deserialize_roll_without_saved_roll_name() {
+        for json in [
+            r#"{"type":"roll"}"#,
+            r#"{"type":"roll","savedRollName":null}"#,
+        ] {
+            let msg: ClientMessage = serde_json::from_str(json)
+                .unwrap_or_else(|err| panic!("{json} must deserialize: {err}"));
+            assert!(
+                matches!(msg, ClientMessage::Roll { saved_roll_name: None }),
+                "{json} must be a nameless roll",
+            );
+        }
+    }
+
+    #[test]
+    fn test_deserialize_roll_with_saved_roll_name() {
+        let msg: ClientMessage = serde_json::from_str(
+            r#"{"type":"roll","savedRollName":"Sneak Attack"}"#,
+        ).unwrap();
+        assert!(matches!(
+            msg,
+            ClientMessage::Roll { saved_roll_name: Some(name) } if name == "Sneak Attack"
+        ));
     }
 
     #[test]

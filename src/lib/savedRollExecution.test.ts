@@ -353,6 +353,41 @@ describe('executePhysicalSavedRoll', () => {
     vi.restoreAllMocks()
   })
 
+  describe('saved-roll name (#244)', () => {
+    it('names the base roll so the room can report what was rolled', async () => {
+      // Arrange
+      const room = createFakeRoom([4])
+      const roll = { ...makeRoll({ type: 'd6', quantity: 1 }), name: 'Sneak Attack' }
+
+      // Act
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      // Assert — the base wave is the only `roll` a sequence sends, so it is
+      // also the only place the name can ride along.
+      expect(room.backend.roll).toHaveBeenCalledTimes(1)
+      expect(room.backend.roll).toHaveBeenCalledWith('Sneak Attack')
+    })
+
+    it('does not name follow-up waves, which never send roll at all', async () => {
+      // Arrange — an exploding d6 spawns more dice after the base wave.
+      const room = createFakeRoom([6, 3])
+      const roll = {
+        ...makeRoll({ type: 'd6', quantity: 1, exploding: { on: 'max', limit: 1 } }),
+        name: 'Fireball',
+      }
+
+      // Act
+      await run(roll, room.backend)
+      await room.quiesce()
+
+      // Assert — the explosion spawned, and still only one named `roll` went out.
+      expect(room.spawnLog.length).toBeGreaterThan(1)
+      expect(room.backend.roll).toHaveBeenCalledTimes(1)
+      expect(room.backend.roll).toHaveBeenCalledWith('Fireball')
+    })
+  })
+
   describe('keep/drop', () => {
     it('spawns rollCount dice and keeps the best by settled value', async () => {
       // Arrange — advantage: roll 2 d20, keep the highest 1

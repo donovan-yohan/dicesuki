@@ -76,8 +76,13 @@ describe('multiplayerMessages', () => {
     })
 
     it('should type-check a roll message', () => {
+      // `savedRollName` (#244) is optional on both sides: a bare roll stays a
+      // valid message, which is what keeps older clients working.
       const msg: ClientMessage = { type: 'roll' }
       expect(msg.type).toBe('roll')
+
+      const named: ClientMessage = { type: 'roll', savedRollName: 'Sneak Attack' }
+      expect(named).toEqual({ type: 'roll', savedRollName: 'Sneak Attack' })
     })
 
     it('should type-check an update_color message', () => {

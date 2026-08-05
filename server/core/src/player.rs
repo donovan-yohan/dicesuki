@@ -14,6 +14,12 @@ pub struct PendingRoll {
     pub generation: u64,
     pub user_id: Option<String>,
     pub dice_ids: Vec<String>,
+    /// Sanitized name of the saved roll this command came from, frozen with the
+    /// rest of the attempt (#244). Client-provided display metadata only — it
+    /// never affects which dice roll, what they land on, or the total; it just
+    /// rides to the room's recent-roll tail so the Discord advert can name the
+    /// roll. `None` for a plain roll and for clients predating the field.
+    pub saved_roll_name: Option<String>,
 }
 
 pub struct Player {

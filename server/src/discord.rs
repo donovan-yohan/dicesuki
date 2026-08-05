@@ -84,6 +84,16 @@ const CRIT_LOW: &str = "\u{1F480}";
 /// Characters kept from a player's display name in a roll line.
 const ROLL_NAME_MAX_LEN: usize = 24;
 
+/// Characters kept from a roll's saved-roll name in a roll line (#244).
+///
+/// Matches [`THEME_LABEL_MAX_LEN`], the embed's other secondary label, rather
+/// than core's `SAVED_ROLL_NAME_MAX_LEN` (40): core caps to keep room state
+/// bounded, this caps to keep the line readable next to the player name and the
+/// whole field inside Discord's 1024-character limit. The tighter of the two
+/// wins, and the render cap is applied unconditionally so it holds even if core
+/// ever loosens.
+const SAVED_ROLL_LABEL_MAX_LEN: usize = 32;
+
 /// Characters kept from the host-chosen theme id in the embed's Theme field.
 /// `Room::update_settings` imposes no length limit on `themeId`, so the cap is
 /// enforced here rather than trusted from the room.
@@ -518,15 +528,34 @@ fn render_theme_label(theme_id: Option<&str>) -> String {
     render_embed_text(theme_id.unwrap_or_default(), THEME_LABEL_MAX_LEN, "default")
 }
 
+/// Render a roll's saved-roll name for an embed line (#244).
+///
+/// This is client-supplied text exactly like a display name — core bounds it,
+/// but nothing validates its *content* — so it goes through
+/// [`render_embed_text`], the single door for client text in an embed. Without
+/// that escaping, a saved roll named `[click](http://evil.example)` would post
+/// as a live masked link in a third-party guild under the bot's name.
+#[must_use]
+fn render_saved_roll_name(raw: &str) -> String {
+    render_embed_text(raw, SAVED_ROLL_LABEL_MAX_LEN, "Saved roll")
+}
+
 /// One line of the **Recent rolls** field, e.g. `Alex \u{2014} 3d6 \u{2192} 14 \u{1F4A5}`.
+///
+/// A roll that came from a saved roll names it and parenthesizes the pool:
+/// `Alex \u{2014} Sneak Attack (3d6) \u{2192} 14`.
 #[must_use]
 fn roll_line(roll: &RecentRoll) -> String {
     let markers = crit_markers(&roll.dice);
     let separator = if markers.is_empty() { "" } else { " " };
+    let expression = roll_expression(&roll.dice);
+    let what = match roll.saved_roll_name.as_deref() {
+        Some(name) => format!("{} ({expression})", render_saved_roll_name(name)),
+        None => expression,
+    };
     format!(
-        "{} \u{2014} {} \u{2192} {}{separator}{markers}",
+        "{} \u{2014} {what} \u{2192} {}{separator}{markers}",
         render_player_name(&roll.player_name),
-        roll_expression(&roll.dice),
         roll.total
     )
 }
@@ -1342,6 +1371,7 @@ pub async fn reconcile(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::room::{MAX_DICE, MAX_PLAYERS, RECENT_ROLL_HISTORY};
     use crate::discord_targets::test_support::FakeDiscord;
 
     const BILLBOARD: &str = "800000000000000001";
@@ -1369,8 +1399,21 @@ mod tests {
         RecentRoll {
             player_id: "p1".to_string(),
             player_name: player_name.to_string(),
+            saved_roll_name: None,
             dice,
             total,
+        }
+    }
+
+    /// A roll that came from a saved roll of `saved_roll_name` (#244).
+    fn named_roll(
+        player_name: &str,
+        saved_roll_name: &str,
+        dice: Vec<RecentRollDie>,
+    ) -> RecentRoll {
+        RecentRoll {
+            saved_roll_name: Some(saved_roll_name.to_string()),
+            ..roll(player_name, dice)
         }
     }
 
@@ -1564,8 +1607,9 @@ mod tests {
         assert_eq!(many, "Alex \u{2014} 9d6 \u{2192} 54 \u{1F4A5}\u{00D7}9");
     }
 
-    /// The embeds land in **third-party guilds**, so a crafted display name or
-    /// themeId must never become a live masked link under the bot's identity.
+    /// The embeds land in **third-party guilds**, so a crafted display name,
+    /// themeId, or saved-roll name must never become a live masked link under
+    /// the bot's identity.
     #[test]
     fn masked_link_payloads_render_inert_in_both_payload_builders() {
         const ATTACK: &str = "[x](http://evil)";
@@ -1573,7 +1617,9 @@ mod tests {
         let mut hostile = advert("abc123", 1);
         hostile.theme_id = Some(ATTACK.to_string());
         hostile.player_names = vec![ATTACK.to_string()];
-        hostile.recent_rolls = vec![roll(ATTACK, vec![die(DiceType::D6, 3)])];
+        // Both client-supplied strings on a roll line at once (#244): the
+        // roller's display name and the saved-roll name it rode in with.
+        hostile.recent_rolls = vec![named_roll(ATTACK, ATTACK, vec![die(DiceType::D6, 3)])];
 
         const INERT: &str = "\\[x\\]\\(http://evil\\)";
 
@@ -1592,7 +1638,17 @@ mod tests {
 
         // Live embed: themeId and the roll's display name are both neutralised.
         assert_eq!(field_value(&live, "Theme").unwrap(), INERT);
-        assert!(recent_rolls_field(&live).unwrap().starts_with(INERT));
+        let rolls = recent_rolls_field(&live).unwrap();
+        assert!(rolls.starts_with(INERT));
+        assert_eq!(
+            rolls.matches(INERT).count(),
+            2,
+            "display name AND saved-roll name must both be escaped: {rolls}",
+        );
+        assert_eq!(
+            rolls,
+            format!("{INERT} \u{2014} {INERT} (1d6) \u{2192} 3"),
+        );
 
         // Archived embed: the final roster and the roll tail likewise.
         assert_eq!(field_value(&archived, "Players").unwrap(), INERT);
@@ -1622,6 +1678,91 @@ mod tests {
 
         let blank = roll_line(&roll("   ", vec![die(DiceType::D6, 3)]));
         assert_eq!(blank, "Player \u{2014} 1d6 \u{2192} 3");
+    }
+
+    /// Discord rejects an embed field whose value exceeds 1024 characters, and
+    /// the whole embed with it — so a hostile room would stop advertising
+    /// entirely. Naming saved rolls (#244) added a second capped client string
+    /// to every line, so the worst case is asserted rather than reasoned about:
+    /// a full ring of rolls, each with a max-length all-escapable player name
+    /// and saved-roll name (escaping doubles both), a full table of dice spread
+    /// across every type, and every die landing a crit.
+    #[test]
+    fn a_full_ring_of_hostile_roll_lines_stays_inside_discords_field_limit() {
+        const DISCORD_FIELD_VALUE_LIMIT: usize = 1024;
+
+        // Every character escapes to two, and none are collapsed as whitespace.
+        let hostile_name = "*".repeat(ROLL_NAME_MAX_LEN * 4);
+        let hostile_saved = "_".repeat(SAVED_ROLL_LABEL_MAX_LEN * 4);
+
+        // A full table (MAX_DICE), spread so every die type contributes a group
+        // to the expression, and every face is a natural max (a crit each).
+        let dice: Vec<RecentRollDie> = DIE_RENDER_ORDER
+            .iter()
+            .flat_map(|die_type| {
+                let max_face = die_type.natural_faces().map_or(1, |(_, max)| max);
+                std::iter::repeat_n(die(*die_type, max_face), MAX_DICE)
+            })
+            .collect();
+
+        let mut hostile = advert("abc123", MAX_PLAYERS);
+        hostile.recent_rolls = (0..RECENT_ROLL_HISTORY)
+            .map(|_| named_roll(&hostile_name, &hostile_saved, dice.clone()))
+            .collect();
+
+        let payload = build_message_payload(&hostile, "https://dicesuki.app");
+        let field = recent_rolls_field(&payload).unwrap();
+
+        // Discord counts UTF-16 code units, so emoji cost two apiece.
+        assert!(
+            field.encode_utf16().count() <= DISCORD_FIELD_VALUE_LIMIT,
+            "recent-rolls field is {} UTF-16 units, over Discord's {DISCORD_FIELD_VALUE_LIMIT}:\n{field}",
+            field.encode_utf16().count(),
+        );
+    }
+
+    /// Issue #244's whole point: the line has to say *what* was rolled, not
+    /// just the pool, and only when the roll actually came from a saved roll.
+    #[test]
+    fn roll_line_names_the_saved_roll_it_came_from() {
+        let dice = vec![die(DiceType::D6, 5), die(DiceType::D6, 6), die(DiceType::D6, 3)];
+
+        assert_eq!(
+            roll_line(&named_roll("Alex", "Sneak Attack", dice.clone())),
+            "Alex \u{2014} Sneak Attack (3d6) \u{2192} 14 \u{1F4A5}",
+        );
+        assert_eq!(
+            roll_line(&roll("Alex", dice)),
+            "Alex \u{2014} 3d6 \u{2192} 14 \u{1F4A5}",
+            "a plain roll must keep the bare pool expression",
+        );
+    }
+
+    /// The saved-roll name is client text with no server-side validation of its
+    /// content, so it goes through the same door as a display name: escaped,
+    /// capped, and never able to open a markdown construct.
+    #[test]
+    fn saved_roll_names_are_neutralised_and_capped_in_roll_lines() {
+        let dice = vec![die(DiceType::D6, 3)];
+
+        let hostile = roll_line(&named_roll("Alex", "**Crit**\n`fish`", dice.clone()));
+        assert_eq!(
+            hostile,
+            "Alex \u{2014} \\*\\*Crit\\*\\* \\`fish\\` (1d6) \u{2192} 3",
+        );
+
+        // The render cap holds independently of core's ingestion cap, and
+        // escaping must not smuggle characters past it.
+        let long = roll_line(&named_roll("Alex", &"s".repeat(200), dice.clone()));
+        assert!(long.contains(&"s".repeat(SAVED_ROLL_LABEL_MAX_LEN)));
+        assert!(!long.contains(&"s".repeat(SAVED_ROLL_LABEL_MAX_LEN + 1)));
+
+        // Core drops a blank name, but the renderer must not emit `()`-adjacent
+        // emptiness if one ever reaches it another way.
+        assert_eq!(
+            roll_line(&named_roll("Alex", "   ", dice)),
+            "Alex \u{2014} Saved roll (1d6) \u{2192} 3",
+        );
     }
 
     // --- archived (closed-session) rendering -------------------------------

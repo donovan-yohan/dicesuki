@@ -293,9 +293,11 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter:
                 );
             }
 
-            ClientMessage::Roll if is_joined => {
+            ClientMessage::Roll { saved_roll_name } if is_joined => {
                 let mut room_guard = room.write().await;
-                if let Some(started) = room_guard.roll_player_dice(&player_id) {
+                if let Some(started) =
+                    room_guard.roll_player_dice(&player_id, saved_roll_name.as_deref())
+                {
                     room_guard.broadcast(&ServerMessage::RollStarted {
                         player_id: player_id.clone(),
                         dice_ids: started.dice_ids,

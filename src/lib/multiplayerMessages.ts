@@ -84,6 +84,20 @@ export interface RemoveDiceMessage {
 
 export interface RollMessage {
   type: 'roll'
+  /**
+   * Display-only name of the saved roll this command came from (#244), carried
+   * so the Discord room advert's roll line can read
+   * `Alex — Sneak Attack (3d6) → 14`.
+   *
+   * Same trust model as `presentation` (Shared-ADR-005): the room never
+   * interprets it and it cannot change which dice roll or what they total. It
+   * is sanitized and length-capped on ingestion by core.
+   *
+   * OMITTED — never sent as `null` or `''` — for a plain roll. The field is
+   * optional on the server too, so an older client's bare `{"type":"roll"}`
+   * stays valid.
+   */
+  savedRollName?: string
 }
 
 export interface UpdateColorMessage {

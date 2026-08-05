@@ -160,6 +160,48 @@ pub const ROOM_NAME_MAX_LEN: usize = 40;
 /// per-room memory flat no matter how long a room lives.
 pub const RECENT_ROLL_HISTORY: usize = 5;
 
+/// Characters retained from a client-supplied saved-roll name (#244).
+///
+/// Matched to [`ROOM_NAME_MAX_LEN`], the room's other free-form client-supplied
+/// display string: both are truncated rather than rejected, because refusing an
+/// otherwise valid action over a cosmetic label would be a worse failure than
+/// showing a clipped one. The bound exists so the retained tail stays flat — a
+/// client can send megabytes per roll, and [`RECENT_ROLL_HISTORY`] alone only
+/// caps the number of entries, not their size.
+pub const SAVED_ROLL_NAME_MAX_LEN: usize = 40;
+
+/// Collapse client-supplied display text to a single trimmed line and truncate
+/// it to `max_len` characters (never mid-codepoint).
+///
+/// Shared by [`sanitize_room_name`] and [`sanitize_saved_roll_name`] so the two
+/// free-form strings the room retains cannot drift apart in what they strip.
+/// This bounds and normalizes; it does **not** escape for any downstream
+/// renderer — Discord escaping is `discord::render_embed_text`'s job.
+#[must_use]
+fn collapse_display_text(raw: &str, max_len: usize) -> String {
+    raw.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(max_len)
+        .collect()
+}
+
+/// Sanitize a client-supplied saved-roll name on ingestion: collapsed to one
+/// trimmed line and truncated to [`SAVED_ROLL_NAME_MAX_LEN`] characters.
+///
+/// Returns `None` when nothing survives, so "sent whitespace" and "sent
+/// nothing" become the same bounded state and no display surface has to render
+/// an empty label.
+#[must_use]
+pub fn sanitize_saved_roll_name(raw: Option<&str>) -> Option<String> {
+    let cleaned = collapse_display_text(raw?, SAVED_ROLL_NAME_MAX_LEN);
+    (!cleaned.is_empty()).then_some(cleaned)
+}
+
 /// Validate the shared dice identifier contract before any physics allocation
 /// or room mutation. UUID/client ids and versioned catalog-derived ids are both
 /// supported; control characters, whitespace, Unicode, and shell/JSON-hostile
@@ -201,15 +243,7 @@ pub struct RoomListing {
 /// [`ROOM_NAME_MAX_LEN`] characters (on a char boundary).
 #[must_use]
 pub fn sanitize_room_name(raw: &str) -> String {
-    raw.chars()
-        .map(|c| if c.is_control() { ' ' } else { c })
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .chars()
-        .take(ROOM_NAME_MAX_LEN)
-        .collect()
+    collapse_display_text(raw, ROOM_NAME_MAX_LEN)
 }
 
 /// Host-controlled policy governing which dice a player's device-motion
@@ -291,6 +325,11 @@ pub struct StartedRoll {
 }
 
 /// A completed explicit roll consumed from the room exactly once.
+///
+/// Deliberately carries **no** saved-roll name (#244). This is the authority
+/// event the native server persists as durable roll history; the saved-roll
+/// name is unverified client display text, so it stops at the room's in-memory
+/// display tail ([`RecentRoll`]) and never enters the authoritative record.
 #[derive(Debug, Clone)]
 pub struct CompletedRoll {
     pub player_id: String,
@@ -316,6 +355,10 @@ pub struct RecentRollDie {
 pub struct RecentRoll {
     pub player_id: String,
     pub player_name: String,
+    /// The saved roll this came from, already sanitized and length-capped by
+    /// [`sanitize_saved_roll_name`] (#244). `None` for a plain roll. Still
+    /// unescaped client text — a renderer must run it through its own escaper.
+    pub saved_roll_name: Option<String>,
     pub dice: Vec<RecentRollDie>,
     pub total: u32,
 }
@@ -1267,7 +1310,16 @@ impl Room {
 
     /// Apply roll impulse to all of a player's dice and start one explicit-roll
     /// lifecycle. A second accepted command supersedes any unfinished attempt.
-    pub fn roll_player_dice(&mut self, player_id: &str) -> Option<StartedRoll> {
+    ///
+    /// `saved_roll_name` is optional client display metadata (#244), sanitized
+    /// and capped here so nothing unbounded can be stored. It changes nothing
+    /// about the roll itself: the same dice launch with the same impulse and
+    /// the same total whether it is present, absent, or hostile.
+    pub fn roll_player_dice(
+        &mut self,
+        player_id: &str,
+        saved_roll_name: Option<&str>,
+    ) -> Option<StartedRoll> {
         let mut dice_ids: Vec<String> = self.dice.iter()
             .filter(|(_, d)| d.owner_id == player_id)
             .map(|(id, _)| id.clone())
@@ -1309,6 +1361,7 @@ impl Room {
             generation,
             user_id: player.user_id.clone(),
             dice_ids: dice_ids.clone(),
+            saved_roll_name: sanitize_saved_roll_name(saved_roll_name),
         });
 
         Some(StartedRoll {
@@ -1706,6 +1759,7 @@ impl Room {
                     self.recent_rolls.push(RecentRoll {
                         player_id: player_id.clone(),
                         player_name,
+                        saved_roll_name: pending.saved_roll_name.clone(),
                         dice: results
                             .iter()
                             .map(|result| RecentRollDie {
@@ -2363,7 +2417,7 @@ mod tests {
         room.add_player(player).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
 
-        let rolled = room.roll_player_dice("p1").expect("roll accepted");
+        let rolled = room.roll_player_dice("p1", None).expect("roll accepted");
         assert_eq!(rolled.dice_ids.len(), 1);
         assert_eq!(rolled.generation, 1);
         assert!(room.dice.get("d1").unwrap().is_rolling);
@@ -2381,7 +2435,7 @@ mod tests {
             vec![("d2".to_string(), DiceType::D20), ("d1".to_string(), DiceType::D6)],
         ).unwrap();
 
-        let started = room.roll_player_dice("p1").expect("roll accepted");
+        let started = room.roll_player_dice("p1", None).expect("roll accepted");
         assert_eq!(started.dice_ids, ["d1", "d2"]);
         for (dice_id, face) in [("d1", 4), ("d2", 17)] {
             let die = room.dice.get_mut(dice_id).unwrap();
@@ -2416,12 +2470,12 @@ mod tests {
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
 
-        let first = room.roll_player_dice("p1").expect("first roll");
+        let first = room.roll_player_dice("p1", None).expect("first roll");
         assert_eq!(first.generation, 1);
         room.players.get_mut("p1").unwrap().user_id =
             Some("52222222-2222-4222-8222-222222222222".to_string());
         room.spawn_dice_with_physics("p1", vec![("d2".to_string(), DiceType::D8)]).unwrap();
-        let second = room.roll_player_dice("p1").expect("second roll");
+        let second = room.roll_player_dice("p1", None).expect("second roll");
         assert_eq!(second.generation, 2);
         assert_eq!(second.dice_ids, ["d1", "d2"]);
 
@@ -2441,7 +2495,7 @@ mod tests {
         let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Guest")).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
-        room.roll_player_dice("p1").expect("guest roll");
+        room.roll_player_dice("p1", None).expect("guest roll");
         room.players.get_mut("p1").unwrap().user_id =
             Some("53333333-3333-4333-8333-333333333333".to_string());
         let die = room.dice.get_mut("d1").unwrap();
@@ -2458,7 +2512,7 @@ mod tests {
         let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
-        let started = room.roll_player_dice("p1").expect("roll accepted");
+        let started = room.roll_player_dice("p1", None).expect("roll accepted");
         assert_eq!(started.dice_ids, ["d1"]);
 
         room.spawn_dice_with_physics("p1", vec![("later".to_string(), DiceType::D20)]).unwrap();
@@ -2480,7 +2534,7 @@ mod tests {
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
         assert_eq!(
-            room.roll_player_dice("p1").expect("first roll").generation,
+            room.roll_player_dice("p1", None).expect("first roll").generation,
             1
         );
 
@@ -2497,7 +2551,7 @@ mod tests {
         );
 
         assert_eq!(
-            room.roll_player_dice("p1").expect("replacement roll").generation,
+            room.roll_player_dice("p1", None).expect("replacement roll").generation,
             2,
             "ending the roll must not reuse the monotonic generation"
         );
@@ -2517,7 +2571,7 @@ mod tests {
             ],
         )
         .unwrap();
-        room.roll_player_dice("p1").expect("roll accepted");
+        room.roll_player_dice("p1", None).expect("roll accepted");
         for (dice_id, face) in [("d1", 3), ("d2", 20)] {
             let die = room.dice.get_mut(dice_id).unwrap();
             die.is_rolling = false;
@@ -2539,6 +2593,71 @@ mod tests {
         );
     }
 
+    /// Roll one d6 for `p1` under `saved_roll_name`, settle it, and return the
+    /// name as the room actually retained it.
+    fn recorded_saved_roll_name(saved_roll_name: Option<&str>) -> Option<String> {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.roll_player_dice("p1", saved_roll_name).expect("roll accepted");
+        let die = room.dice.get_mut("d1").unwrap();
+        die.is_rolling = false;
+        die.face_value = Some(4);
+        assert_eq!(room.take_completed_rolls().len(), 1);
+        room.recent_rolls()[0].saved_roll_name.clone()
+    }
+
+    #[test]
+    fn a_saved_roll_name_rides_the_roll_into_the_recent_roll_ring() {
+        assert_eq!(
+            recorded_saved_roll_name(Some("Sneak Attack")).as_deref(),
+            Some("Sneak Attack"),
+        );
+    }
+
+    #[test]
+    fn a_plain_roll_records_no_saved_roll_name() {
+        assert_eq!(recorded_saved_roll_name(None), None);
+    }
+
+    /// The name is unvalidated client text, so ingestion — not the renderer —
+    /// is what keeps room state bounded: a megabyte of name must not be
+    /// retained per roll just because the ring caps the number of entries.
+    #[test]
+    fn saved_roll_names_are_capped_on_ingestion() {
+        let huge = "n".repeat(100_000);
+        let kept = recorded_saved_roll_name(Some(&huge)).expect("a long name still names the roll");
+        assert_eq!(kept.chars().count(), SAVED_ROLL_NAME_MAX_LEN);
+        assert_eq!(kept, "n".repeat(SAVED_ROLL_NAME_MAX_LEN));
+    }
+
+    /// Truncation counts characters, not bytes: slicing a multi-byte codepoint
+    /// in half would panic and take the roll's whole completion with it.
+    #[test]
+    fn saved_roll_name_truncation_respects_codepoint_boundaries() {
+        let kept = recorded_saved_roll_name(Some(&"\u{1F3B2}".repeat(100)))
+            .expect("an emoji name still names the roll");
+        assert_eq!(kept.chars().count(), SAVED_ROLL_NAME_MAX_LEN);
+    }
+
+    #[test]
+    fn saved_roll_names_are_collapsed_to_one_line_on_ingestion() {
+        assert_eq!(
+            recorded_saved_roll_name(Some("  Sneak\n\tAttack  ")).as_deref(),
+            Some("Sneak Attack"),
+            "control characters and runs of whitespace collapse to single spaces",
+        );
+    }
+
+    /// "Sent whitespace" and "sent nothing" must reach display surfaces as the
+    /// same state, so nothing has to render an empty label.
+    #[test]
+    fn a_blank_saved_roll_name_is_dropped_on_ingestion() {
+        for blank in ["", "   ", "\n\t"] {
+            assert_eq!(recorded_saved_roll_name(Some(blank)), None, "blank: {blank:?}");
+        }
+    }
+
     #[test]
     fn the_recent_roll_ring_keeps_only_the_newest_entries() {
         let mut room = Room::new("test".to_string(), ArenaBounds::default());
@@ -2547,7 +2666,7 @@ mod tests {
         // One more roll than the ring holds, each with a distinguishable total.
         for round in 1..=(RECENT_ROLL_HISTORY as u32 + 1) {
             room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
-            room.roll_player_dice("p1").expect("roll accepted");
+            room.roll_player_dice("p1", None).expect("roll accepted");
             let die = room.dice.get_mut("d1").unwrap();
             die.is_rolling = false;
             die.face_value = Some(round % 6 + 1);
@@ -2581,7 +2700,7 @@ mod tests {
                 ("d3".to_string(), DiceType::D20),
             ],
         ).unwrap();
-        room.roll_player_dice("p1").expect("roll accepted");
+        room.roll_player_dice("p1", None).expect("roll accepted");
         for (dice_id, face) in [("d1", 4), ("d2", 5)] {
             let die = room.dice.get_mut(dice_id).unwrap();
             die.is_rolling = false;
@@ -2625,7 +2744,7 @@ mod tests {
             "p1",
             vec![("d1".to_string(), DiceType::D6), ("d2".to_string(), DiceType::D6)],
         ).unwrap();
-        room.roll_player_dice("p1").expect("roll accepted");
+        room.roll_player_dice("p1", None).expect("roll accepted");
         let settled = room.dice.get_mut("d1").unwrap();
         settled.is_rolling = false;
         settled.face_value = Some(3);
@@ -2659,7 +2778,7 @@ mod tests {
             "p1",
             vec![("d1".to_string(), DiceType::D6), ("d2".to_string(), DiceType::D6)],
         ).unwrap();
-        room.roll_player_dice("p1").expect("roll accepted");
+        room.roll_player_dice("p1", None).expect("roll accepted");
 
         assert_eq!(room.remove_dice("p1", &["d1".to_string()]), ["d1"]);
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D20)]).unwrap();
@@ -2687,7 +2806,7 @@ mod tests {
         let mut room = Room::new("test".to_string(), ArenaBounds::default());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
-        room.roll_player_dice("p1").expect("roll accepted");
+        room.roll_player_dice("p1", None).expect("roll accepted");
         room.spawn_dice_with_physics("p1", vec![("later".to_string(), DiceType::D6)]).unwrap();
         room.is_simulating = false;
 
@@ -2714,7 +2833,7 @@ mod tests {
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
-        room.roll_player_dice("p1");
+        room.roll_player_dice("p1", None);
 
         // Snapshots are sent every tick at 60Hz
         let (snap1, _, _) = room.physics_tick();
@@ -2752,7 +2871,7 @@ mod tests {
         let player = make_player("p1", "Test");
         room.add_player(player).unwrap();
         room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
-        room.roll_player_dice("p1");
+        room.roll_player_dice("p1", None);
 
         // Run simulation for up to 20 seconds (1200 ticks)
         // Narrower 9:16 arena causes more wall bounces, needs more settling time
@@ -4510,7 +4629,7 @@ mod physics_tick_helper_tests {
     #[test]
     fn test_build_physics_snapshot_includes_rolling_die() {
         let mut room = make_room_with_player_and_die("d1");
-        room.roll_player_dice("p1"); // marks die as is_rolling = true
+        room.roll_player_dice("p1", None); // marks die as is_rolling = true
         room.tick_count = 1;
 
         let snapshot = room.build_physics_snapshot();
@@ -4562,7 +4681,7 @@ mod physics_tick_helper_tests {
     #[test]
     fn test_check_settled_dice_resets_rest_timer_when_moving() {
         let mut room = make_room_with_player_and_die("d1");
-        room.roll_player_dice("p1");
+        room.roll_player_dice("p1", None);
 
         // Give it a nonzero velocity so it is definitely not at rest
         let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
@@ -4586,7 +4705,7 @@ mod physics_tick_helper_tests {
     #[test]
     fn test_check_settled_dice_settles_die_after_rest_duration() {
         let mut room = make_room_with_player_and_die("d1");
-        room.roll_player_dice("p1");
+        room.roll_player_dice("p1", None);
 
         // Run physics until the die is genuinely at rest on the ground
         let handle = room.dice.get("d1").unwrap().body_handle.unwrap();
@@ -4809,7 +4928,7 @@ mod physics_tick_helper_tests {
         let mut room = make_room_with_player_and_die("d1");
 
         // 1. Roll and let the die settle naturally to get an authoritative face.
-        room.roll_player_dice("p1");
+        room.roll_player_dice("p1", None);
         let mut first_face = None;
         for _ in 0..1200 {
             let (_, newly_settled, _) = room.physics_tick();
@@ -4963,7 +5082,7 @@ mod physics_tick_helper_tests {
         let mut room = make_room_with_player_and_die("d1");
 
         // 1. Roll and settle naturally so the real pipeline records settled_rotation.
-        room.roll_player_dice("p1");
+        room.roll_player_dice("p1", None);
         let mut first_face = None;
         for _ in 0..1200 {
             let (_, s, _) = room.physics_tick();

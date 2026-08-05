@@ -655,7 +655,11 @@ export async function executePhysicalSavedRoll(
     publishPlan(plan, roll)
 
     const rollSequence = useMultiplayerStore.getState().rollStartedSequence
-    backend.roll()
+    // The one place a roll is named (#244). Only the BASE wave sends `roll` at
+    // all, so this is also the only place it can be named — follow-up waves are
+    // spawns, and a plain HUD roll passes nothing. Display metadata only: the
+    // room sanitizes and caps it, and it changes nothing about the roll.
+    backend.roll(roll.name)
     await waitForRoom('start the saved roll', (state) => (
       state.rollStartedSequence > rollSequence
       && sameIdSet(state.lastRollStartedDiceIds, baseIds)
