@@ -196,6 +196,7 @@ async fn join_receives_room_state() {
     let players = body["players"].as_array().unwrap();
     assert_eq!(players.len(), 1);
     assert_eq!(players[0]["displayName"], "TestPlayer");
+    assert_eq!(body["localPlayerId"], players[0]["id"]);
 }
 
 #[tokio::test]
@@ -309,13 +310,73 @@ async fn remove_dice_after_spawn() {
         "type": "remove_dice",
         "diceIds": ["die-1"]
     });
-    ws.send(Message::Text(remove_msg.to_string())).await.unwrap();
+    ws.send(Message::Text(remove_msg.to_string()))
+        .await
+        .unwrap();
 
     let body = recv_json(&mut ws).await;
     assert_eq!(body["type"], "dice_removed");
     let removed = body["diceIds"].as_array().unwrap();
     assert_eq!(removed.len(), 1);
     assert_eq!(removed[0], "die-1");
+}
+
+#[tokio::test]
+async fn motion_control_starts_snapshot_stream() {
+    let addr = start_server().await;
+    let room_id = api_create_room(&addr).await;
+    let url = format!("ws://{}/ws/{}", addr, room_id);
+
+    let (mut ws, _) = connect_async(&url).await.expect("Failed to connect");
+    ws.send(Message::Text(
+        json!({
+            "type": "join",
+            "roomId": room_id,
+            "displayName": "Player1",
+            "color": "#FF0000"
+        })
+        .to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws).await; // room_state
+
+    ws.send(Message::Text(
+        json!({
+            "type": "spawn_dice",
+            "dice": [{"id": "die-1", "diceType": "d6"}]
+        })
+        .to_string(),
+    ))
+    .await
+    .unwrap();
+    let _ = recv_json(&mut ws).await; // dice_spawned
+
+    ws.send(Message::Text(
+        json!({
+            "type": "motion_control",
+            "mode": "own_dice",
+            "gravity": [20.0, -9.81, 0.0]
+        })
+        .to_string(),
+    ))
+    .await
+    .unwrap();
+
+    let mut saw_snapshot = false;
+    for _ in 0..20 {
+        if let Some(msg) = try_recv_json(&mut ws).await {
+            if msg["type"] == "physics_snapshot" {
+                saw_snapshot = true;
+                break;
+            }
+        }
+    }
+
+    assert!(
+        saw_snapshot,
+        "motion_control should start physics snapshots"
+    );
 }
 
 // ─── Multiplayer Flow Tests ──────────────────────────────────────
@@ -442,7 +503,9 @@ async fn dice_spawn_broadcast_to_all_players() {
             {"id": "d2", "diceType": "d20"}
         ]
     });
-    ws1.send(Message::Text(spawn_msg.to_string())).await.unwrap();
+    ws1.send(Message::Text(spawn_msg.to_string()))
+        .await
+        .unwrap();
 
     // Both players should receive dice_spawned
     let msg1 = recv_json(&mut ws1).await;

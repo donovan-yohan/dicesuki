@@ -44,6 +44,10 @@ pub enum ClientMessage {
         #[serde(rename = "velocityHistory")]
         velocity_history: Vec<VelocityHistoryEntry>,
     },
+    MotionControl {
+        mode: MotionControlMode,
+        gravity: [f32; 3],
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,6 +74,14 @@ pub enum DiceType {
     D20,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MotionControlMode {
+    Off,
+    OwnDice,
+    Room,
+}
+
 /// Messages sent from server to client
 #[derive(Debug, Serialize, Clone)]
 #[serde(tag = "type")]
@@ -78,6 +90,8 @@ pub enum ServerMessage {
     RoomState {
         #[serde(rename = "roomId")]
         room_id: String,
+        #[serde(rename = "localPlayerId")]
+        local_player_id: String,
         players: Vec<PlayerInfo>,
         dice: Vec<DiceState>,
     },
@@ -171,10 +185,15 @@ mod tests {
 
     #[test]
     fn test_deserialize_join_message() {
-        let json = r##"{"type":"join","roomId":"abc123","displayName":"Gandalf","color":"#8B5CF6"}"##;
+        let json =
+            r##"{"type":"join","roomId":"abc123","displayName":"Gandalf","color":"#8B5CF6"}"##;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ClientMessage::Join { _room_id, display_name, color } => {
+            ClientMessage::Join {
+                _room_id,
+                display_name,
+                color,
+            } => {
                 assert_eq!(_room_id, "abc123");
                 assert_eq!(display_name, "Gandalf");
                 assert_eq!(color, "#8B5CF6");
@@ -205,9 +224,23 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_motion_control() {
+        let json = r#"{"type":"motion_control","mode":"own_dice","gravity":[1.0,-9.81,0.5]}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::MotionControl { mode, gravity } => {
+                assert_eq!(mode, MotionControlMode::OwnDice);
+                assert_eq!(gravity, [1.0, -9.81, 0.5]);
+            }
+            _ => panic!("Expected MotionControl message"),
+        }
+    }
+
+    #[test]
     fn test_serialize_room_state() {
         let msg = ServerMessage::RoomState {
             room_id: "abc123".to_string(),
+            local_player_id: "p1".to_string(),
             players: vec![PlayerInfo {
                 id: "p1".to_string(),
                 display_name: "Gandalf".to_string(),
@@ -218,6 +251,7 @@ mod tests {
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"type\":\"room_state\""));
         assert!(json.contains("\"roomId\":\"abc123\""));
+        assert!(json.contains("\"localPlayerId\":\"p1\""));
         assert!(json.contains("\"displayName\":\"Gandalf\""));
     }
 
@@ -241,7 +275,11 @@ mod tests {
         let json = r#"{"type":"drag_start","dieId":"d1","grabOffset":[0.1,0.0,-0.2],"worldPosition":[1.0,2.0,3.0]}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ClientMessage::DragStart { die_id, grab_offset, world_position } => {
+            ClientMessage::DragStart {
+                die_id,
+                grab_offset,
+                world_position,
+            } => {
                 assert_eq!(die_id, "d1");
                 assert_eq!(grab_offset, [0.1, 0.0, -0.2]);
                 assert_eq!(world_position, [1.0, 2.0, 3.0]);
@@ -255,7 +293,10 @@ mod tests {
         let json = r#"{"type":"drag_move","dieId":"d1","worldPosition":[2.0,2.0,4.0]}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ClientMessage::DragMove { die_id, world_position } => {
+            ClientMessage::DragMove {
+                die_id,
+                world_position,
+            } => {
                 assert_eq!(die_id, "d1");
                 assert_eq!(world_position, [2.0, 2.0, 4.0]);
             }
@@ -268,7 +309,10 @@ mod tests {
         let json = r#"{"type":"drag_end","dieId":"d1","velocityHistory":[{"position":[1.0,2.0,3.0],"time":0.0},{"position":[2.0,2.0,4.0],"time":16.7}]}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ClientMessage::DragEnd { die_id, velocity_history } => {
+            ClientMessage::DragEnd {
+                die_id,
+                velocity_history,
+            } => {
                 assert_eq!(die_id, "d1");
                 assert_eq!(velocity_history.len(), 2);
                 assert_eq!(velocity_history[0].position, [1.0, 2.0, 3.0]);

@@ -88,7 +88,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                         );
 
                         // Send full room state to the new player
-                        let room_state = room_guard.build_room_state();
+                        let room_state = room_guard.build_room_state_for_player(&player_id);
                         let _ = tx.send(room_state);
 
                         // Notify other players
@@ -106,9 +106,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                     Err(code) => {
                         let message = match code.as_str() {
                             "ROOM_FULL" => "Room is full (8/8 players)".to_string(),
-                            "INVALID_NAME" => {
-                                "Display name must be 1-20 characters".to_string()
-                            }
+                            "INVALID_NAME" => "Display name must be 1-20 characters".to_string(),
                             _ => format!("Failed to join: {}", code),
                         };
                         let _ = tx.send(ServerMessage::Error { code, message });
@@ -130,10 +128,9 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                     }
                     Err(code) => {
                         let message = match code.as_str() {
-                            "DICE_LIMIT" => format!(
-                                "Table is full ({}/30 dice)",
-                                room_guard.dice_count()
-                            ),
+                            "DICE_LIMIT" => {
+                                format!("Table is full ({}/30 dice)", room_guard.dice_count())
+                            }
                             _ => format!("Failed to spawn dice: {}", code),
                         };
                         let _ = tx.send(ServerMessage::Error { code, message });
@@ -145,9 +142,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 let mut room_guard = room.write().await;
                 let removed = room_guard.remove_dice(&player_id, &dice_ids);
                 if !removed.is_empty() {
-                    room_guard.broadcast(&ServerMessage::DiceRemoved {
-                        dice_ids: removed,
-                    });
+                    room_guard.broadcast(&ServerMessage::DiceRemoved { dice_ids: removed });
                 }
             }
 
@@ -172,7 +167,11 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
-            ClientMessage::DragStart { die_id, grab_offset, world_position } if is_joined => {
+            ClientMessage::DragStart {
+                die_id,
+                grab_offset,
+                world_position,
+            } if is_joined => {
                 let mut room_guard = room.write().await;
                 match room_guard.start_drag(&player_id, &die_id, grab_offset, world_position) {
                     Ok(()) => {
@@ -190,7 +189,10 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
-            ClientMessage::DragMove { die_id, world_position } if is_joined => {
+            ClientMessage::DragMove {
+                die_id,
+                world_position,
+            } if is_joined => {
                 let mut room_guard = room.write().await;
                 if let Err(code) = room_guard.update_drag(&player_id, &die_id, world_position) {
                     let _ = tx.send(ServerMessage::Error {
@@ -200,9 +202,25 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom) {
                 }
             }
 
-            ClientMessage::DragEnd { die_id, velocity_history } if is_joined => {
+            ClientMessage::DragEnd {
+                die_id,
+                velocity_history,
+            } if is_joined => {
                 let mut room_guard = room.write().await;
                 room_guard.end_drag(&player_id, &die_id, &velocity_history);
+            }
+
+            ClientMessage::MotionControl { mode, gravity } if is_joined => {
+                let mut room_guard = room.write().await;
+                match room_guard.set_motion_control(&player_id, mode, gravity) {
+                    Ok(()) => maybe_start_simulation(&mut room_guard, room.clone()),
+                    Err(code) => {
+                        let _ = tx.send(ServerMessage::Error {
+                            code: code.clone(),
+                            message: format!("Motion control failed: {}", code),
+                        });
+                    }
+                }
             }
 
             ClientMessage::Leave if is_joined => {
@@ -253,7 +271,7 @@ fn maybe_start_simulation(room_guard: &mut crate::room::Room, room: SharedRoom) 
 }
 
 /// Start the physics simulation loop for a room.
-/// Runs at 60Hz, broadcasts snapshots at 20Hz, detects settlements.
+/// Runs at 60Hz and broadcasts snapshots every simulated tick.
 fn start_simulation_loop(room: SharedRoom) {
     tokio::spawn(async move {
         let tick_duration = std::time::Duration::from_micros(16_667); // ~60Hz

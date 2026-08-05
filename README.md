@@ -12,7 +12,7 @@ A mobile-optimized 3D dice rolling simulator built with React Three Fiber and Ra
 # Install dependencies
 npm install
 
-# Start development server
+# Start development stack (local Rust room server + Vite + dice manifest watcher)
 npm run dev
 
 # Build for production

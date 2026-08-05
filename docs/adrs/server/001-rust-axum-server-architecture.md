@@ -8,7 +8,7 @@
 
 Multiplayer dice rooms require a server that can:
 - Run Rapier3D physics at 60Hz tick rate per active room
-- Stream physics snapshots to connected clients at 20Hz via WebSocket
+- Stream physics snapshots to connected clients at 60Hz while rooms are active
 - Manage room lifecycle (creation, joining, idle cleanup)
 - Handle up to 8 players and 30 dice per room
 - Deploy as a single binary to a hosting platform (Render/Fly.io)

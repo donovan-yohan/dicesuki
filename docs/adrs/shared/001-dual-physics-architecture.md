@@ -1,8 +1,10 @@
 # ADR 001 - Dual Physics Architecture for Single-Player and Multiplayer
 
 * Date: 2026/02/15
-* Status: Accepted
+* Status: Superseded by [ADR 003 - Room-First Local Loopback Architecture](003-room-first-local-loopback-architecture.md)
 * Deciders: Donovan, Development Team
+
+> Superseded note: this ADR documents the original prototype split. The current direction treats every play session as a server-backed room; single-player uses a local loopback room so it does not require public online infrastructure.
 
 ## Context
 

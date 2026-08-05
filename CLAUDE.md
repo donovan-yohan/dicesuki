@@ -6,15 +6,16 @@
 
 | Command | Description |
 |---------|-------------|
-| `npm test` | Run unit tests (Vitest) — 380 passing, 3 known failures |
+| `npm test` | Run unit tests (Vitest) — 385 passing, 16 skipped |
 | `npm run build` | Production build |
-| `npm run dev` | Start dev server |
-| `~/.cargo/bin/cargo test` | Run server tests (from server/ directory) — 76 total |
+| `npm run dev` | Start local Rust room server + Vite + dice manifest watcher |
+| `PORT=8090 VITE_MULTIPLAYER_SERVER_URL=ws://localhost:8090 npm run dev` | Start dev stack on alternate server port if 8080 is occupied |
+| `~/.cargo/bin/cargo test` | Run server tests (from server/ directory) |
 
 ## Architecture
 
-React 19 + Three.js + Rapier physics (WASM client / native Rust server). Zustand for state.
-Dual physics: client-side for single-player, server-authoritative for multiplayer (20Hz snapshots).
+React 19 + Three.js + native Rust Rapier room physics. Zustand for state.
+Room-first architecture: single-player is a one-player local loopback room; multiplayer uses the same room protocol remotely. Server ticks and snapshots target 60Hz.
 
 ```
 src/           → React frontend (components, hooks, stores, lib, config, themes)
@@ -49,7 +50,6 @@ docs/exec-plans/ → Execution plans (active + completed)
 - axum 0.7.x uses `:param` path syntax (NOT `{param}` which is 0.8+) — wrong syntax silently never matches
 - Zustand Map/Set updates require new instances (shallow equality) — never mutate in place
 - Selective git commits: verify committed files don't import uncommitted code (local build passes, CI fails)
-- 3 pre-existing test failures in `useHapticFeedback.test.ts` — don't fix unless asked
 - All dice spawning goes through `src/lib/diceSpawner.ts` (single source of truth)
 
 ## Workflow

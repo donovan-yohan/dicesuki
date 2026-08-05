@@ -30,11 +30,11 @@ pub const MAX_THROW_SPEED: f32 = 20.0;
 // Velocity clamping (matching client physicsConfig.ts)
 pub const MAX_DICE_VELOCITY: f32 = 25.0;
 
-/// Viewport bounds — fixed 9:16 portrait arena for multiplayer
+/// Viewport bounds — fixed 16:9 landscape arena shared by solo and multiplayer rooms
 pub const GROUND_Y: f32 = -0.5;
 pub const CEILING_Y: f32 = 15.0;
-pub const WALL_HALF_X: f32 = 4.5;   // 9 units wide total
-pub const WALL_HALF_Z: f32 = 8.0;   // 16 units deep total
+pub const WALL_HALF_X: f32 = 8.0; // 16 units wide total
+pub const WALL_HALF_Z: f32 = 4.5; // 9 units deep total
 pub const WALL_HEIGHT: f32 = 8.0;
 pub const WALL_THICKNESS: f32 = 0.5;
 
@@ -75,27 +75,38 @@ impl PhysicsWorld {
             .translation(vector![0.0, CEILING_Y, 0.0])
             .build();
         let ceiling_handle = rigid_body_set.insert(ceiling_body);
-        let ceiling_collider = ColliderBuilder::cuboid(WALL_HALF_X + 2.0, 0.5, WALL_HALF_Z + 2.0)
-            .build();
+        let ceiling_collider =
+            ColliderBuilder::cuboid(WALL_HALF_X + 2.0, 0.5, WALL_HALF_Z + 2.0).build();
         collider_set.insert_with_parent(ceiling_collider, ceiling_handle, &mut rigid_body_set);
 
         // 4 walls: +X, -X, +Z, -Z
         let walls = [
-            (vector![WALL_HALF_X + WALL_THICKNESS, WALL_HEIGHT / 2.0, 0.0], vector![WALL_THICKNESS, WALL_HEIGHT, WALL_HALF_Z + 2.0]),
-            (vector![-(WALL_HALF_X + WALL_THICKNESS), WALL_HEIGHT / 2.0, 0.0], vector![WALL_THICKNESS, WALL_HEIGHT, WALL_HALF_Z + 2.0]),
-            (vector![0.0, WALL_HEIGHT / 2.0, WALL_HALF_Z + WALL_THICKNESS], vector![WALL_HALF_X + 2.0, WALL_HEIGHT, WALL_THICKNESS]),
-            (vector![0.0, WALL_HEIGHT / 2.0, -(WALL_HALF_Z + WALL_THICKNESS)], vector![WALL_HALF_X + 2.0, WALL_HEIGHT, WALL_THICKNESS]),
+            (
+                vector![WALL_HALF_X + WALL_THICKNESS, WALL_HEIGHT / 2.0, 0.0],
+                vector![WALL_THICKNESS, WALL_HEIGHT, WALL_HALF_Z + 2.0],
+            ),
+            (
+                vector![-(WALL_HALF_X + WALL_THICKNESS), WALL_HEIGHT / 2.0, 0.0],
+                vector![WALL_THICKNESS, WALL_HEIGHT, WALL_HALF_Z + 2.0],
+            ),
+            (
+                vector![0.0, WALL_HEIGHT / 2.0, WALL_HALF_Z + WALL_THICKNESS],
+                vector![WALL_HALF_X + 2.0, WALL_HEIGHT, WALL_THICKNESS],
+            ),
+            (
+                vector![0.0, WALL_HEIGHT / 2.0, -(WALL_HALF_Z + WALL_THICKNESS)],
+                vector![WALL_HALF_X + 2.0, WALL_HEIGHT, WALL_THICKNESS],
+            ),
         ];
 
         for (pos, half_extents) in walls {
-            let wall_body = RigidBodyBuilder::fixed()
-                .translation(pos)
-                .build();
+            let wall_body = RigidBodyBuilder::fixed().translation(pos).build();
             let wall_handle = rigid_body_set.insert(wall_body);
-            let wall_collider = ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
-                .restitution(DICE_RESTITUTION)
-                .friction(DICE_FRICTION)
-                .build();
+            let wall_collider =
+                ColliderBuilder::cuboid(half_extents.x, half_extents.y, half_extents.z)
+                    .restitution(DICE_RESTITUTION)
+                    .friction(DICE_FRICTION)
+                    .build();
             collider_set.insert_with_parent(wall_collider, wall_handle, &mut rigid_body_set);
         }
 
@@ -152,14 +163,16 @@ impl PhysicsWorld {
 
     /// Get linear velocity magnitude
     pub fn get_linear_speed(&self, handle: RigidBodyHandle) -> f32 {
-        self.rigid_body_set.get(handle)
+        self.rigid_body_set
+            .get(handle)
             .map(|rb| rb.linvel().magnitude())
             .unwrap_or(0.0)
     }
 
     /// Get angular velocity magnitude
     pub fn get_angular_speed(&self, handle: RigidBodyHandle) -> f32 {
-        self.rigid_body_set.get(handle)
+        self.rigid_body_set
+            .get(handle)
             .map(|rb| rb.angvel().magnitude())
             .unwrap_or(0.0)
     }
@@ -203,7 +216,9 @@ mod tests {
             .restitution(DICE_RESTITUTION)
             .friction(DICE_FRICTION)
             .build();
-        world.collider_set.insert_with_parent(collider, handle, &mut world.rigid_body_set);
+        world
+            .collider_set
+            .insert_with_parent(collider, handle, &mut world.rigid_body_set);
 
         // Step for 2 seconds (120 ticks at 60Hz)
         for _ in 0..120 {
@@ -213,7 +228,11 @@ mod tests {
         let pos = world.get_position(handle).unwrap();
         // Should have fallen near ground level (y ~= 0)
         assert!(pos[1] < 2.0, "Dice should have fallen, y={}", pos[1]);
-        assert!(pos[1] > -1.0, "Dice should not fall through ground, y={}", pos[1]);
+        assert!(
+            pos[1] > -1.0,
+            "Dice should not fall through ground, y={}",
+            pos[1]
+        );
     }
 
     #[test]
@@ -228,13 +247,18 @@ mod tests {
             .restitution(0.0) // No bounce for faster settling
             .friction(1.0)
             .build();
-        world.collider_set.insert_with_parent(collider, handle, &mut world.rigid_body_set);
+        world
+            .collider_set
+            .insert_with_parent(collider, handle, &mut world.rigid_body_set);
 
         // Step until settled (or timeout)
         for _ in 0..600 {
             world.step();
         }
 
-        assert!(world.is_at_rest(handle), "Dice should be at rest after 10 seconds");
+        assert!(
+            world.is_at_rest(handle),
+            "Dice should be at rest after 10 seconds"
+        );
     }
 }

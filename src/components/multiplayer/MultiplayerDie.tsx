@@ -63,7 +63,7 @@ export function MultiplayerDie({
     if (!meshRef.current) return
 
     // Read all state directly from store every frame to avoid stale props.
-    // Props only update on re-render (~20Hz snapshots); useFrame runs at ~60fps.
+    // Props only update on re-render; useFrame runs at ~60fps and follows latest snapshots.
     const currentDie = useMultiplayerStore.getState().dice.get(dieId)
     if (!currentDie) return
 

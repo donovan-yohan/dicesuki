@@ -10,7 +10,8 @@ Multiplayer dice rooms require real-time bidirectional communication between the
 - Room lifecycle events (join, leave, player roster changes)
 - Dice management (spawn, remove)
 - Game actions (roll, settled results)
-- High-frequency physics state streaming (20Hz snapshots during active rolls)
+- High-frequency physics state streaming (60Hz snapshots during active rolls/interactions)
+- Device-motion control policy (`off`, own dice, or whole room)
 - Error reporting
 
 The protocol must be implementable in both TypeScript (client) and Rust (server) with strong typing and easy debugging during development.
@@ -38,18 +39,19 @@ All messages MUST use a `type` field as the discriminator for tagged union deser
 | `drag_start` | Begin dragging a die | `dieId`, `grabOffset`, `worldPosition` |
 | `drag_move` | Update drag target position | `dieId`, `worldPosition` |
 | `drag_end` | Release die with throw data | `dieId`, `velocityHistory: [{position, time}]` |
+| `motion_control` | Update device-motion gravity policy | `mode: off | own_dice | room`, `gravity: [x, y, z]` |
 
 ### Server-to-Client Messages
 
 | Type | Purpose | Key Fields |
 |------|---------|------------|
-| `room_state` | Full room state on join | `roomId`, `players[]`, `dice[]` |
+| `room_state` | Full room state on join | `roomId`, `localPlayerId`, `players[]`, `dice[]` |
 | `player_joined` | New player entered | `player: {id, displayName, color}` |
 | `player_left` | Player disconnected | `playerId` |
 | `dice_spawned` | Dice added to table | `ownerId`, `dice[]` |
 | `dice_removed` | Dice removed from table | `diceIds[]` |
 | `roll_started` | Roll initiated | `playerId`, `diceIds[]` |
-| `physics_snapshot` | Physics state update (20Hz) | `tick`, `dice: [{id, p, r}]` |
+| `physics_snapshot` | Physics state update (60Hz while active) | `tick`, `dice: [{id, p, r}]` |
 | `die_settled` | Single die reached rest | `diceId`, `faceValue`, `position`, `rotation` |
 | `roll_complete` | All dice in a roll settled | `playerId`, `results[]`, `total` |
 | `error` | Server error | `code`, `message` |
@@ -78,7 +80,7 @@ Messages MUST be defined in two locations that are kept manually in sync:
 
 1. Client opens WebSocket connection to `ws(s)://<server>/ws/<roomId>`
 2. On connect, client sends `join` message with display name and color
-3. Server responds with `room_state` containing current room snapshot
+3. Server responds with `room_state` containing current room snapshot and the connection's explicit `localPlayerId`
 4. Server broadcasts `player_joined` to all other clients
 5. Normal message exchange follows
 6. On disconnect, server broadcasts `player_left` and cleans up player's state
@@ -95,7 +97,7 @@ The `error` message MUST include a machine-readable `code` field. Known codes:
 
 ## Alternatives Considered
 
-**Binary protocol (MessagePack / Protocol Buffers):** Would reduce bandwidth for physics snapshots, but adds serialization complexity and makes debugging harder (cannot read messages in browser DevTools). JSON is adequate for the current scale (8 players, 30 dice, 20Hz snapshots). Binary optimization can be added later for the `physics_snapshot` message type specifically if bandwidth becomes a constraint.
+**Binary protocol (MessagePack / Protocol Buffers):** Would reduce bandwidth for physics snapshots, but adds serialization complexity and makes debugging harder (cannot read messages in browser DevTools). JSON is adequate for the current scale (8 players, 30 dice, 60Hz active snapshots). Binary optimization can be added later for the `physics_snapshot` message type specifically if bandwidth becomes a constraint.
 
 **Server-Sent Events (SSE) + REST:** SSE provides server-to-client streaming, but requires separate HTTP requests for client-to-server messages. WebSocket's bidirectional channel is simpler for the request-response patterns (spawn, roll) combined with streaming (snapshots).
 

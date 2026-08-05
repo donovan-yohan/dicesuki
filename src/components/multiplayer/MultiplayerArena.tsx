@@ -12,7 +12,7 @@ const GROUND_Y = -0.5
 const CEILING_Y = 6
 
 /**
- * Fixed 9:16 visual arena for multiplayer.
+ * Fixed 16:9 visual arena for server-backed rooms.
  * No physics colliders — server Rapier handles all collisions.
  * Matches the themed appearance of single-player ViewportBoundaries.
  */

@@ -40,7 +40,7 @@ The drag interaction uses three WebSocket message types:
 
 - `drag_start` MUST validate ownership (only own dice) and check the die is not already being dragged
 - `drag_start` MUST start the physics simulation loop if not already running
-- `drag_move` messages MUST be throttled to ~30Hz on the client (`MULTIPLAYER_DRAG_THROTTLE_MS` = 33ms)
+- `drag_move` messages SHOULD be throttled to ~60Hz on the client (`MULTIPLAYER_DRAG_THROTTLE_MS` = 16ms)
 - `drag_end` MUST include a `velocityHistory` array for throw velocity calculation
 
 ### Velocity History and Throw Calculation
@@ -66,15 +66,15 @@ Dragged dice MUST use the same server-authoritative snapshot interpolation as al
 
 All clients (including the dragger) see the die via server snapshot interpolation. The 60Hz snapshot rate keeps perceived latency low (~16.67ms between updates).
 
-### Portrait-First Arena (9:16)
+### Shared 16:9 Arena
 
-The multiplayer arena MUST use a 9:16 portrait aspect ratio:
+The room arena uses a shared 16:9 landscape box for solo and multiplayer:
 
-- `MULTIPLAYER_ARENA_HALF_X` = 4.5 (9 units wide)
-- `MULTIPLAYER_ARENA_HALF_Z` = 8.0 (16 units deep)
+- `MULTIPLAYER_ARENA_HALF_X` = 8.0 (16 units wide)
+- `MULTIPLAYER_ARENA_HALF_Z` = 4.5 (9 units deep)
 - Constants MUST match between `src/config/physicsConfig.ts` and `server/src/physics.rs`
 
-The `MultiplayerCamera` component calculates camera height from the field of view to ensure the full arena is visible on any screen aspect ratio. Portrait phones see the table filling the screen; landscape desktops see a tall rectangle with space on sides.
+The `MultiplayerCamera` component calculates camera height from the field of view to ensure the full arena is visible on any screen aspect ratio.
 
 The `MultiplayerArena` component renders themed walls, floor, and ceiling matching the single-player visual appearance (using theme tokens for colors).
 
@@ -86,7 +86,7 @@ The `MultiplayerArena` component renders themed walls, floor, and ceiling matchi
 
 **Client-side physics prediction during drag:** The dragging client could run local Rapier prediction and reconcile with the server. This would reduce perceived latency for cross-player collision effects but adds significant complexity (two physics worlds, reconciliation logic, desync detection) that isn't justified for a dice game.
 
-**Fixed arena aspect ratio matching single-player (landscape):** Single-player uses the device's full screen. A landscape multiplayer arena would waste space on portrait phones (the primary target). The 9:16 portrait ratio maximizes usable area on mobile while remaining functional on desktop.
+**Fixed portrait arena:** A 9:16 portrait arena was mobile-friendly, but the current room-first direction chooses one default 16:9 box for both solo and multiplayer to avoid shape differences between modes.
 
 ## Consequences
 
@@ -96,14 +96,14 @@ The `MultiplayerArena` component renders themed walls, floor, and ceiling matchi
 - All clients see consistent die positions (no visual divergence between dragger and observers)
 - 60Hz server snapshots provide responsive feedback without client-side prediction complexity
 - Throw/flick behavior mirrors single-player via velocity history calculation
-- 9:16 arena is mobile-optimized while accessible on all screen sizes
-- Throttled drag messages (~30Hz) balance responsiveness vs bandwidth
+- Shared 16:9 arena is used by both solo and multiplayer rooms
+- 60Hz drag messages prioritize responsiveness; revisit bandwidth if many players drag simultaneously
 - Ownership validation on the server prevents manipulation of other players' dice
 
 ### Negative / Considerations
 
 - Velocity-based following introduces slight lag between finger and die position (~16.67ms at 60Hz snapshots)
-- The server must process drag_move messages at 30Hz per dragging player, adding load
+- The server must process drag_move messages at up to ~60Hz per dragging player, adding load
 - Drag physics constants (DRAG_FOLLOW_SPEED, etc.) must be tuned for good feel; too low feels sluggish, too high causes instability
 - The `useMultiplayerStore.getState()` pattern in `useFrame` bypasses React's rendering cycle, which is intentional for performance but requires awareness of this pattern
-- Portrait arena is narrower than single-player's full-width layout; dice may bounce more off walls in the constrained X dimension
+- Larger landscape arena may show more margin on portrait phones; mobile camera/UI treatment should be tested separately

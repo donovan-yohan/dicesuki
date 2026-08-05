@@ -5,6 +5,7 @@ import type {
   ServerMessage,
   PlayerInfo,
   DiceState,
+  MotionControlMode,
   VelocityHistoryEntry,
 } from '../lib/multiplayerMessages'
 import { getWsServerUrl } from '../lib/multiplayerServer'
@@ -48,6 +49,9 @@ interface MultiplayerState {
   lastSnapshotTime: number
   snapshotInterval: number // ms between snapshots (should match server SNAPSHOT_DIVISOR)
 
+  // Motion controls
+  motionControlMode: MotionControlMode
+
   // Actions
   connect: (roomId: string, displayName: string, color: string) => void
   disconnect: () => void
@@ -64,6 +68,8 @@ interface MultiplayerState {
   startDrag: (dieId: string, grabOffset: [number, number, number], worldPosition: [number, number, number]) => void
   moveDrag: (dieId: string, worldPosition: [number, number, number]) => void
   endDrag: (dieId: string, velocityHistory: VelocityHistoryEntry[]) => void
+  setMotionControlMode: (mode: MotionControlMode) => void
+  sendMotionControl: (gravity: [number, number, number], mode?: MotionControlMode) => void
   // Player filtering
   selectedPlayerId: string | null
   setSelectedPlayerId: (playerId: string | null) => void
@@ -83,6 +89,7 @@ const createInitialState = () => ({
   dice: new Map<string, MultiplayerDie>(),
   lastSnapshotTime: 0,
   snapshotInterval: 1000 / 60, // ~16.67ms — must match server SNAPSHOT_DIVISOR=1 (60Hz)
+  motionControlMode: 'own_dice' as MotionControlMode,
   selectedPlayerId: null as string | null,
 })
 
@@ -152,9 +159,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         for (const d of msg.dice) {
           dice.set(d.id, diceStateToMultiplayerDie(d))
         }
-        // The local player is the last one in the list (just joined)
-        const localPlayerId = msg.players[msg.players.length - 1]?.id || null
-        set({ players, dice, localPlayerId })
+        set({ players, dice, localPlayerId: msg.localPlayerId })
         break
       }
 
@@ -324,6 +329,18 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
 
   endDrag: (dieId, velocityHistory) => {
     get().sendMessage({ type: 'drag_end', dieId, velocityHistory })
+  },
+
+  setMotionControlMode: (mode) => {
+    set({ motionControlMode: mode })
+  },
+
+  sendMotionControl: (gravity, mode) => {
+    get().sendMessage({
+      type: 'motion_control',
+      mode: mode ?? get().motionControlMode,
+      gravity,
+    })
   },
 
   setSelectedPlayerId: (playerId: string | null) => {

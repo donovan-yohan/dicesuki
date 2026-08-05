@@ -1,16 +1,17 @@
+use crate::dice::{
+    create_dice_body, generate_roll_impulse, generate_roll_torque, generate_spawn_position,
+};
+use crate::face_detection::detect_face_value;
+use crate::messages::*;
+use crate::physics::{
+    PhysicsWorld, DRAG_DISTANCE_BOOST, DRAG_DISTANCE_THRESHOLD, DRAG_FOLLOW_SPEED,
+    DRAG_ROLL_FACTOR, DRAG_SPIN_FACTOR, MAX_DICE_VELOCITY, MAX_THROW_SPEED, MIN_THROW_SPEED,
+    REST_DURATION_MS, THROW_UPWARD_BOOST, THROW_VELOCITY_SCALE,
+};
+use crate::player::Player;
+use rapier3d::prelude::RigidBodyHandle;
 use std::collections::HashMap;
 use std::time::Instant;
-use rapier3d::prelude::RigidBodyHandle;
-use crate::messages::*;
-use crate::player::Player;
-use crate::physics::{
-    PhysicsWorld, REST_DURATION_MS, MAX_DICE_VELOCITY,
-    DRAG_FOLLOW_SPEED, DRAG_DISTANCE_BOOST, DRAG_DISTANCE_THRESHOLD,
-    DRAG_ROLL_FACTOR, DRAG_SPIN_FACTOR,
-    THROW_VELOCITY_SCALE, THROW_UPWARD_BOOST, MIN_THROW_SPEED, MAX_THROW_SPEED,
-};
-use crate::dice::{create_dice_body, generate_roll_impulse, generate_roll_torque, generate_spawn_position};
-use crate::face_detection::detect_face_value;
 
 pub const MAX_PLAYERS: usize = 8;
 pub const MAX_DICE: usize = 30;
@@ -22,6 +23,12 @@ pub struct DragState {
     pub grab_offset: [f32; 3],
     pub target_position: [f32; 3],
     pub last_target_position: [f32; 3],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MotionControlState {
+    pub mode: MotionControlMode,
+    pub gravity: [f32; 3],
 }
 
 pub struct ServerDie {
@@ -47,6 +54,8 @@ pub struct Room {
     pub is_sim_running: bool,
     pub tick_count: u64,
     pub physics: PhysicsWorld,
+    pub motion_controls: HashMap<String, MotionControlState>,
+    pub room_motion_controller: Option<String>,
 }
 
 impl Room {
@@ -60,6 +69,8 @@ impl Room {
             is_sim_running: false,
             tick_count: 0,
             physics: PhysicsWorld::new(),
+            motion_controls: HashMap::new(),
+            room_motion_controller: None,
         }
     }
 
@@ -80,8 +91,7 @@ impl Room {
     }
 
     pub fn is_idle_expired(&self) -> bool {
-        self.is_empty()
-            && self.last_activity.elapsed().as_secs() > IDLE_TIMEOUT_SECS
+        self.is_empty() && self.last_activity.elapsed().as_secs() > IDLE_TIMEOUT_SECS
     }
 
     pub fn touch(&mut self) {
@@ -104,7 +114,13 @@ impl Room {
     /// Remove a player and all their dice. Returns the removed dice IDs.
     pub fn remove_player(&mut self, player_id: &str) -> Vec<String> {
         self.players.remove(player_id);
-        let removed_dice_ids: Vec<String> = self.dice.iter()
+        self.motion_controls.remove(player_id);
+        if self.room_motion_controller.as_deref() == Some(player_id) {
+            self.room_motion_controller = None;
+        }
+        let removed_dice_ids: Vec<String> = self
+            .dice
+            .iter()
             .filter(|(_, d)| d.owner_id == player_id)
             .map(|(id, _)| id.clone())
             .collect();
@@ -151,7 +167,11 @@ impl Room {
     }
 
     /// Spawn dice with physics bodies
-    pub fn spawn_dice_with_physics(&mut self, owner_id: &str, entries: Vec<(String, DiceType)>) -> Result<Vec<DiceState>, String> {
+    pub fn spawn_dice_with_physics(
+        &mut self,
+        owner_id: &str,
+        entries: Vec<(String, DiceType)>,
+    ) -> Result<Vec<DiceState>, String> {
         if self.dice.len() + entries.len() > MAX_DICE {
             return Err("DICE_LIMIT".to_string());
         }
@@ -168,7 +188,10 @@ impl Room {
                 &mut self.physics.rigid_body_set,
                 &mut self.physics.collider_set,
             );
-            let rotation = self.physics.get_rotation(body_handle).unwrap_or([0.0, 0.0, 0.0, 1.0]);
+            let rotation = self
+                .physics
+                .get_rotation(body_handle)
+                .unwrap_or([0.0, 0.0, 0.0, 1.0]);
 
             let die = ServerDie {
                 id: id.clone(),
@@ -202,7 +225,9 @@ impl Room {
 
     /// Apply roll impulse to all of a player's dice
     pub fn roll_player_dice(&mut self, player_id: &str) -> Vec<String> {
-        let dice_ids: Vec<String> = self.dice.iter()
+        let dice_ids: Vec<String> = self
+            .dice
+            .iter()
             .filter(|(_, d)| d.owner_id == player_id)
             .map(|(id, _)| id.clone())
             .collect();
@@ -228,11 +253,118 @@ impl Room {
         dice_ids
     }
 
+    /// Set how a player's device-motion gravity affects the room.
+    pub fn set_motion_control(
+        &mut self,
+        player_id: &str,
+        mode: MotionControlMode,
+        gravity: [f32; 3],
+    ) -> Result<(), String> {
+        if !self.players.contains_key(player_id) {
+            return Err("PLAYER_NOT_FOUND".to_string());
+        }
+
+        match mode {
+            MotionControlMode::Off => {
+                self.motion_controls.remove(player_id);
+                if self.room_motion_controller.as_deref() == Some(player_id) {
+                    self.room_motion_controller = None;
+                }
+            }
+            MotionControlMode::OwnDice => {
+                self.motion_controls
+                    .insert(player_id.to_string(), MotionControlState { mode, gravity });
+                if self.room_motion_controller.as_deref() == Some(player_id) {
+                    self.room_motion_controller = None;
+                }
+            }
+            MotionControlMode::Room => {
+                self.motion_controls
+                    .insert(player_id.to_string(), MotionControlState { mode, gravity });
+                // MVP policy: latest room-controller wins. Turn/order permissions can layer on this.
+                self.room_motion_controller = Some(player_id.to_string());
+            }
+        }
+
+        self.is_simulating = self.has_active_motion_controls()
+            || self
+                .dice
+                .values()
+                .any(|d| d.is_rolling || d.drag_state.is_some());
+        self.touch();
+        Ok(())
+    }
+
+    fn has_active_motion_controls(&self) -> bool {
+        self.motion_controls
+            .values()
+            .any(|control| control.mode != MotionControlMode::Off)
+    }
+
+    fn apply_motion_controls(&mut self) {
+        let room_control = self
+            .room_motion_controller
+            .as_ref()
+            .and_then(|player_id| self.motion_controls.get(player_id))
+            .copied()
+            .filter(|control| control.mode == MotionControlMode::Room);
+
+        if let Some(control) = room_control {
+            let handles: Vec<RigidBodyHandle> = self
+                .dice
+                .values()
+                .filter_map(|die| die.body_handle)
+                .collect();
+            self.apply_motion_gravity_to_handles(&handles, control);
+            return;
+        }
+
+        let owner_controls: Vec<(String, MotionControlState)> = self
+            .motion_controls
+            .iter()
+            .filter(|(_, control)| control.mode == MotionControlMode::OwnDice)
+            .map(|(player_id, control)| (player_id.clone(), *control))
+            .collect();
+
+        for (owner_id, control) in owner_controls {
+            let handles: Vec<RigidBodyHandle> = self
+                .dice
+                .values()
+                .filter(|die| die.owner_id == owner_id)
+                .filter_map(|die| die.body_handle)
+                .collect();
+            self.apply_motion_gravity_to_handles(&handles, control);
+        }
+    }
+
+    fn apply_motion_gravity_to_handles(
+        &mut self,
+        handles: &[RigidBodyHandle],
+        control: MotionControlState,
+    ) {
+        let gravity_delta = rapier3d::prelude::vector![
+            control.gravity[0],
+            control.gravity[1] - crate::physics::GRAVITY,
+            control.gravity[2],
+        ];
+
+        for handle in handles {
+            if let Some(rb) = self.physics.rigid_body_set.get_mut(*handle) {
+                rb.add_force(gravity_delta * rb.mass(), true);
+            }
+        }
+    }
+
     /// Step physics and check for settled dice.
     /// Returns (snapshot, newly_settled_dice) tuple.
     pub fn physics_tick(&mut self) -> (Option<ServerMessage>, Vec<(String, u32)>) {
-        // 1. Apply drag forces to dice being dragged (before stepping physics)
-        let dragged_ids: Vec<String> = self.dice.iter()
+        // 1. Apply active phone/room gravity controls as per-body forces.
+        self.apply_motion_controls();
+
+        // 2. Apply drag forces to dice being dragged (before stepping physics)
+        let dragged_ids: Vec<String> = self
+            .dice
+            .iter()
             .filter(|(_, d)| d.drag_state.is_some() && d.body_handle.is_some())
             .map(|(id, _)| id.clone())
             .collect();
@@ -256,7 +388,8 @@ impl Room {
 
                 // Speed multiplier with distance boost (matching client)
                 let speed_mult = if distance > DRAG_DISTANCE_THRESHOLD {
-                    let factor = ((distance - DRAG_DISTANCE_THRESHOLD) / DRAG_DISTANCE_THRESHOLD).min(1.0);
+                    let factor =
+                        ((distance - DRAG_DISTANCE_THRESHOLD) / DRAG_DISTANCE_THRESHOLD).min(1.0);
                     DRAG_FOLLOW_SPEED + DRAG_DISTANCE_BOOST * factor
                 } else {
                     DRAG_FOLLOW_SPEED
@@ -325,13 +458,16 @@ impl Room {
         // Build snapshot based on SNAPSHOT_DIVISOR (1 = 60Hz, 2 = 30Hz, 3 = 20Hz)
         const POSITION_DELTA_THRESHOLD: f32 = 0.01; // 1cm movement threshold
         let snapshot = if self.tick_count % SNAPSHOT_DIVISOR == 0 {
-            let dice_snapshots: Vec<DiceSnapshot> = self.dice.values()
+            let dice_snapshots: Vec<DiceSnapshot> = self
+                .dice
+                .values()
                 .filter(|d| {
                     d.is_rolling || d.drag_state.is_some() || {
                         let dx = d.position[0] - d.last_snapshot_position[0];
                         let dy = d.position[1] - d.last_snapshot_position[1];
                         let dz = d.position[2] - d.last_snapshot_position[2];
-                        (dx * dx + dy * dy + dz * dz) > POSITION_DELTA_THRESHOLD * POSITION_DELTA_THRESHOLD
+                        (dx * dx + dy * dy + dz * dz)
+                            > POSITION_DELTA_THRESHOLD * POSITION_DELTA_THRESHOLD
                     }
                 })
                 .map(|d| DiceSnapshot {
@@ -369,7 +505,13 @@ impl Room {
         for dice_id in dice_ids {
             let (is_rolling, handle, rest_start, dice_type, rotation) = {
                 let die = &self.dice[&dice_id];
-                (die.is_rolling, die.body_handle, die.rest_start_tick, die.dice_type, die.rotation)
+                (
+                    die.is_rolling,
+                    die.body_handle,
+                    die.rest_start_tick,
+                    die.dice_type,
+                    die.rotation,
+                )
             };
 
             if !is_rolling {
@@ -399,8 +541,12 @@ impl Room {
             }
         }
 
-        // Check if all dice are settled (including dragged dice as active)
-        let any_active = self.dice.values().any(|d| d.is_rolling || d.drag_state.is_some());
+        // Check if all dice are settled (including dragged dice and motion controls as active)
+        let any_active = self
+            .dice
+            .values()
+            .any(|d| d.is_rolling || d.drag_state.is_some())
+            || self.has_active_motion_controls();
         if !any_active {
             self.is_simulating = false;
         }
@@ -410,14 +556,17 @@ impl Room {
 
     /// Check if a full roll is complete for a player (all their dice settled)
     pub fn is_player_roll_complete(&self, player_id: &str) -> bool {
-        self.dice.iter()
+        self.dice
+            .iter()
             .filter(|(_, d)| d.owner_id == player_id)
             .all(|(_, d)| !d.is_rolling)
     }
 
     /// Get roll results for a player
     pub fn get_player_results(&self, player_id: &str) -> (Vec<DieResult>, u32) {
-        let results: Vec<DieResult> = self.dice.iter()
+        let results: Vec<DieResult> = self
+            .dice
+            .iter()
             .filter(|(_, d)| d.owner_id == player_id && d.face_value.is_some())
             .map(|(_, d)| DieResult {
                 dice_id: d.id.clone(),
@@ -491,7 +640,9 @@ impl Room {
         die_id: &str,
         velocity_history: &[VelocityHistoryEntry],
     ) {
-        let Some(die) = self.dice.get_mut(die_id) else { return };
+        let Some(die) = self.dice.get_mut(die_id) else {
+            return;
+        };
         let Some(drag) = &die.drag_state else { return };
         if drag.dragger_id != player_id {
             return;
@@ -521,17 +672,22 @@ impl Room {
     }
 
     /// Build a full room state snapshot (sent to newly joined players)
-    pub fn build_room_state(&self) -> ServerMessage {
+    pub fn build_room_state_for_player(&self, local_player_id: &str) -> ServerMessage {
         ServerMessage::RoomState {
             room_id: self.id.clone(),
+            local_player_id: local_player_id.to_string(),
             players: self.players.values().map(|p| p.to_info()).collect(),
-            dice: self.dice.values().map(|d| DiceState {
-                id: d.id.clone(),
-                owner_id: d.owner_id.clone(),
-                dice_type: d.dice_type,
-                position: d.position,
-                rotation: d.rotation,
-            }).collect(),
+            dice: self
+                .dice
+                .values()
+                .map(|d| DiceState {
+                    id: d.id.clone(),
+                    owner_id: d.owner_id.clone(),
+                    dice_type: d.dice_type,
+                    position: d.position,
+                    rotation: d.rotation,
+                })
+                .collect(),
         }
     }
 }
@@ -542,7 +698,11 @@ fn calculate_throw_velocity(history: &[VelocityHistoryEntry]) -> Option<[f32; 3]
     }
 
     // Use last 3 entries
-    let start = if history.len() > 3 { history.len() - 3 } else { 0 };
+    let start = if history.len() > 3 {
+        history.len() - 3
+    } else {
+        0
+    };
     let recent = &history[start..];
 
     let mut velocities: Vec<[f32; 3]> = Vec::new();
@@ -596,7 +756,11 @@ impl Room {
 
     /// Spawn dice without physics bodies (test-only helper).
     /// Production code uses `spawn_dice_with_physics()` instead.
-    pub fn spawn_dice(&mut self, owner_id: &str, entries: Vec<(String, DiceType)>) -> Result<Vec<DiceState>, String> {
+    pub fn spawn_dice(
+        &mut self,
+        owner_id: &str,
+        entries: Vec<(String, DiceType)>,
+    ) -> Result<Vec<DiceState>, String> {
         if self.dice.len() + entries.len() > MAX_DICE {
             return Err("DICE_LIMIT".to_string());
         }
@@ -699,10 +863,14 @@ mod tests {
         let mut room = Room::new("test".to_string());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
-        room.spawn_dice("p1", vec![
-            ("d1".to_string(), DiceType::D20),
-            ("d2".to_string(), DiceType::D6),
-        ]).unwrap();
+        room.spawn_dice(
+            "p1",
+            vec![
+                ("d1".to_string(), DiceType::D20),
+                ("d2".to_string(), DiceType::D6),
+            ],
+        )
+        .unwrap();
         assert_eq!(room.dice_count(), 2);
 
         let removed = room.remove_player("p1");
@@ -717,9 +885,7 @@ mod tests {
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
 
-        let result = room.spawn_dice("p1", vec![
-            ("d1".to_string(), DiceType::D20),
-        ]);
+        let result = room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D20)]);
         assert!(result.is_ok());
         assert_eq!(room.dice_count(), 1);
     }
@@ -747,8 +913,10 @@ mod tests {
         let p2 = make_player("p2", "Frodo");
         room.add_player(p1).unwrap();
         room.add_player(p2).unwrap();
-        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D20)]).unwrap();
-        room.spawn_dice("p2", vec![("d2".to_string(), DiceType::D6)]).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D20)])
+            .unwrap();
+        room.spawn_dice("p2", vec![("d2".to_string(), DiceType::D6)])
+            .unwrap();
 
         // p2 tries to remove p1's die — should fail silently
         let removed = room.remove_dice("p2", &["d1".to_string()]);
@@ -800,7 +968,7 @@ mod tests {
         room.broadcast_except(&msg, "p1");
 
         assert!(rx1.try_recv().is_err()); // p1 should NOT receive
-        assert!(rx2.try_recv().is_ok());  // p2 should receive
+        assert!(rx2.try_recv().is_ok()); // p2 should receive
     }
 
     #[test]
@@ -809,9 +977,7 @@ mod tests {
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
 
-        let result = room.spawn_dice_with_physics("p1", vec![
-            ("d1".to_string(), DiceType::D6),
-        ]);
+        let result = room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]);
         assert!(result.is_ok());
         assert_eq!(room.dice_count(), 1);
         assert!(room.dice.get("d1").unwrap().body_handle.is_some());
@@ -822,7 +988,8 @@ mod tests {
         let mut room = Room::new("test".to_string());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
-        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
 
         let rolled = room.roll_player_dice("p1");
         assert_eq!(rolled.len(), 1);
@@ -835,12 +1002,16 @@ mod tests {
         let mut room = Room::new("test".to_string());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
-        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
         room.roll_player_dice("p1");
 
         // With SNAPSHOT_DIVISOR=1, every tick should produce a snapshot
         let (snap1, _) = room.physics_tick();
-        assert!(snap1.is_some(), "Every tick should produce a snapshot with divisor=1");
+        assert!(
+            snap1.is_some(),
+            "Every tick should produce a snapshot with divisor=1"
+        );
     }
 
     #[test]
@@ -848,11 +1019,12 @@ mod tests {
         let mut room = Room::new("test".to_string());
         let player = make_player("p1", "Test");
         room.add_player(player).unwrap();
-        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
         room.roll_player_dice("p1");
 
         // Run simulation for up to 20 seconds (1200 ticks)
-        // Narrower 9:16 arena causes more wall bounces, needs more settling time
+        // Wall bounces and randomized spin can need several seconds to settle.
         let mut settled = false;
         for _ in 0..1200 {
             let (_, newly_settled) = room.physics_tick();
@@ -863,12 +1035,22 @@ mod tests {
         }
 
         assert!(settled, "Dice should settle within 20 seconds");
-        assert!(!room.is_simulating, "Room should stop simulating after all dice settle");
+        assert!(
+            !room.is_simulating,
+            "Room should stop simulating after all dice settle"
+        );
 
         let die = room.dice.get("d1").unwrap();
-        assert!(die.face_value.is_some(), "Settled die should have a face value");
+        assert!(
+            die.face_value.is_some(),
+            "Settled die should have a face value"
+        );
         let value = die.face_value.unwrap();
-        assert!(value >= 1 && value <= 6, "D6 should show 1-6, got {}", value);
+        assert!(
+            value >= 1 && value <= 6,
+            "D6 should show 1-6, got {}",
+            value
+        );
     }
 
     #[test]
@@ -876,7 +1058,8 @@ mod tests {
         let mut room = Room::new("test".to_string());
         let player = make_player("p1", "Gandalf");
         room.add_player(player).unwrap();
-        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
 
         let result = room.start_drag("p1", "d1", [0.1, 0.0, -0.2], [1.0, 2.0, 3.0]);
         assert!(result.is_ok());
@@ -888,7 +1071,8 @@ mod tests {
         let mut room = Room::new("test".to_string());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
         room.add_player(make_player("p2", "Frodo")).unwrap();
-        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
 
         let result = room.start_drag("p2", "d1", [0.0; 3], [0.0; 3]);
         assert!(result.is_err());
@@ -899,7 +1083,8 @@ mod tests {
     fn test_cannot_drag_already_dragged_die() {
         let mut room = Room::new("test".to_string());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
-        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
 
         room.start_drag("p1", "d1", [0.0; 3], [0.0; 3]).unwrap();
         let result = room.start_drag("p1", "d1", [0.0; 3], [0.0; 3]);
@@ -911,8 +1096,10 @@ mod tests {
     fn test_update_drag_target() {
         let mut room = Room::new("test".to_string());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
-        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
-        room.start_drag("p1", "d1", [0.0; 3], [1.0, 2.0, 3.0]).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
+        room.start_drag("p1", "d1", [0.0; 3], [1.0, 2.0, 3.0])
+            .unwrap();
 
         let result = room.update_drag("p1", "d1", [2.0, 2.0, 4.0]);
         assert!(result.is_ok());
@@ -924,7 +1111,8 @@ mod tests {
     fn test_end_drag_clears_state() {
         let mut room = Room::new("test".to_string());
         room.add_player(make_player("p1", "Gandalf")).unwrap();
-        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.spawn_dice("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
         room.start_drag("p1", "d1", [0.0; 3], [0.0; 3]).unwrap();
 
         room.end_drag("p1", "d1", &[]);
@@ -940,7 +1128,8 @@ mod tests {
         room.add_player(p2).unwrap();
 
         // Spawn p2's die with physics (starts settled)
-        room.spawn_dice_with_physics("p2", vec![("d2".to_string(), DiceType::D6)]).unwrap();
+        room.spawn_dice_with_physics("p2", vec![("d2".to_string(), DiceType::D6)])
+            .unwrap();
 
         // Manually apply velocity to d2's rigid body to simulate collision displacement
         if let Some(handle) = room.dice.get("d2").unwrap().body_handle {
@@ -953,18 +1142,112 @@ mod tests {
         let (snapshot, _) = room.physics_tick();
 
         // d2 should be in the snapshot even though it's not rolling (it moved)
-        assert!(snapshot.is_some(), "Snapshot should be generated for displaced die");
+        assert!(
+            snapshot.is_some(),
+            "Snapshot should be generated for displaced die"
+        );
         if let Some(ServerMessage::PhysicsSnapshot { dice, .. }) = snapshot {
             let d2_in_snapshot = dice.iter().any(|d| d.id == "d2");
-            assert!(d2_in_snapshot, "Displaced settled die should be in snapshot");
+            assert!(
+                d2_in_snapshot,
+                "Displaced settled die should be in snapshot"
+            );
         }
+    }
+
+    #[test]
+    fn test_own_dice_motion_control_only_applies_to_owner_dice() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.add_player(make_player("p2", "Frodo")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
+        room.spawn_dice_with_physics("p2", vec![("d2".to_string(), DiceType::D6)])
+            .unwrap();
+
+        room.set_motion_control(
+            "p1",
+            MotionControlMode::OwnDice,
+            [30.0, crate::physics::GRAVITY, 0.0],
+        )
+        .unwrap();
+        room.physics_tick();
+
+        let d1_handle = room.dice.get("d1").unwrap().body_handle.unwrap();
+        let d2_handle = room.dice.get("d2").unwrap().body_handle.unwrap();
+        let d1_vx = room
+            .physics
+            .rigid_body_set
+            .get(d1_handle)
+            .unwrap()
+            .linvel()
+            .x;
+        let d2_vx = room
+            .physics
+            .rigid_body_set
+            .get(d2_handle)
+            .unwrap()
+            .linvel()
+            .x;
+
+        assert!(
+            d1_vx > 0.0,
+            "owner die should receive phone gravity x force"
+        );
+        assert!(
+            d2_vx.abs() < 0.001,
+            "other player's die should not receive direct x force"
+        );
+    }
+
+    #[test]
+    fn test_room_motion_control_applies_to_all_dice() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.add_player(make_player("p2", "Frodo")).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
+        room.spawn_dice_with_physics("p2", vec![("d2".to_string(), DiceType::D6)])
+            .unwrap();
+
+        room.set_motion_control(
+            "p1",
+            MotionControlMode::Room,
+            [30.0, crate::physics::GRAVITY, 0.0],
+        )
+        .unwrap();
+        room.physics_tick();
+
+        for die_id in ["d1", "d2"] {
+            let handle = room.dice.get(die_id).unwrap().body_handle.unwrap();
+            let vx = room.physics.rigid_body_set.get(handle).unwrap().linvel().x;
+            assert!(vx > 0.0, "{die_id} should receive room gravity x force");
+        }
+    }
+
+    #[test]
+    fn test_remove_player_clears_motion_control() {
+        let mut room = Room::new("test".to_string());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        room.set_motion_control(
+            "p1",
+            MotionControlMode::Room,
+            [30.0, crate::physics::GRAVITY, 0.0],
+        )
+        .unwrap();
+
+        room.remove_player("p1");
+
+        assert!(!room.has_active_motion_controls());
+        assert_eq!(room.room_motion_controller, None);
     }
 
     #[test]
     fn test_drag_moves_die_toward_target() {
         let mut room = Room::new("test".to_string());
         room.add_player(make_player("p1", "Test")).unwrap();
-        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)])
+            .unwrap();
 
         let initial_pos = room.dice.get("d1").unwrap().position;
         let target = [initial_pos[0] + 3.0, 2.0, initial_pos[2]];
@@ -978,6 +1261,9 @@ mod tests {
 
         let new_pos = room.dice.get("d1").unwrap().position;
         // Die should have moved toward the target (X increased)
-        assert!(new_pos[0] > initial_pos[0], "Die should move toward drag target");
+        assert!(
+            new_pos[0] > initial_pos[0],
+            "Die should move toward drag target"
+        );
     }
 }

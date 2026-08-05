@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useMultiplayerStore } from './useMultiplayerStore'
 import type { ServerMessage } from '../lib/multiplayerMessages'
 
@@ -24,6 +24,7 @@ describe('useMultiplayerStore', () => {
       const msg: ServerMessage = {
         type: 'room_state',
         roomId: 'abc123',
+        localPlayerId: 'p1',
         players: [
           { id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' },
           { id: 'p2', displayName: 'Frodo', color: '#3B82F6' },
@@ -40,13 +41,14 @@ describe('useMultiplayerStore', () => {
       expect(state.players.get('p1')?.displayName).toBe('Gandalf')
       expect(state.dice.size).toBe(1)
       expect(state.dice.get('d1')?.diceType).toBe('d20')
-      expect(state.localPlayerId).toBe('p2') // Last player = local
+      expect(state.localPlayerId).toBe('p1')
     })
 
     it('should handle player_joined message', () => {
       useMultiplayerStore.getState().handleServerMessage({
         type: 'room_state',
         roomId: 'abc123',
+        localPlayerId: 'p1',
         players: [{ id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' }],
         dice: [],
       })
@@ -63,6 +65,7 @@ describe('useMultiplayerStore', () => {
       useMultiplayerStore.getState().handleServerMessage({
         type: 'room_state',
         roomId: 'abc123',
+        localPlayerId: 'p1',
         players: [
           { id: 'p1', displayName: 'Gandalf', color: '#8B5CF6' },
           { id: 'p2', displayName: 'Frodo', color: '#3B82F6' },
@@ -238,6 +241,23 @@ describe('useMultiplayerStore', () => {
         useMultiplayerStore.getState().sendMessage({ type: 'roll' })
       }).not.toThrow()
     })
+
+    it('should send motion_control with the selected mode', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        motionControlMode: 'room',
+      })
+
+      useMultiplayerStore.getState().sendMotionControl([1, -9.81, 0])
+
+      expect(send).toHaveBeenCalledWith(JSON.stringify({
+        type: 'motion_control',
+        mode: 'room',
+        gravity: [1, -9.81, 0],
+      }))
+    })
   })
 
   describe('reset', () => {
@@ -245,6 +265,7 @@ describe('useMultiplayerStore', () => {
       useMultiplayerStore.getState().handleServerMessage({
         type: 'room_state',
         roomId: 'abc123',
+        localPlayerId: 'p1',
         players: [{ id: 'p1', displayName: 'Test', color: '#FFF' }],
         dice: [],
       })

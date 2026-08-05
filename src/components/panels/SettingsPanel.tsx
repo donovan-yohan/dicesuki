@@ -8,6 +8,8 @@
 import { useState } from 'react'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { useCreateRoom } from '../../hooks/useCreateRoom'
+import type { MotionControlMode } from '../../lib/multiplayerMessages'
+import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { ThemeSelector } from '../ThemeSelector'
 import { FlyoutPanel } from './FlyoutPanel'
 import { ArtistTestingPanel } from './ArtistTestingPanel'
@@ -21,6 +23,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showThemeSelector, setShowThemeSelector] = useState(false)
   const [showArtistPanel, setShowArtistPanel] = useState(false)
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
+  const motionControlMode = useMultiplayerStore((s) => s.motionControlMode)
+  const setMotionControlMode = useMultiplayerStore((s) => s.setMotionControlMode)
   const { isCreating: isCreatingRoom, error: roomError, createRoom: handleCreateRoom, clearError: clearRoomError } = useCreateRoom()
 
   return (
@@ -129,6 +133,54 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             </div>
             <span style={{ color: 'var(--color-accent)' }}>→</span>
           </button>
+        </div>
+
+        {/* Motion Control Section */}
+        <div className="mb-8">
+          <h3
+            className="text-sm font-semibold mb-3"
+            style={{ color: 'var(--color-text-secondary)' }}
+          >
+            Motion Control
+          </h3>
+
+          <div
+            className="p-4 rounded-lg"
+            style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.2)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+            }}
+          >
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {([
+                ['off', 'Off'],
+                ['own_dice', 'My Dice'],
+                ['room', 'Whole Box'],
+              ] as const).map(([mode, label]) => {
+                const selected = motionControlMode === mode
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => setMotionControlMode(mode as MotionControlMode)}
+                    className="px-2 py-2 rounded-md text-xs font-semibold transition-all"
+                    style={{
+                      backgroundColor: selected ? '#fb923c' : 'rgba(255, 255, 255, 0.08)',
+                      color: selected ? '#111827' : 'var(--color-text-primary)',
+                      border: selected ? '1px solid #fdba74' : '1px solid rgba(255, 255, 255, 0.12)',
+                    }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            <p
+              className="text-xs leading-relaxed"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              My Dice applies phone tilt only to your dice. Whole Box lets your phone steer gravity for every die in the room.
+            </p>
+          </div>
         </div>
 
         {/* Performance Section */}

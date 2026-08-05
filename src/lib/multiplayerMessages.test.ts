@@ -44,6 +44,15 @@ describe('multiplayerMessages', () => {
       expect(msg.type).toBe('remove_dice')
     })
 
+    it('should type-check a motion_control message', () => {
+      const msg: ClientMessage = {
+        type: 'motion_control',
+        mode: 'own_dice',
+        gravity: [0, -9.81, 0],
+      }
+      expect(msg.type).toBe('motion_control')
+    })
+
     it('should type-check a leave message', () => {
       const msg: ClientMessage = { type: 'leave' }
       expect(msg.type).toBe('leave')
@@ -52,11 +61,12 @@ describe('multiplayerMessages', () => {
 
   describe('ServerMessage parsing', () => {
     it('should parse a room_state message', () => {
-      const json = '{"type":"room_state","roomId":"abc123","players":[{"id":"p1","displayName":"Gandalf","color":"#8B5CF6"}],"dice":[]}'
+      const json = '{"type":"room_state","roomId":"abc123","localPlayerId":"p1","players":[{"id":"p1","displayName":"Gandalf","color":"#8B5CF6"}],"dice":[]}'
       const msg: ServerMessage = JSON.parse(json)
       expect(msg.type).toBe('room_state')
       const roomState = msg as RoomStateMessage
       expect(roomState.roomId).toBe('abc123')
+      expect(roomState.localPlayerId).toBe('p1')
       expect(roomState.players).toHaveLength(1)
       expect(roomState.players[0].displayName).toBe('Gandalf')
     })

@@ -59,8 +59,8 @@ The project MUST use a two-tier testing strategy:
 ### Test Targets
 
 - Unit test coverage target: >80% for hooks, utilities, and store logic
-- Current status: 161 tests passing, 3 known failing (haptic throttle), 16 skipped
-- Known failures MUST be documented in CLAUDE.md and not suppressed
+- Current status: 385 tests passing, 16 skipped
+- Known failures MUST be fixed or explicitly documented in CLAUDE.md; do not normalize failing tests as background noise.
 
 ### Running Tests
 
@@ -96,5 +96,5 @@ npx playwright test   # E2E tests (requires dev server)
 - R3F components require significant mocking infrastructure; adding new browser API dependencies (e.g., WebXR) will require extending the test setup
 - Physics behavior cannot be unit-tested directly; physics accuracy relies on E2E tests and manual device testing
 - Playwright tests require a running dev server and real browser, making them slower and unsuitable for the TDD inner loop
-- The 3 known failing haptic throttle tests indicate a gap in the timing mock strategy that needs investigation
+- Timer-sensitive hook tests must reset shared stores between cases and assert against exported timing constants instead of stale literal durations.
 - No integration tests currently exist for the full component + store + physics pipeline; this is a gap between unit tests and E2E

@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n vite,dice -c blue,yellow \"vite\" \"node scripts/watch-dice-manifest.js\"",
+    "dev": "concurrently --kill-others-on-fail -n server,vite,dice -c green,blue,yellow \"npm run dev:server\" \"vite\" \"node scripts/watch-dice-manifest.js\"",
     "dev:vite": "vite",
+    "dev:server": "~/.cargo/bin/cargo run --manifest-path server/Cargo.toml",
     "build": "node scripts/generate-dice-manifest.js && tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",

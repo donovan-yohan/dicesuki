@@ -58,6 +58,19 @@ export interface DragEndMessage {
   velocityHistory: VelocityHistoryEntry[]
 }
 
+export type MotionControlMode = 'off' | 'own_dice' | 'room'
+
+export interface MotionControlMessage {
+  type: 'motion_control'
+  /**
+   * own_dice applies the phone/control gravity only to this player's dice.
+   * room applies it to every die in the room. off clears this player's control.
+   */
+  mode: MotionControlMode
+  /** Desired effective gravity vector in room/world coordinates. */
+  gravity: [number, number, number]
+}
+
 export type ClientMessage =
   | JoinMessage
   | SpawnDiceMessage
@@ -68,6 +81,7 @@ export type ClientMessage =
   | DragStartMessage
   | DragMoveMessage
   | DragEndMessage
+  | MotionControlMessage
 
 // ==========================================
 // Server → Client Messages
@@ -102,6 +116,7 @@ export interface DieResult {
 export interface RoomStateMessage {
   type: 'room_state'
   roomId: string
+  localPlayerId: string
   players: PlayerInfo[]
   dice: DiceState[]
 }

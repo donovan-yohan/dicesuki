@@ -107,6 +107,6 @@ afterEach(() => {
 - **Component Tests**: UI components, rendering, interaction
 - **Integration Tests**: Component + hook integration
 - **Target**: >80% code coverage
-- **Current**: 380 tests passing, 3 failing (haptic throttle tests), 16 skipped
-  - Test files: 12 passing, 1 failing (useHapticFeedback.test.ts), 1 skipped
-  - Note: Haptic throttle tests need investigation and fixing
+- **Current**: 385 tests passing, 16 skipped
+  - Test files: 16 passing, 1 skipped
+  - Haptic feedback hook tests pass with Zustand store reset between cases and throttle duration read from config.

@@ -359,7 +359,7 @@ function MultiplayerDiceRenderer() {
 
 /**
  * Camera controller for multiplayer mode.
- * Adjusts camera height so the full 9:16 arena is visible on any screen.
+ * Adjusts camera height so the full 16:9 arena is visible on any screen.
  */
 function MultiplayerCamera() {
   const { camera, size } = useThree()
@@ -390,6 +390,39 @@ function MultiplayerCamera() {
   return null
 }
 
+function MultiplayerMotionSync({
+  gravityRef,
+  enabled,
+}: {
+  gravityRef: React.MutableRefObject<THREE.Vector3>
+  enabled: boolean
+}) {
+  const motionControlMode = useMultiplayerStore((s) => s.motionControlMode)
+  const sendMotionControl = useMultiplayerStore((s) => s.sendMotionControl)
+  const lastSendRef = useRef(0)
+  const sentOffRef = useRef(false)
+
+  useFrame(() => {
+    const now = performance.now()
+    if (enabled && motionControlMode !== 'off') {
+      if (now - lastSendRef.current >= 1000 / 60) {
+        const gravity = gravityRef.current
+        sendMotionControl([gravity.x, gravity.y, gravity.z], motionControlMode)
+        lastSendRef.current = now
+        sentOffRef.current = false
+      }
+      return
+    }
+
+    if (!sentOffRef.current) {
+      sendMotionControl([0, GRAVITY, 0], 'off')
+      sentOffRef.current = true
+    }
+  })
+
+  return null
+}
+
 /**
  * Main 3D scene component
  * Sets up React Three Fiber Canvas with Rapier physics
@@ -410,16 +443,14 @@ function Scene() {
   const { requestPermission } = useDeviceMotionState()
   const { roll, onDiceRest, onDiceMoving } = useDiceRoll()
 
-  // Subscribe to dice manager store (local physics dice)
+  // Subscribe to dice manager store (legacy local physics dice)
   const dice = useDiceManagerStore((state) => state.dice)
-  const addDice = useDiceManagerStore((state) => state.addDice)
 
   // Subscribe to drag store
   const setOnDiceDelete = useDragStore((state) => state.setOnDiceDelete)
 
   // UI state
   const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
-  const { currentTheme } = useTheme()
   const [isDiceManagerOpen, setIsDiceManagerOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isSavedRollsOpen, setIsSavedRollsOpen] = useState(false)
@@ -442,28 +473,6 @@ function Scene() {
     initializeStarterDice()
   }, [])
 
-  // Spawn initial d20 from inventory on first load
-  const hasSpawnedInitialDie = useRef(false)
-  useEffect(() => {
-    // Only spawn once, ever
-    if (!hasSpawnedInitialDie.current) {
-      hasSpawnedInitialDie.current = true
-
-      // Get first d20 from inventory
-      const inventoryDice = useInventoryStore.getState().getDiceByType('d20')
-      if (inventoryDice.length > 0) {
-        const firstD20 = inventoryDice[0]
-        console.log(`Spawning initial d20 from inventory: ${firstD20.name}`)
-        addDice(
-          'd20',
-          currentTheme.id,
-          undefined, // auto-generate dice instance ID
-          firstD20.id // link to inventory die
-        )
-      }
-    }
-  }, []) // Only run once on mount - ref guard prevents re-execution
-
   const handleRollClick = useCallback(() => {
     // Mark ALL dice as rolling
     useDiceStore.getState().markDiceRolling(dice.map(d => d.id))
@@ -482,6 +491,21 @@ function Scene() {
   const localBackend = useLocalDiceBackend(handleRollClick)
   const activeBackend = existingBackend || localBackend
   const isMultiplayer = activeBackend.mode === 'multiplayer'
+
+  // Spawn initial d20 through the active room backend (solo/multiplayer or legacy local).
+  const hasSpawnedInitialDie = useRef(false)
+  useEffect(() => {
+    if (hasSpawnedInitialDie.current) return
+    if (activeBackend.mode === 'multiplayer' && !activeBackend.multiplayer?.localPlayerId) return
+
+    const inventoryDice = useInventoryStore.getState().getDiceByType('d20')
+    if (inventoryDice.length === 0) return
+
+    hasSpawnedInitialDie.current = true
+    const firstD20 = inventoryDice[0]
+    console.log(`Spawning initial d20 from inventory: ${firstD20.name}`)
+    activeBackend.addDie('d20', firstD20.id)
+  }, [activeBackend])
 
   // Delegate add/remove/clear through the active backend (works for both local and multiplayer)
   const handleAddDice = useCallback(
@@ -541,6 +565,7 @@ function Scene() {
         {isMultiplayer ? (
           <>
             <MultiplayerCamera />
+            <MultiplayerMotionSync gravityRef={gravityRef} enabled={motionMode} />
             <MultiplayerArena />
             <MultiplayerDiceRenderer />
           </>

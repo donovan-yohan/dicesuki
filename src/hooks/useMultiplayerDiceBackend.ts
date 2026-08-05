@@ -20,8 +20,9 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
 
   const rollHistory = useDiceStore((s) => s.rollHistory)
 
-  // inventoryDieId is local-only; multiplayer spawns are server-authoritative
-  const addDie = useCallback((type: DiceShape, _inventoryDieId?: string) => {
+  // inventoryDieId is local-only until the room protocol carries custom die identity.
+  const addDie = useCallback((type: DiceShape, inventoryDieId?: string) => {
+    void inventoryDieId
     spawnDice(type)
   }, [spawnDice])
 

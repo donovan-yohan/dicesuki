@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import Scene from './components/Scene'
 import { checkDeviceCompatibility } from './lib/deviceDetection'
 import { DeviceMotionProvider } from './contexts/DeviceMotionContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { useInventoryStore } from './store/useInventoryStore'
 import DiceFaceTestHarness from './components/test/DiceFaceTestHarness'
 import { MultiplayerRoom } from './components/multiplayer/MultiplayerRoom'
+import { SoloRoom } from './components/multiplayer/SoloRoom'
 
 function MainApp() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
@@ -59,7 +59,7 @@ function MainApp() {
 
   return (
     <div className="w-full h-full">
-      <Scene />
+      <SoloRoom />
     </div>
   )
 }
