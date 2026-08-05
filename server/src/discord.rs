@@ -84,6 +84,11 @@ const CRIT_LOW: &str = "\u{1F480}";
 /// Characters kept from a player's display name in a roll line.
 const ROLL_NAME_MAX_LEN: usize = 24;
 
+/// Characters kept from the host-chosen theme id in the embed's Theme field.
+/// `Room::update_settings` imposes no length limit on `themeId`, so the cap is
+/// enforced here rather than trusted from the room.
+const THEME_LABEL_MAX_LEN: usize = 32;
+
 /// How many times a crit emoji repeats before a roll line collapses it to
 /// `<emoji>xN`. Without this an arbitrarily large dice pool could push the field
 /// past Discord's 1024-character embed-field-value limit.
@@ -455,11 +460,19 @@ fn crit_markers(dice: &[RecentRollDie]) -> String {
     markers
 }
 
-/// Render a client-supplied display name for an embed line: control characters
-/// collapsed to single spaces, truncated to [`ROLL_NAME_MAX_LEN`] characters,
-/// and Discord markdown escaped so a crafted name cannot restyle the field.
+/// Render **any** client-supplied string for an embed: control characters
+/// collapsed to single spaces, truncated to `max_len` characters, and Discord
+/// markdown escaped. `fallback` stands in when nothing survives.
+///
+/// This is the only door client text may enter an embed through, because these
+/// embeds now land in **third-party guilds** (#246). The escape set covers every
+/// character that can begin an inline construct, and `[` `]` `(` `)` are in it
+/// for a specific reason: without them a 17-character display name such as
+/// `[go](http://a.gd)` renders as a live **masked link** inside a message posted
+/// under the bot's name, in a server the author may not even be able to write
+/// to. Truncation alone is no defence — the payload fits in any cap.
 #[must_use]
-fn render_player_name(raw: &str) -> String {
+fn render_embed_text(raw: &str, max_len: usize, fallback: &str) -> String {
     let collapsed = raw
         .chars()
         .map(|c| if c.is_control() { ' ' } else { c })
@@ -468,19 +481,41 @@ fn render_player_name(raw: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
         .chars()
-        .take(ROLL_NAME_MAX_LEN)
+        .take(max_len)
         .collect::<String>();
     if collapsed.is_empty() {
-        return "Player".to_string();
+        return fallback.to_string();
     }
     let mut escaped = String::with_capacity(collapsed.len());
     for c in collapsed.chars() {
-        if matches!(c, '*' | '_' | '~' | '`' | '|' | '\\') {
+        // Heading/blockquote markers (`#`, `>`) are deliberately absent: control
+        // characters are already collapsed to spaces, so client text is always a
+        // single line and those are only significant at a line start.
+        if matches!(
+            c,
+            '*' | '_' | '~' | '`' | '|' | '\\' | '[' | ']' | '(' | ')'
+        ) {
             escaped.push('\\');
         }
         escaped.push(c);
     }
     escaped
+}
+
+/// Render a client-supplied display name for an embed line.
+#[must_use]
+fn render_player_name(raw: &str) -> String {
+    render_embed_text(raw, ROLL_NAME_MAX_LEN, "Player")
+}
+
+/// Render the host-chosen theme id for the embed's **Theme** field.
+///
+/// `Room::update_settings` accepts any non-empty string for `themeId`, so this
+/// is unvalidated host input reaching a third-party guild exactly like a display
+/// name — it needs the same sanitizer and its own hard cap.
+#[must_use]
+fn render_theme_label(theme_id: Option<&str>) -> String {
+    render_embed_text(theme_id.unwrap_or_default(), THEME_LABEL_MAX_LEN, "default")
 }
 
 /// One line of the **Recent rolls** field, e.g. `Alex \u{2014} 3d6 \u{2192} 14 \u{1F4A5}`.
@@ -546,11 +581,7 @@ fn render_duration(duration: Duration) -> String {
 #[must_use]
 pub fn build_message_payload(advert: &RoomAdvert, app_base_url: &str) -> serde_json::Value {
     let title = advert_title(advert);
-    let theme = advert
-        .theme_id
-        .clone()
-        .filter(|t| !t.is_empty())
-        .unwrap_or_else(|| "default".to_string());
+    let theme = render_theme_label(advert.theme_id.as_deref());
     let players = format!("{}/{}", advert.player_count, advert.player_cap);
     let url = join_url(app_base_url, &advert.room_id);
 
@@ -1074,8 +1105,16 @@ pub fn spawn_if_enabled(
     tokio::spawn(async move {
         let mut tracked: HashMap<String, Vec<TrackedPost>> = HashMap::new();
         loop {
-            let snapshots = collect_adverts(&manager).await;
+            // Registry BEFORE rooms, and the order is load-bearing. Read the
+            // other way round, a registration accepted between the two reads
+            // names a room the snapshot predates; `desired_adverts` finds no
+            // matching room, so nothing is posted, and `prune_registrations`
+            // then discards the registration as stale — silently losing a
+            // request the host already got a 202 for. Taking the registry first
+            // means every room named in `host_posts` was registered before the
+            // room snapshot, so a live room is guaranteed to appear in it.
             let host_posts = service.registry.snapshot().await;
+            let snapshots = collect_adverts(&manager).await;
             let desired = desired_adverts(
                 &snapshots,
                 service.billboard_channel_id.as_deref(),
@@ -1106,6 +1145,24 @@ async fn prune_registrations(
         if !live && !tracked.contains_key(room_id) {
             service.registry.forget_room(room_id).await;
         }
+    }
+}
+
+/// Stop wanting `(room_id, channel_id)` after a permanent Discord refusal.
+///
+/// A host-posted target is a registration, so dropping it is what actually ends
+/// the retry loop. The billboard is deployment configuration and cannot be
+/// unconfigured at runtime; it keeps retrying at the sync cadence, which is the
+/// pre-existing #84 behaviour and an operator-visible misconfiguration rather
+/// than something a guild member can provoke.
+async fn retire_target(
+    service: &DiscordService,
+    kind: AdvertKind,
+    room_id: &str,
+    channel_id: &str,
+) {
+    if kind == AdvertKind::HostPosted {
+        service.registry.forget(room_id, channel_id).await;
     }
 }
 
@@ -1159,6 +1216,17 @@ pub async fn reconcile(
                             },
                         );
                     }
+                    // The bot was kicked, lost SEND_MESSAGES, or the channel is
+                    // gone. Nothing about the next pass will differ, so stop
+                    // desiring this target instead of re-issuing the identical
+                    // failing call every SYNC_INTERVAL forever.
+                    Err(error) if is_terminal_for_resource(error) => {
+                        warn!(
+                            "[{}] Discord create is impossible for room {} ({error}); dropping the target",
+                            *INSTANCE_ID, advert.room_id
+                        );
+                        retire_target(service, kind, &advert.room_id, &channel_id).await;
+                    }
                     Err(error) => warn!(
                         "[{}] Discord create failed for room {}: {error}",
                         *INSTANCE_ID, advert.room_id
@@ -1191,6 +1259,18 @@ pub async fn reconcile(
                             posted_at,
                         },
                     ),
+                    // The message was deleted, or the bot lost the channel. The
+                    // advert cannot be kept current, so stop tracking it and
+                    // stop desiring the target — otherwise every pass for the
+                    // life of the process re-issues the same failing PATCH.
+                    Err(error) if is_terminal_for_resource(error) => {
+                        warn!(
+                            "[{}] Discord edit is impossible for room {} ({error}); dropping the advert",
+                            *INSTANCE_ID, advert.room_id
+                        );
+                        forget(tracked, &advert.room_id, &channel_id);
+                        retire_target(service, kind, &advert.room_id, &channel_id).await;
+                    }
                     Err(error) => warn!(
                         "[{}] Discord edit failed for room {}: {error}",
                         *INSTANCE_ID, advert.room_id
@@ -1482,6 +1562,53 @@ mod tests {
 
         let many = roll_line(&roll("Alex", vec![die(DiceType::D6, 6); 9]));
         assert_eq!(many, "Alex \u{2014} 9d6 \u{2192} 54 \u{1F4A5}\u{00D7}9");
+    }
+
+    /// The embeds land in **third-party guilds**, so a crafted display name or
+    /// themeId must never become a live masked link under the bot's identity.
+    #[test]
+    fn masked_link_payloads_render_inert_in_both_payload_builders() {
+        const ATTACK: &str = "[x](http://evil)";
+
+        let mut hostile = advert("abc123", 1);
+        hostile.theme_id = Some(ATTACK.to_string());
+        hostile.player_names = vec![ATTACK.to_string()];
+        hostile.recent_rolls = vec![roll(ATTACK, vec![die(DiceType::D6, 3)])];
+
+        const INERT: &str = "\\[x\\]\\(http://evil\\)";
+
+        let live = build_message_payload(&hostile, "https://dicesuki.app");
+        let archived = build_archive_payload(&hostile, Duration::from_secs(60));
+
+        for payload in [&live, &archived] {
+            // The link construct must not survive anywhere in the embed. An
+            // escaped rendering interleaves backslashes, so this substring can
+            // only appear if the escaping was skipped.
+            assert!(
+                !payload.to_string().contains("[x](http://evil)"),
+                "an unescaped masked link reached the embed: {payload}"
+            );
+        }
+
+        // Live embed: themeId and the roll's display name are both neutralised.
+        assert_eq!(field_value(&live, "Theme").unwrap(), INERT);
+        assert!(recent_rolls_field(&live).unwrap().starts_with(INERT));
+
+        // Archived embed: the final roster and the roll tail likewise.
+        assert_eq!(field_value(&archived, "Players").unwrap(), INERT);
+        assert!(field_value(&archived, "Last rolls").unwrap().starts_with(INERT));
+    }
+
+    #[test]
+    fn theme_label_is_capped_and_falls_back() {
+        // Room::update_settings accepts any non-empty string, so the cap lives
+        // here. Escaping must not let a long value slip past it either.
+        let long = "t".repeat(200);
+        assert_eq!(render_theme_label(Some(&long)).chars().count(), THEME_LABEL_MAX_LEN);
+        assert_eq!(render_theme_label(None), "default");
+        assert_eq!(render_theme_label(Some("")), "default");
+        assert_eq!(render_theme_label(Some("   ")), "default");
+        assert_eq!(render_theme_label(Some("dungeon")), "dungeon");
     }
 
     #[test]
@@ -1943,6 +2070,83 @@ mod tests {
         assert!(
             tracked.is_empty(),
             "a permanently unarchivable advert must be dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_permanently_refused_create_stops_being_desired() {
+        // The bot was kicked from the guild (403). Re-issuing the identical POST
+        // every 30s for the life of the process helps nobody, so the host-posted
+        // registration is retired.
+        let mut fake = FakeDiscord::new("400000000000000001");
+        fake.failure = Some(crate::discord_api::DiscordApiError::Status(403));
+        let service = service_with(Arc::new(fake), None);
+        service.registry.register("a", HOST_CHANNEL).await.unwrap();
+
+        let mut tracked = HashMap::new();
+        reconcile(
+            &service,
+            &mut tracked,
+            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+        )
+        .await;
+
+        assert!(tracked.is_empty());
+        assert!(
+            service.registry.snapshot().await.is_empty(),
+            "a channel the bot cannot post to is dropped, not retried forever"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_permanently_refused_edit_drops_the_advert() {
+        // Post successfully, then a moderator deletes the message (404 on PATCH).
+        let live = Arc::new(FakeDiscord::new("400000000000000001"));
+        let service = service_with(live, None);
+        service.registry.register("a", HOST_CHANNEL).await.unwrap();
+        let mut tracked = HashMap::new();
+        reconcile(
+            &service,
+            &mut tracked,
+            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+        )
+        .await;
+        assert_eq!(tracked["a"].len(), 1);
+
+        let mut gone = FakeDiscord::new("400000000000000001");
+        gone.failure = Some(crate::discord_api::DiscordApiError::Status(404));
+        let broken = service_with(Arc::new(gone), None);
+        broken.registry.register("a", HOST_CHANNEL).await.unwrap();
+        // A changed advert forces an edit, which now fails permanently.
+        reconcile(
+            &broken,
+            &mut tracked,
+            &[desired(advert("a", 2), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+        )
+        .await;
+
+        assert!(tracked.is_empty(), "a deleted message stops being tracked");
+        assert!(broken.registry.snapshot().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_transient_create_failure_is_still_retried() {
+        // 500/network must NOT retire the target — only permanent refusals do.
+        let mut flaky = FakeDiscord::new("400000000000000001");
+        flaky.failure = Some(crate::discord_api::DiscordApiError::Status(500));
+        let service = service_with(Arc::new(flaky), None);
+        service.registry.register("a", HOST_CHANNEL).await.unwrap();
+
+        reconcile(
+            &service,
+            &mut HashMap::new(),
+            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+        )
+        .await;
+
+        assert!(
+            !service.registry.snapshot().await.is_empty(),
+            "a transient failure keeps the registration for the next pass"
         );
     }
 

@@ -277,15 +277,30 @@ async fn targets_for_claims(
 /// `POST /api/rooms/:room_id/advertise` (#246) — the room's **host** posts it to
 /// one channel they picked. From here the existing reconciler keeps the embed up
 /// to date and archives it when the room closes.
+/// The body is taken as `Option<Json<_>>` rather than `Json<_>` on purpose: an
+/// extractor rejection is emitted *before* the handler body runs, so a
+/// well-formed `Json<_>` would answer an unauthenticated caller with 400/422 and
+/// disclose that their body was the problem. Deferring the parse keeps
+/// authentication the first thing every request meets.
 pub async fn advertise_room(
     State(state): State<AppState>,
     Path(room_id): Path<String>,
     headers: HeaderMap,
-    Json(body): Json<AdvertiseRequest>,
+    body: Option<Json<AdvertiseRequest>>,
 ) -> impl IntoResponse {
     let claims = match require_claims(&headers).await {
         Ok(claims) => claims,
         Err(response) => return response,
+    };
+    let Some(Json(body)) = body else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "INVALID_BODY",
+                "instanceId": *INSTANCE_ID,
+            })),
+        )
+            .into_response();
     };
     let Some(service) = state.discord.clone() else {
         return rejection_response(AdvertiseRejection::Disabled);

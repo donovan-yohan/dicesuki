@@ -1238,6 +1238,22 @@ async fn discord_endpoints_reject_unauthenticated_callers() {
         advertise.json::<Value>().await.unwrap()["error"],
         "AUTH_REQUIRED"
     );
+
+    // A malformed body must not pre-empt the 401: an extractor rejection fires
+    // before the handler runs, so the body is parsed only after authentication.
+    // Otherwise an anonymous caller learns their body was the problem.
+    let malformed = client
+        .post(format!("http://{addr}/api/rooms/{room_id}/advertise"))
+        .header("Content-Type", "application/json")
+        .body("{ not json")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(malformed.status(), 401, "auth is checked before the body");
+    assert_eq!(
+        malformed.json::<Value>().await.unwrap()["error"],
+        "AUTH_REQUIRED"
+    );
 }
 
 /// A malformed bearer token is rejected as such, which also proves the routes

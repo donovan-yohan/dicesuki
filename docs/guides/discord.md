@@ -56,12 +56,22 @@ a privileged credential there is no trustworthy identity source, so
 `/api/discord/targets` returns an empty list for everyone. The server logs a
 warning at startup when the bot is on but the credential is missing.
 
-A channel is offered only when the **caller** can see it too, not just when the
-bot can post there. The bot commonly holds `ADMINISTRATOR`, so filtering on its
-permissions alone would name every private channel to every member — and let a
-rank-and-file member make the bot post into a staff channel they cannot read.
-The caller's own `VIEW_CHANNEL` is computed from their guild roles
+A channel is offered only when the **caller could have posted there themselves**
+— they need `VIEW_CHANNEL` **and** `SEND_MESSAGES`, not just the bot. The bot
+commonly holds `ADMINISTRATOR`, so filtering on its permissions alone would name
+every private channel to every member, and permitting read-only channels would
+let a rank-and-file member use the bot as a proxy to post in `#announcements`.
+The caller's permissions are computed from their guild roles
 (`GET /guilds/{id}/roles`) with the same documented algorithm.
+
+#### Embed content is untrusted
+
+These embeds are posted under the bot's identity into servers the room's host may
+not control, so every client-supplied string (player display names, the
+host-chosen `themeId`) passes through one sanitizer before it can enter a field
+value: control characters collapse to spaces, a hard length cap applies, and
+Discord markdown is escaped — including `[`, `]`, `(`, `)`, so a name like
+`[go](http://a.gd)` renders inert instead of becoming a live masked link.
 
 Consequences, all enforced server-side (client-side filtering would be no
 enforcement at all):
