@@ -47,7 +47,9 @@ Shows total with bonuses:
 
 ## Advanced Mechanics (physical execution)
 
-There is no server-side notion of a saved roll. `roll_player_dice` (`server/core/src/room.rs`) applies an impulse to **every** die the player owns, and `roll_complete.total` is a plain face sum. So every mechanic is orchestrated client-side as physical spawn waves over the existing protocol — this slice added **no** server, core or protocol changes.
+There is no server-side notion of a saved roll. `roll_player_dice` (`server/core/src/room.rs`) applies an impulse to **every** die the player owns, and `roll_complete.total` is a plain face sum. So every mechanic is orchestrated client-side as physical spawn waves over the existing protocol — mechanics needed **no** server, core or protocol changes.
+
+The one thing that does cross the wire is the roll's **name**: the base wave sends `roll` with an optional `savedRollName` (#244), which the room keeps as display metadata for out-of-band surfaces (the Discord advert's roll line). It is display-only — it cannot change which dice roll, what they land on, or the total — and it is sanitized and length-capped on ingestion. `backend.roll(roll.name)` in `savedRollExecution.ts` is the only caller that passes it; the HUD's Roll button stays anonymous.
 
 ### Waves (`savedRollExecution.ts`)
 

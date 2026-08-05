@@ -68,10 +68,23 @@ The caller's permissions are computed from their guild roles
 
 These embeds are posted under the bot's identity into servers the room's host may
 not control, so every client-supplied string (player display names, the
-host-chosen `themeId`) passes through one sanitizer before it can enter a field
-value: control characters collapse to spaces, a hard length cap applies, and
-Discord markdown is escaped — including `[`, `]`, `(`, `)`, so a name like
-`[go](http://a.gd)` renders inert instead of becoming a live masked link.
+host-chosen `themeId`, a roll's saved-roll name) passes through one sanitizer —
+`render_embed_text` — before it can enter a field value: control characters
+collapse to spaces, a hard length cap applies, and Discord markdown is escaped —
+including `[`, `]`, `(`, `)`, so a name like `[go](http://a.gd)` renders inert
+instead of becoming a live masked link.
+
+A **Recent rolls** line reads `Alex — 3d6 → 14 💥`, or
+`Alex — Sneak Attack (3d6) → 14 💥` when the roll came from a saved roll (#244).
+That name arrives as optional `savedRollName` display metadata on the room
+protocol's `roll` message (same trust model as Shared-ADR-005 `presentation`:
+never interpreted, never affects physics or totals). It is capped twice on
+purpose — `SAVED_ROLL_NAME_MAX_LEN` (40) in core, so room state stays bounded no
+matter what a client sends, and `SAVED_ROLL_LABEL_MAX_LEN` (32) at render, so the
+line stays readable and the field stays inside Discord's 1024-character limit. It
+deliberately does **not** reach `CompletedRoll`, the authoritative event the
+server persists as durable roll history: unverified client text stops at the
+room's in-memory display tail.
 
 Consequences, all enforced server-side (client-side filtering would be no
 enforcement at all):

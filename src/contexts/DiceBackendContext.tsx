@@ -11,8 +11,17 @@ export interface DiceBackendState {
   /** Which mode is active */
   mode: DiceBackendMode
 
-  /** Roll actions */
-  roll: () => void
+  /**
+   * Roll every die the local player owns.
+   *
+   * `savedRollName` is display-only metadata naming the saved roll the command
+   * came from (#244); it reaches the Discord room advert and nothing else. Only
+   * `savedRollExecution.ts` passes it — a plain roll from the HUD must stay
+   * anonymous, so callers wiring this to a DOM handler must call it explicitly
+   * (`onClick={() => roll()}`) rather than passing the reference, which would
+   * hand the click event in as the name.
+   */
+  roll: (savedRollName?: string) => void
   /**
    * Spawn one die of `type`, preferring an owned one and falling back to a basic
    * die (`lib/basicDice.ts`) when the inventory cannot supply it — an unknown

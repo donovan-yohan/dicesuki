@@ -182,7 +182,15 @@ interface MultiplayerState {
    */
   spawnCarriedDice: (dice: CarriedDie[]) => void
   removeDice: (diceIds: string[]) => void
-  roll: () => void
+  /**
+   * Roll every die this player owns.
+   *
+   * `savedRollName` is display-only metadata naming the saved roll this came
+   * from (#244) — pass it ONLY from the saved-roll execution path. A plain roll
+   * (the HUD button) passes nothing, and the field is then omitted from the
+   * wire message entirely.
+   */
+  roll: (savedRollName?: string) => void
   clearRoomActionError: () => void
   updateColor: (color: string) => void
   updateSettings: (settings: RoomSettings) => void
@@ -1028,8 +1036,15 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     get().sendMessage({ type: 'remove_dice', diceIds })
   },
 
-  roll: () => {
-    get().sendMessage({ type: 'roll' })
+  roll: (savedRollName?: string) => {
+    // `typeof` rather than a truthiness check on purpose. This action is passed
+    // straight to React event handlers (`onRoll`/`onClick`), so a future wiring
+    // that forwards the handler by reference would hand a SyntheticEvent in as
+    // the first argument. Serializing that would make the whole `roll` message
+    // undeserializable server-side — a silently broken Roll button — so
+    // anything that is not a real string is dropped here.
+    const name = typeof savedRollName === 'string' ? savedRollName.trim() : ''
+    get().sendMessage(name.length > 0 ? { type: 'roll', savedRollName: name } : { type: 'roll' })
   },
 
   clearRoomActionError: () => {

@@ -688,7 +688,10 @@ function SceneContent({ onReady }: SceneProps) {
         onOpenShop={() => setIsShopOpen(true)}
         onRotateView={() => useUIStore.getState().rotateViewCW()}
         onToggleMotion={handleToggleMotion}
-        onRoll={activeBackend.roll}
+        // Called, not passed by reference: the HUD button ends up as a DOM
+        // `onClick`, which would otherwise hand the click event in as the
+        // saved-roll name (#244). A HUD roll is anonymous by definition.
+        onRoll={() => activeBackend.roll()}
         onAddDice={handleAddDice}
         onClearAllDice={activeBackend.clearAll}
         onOpenInventory={() => {

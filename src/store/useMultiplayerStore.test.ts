@@ -1241,6 +1241,60 @@ describe('useMultiplayerStore', () => {
       expect(useMultiplayerStore.getState().pendingInventoryDieIds.has('die_lucky_d20')).toBe(true)
     })
 
+    it('omits savedRollName entirely for a plain roll', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
+      })
+
+      useMultiplayerStore.getState().roll()
+
+      // The key must be absent, not null/empty: a bare `{"type":"roll"}` is
+      // exactly what every pre-#244 client sends and what the server's
+      // back-compat path accepts.
+      expect(JSON.parse(send.mock.calls[0][0])).toEqual({ type: 'roll' })
+    })
+
+    it('names the roll when it came from a saved roll', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
+      })
+
+      useMultiplayerStore.getState().roll('Sneak Attack')
+
+      expect(JSON.parse(send.mock.calls[0][0])).toEqual({
+        type: 'roll',
+        savedRollName: 'Sneak Attack',
+      })
+    })
+
+    it('drops a non-string savedRollName instead of sending an unparseable roll', () => {
+      const send = vi.fn()
+      useMultiplayerStore.setState({
+        connectionStatus: 'connected',
+        socket: { send } as unknown as WebSocket,
+        localPlayerId: 'p1',
+      })
+
+      // `roll` is handed to React event handlers, so a future
+      // `onClick={roll}` would pass a click event as the first argument.
+      // Serializing that would make the message undeserializable server-side
+      // (`Option<String>` vs an object) and silently break the Roll button.
+      const clickEvent = { type: 'click', target: {} } as unknown as string
+      useMultiplayerStore.getState().roll(clickEvent)
+      useMultiplayerStore.getState().roll('   ')
+
+      for (const call of send.mock.calls) {
+        expect(JSON.parse(call[0])).toEqual({ type: 'roll' })
+      }
+      expect(send).toHaveBeenCalledTimes(2)
+    })
+
     it('blocks duplicate pending inventory dice before the server roundtrip', () => {
       const send = vi.fn()
       useMultiplayerStore.setState({

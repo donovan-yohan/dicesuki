@@ -143,8 +143,11 @@ impl RoomHost {
                 }
             }
 
-            ClientMessage::Roll if self.joined => {
-                if let Some(started) = self.room.roll_player_dice(SOLO_PLAYER_ID) {
+            ClientMessage::Roll { saved_roll_name } if self.joined => {
+                if let Some(started) = self
+                    .room
+                    .roll_player_dice(SOLO_PLAYER_ID, saved_roll_name.as_deref())
+                {
                     self.room.broadcast(&ServerMessage::RollStarted {
                         player_id: SOLO_PLAYER_ID.to_string(),
                         dice_ids: started.dice_ids,
@@ -443,6 +446,31 @@ mod tests {
             player.motion_angular_accel,
             [dicesuki_core::physics::MOTION_FIELD_MAX_ANGULAR_ACCEL, 0.0, 0.0],
             "WASM dispatch must reach core's authoritative angular clamp"
+        );
+    }
+
+    /// Host glue for #244: solo speaks the same `roll` message as multiplayer,
+    /// so the optional saved-roll name has to survive the wasm dispatch and be
+    /// handed to core — which is the only place that sanitizes it. A bare
+    /// `{"type":"roll"}` (every released client) must still roll, which the
+    /// other roll tests here exercise end-to-end.
+    #[test]
+    fn a_saved_roll_name_reaches_core_through_the_wasm_dispatch() {
+        let mut host = RoomHost::new("solo".to_string(), ArenaBounds::default());
+        let _ = join(&mut host);
+        host.handle_message(r#"{"type":"spawn_dice","dice":[{"id":"d1","diceType":"d6"}]}"#);
+        let _ = host.drain_json();
+
+        host.handle_message(r#"{"type":"roll","savedRollName":"  Sneak\nAttack  "}"#);
+
+        let pending = host.room.players[SOLO_PLAYER_ID]
+            .pending_roll
+            .as_ref()
+            .expect("the roll must be pending");
+        assert_eq!(
+            pending.saved_roll_name.as_deref(),
+            Some("Sneak Attack"),
+            "core's sanitizer must run on the solo path too, not just the native server"
         );
     }
 
