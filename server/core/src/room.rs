@@ -154,6 +154,12 @@ pub const ROOM_NAME_SETTING: &str = "roomName";
 /// oversized string.
 pub const ROOM_NAME_MAX_LEN: usize = 40;
 
+/// How many completed rolls a room retains for out-of-band read-only surfaces
+/// (the Discord room advert, #244). Small and fixed: this is a display tail, not
+/// a log — durable roll history is the roll reporter's job, and the bound keeps
+/// per-room memory flat no matter how long a room lives.
+pub const RECENT_ROLL_HISTORY: usize = 5;
+
 /// Validate the shared dice identifier contract before any physics allocation
 /// or room mutation. UUID/client ids and versioned catalog-derived ids are both
 /// supported; control characters, whitespace, Unicode, and shell/JSON-hostile
@@ -296,6 +302,24 @@ pub struct CompletedRoll {
     pub total: u32,
 }
 
+/// One die of a [`RecentRoll`], carrying enough to name the die and judge a crit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecentRollDie {
+    pub dice_type: DiceType,
+    pub face_value: u32,
+}
+
+/// A completed roll retained in the room's bounded recent-roll ring. The
+/// roller's display name is snapshotted at completion so the entry stays
+/// readable after that player leaves the room.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecentRoll {
+    pub player_id: String,
+    pub player_name: String,
+    pub dice: Vec<RecentRollDie>,
+    pub total: u32,
+}
+
 pub struct DragState {
     pub dragger_id: String,
     pub grab_offset: [f32; 3],
@@ -411,6 +435,9 @@ pub struct Room {
     pub settings: RoomSettings,
     /// Monotonic counter used to assign `Player::join_order`.
     next_join_seq: u64,
+    /// Oldest-first ring of the last [`RECENT_ROLL_HISTORY`] completed rolls.
+    /// Private so the cap cannot be bypassed; read via [`Room::recent_rolls`].
+    recent_rolls: Vec<RecentRoll>,
 }
 
 impl Room {
@@ -432,7 +459,16 @@ impl Room {
             host_id: None,
             settings: RoomSettings::default(),
             next_join_seq: 0,
+            recent_rolls: Vec::new(),
         }
+    }
+
+    /// The room's recent completed rolls, oldest first, capped at
+    /// [`RECENT_ROLL_HISTORY`]. Read-only view for out-of-band surfaces such as
+    /// the Discord room advert (#244).
+    #[must_use]
+    pub fn recent_rolls(&self) -> &[RecentRoll] {
+        &self.recent_rolls
     }
 
     /// Returns true if `player_id` is the current host of this room.
@@ -1649,6 +1685,7 @@ impl Room {
                 let player = self.players.get_mut(&player_id)?;
                 let consumed = player.pending_roll.take()?;
                 debug_assert_eq!(consumed, pending);
+                let player_name = player.display_name.clone();
 
                 let mut results = pending.dice_ids.iter()
                     .filter_map(|dice_id| self.dice.get(dice_id))
@@ -1662,6 +1699,26 @@ impl Room {
                     .collect::<Vec<_>>();
                 results.sort_by(|left, right| left.dice_id.cmp(&right.dice_id));
                 let total = results.iter().map(|result| result.face_value).sum();
+
+                // A roll whose dice were all removed (#226) still completes, but
+                // has nothing to display — keep it out of the history tail.
+                if !results.is_empty() {
+                    self.recent_rolls.push(RecentRoll {
+                        player_id: player_id.clone(),
+                        player_name,
+                        dice: results
+                            .iter()
+                            .map(|result| RecentRollDie {
+                                dice_type: result.dice_type,
+                                face_value: result.face_value,
+                            })
+                            .collect(),
+                        total,
+                    });
+                    if self.recent_rolls.len() > RECENT_ROLL_HISTORY {
+                        self.recent_rolls.remove(0);
+                    }
+                }
 
                 Some(CompletedRoll {
                     player_id,
@@ -2443,6 +2500,69 @@ mod tests {
             room.roll_player_dice("p1").expect("replacement roll").generation,
             2,
             "ending the roll must not reuse the monotonic generation"
+        );
+    }
+
+    #[test]
+    fn completing_a_roll_records_it_in_the_recent_roll_ring() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+        assert!(room.recent_rolls().is_empty());
+
+        room.spawn_dice_with_physics(
+            "p1",
+            vec![
+                ("d1".to_string(), DiceType::D6),
+                ("d2".to_string(), DiceType::D20),
+            ],
+        )
+        .unwrap();
+        room.roll_player_dice("p1").expect("roll accepted");
+        for (dice_id, face) in [("d1", 3), ("d2", 20)] {
+            let die = room.dice.get_mut(dice_id).unwrap();
+            die.is_rolling = false;
+            die.face_value = Some(face);
+        }
+        assert_eq!(room.take_completed_rolls().len(), 1);
+
+        let history = room.recent_rolls();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].player_id, "p1");
+        assert_eq!(history[0].player_name, "Gandalf");
+        assert_eq!(history[0].total, 23);
+        assert_eq!(
+            history[0].dice,
+            [
+                RecentRollDie { dice_type: DiceType::D6, face_value: 3 },
+                RecentRollDie { dice_type: DiceType::D20, face_value: 20 },
+            ]
+        );
+    }
+
+    #[test]
+    fn the_recent_roll_ring_keeps_only_the_newest_entries() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+
+        // One more roll than the ring holds, each with a distinguishable total.
+        for round in 1..=(RECENT_ROLL_HISTORY as u32 + 1) {
+            room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+            room.roll_player_dice("p1").expect("roll accepted");
+            let die = room.dice.get_mut("d1").unwrap();
+            die.is_rolling = false;
+            die.face_value = Some(round % 6 + 1);
+            assert_eq!(room.take_completed_rolls().len(), 1);
+            room.remove_dice("p1", &["d1".to_string()]);
+        }
+
+        let history = room.recent_rolls();
+        assert_eq!(history.len(), RECENT_ROLL_HISTORY);
+        assert_eq!(
+            history.iter().map(|roll| roll.total).collect::<Vec<_>>(),
+            (2..=(RECENT_ROLL_HISTORY as u32 + 1))
+                .map(|round| round % 6 + 1)
+                .collect::<Vec<_>>(),
+            "the oldest roll is dropped, newest stays last"
         );
     }
 
