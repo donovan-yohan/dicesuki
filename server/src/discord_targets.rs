@@ -20,9 +20,10 @@
 //!   ([`AdminIdentityLookup`]); the token's Supabase-controlled `app_metadata`
 //!   is consulted only to *skip* that lookup for accounts with no Discord link.
 //! * It never offers a channel on the strength of the bot's permissions alone.
-//!   A channel is a target only if the **caller** can see it too, or a
-//!   rank-and-file member could name — and post into — a staff-only channel
-//!   wherever the bot happens to have access.
+//!   A channel is a target only if the **caller** could have posted there
+//!   themselves ([`CALLER_REQUIRED_PERMISSIONS`]), or a rank-and-file member
+//!   could name a staff-only channel and use the bot as a proxy to write into a
+//!   read-only one.
 //!
 //! Every step fails **closed**: an unreachable Discord, an unparsable
 //! permissions bitfield, or a membership lookup that errors all yield "not a
@@ -42,7 +43,8 @@ use std::pin::Pin;
 use crate::auth::{SupabaseClaims, DISCORD_PROVIDER};
 use crate::discord_api::{
     bot_can_post, compute_base_permissions, compute_channel_permissions, is_snowflake,
-    parse_permissions, BotGuild, DiscordApi, GuildChannel, GuildRole, PERMISSION_VIEW_CHANNEL,
+    parse_permissions, BotGuild, DiscordApi, GuildChannel, GuildRole, PERMISSION_SEND_MESSAGES,
+    PERMISSION_VIEW_CHANNEL,
 };
 use crate::supabase::SupabaseServiceConfig;
 use crate::INSTANCE_ID;
@@ -70,6 +72,14 @@ const IDENTITY_CACHE_MAX: usize = 4096;
 /// Size bound on the per-guild channel/member caches (one entry per guild the
 /// bot is installed in).
 const GUILD_CACHE_MAX: usize = 512;
+
+/// What the **caller** must hold in a channel for it to be offered to them.
+///
+/// Deliberately mirrors "could this person have posted this themselves?".
+/// `VIEW_CHANNEL` stops private channels being named; `SEND_MESSAGES` stops the
+/// bot being used as a proxy into read-only channels (announcements, rules) that
+/// every member can see but only staff may write to.
+const CALLER_REQUIRED_PERMISSIONS: u64 = PERMISSION_VIEW_CHANNEL | PERMISSION_SEND_MESSAGES;
 
 /// Connect timeout for the Supabase admin-API fallback.
 const ADMIN_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -483,12 +493,16 @@ impl DiscordDirectory {
     }
 
     /// The channels of `guild` that **both** the bot can post an advert embed
-    /// into and the caller can see.
+    /// into and the caller could have posted in themselves.
     ///
-    /// The caller's own `VIEW_CHANNEL` is the difference between a share sheet
-    /// and a disclosure: the bot frequently holds ADMINISTRATOR, so filtering on
-    /// its permissions alone would name every private channel to every member —
-    /// and let them make the bot post into one.
+    /// The caller's own permissions are the difference between a share sheet and
+    /// a privilege escalation. The bot frequently holds ADMINISTRATOR, so
+    /// filtering on its permissions alone would name every private channel to
+    /// every member. `VIEW_CHANNEL` alone is not enough either: an
+    /// announcements-style channel is readable by everyone but writable by
+    /// staff, and offering it would let any member use the bot as a proxy to
+    /// post where they cannot. The bar is therefore "the caller can see **and**
+    /// send here", i.e. the advert is something they could have written.
     async fn shared_postable_channels(
         &self,
         guild: &BotGuild,
@@ -519,14 +533,14 @@ impl DiscordDirectory {
             .iter()
             .filter(|channel| bot_can_post(channel, bot_base, &guild.id, &bot_roles, bot_user_id))
             .filter(|channel| {
-                compute_channel_permissions(
+                let caller = compute_channel_permissions(
                     caller_base,
                     &guild.id,
                     member_roles,
                     discord_user_id,
                     &channel.permission_overwrites,
-                ) & PERMISSION_VIEW_CHANNEL
-                    != 0
+                );
+                caller & CALLER_REQUIRED_PERMISSIONS == CALLER_REQUIRED_PERMISSIONS
             })
             .map(|channel| {
                 (
@@ -688,13 +702,15 @@ pub(crate) mod test_support {
                     permission_overwrites: Vec::new(),
                 }],
             );
-            // @everyone grants VIEW_CHANNEL, so an ordinary member can see the
-            // default channel — the realistic baseline.
+            // @everyone can see and talk in the default channel — the realistic
+            // baseline for an ordinary member.
             self.roles.insert(
                 guild_id.to_string(),
                 vec![GuildRole {
                     id: guild_id.to_string(),
-                    permissions: crate::discord_api::PERMISSION_VIEW_CHANNEL.to_string(),
+                    permissions: (crate::discord_api::PERMISSION_VIEW_CHANNEL
+                        | crate::discord_api::PERMISSION_SEND_MESSAGES)
+                        .to_string(),
                 }],
             );
             let mut present: BTreeSet<String> =
@@ -1165,6 +1181,50 @@ mod tests {
         let directory = DiscordDirectory::new(Arc::new(fake), None);
 
         assert!(directory.verified_channel_ids(USER_A).await.contains(PRIVATE));
+    }
+
+    #[tokio::test]
+    async fn a_read_only_channel_is_not_offered_even_though_the_caller_can_see_it() {
+        // #announcements: everyone can read, only staff can post. The bot is an
+        // administrator, so it *could* post — offering it would let any member
+        // use the bot as a proxy to write where they cannot.
+        const ANNOUNCEMENTS: &str = "200000000000000008";
+        let mut fake = FakeDiscord::new(BOT)
+            .with_guild(GUILD_X, "Xanadu", CHANNEL_X, &[USER_A])
+            .with_channel(
+                GUILD_X,
+                GuildChannel {
+                    id: ANNOUNCEMENTS.to_string(),
+                    name: Some("announcements".to_string()),
+                    kind: 0,
+                    position: Some(1),
+                    permission_overwrites: vec![PermissionOverwrite {
+                        id: GUILD_X.to_string(),
+                        kind: 0,
+                        allow: PERMISSION_VIEW_CHANNEL.to_string(),
+                        deny: PERMISSION_SEND_MESSAGES.to_string(),
+                    }],
+                },
+            );
+        fake.guilds[0].permissions =
+            Some(crate::discord_api::PERMISSION_ADMINISTRATOR.to_string());
+        let directory = DiscordDirectory::new(Arc::new(fake), None);
+
+        let targets = directory.targets_for(USER_A).await;
+        let channels: Vec<&str> = targets[0]
+            .channels
+            .iter()
+            .map(|channel| channel.id.as_str())
+            .collect();
+        assert_eq!(
+            channels,
+            [CHANNEL_X],
+            "a read-only channel must not become a posting target"
+        );
+        assert!(!directory
+            .verified_channel_ids(USER_A)
+            .await
+            .contains(ANNOUNCEMENTS));
     }
 
     #[tokio::test]

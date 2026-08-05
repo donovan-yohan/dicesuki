@@ -44,9 +44,6 @@ const PROD_ALGORITHMS: &[Algorithm] = &[Algorithm::RS256, Algorithm::ES256];
 /// Supabase access tokens carry `aud: "authenticated"` for signed-in users.
 const EXPECTED_AUDIENCE: &str = "authenticated";
 
-/// Provider-scoped identity Supabase copies into a token's `user_metadata`.
-/// For a Discord sign-in these carry the caller's **Discord** user id, which the
-/// room server needs to answer "which guilds is this person in?" (#246).
 /// The provider bookkeeping Supabase puts in `app_metadata`.
 ///
 /// **This is the only metadata block the server trusts.** Supabase writes
