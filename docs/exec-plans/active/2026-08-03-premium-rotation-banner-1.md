@@ -685,3 +685,27 @@ et al. 2019 psychophysiology; reveal grammar; Riot restraint ladder; Xbox XAG 11
   Game8/GameWith/Fextralife because the primary wikis returned 402/403; and **the
   percentages are the researcher's own computation** over the fetched lists —
   including the 80%/14% object-noun figure quoted in §1.
+
+---
+
+## 11. PO decisions — LOCKED 2026-08-10
+
+Recorded verbatim from the PO walkthrough. These supersede the recommendations
+in §9 where they differ.
+
+| ID | Decision | Locked outcome |
+|---|---|---|
+| **1a** | Cadence | **Artifact-driven.** Rotation N stays head-of-family until rotation N+1's content merges. Fixed clock revisited once there is a player population. |
+| **1b** | Family topology | **One family `song-of-the-anvil`; rotations = appended banner versions; pity carries.** Banked-pity discharge at each rotation launch is budgeted, never rewritten. Supersedes concept doc line 487. |
+| **2** | Featured structure (#238) | **Single featured die: `ten-thousand-folds-imagegen-set/wyrmpattern-d20@1`** (textured id per decision 5). Scrap-steering closed by construction. |
+| **2b** | Other five TTF dice | **REVISED from §9 recommendation — premium-exclusive, no standard-pool graduation on any current roadmap** ("not until much later"). Deliberate exclusivity lever. Future rotations MAY feature the remaining TTF dice individually (composes with 1b pity-carry and 3d: each new featured piece re-arms the guarantee for owners of the previous one). Owning multiple TTF dice MUST NOT unlock any separate benefit (§4 four-element test). |
+| **3a** | Premium tier weights | **REVISED from §9 recommendation — exact parity floor.** Premium non-featured odds mirror the free banner tier-for-tier; the paid value proposition is the exclusive featured die + the soft-pity ramp, not juiced odds. (Also removes the need for a weight-tuning sim slice: weights are copied, featured 0.6% sits on top.) |
+| **3b** | Non-featured pool | **Mirror edition 0003's standard/rare/epic pools verbatim.** Per-item weights logged for rotation 2. |
+| **3c** | Soft-pity ramp | **Activate at rotation 1: linear, start pull 41, +0.5%/pull to hard pity 75.** Accepted cost: slope ships untuned; re-tuning requires a new edition + migration + banner version. |
+| **3d** | Guarantee with no unowned target | **Does not arm.** Counter accrues and discharges when a future rotation offers an unowned featured item. |
+| **4** | setBonus policy | **RATIFIED.** No `setBonus` reachable from any paid banner without PO and legal (#154) sign-off; earned-path-only bonuses are the permitted low-risk form; guard test stays. |
+| **5** | TTF assets | **Block rotation 1 on the ImageGen pass.** Rotation 1 ships the textured set; the six never-pooled procedural `ten-thousand-folds/*` ids remain permanently unobtainable. |
+| **#237** | Reveal rarity tell | **Audio stinger per tier + glow intensity/duration step**, in addition to (not replacing) glow color. Particle escalation and label not selected as tell channels. Accessibility caps apply at all tiers; rarity must remain readable with VFX disabled. |
+
+Remaining external gate before any activation slice: **#154 legal review** (the
+two questions in §9 routed there).
