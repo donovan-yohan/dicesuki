@@ -23,6 +23,19 @@
 //!   bot stays unprivileged and REST-only.
 //! * `POST/PATCH/DELETE /channels/{channel.id}/messages[/{id}]` — the advert
 //!   lifecycle.
+//! * `POST /channels/{channel.id}/messages/{message.id}/threads` — **Start
+//!   Thread from Message** (#255), used to hang a per-session thread off a
+//!   host-posted advert. Verified against the current Discord developer
+//!   documentation
+//!   (<https://docs.discord.com/developers/resources/channel#start-thread-from-message>):
+//!   the endpoint works on `GUILD_TEXT` **and** `GUILD_ANNOUNCEMENT` (type 5)
+//!   channels — a text channel yields a `PUBLIC_THREAD`, an announcement channel
+//!   yields an `ANNOUNCEMENT_THREAD` — and is documented as *not* working on
+//!   `GUILD_FORUM` / `GUILD_MEDIA`. Since [`POSTABLE_CHANNEL_TYPES`] already
+//!   restricts adverts to types 0 and 5, every channel the advert can reach is a
+//!   channel this endpoint supports, so no channel-type special case is needed.
+//!   The created thread's id equals the source message's id, and a message can
+//!   therefore only ever have one thread.
 
 use std::collections::BTreeSet;
 use std::future::Future;
@@ -57,6 +70,31 @@ pub const PERMISSION_EMBED_LINKS: u64 = 1 << 14;
 /// `ADMINISTRATOR` (`1 << 3`). Grants every permission and short-circuits the
 /// overwrite pass, exactly as Discord documents.
 pub const PERMISSION_ADMINISTRATOR: u64 = 1 << 3;
+/// `CREATE_PUBLIC_THREADS` (`1 << 35`, `0x800000000`) — needed to start the
+/// per-session thread off an advert (#255).
+///
+/// **Not** `1 << 34`: that is `MANAGE_THREADS`. Issue #255's prose says `1<<34`
+/// while its invite integer (`309237664768`) encodes `1 << 35`; the integer is
+/// the correct one, and this constant is the value Discord documents
+/// (<https://docs.discord.com/developers/topics/permissions>).
+pub const PERMISSION_CREATE_PUBLIC_THREADS: u64 = 1 << 35;
+/// `SEND_MESSAGES_IN_THREADS` (`1 << 38`) — needed to post the roll log into
+/// that thread. Discord documents `SEND_MESSAGES` as having *no effect* inside a
+/// thread, so this is a genuinely separate grant, not an implication of the
+/// channel-level send permission.
+pub const PERMISSION_SEND_MESSAGES_IN_THREADS: u64 = 1 << 38;
+
+/// The permission integer the bot's canonical invite URL should carry (#255):
+/// [`REQUIRED_POST_PERMISSIONS`] plus both thread permissions.
+///
+/// Deliberately **not** folded into [`REQUIRED_POST_PERMISSIONS`]: threads are
+/// an additive enhancement, and a guild that grants only the original three must
+/// keep getting adverts (embed-only) rather than silently losing every posting
+/// target. Guilds that invited the bot before this exists degrade per the
+/// thread-disabled path in `discord`, not by disappearing from the share sheet.
+pub const INVITE_PERMISSIONS: u64 = REQUIRED_POST_PERMISSIONS
+    | PERMISSION_CREATE_PUBLIC_THREADS
+    | PERMISSION_SEND_MESSAGES_IN_THREADS;
 
 /// What the bot must hold in a channel for that channel to be offered as a
 /// posting target.
@@ -212,6 +250,16 @@ pub trait DiscordApi: Send + Sync {
         channel_id: &'a str,
         message_id: &'a str,
     ) -> ApiFuture<'a, ()>;
+    /// `POST /channels/{channel_id}/messages/{message_id}/threads` — **Start
+    /// Thread from Message** (#255). Returns the new thread's id, which is also
+    /// a channel id: the roll log is posted with [`Self::create_message`]
+    /// against it.
+    fn create_thread_from_message<'a>(
+        &'a self,
+        channel_id: &'a str,
+        message_id: &'a str,
+        payload: &'a serde_json::Value,
+    ) -> ApiFuture<'a, String>;
 }
 
 /// Production [`DiscordApi`] over `reqwest`.
@@ -303,6 +351,26 @@ const fn classify(status: u16) -> DiscordApiError {
 #[must_use]
 pub const fn is_terminal_for_resource(error: DiscordApiError) -> bool {
     matches!(error, DiscordApiError::Status(403 | 404 | 410))
+}
+
+/// [`is_terminal_for_resource`], plus 400, for **Start Thread from Message**
+/// (#255).
+///
+/// This one endpoint turns "this request can never succeed" into a 400 rather
+/// than a 403/404: the message already has a thread (its id *is* the thread id,
+/// so there can only be one), the parent channel type does not support threads,
+/// or the name/auto-archive value was rejected. None of those change by waiting
+/// — the only part of the request that varies between passes is the date in the
+/// thread name — so a 400 here ends the create loop rather than re-POSTing every
+/// `SYNC_INTERVAL` forever. (The caller handles 400 specially before consulting
+/// this, because "already has a thread" is recoverable; see `discord`.)
+///
+/// Scoped to thread *creation* only. A 400 on an ordinary message POST is not
+/// treated this way, because there the payload varies with room state and a
+/// later pass genuinely sends something different.
+#[must_use]
+pub const fn is_terminal_for_thread_creation(error: DiscordApiError) -> bool {
+    is_terminal_for_resource(error) || matches!(error, DiscordApiError::Status(400))
 }
 
 #[derive(Deserialize)]
@@ -446,6 +514,30 @@ impl DiscordApi for HttpDiscordApi {
                 Err(DiscordApiError::Status(404)) | Ok(()) => Ok(()),
                 Err(other) => Err(other),
             }
+        })
+    }
+
+    fn create_thread_from_message<'a>(
+        &'a self,
+        channel_id: &'a str,
+        message_id: &'a str,
+        payload: &'a serde_json::Value,
+    ) -> ApiFuture<'a, String> {
+        Box::pin(async move {
+            if !is_snowflake(channel_id) || !is_snowflake(message_id) {
+                return Err(DiscordApiError::Status(400));
+            }
+            let thread: IdOnly = Self::send_json(
+                self.request(
+                    reqwest::Method::POST,
+                    format!(
+                        "{DISCORD_API_BASE}/channels/{channel_id}/messages/{message_id}/threads"
+                    ),
+                )
+                .json(payload),
+            )
+            .await?;
+            Ok(thread.id)
         })
     }
 }
@@ -803,6 +895,51 @@ mod tests {
         ] {
             assert!(!is_terminal_for_resource(retryable));
         }
+    }
+
+    /// Thread creation (#255) is the one endpoint where a 400 is permanent: the
+    /// message already owns a thread, or the channel cannot host one. Retrying
+    /// the identical POST every sync interval for the process lifetime helps
+    /// nobody, so it must read as terminal — while a 400 elsewhere stays
+    /// retryable, because those payloads change with room state.
+    #[test]
+    fn a_bad_request_is_terminal_only_for_thread_creation() {
+        assert!(is_terminal_for_thread_creation(DiscordApiError::Status(400)));
+        assert!(!is_terminal_for_resource(DiscordApiError::Status(400)));
+        for terminal in [403, 404, 410] {
+            assert!(is_terminal_for_thread_creation(DiscordApiError::Status(
+                terminal
+            )));
+        }
+        for retryable in [
+            DiscordApiError::Transport,
+            DiscordApiError::Unauthorized,
+            DiscordApiError::Status(429),
+            DiscordApiError::Status(500),
+        ] {
+            assert!(!is_terminal_for_thread_creation(retryable));
+        }
+    }
+
+    /// Locks the invite integer #255 asks operators to publish. The prose in
+    /// that issue says `1<<34` for Create Public Threads, which is actually
+    /// MANAGE_THREADS; Discord documents `1<<35`, and the issue's own integer
+    /// agrees with Discord, so the integer is what this asserts.
+    #[test]
+    fn the_canonical_invite_permission_integer_is_the_documented_one() {
+        assert_eq!(PERMISSION_CREATE_PUBLIC_THREADS, 0x0000_0008_0000_0000);
+        assert_eq!(PERMISSION_SEND_MESSAGES_IN_THREADS, 0x0000_0040_0000_0000);
+        assert_eq!(INVITE_PERMISSIONS, 309_237_664_768);
+        // Threads are additive: the posting-target filter must not start
+        // requiring them, or every guild invited before #255 loses its targets.
+        assert_eq!(
+            REQUIRED_POST_PERMISSIONS & PERMISSION_CREATE_PUBLIC_THREADS,
+            0
+        );
+        assert_eq!(
+            REQUIRED_POST_PERMISSIONS & PERMISSION_SEND_MESSAGES_IN_THREADS,
+            0
+        );
     }
 
     #[test]
