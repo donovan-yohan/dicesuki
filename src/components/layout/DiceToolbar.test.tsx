@@ -105,15 +105,44 @@ describe('DiceToolbar', () => {
     useMultiplayerStore.getState().reset()
   })
 
-  it('asks the backend to spawn a random owned die from the main rail button', () => {
+  it('asks the backend to spawn a die of the tapped type from the main rail button', () => {
     addNamedDie('Starter D6', 'd6', 'common')
     const onAddDice = vi.fn()
 
     renderToolbar({ onAddDice })
 
-    fireEvent.click(screen.getByRole('button', { name: /add random owned d6 from inventory/i }))
+    fireEvent.click(screen.getByTestId('dice-quick-slot-d6'))
 
     expect(onAddDice).toHaveBeenCalledWith('d6')
+  })
+
+  it('labels the rail button by what tapping does, not by how many dice are left', () => {
+    addNamedDie('Starter D6', 'd6', 'common')
+
+    renderToolbar()
+
+    // One label whatever the inventory holds: the owned-first-then-basics
+    // behaviour is the same for a type you own ten of and one you own none of.
+    for (const label of ['D6', 'D20']) {
+      expect(screen.getByRole('button', {
+        name: `Add ${label} — your owned dice first, then unlimited basics`,
+      })).toBeEnabled()
+    }
+  })
+
+  it('shows no owned count on any quick slot', () => {
+    addNamedDie('Starter D6', 'd6', 'common')
+    addNamedDie('Spare D6', 'd6', 'common')
+
+    renderToolbar()
+
+    for (const type of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'] as const) {
+      const slot = screen.getByTestId(`dice-quick-slot-${type}`)
+      // The face label and nothing else — no tally, and no ∞ standing in for
+      // one. Owned supply is not a number the rail reports any more.
+      expect(slot).toHaveTextContent(/^D(4|6|8|10|12|20)$/)
+      expect(slot).not.toHaveAttribute('data-owned-available')
+    }
   })
 
   it('offers every dice type even with a completely empty inventory', () => {
@@ -122,14 +151,10 @@ describe('DiceToolbar', () => {
     renderToolbar({ onAddDice })
 
     for (const type of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'] as const) {
-      const slot = screen.getByTestId(`dice-quick-slot-${type}`)
-      expect(slot).toBeEnabled()
-      expect(slot).toHaveAttribute('data-owned-available', '0')
-      // ∞ rather than 0: basic dice never run out.
-      expect(slot).toHaveTextContent('∞')
+      expect(screen.getByTestId(`dice-quick-slot-${type}`)).toBeEnabled()
     }
 
-    fireEvent.click(screen.getByRole('button', { name: /add a basic d20 \(unlimited\)/i }))
+    fireEvent.click(screen.getByTestId('dice-quick-slot-d20'))
     expect(onAddDice).toHaveBeenCalledWith('d20')
   })
 
@@ -151,7 +176,6 @@ describe('DiceToolbar', () => {
 
     const d6Button = screen.getByTestId('dice-quick-slot-d6')
     expect(d6Button).toBeEnabled()
-    expect(d6Button).toHaveAttribute('data-owned-available', '0')
 
     // Beyond the owned dice the rail keeps spawning; the backend substitutes a
     // basic die rather than refusing.
@@ -159,35 +183,86 @@ describe('DiceToolbar', () => {
     expect(onAddDice).toHaveBeenCalledWith('d6')
   })
 
-  it('counts pending multiplayer inventory dice as unavailable', () => {
-    const ownedDie = addNamedDie('Only Online D6', 'd6', 'common')
-    useMultiplayerStore.setState({ pendingInventoryDieIds: new Set([ownedDie.id]) })
+  it('drops a pending multiplayer favorite from the flyout until the server answers', () => {
+    const favorite = addNamedDie('Lucky D6', 'd6', 'common', { isFavorite: true })
+    addNamedDie('Backup D6', 'd6', 'common', { isFavorite: true })
+    useMultiplayerStore.setState({ pendingInventoryDieIds: new Set([favorite.id]) })
 
     renderToolbar()
 
-    expect(screen.getByTestId('dice-quick-slot-d6'))
-      .toHaveAttribute('data-owned-available', '0')
+    fireEvent.click(screen.getByTestId('dice-quick-slot-favorites-d6'))
+
+    // Offering an in-flight die would let the player spawn the same physical
+    // die twice.
+    expect(screen.queryByRole('button', { name: /add favorite lucky d6/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /add favorite backup d6/i })).toBeInTheDocument()
   })
 
-  it('counts owned multiplayer table dice as unavailable after server acknowledgement', () => {
-    const ownedDie = addNamedDie('Online Table D6', 'd6', 'common')
-    addNamedDie('Spare D6', 'd6', 'common')
+  it('drops a favorite already on the table from the flyout', () => {
+    const onTable = addNamedDie('Table D6', 'd6', 'common', { isFavorite: true })
+    addNamedDie('Bench D6', 'd6', 'common', { isFavorite: true })
     useMultiplayerStore.setState({
       localPlayerId: 'p1',
       dice: new Map([[
         'mp-d6',
         makeMultiplayerDie({
           id: 'mp-d6',
-          presentation: { inventoryDieId: ownedDie.id },
+          presentation: { inventoryDieId: onTable.id },
         }),
       ]]),
     })
 
     renderToolbar()
 
-    // Two owned d6s, one of them on the table.
-    expect(screen.getByTestId('dice-quick-slot-d6'))
-      .toHaveAttribute('data-owned-available', '1')
+    fireEvent.click(screen.getByTestId('dice-quick-slot-favorites-d6'))
+
+    expect(screen.queryByRole('button', { name: /add favorite table d6/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /add favorite bench d6/i })).toBeInTheDocument()
+  })
+
+  it('shows the favorites star on every slot, including types with no favorites', () => {
+    addNamedDie('Lucky D20', 'd20', 'rare', { isFavorite: true })
+
+    renderToolbar()
+
+    for (const type of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'] as const) {
+      // A control that only appears once you already use the feature cannot
+      // teach it, so the star is unconditional.
+      expect(screen.getByTestId(`dice-quick-slot-favorites-${type}`)).toBeInTheDocument()
+    }
+
+    expect(screen.getByTestId('dice-quick-slot-favorites-d20'))
+      .toHaveAttribute('data-has-favorites', 'true')
+    expect(screen.getByTestId('dice-quick-slot-favorites-d4'))
+      .toHaveAttribute('data-has-favorites', 'false')
+  })
+
+  it('opens a dismissable hint from a star with no favorites behind it', () => {
+    const onAddDice = vi.fn()
+
+    renderToolbar({ onAddDice })
+
+    fireEvent.click(screen.getByTestId('dice-quick-slot-favorites-d8'))
+
+    const hint = screen.getByTestId('favorite-dice-empty-hint')
+    // Points at where favorites are made, rather than leaving a dead control.
+    expect(hint).toHaveTextContent(/star dice in the inventory panel/i)
+    expect(screen.queryByTestId('inventory-preview-canvas')).not.toBeInTheDocument()
+
+    // A tap anywhere clears it — no aiming at a close button.
+    fireEvent.click(screen.getByTestId('favorite-dice-hint-backdrop'))
+    expect(screen.queryByTestId('favorite-dice-empty-hint')).not.toBeInTheDocument()
+    // Dismissing is not spawning.
+    expect(onAddDice).not.toHaveBeenCalled()
+  })
+
+  it('dismisses the empty-favorites hint when the hint itself is tapped', () => {
+    renderToolbar()
+
+    fireEvent.click(screen.getByTestId('dice-quick-slot-favorites-d8'))
+    fireEvent.click(screen.getByTestId('favorite-dice-empty-hint'))
+
+    expect(screen.queryByTestId('favorite-dice-empty-hint')).not.toBeInTheDocument()
   })
 
   it('opens a favorite dice flyout with 3d preview targets and spawns the tapped favorite', () => {

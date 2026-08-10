@@ -7,7 +7,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 
 import { buttonPressScale, shouldReduceMotion } from '../../animations/ui-transitions'
@@ -93,29 +93,11 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
   }, [localPlayerId, multiplayerDiceOnTable, pendingInventoryDieIds])
 
   /**
-   * Every die type, always. A player has an unlimited supply of basic dice
-   * (`lib/basicDice.ts`), so the rail never hides or disables a type — `available`
-   * counts only the OWNED dice not already on the table, and tapping past that
-   * count spawns a basic one.
+   * Favourites are the rail's only inventory-derived content. A player has an
+   * unlimited supply of basic dice (`lib/basicDice.ts`), so every type is always
+   * present, always enabled, and carries no owned-count — tapping spawns an
+   * owned die when one is free and a basic one when none is.
    */
-  const availableDiceTypes = useMemo(() => {
-    const ownedDiceByType = new Map<DiceShape, InventoryDie[]>()
-    inventoryDice.forEach(die => {
-      const ownedDice = ownedDiceByType.get(die.type) ?? []
-      ownedDice.push(die)
-      ownedDiceByType.set(die.type, ownedDice)
-    })
-
-    return ALL_DICE_TYPES.map(({ type, label }) => {
-      const ownedDice = ownedDiceByType.get(type) ?? []
-      return {
-        type,
-        label,
-        available: ownedDice.filter(die => !unavailableInventoryIds.has(die.id)).length,
-      }
-    })
-  }, [inventoryDice, unavailableInventoryIds])
-
   const favoriteDiceByType = useMemo(() => {
     const grouped = new Map<DiceShape, InventoryDie[]>()
 
@@ -148,14 +130,15 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
             maxHeight: `${railLane.maxHeight}px`,
           }}
         >
-          {/* The negative margin widens only the scroll box, so slot badges are
-              not clipped while the slots themselves stay on the same x. */}
+          {/* The negative margin widens only the scroll box, so the ★ sub-buttons
+              that overhang each slot are not clipped while the slots themselves
+              stay on the same x. */}
           <div
             data-testid="dice-toolbar-scroll"
             className="-mx-2 flex min-h-0 flex-1 flex-col items-center gap-3 overflow-y-auto overscroll-contain px-2 py-2"
             style={{ scrollbarWidth: 'none' }}
           >
-          {availableDiceTypes.map(({ type, label, available }, index) => {
+          {ALL_DICE_TYPES.map(({ type, label }, index) => {
             const favorites = favoriteDiceByType.get(type) ?? []
             const isFavoriteOpen = activeFavoriteType === type
 
@@ -164,12 +147,12 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
                 key={type}
                 type={type}
                 label={label}
-                count={available}
                 favorites={favorites}
                 index={index}
                 isFavoriteOpen={isFavoriteOpen}
                 onAdd={() => onAddDice(type)}
                 onToggleFavorites={() => setActiveFavoriteType(isFavoriteOpen ? null : type)}
+                onCloseFavorites={() => setActiveFavoriteType(null)}
                 onSpawnFavorite={(die) => {
                   onAddDice(die.type, die.id)
                   setActiveFavoriteType(null)
@@ -184,7 +167,7 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
             exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
             transition={{
               duration: 0.3,
-              delay: availableDiceTypes.length * 0.05,
+              delay: ALL_DICE_TYPES.length * 0.05,
               ease: 'easeOut',
             }}
           >
@@ -198,7 +181,7 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
             exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
             transition={{
               duration: 0.3,
-              delay: (availableDiceTypes.length + 1) * 0.05,
+              delay: (ALL_DICE_TYPES.length + 1) * 0.05,
               ease: 'easeOut',
             }}
           >
@@ -214,31 +197,24 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
 interface DiceQuickSlotProps {
   type: DiceShape
   label: string
-  count: number
   favorites: InventoryDie[]
   index: number
   isFavoriteOpen: boolean
   onAdd: () => void
   onToggleFavorites: () => void
+  onCloseFavorites: () => void
   onSpawnFavorite: (die: InventoryDie) => void
 }
-
-/**
- * The badge shows how many OWNED dice of the type are still off the table. At
- * zero it becomes ∞: there is nothing left to run out of, because the next tap
- * spawns a basic die.
- */
-const INFINITE_BASICS_BADGE = '∞'
 
 function DiceQuickSlot({
   type,
   label,
-  count,
   favorites,
   index,
   isFavoriteOpen,
   onAdd,
   onToggleFavorites,
+  onCloseFavorites,
   onSpawnFavorite,
 }: DiceQuickSlotProps) {
   const reduceMotion = shouldReduceMotion()
@@ -247,10 +223,12 @@ function DiceQuickSlot({
   const surfaceColor = currentTheme.tokens.colors.surface
   const hasFavorites = favorites.length > 0
   const slotRef = useRef<HTMLDivElement>(null)
-  const hasOwned = count > 0
-  const actionLabel = hasOwned
-    ? `Add random owned ${label} from inventory (${count} available)`
-    : `Add a basic ${label} (unlimited)`
+  // No count: the supply is effectively unlimited, so the only thing a number
+  // could tell the player is which of two indistinguishable dice they get.
+  const actionLabel = `Add ${label} — your owned dice first, then unlimited basics`
+  const favoritesLabel = hasFavorites
+    ? `${isFavoriteOpen ? 'Hide' : 'Show'} favorite ${label} dice`
+    : `Show favorite ${label} dice (none yet)`
 
   return (
     <motion.div
@@ -288,53 +266,123 @@ function DiceQuickSlot({
         aria-label={actionLabel}
         title={actionLabel}
         data-testid={`dice-quick-slot-${type}`}
-        data-owned-available={count}
       >
         <span>{label}</span>
-        <span
-          className="absolute right-0 top-0 flex items-center justify-center rounded-full text-xs font-bold"
-          style={{
-            width: '18px',
-            height: '18px',
-            backgroundColor: surfaceColor,
-            color: accentColor,
-            border: `2px solid ${accentColor}`,
-            transform: 'translate(25%, -25%)',
-          }}
-          aria-hidden="true"
-        >
-          {hasOwned ? count : INFINITE_BASICS_BADGE}
-        </span>
       </motion.button>
 
-      {hasFavorites && (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggleFavorites()
-          }}
-          className="absolute -right-2 -bottom-2 z-[72] flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold shadow-lg"
-          style={{
-            backgroundColor: isFavoriteOpen ? currentTheme.tokens.colors.dice.highlight : surfaceColor,
-            color: isFavoriteOpen ? surfaceColor : accentColor,
-            border: `2px solid ${accentColor}`,
-          }}
-          aria-label={`${isFavoriteOpen ? 'Hide' : 'Show'} favorite ${label} dice`}
-          title={`${isFavoriteOpen ? 'Hide' : 'Show'} favorite ${label} dice`}
-        >
-          ★
-        </button>
-      )}
+      {/* Always present, favourites or not: the ★ is where favourites live, and
+          a control that appears only once you already know about the feature
+          cannot teach it. Empty types open the hint instead of the tray. */}
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          onToggleFavorites()
+        }}
+        className="absolute -right-2 -bottom-2 z-[72] flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold shadow-lg"
+        style={{
+          backgroundColor: isFavoriteOpen ? currentTheme.tokens.colors.dice.highlight : surfaceColor,
+          color: isFavoriteOpen ? surfaceColor : accentColor,
+          border: `2px solid ${accentColor}`,
+          opacity: hasFavorites ? 1 : 0.75,
+        }}
+        aria-label={favoritesLabel}
+        title={favoritesLabel}
+        data-testid={`dice-quick-slot-favorites-${type}`}
+        data-has-favorites={hasFavorites}
+      >
+        ★
+      </button>
 
       {isFavoriteOpen && (
-        <FavoriteDiceFlyout
-          anchorRef={slotRef}
-          dice={favorites}
-          label={label}
-          onSpawn={onSpawnFavorite}
-        />
+        hasFavorites ? (
+          <FavoriteDiceFlyout
+            anchorRef={slotRef}
+            dice={favorites}
+            label={label}
+            onSpawn={onSpawnFavorite}
+          />
+        ) : (
+          <FavoriteDiceEmptyHint
+            anchorRef={slotRef}
+            label={label}
+            onDismiss={onCloseFavorites}
+          />
+        )
       )}
+    </motion.div>
+  )
+}
+
+/**
+ * Track the slot's on-screen position so a portalled flyout can sit beside it.
+ * `null` until the first layout pass, which is also the signal not to render.
+ */
+function useFlyoutAnchor(anchorRef: RefObject<HTMLElement | null>) {
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const update = () => {
+      const element = anchorRef.current
+      if (!element) return
+      const rect = element.getBoundingClientRect()
+      setAnchor({ top: rect.top + rect.height / 2, left: rect.right + 12 })
+    }
+
+    update()
+    window.addEventListener('resize', update)
+    // Capture phase so the rail's own scrolling is tracked too.
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [anchorRef])
+
+  return anchor
+}
+
+/**
+ * The shared chrome for anything the ★ opens — one definition of the tinted
+ * panel, so the favourites tray and its empty state cannot drift apart.
+ */
+function FlyoutPanel({
+  anchor,
+  ariaLabel,
+  className = '',
+  onClick,
+  testId,
+  children,
+}: {
+  anchor: { top: number; left: number }
+  ariaLabel: string
+  className?: string
+  onClick?: () => void
+  testId?: string
+  children: ReactNode
+}) {
+  const { currentTheme } = useTheme()
+
+  return (
+    <motion.div
+      className={`fixed overflow-hidden rounded-lg shadow-xl ${className}`}
+      style={{
+        top: `${anchor.top}px`,
+        left: `${anchor.left}px`,
+        width: 'min(328px, calc(100vw - 92px))',
+        backgroundColor: 'rgba(31, 41, 55, 0.92)',
+        border: `1px solid ${currentTheme.tokens.colors.accent}`,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+      }}
+      initial={{ opacity: 0, x: -8, y: '-50%', scale: 0.96 }}
+      animate={{ opacity: 1, x: 0, y: '-50%', scale: 1 }}
+      transition={{ duration: 0.16 }}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      data-testid={testId}
+    >
+      {children}
     </motion.div>
   )
 }
@@ -357,45 +405,12 @@ function FavoriteDiceFlyout({
   const { currentTheme } = useTheme()
   const hostRef = useRef<HTMLDivElement>(null)
   const slotRefs = useRef<Map<string, HTMLElement>>(new Map())
-  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
-
-  useLayoutEffect(() => {
-    const update = () => {
-      const element = anchorRef.current
-      if (!element) return
-      const rect = element.getBoundingClientRect()
-      setAnchor({ top: rect.top + rect.height / 2, left: rect.right + 12 })
-    }
-
-    update()
-    window.addEventListener('resize', update)
-    // Capture phase so the rail's own scrolling is tracked too.
-    window.addEventListener('scroll', update, true)
-    return () => {
-      window.removeEventListener('resize', update)
-      window.removeEventListener('scroll', update, true)
-    }
-  }, [anchorRef])
+  const anchor = useFlyoutAnchor(anchorRef)
 
   if (!anchor || typeof document === 'undefined') return null
 
   return createPortal(
-    <motion.div
-      className="fixed z-40 overflow-hidden rounded-lg shadow-xl"
-      style={{
-        top: `${anchor.top}px`,
-        left: `${anchor.left}px`,
-        width: 'min(328px, calc(100vw - 92px))',
-        backgroundColor: 'rgba(31, 41, 55, 0.92)',
-        border: `1px solid ${currentTheme.tokens.colors.accent}`,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-      }}
-      initial={{ opacity: 0, x: -8, y: '-50%', scale: 0.96 }}
-      animate={{ opacity: 1, x: 0, y: '-50%', scale: 1 }}
-      transition={{ duration: 0.16 }}
-      aria-label={`Favorite ${label} dice`}
-    >
+    <FlyoutPanel anchor={anchor} ariaLabel={`Favorite ${label} dice`} className="z-40">
       <div ref={hostRef} className="relative">
         <SharedInventoryDicePreviewCanvas dice={dice} hostRef={hostRef} slotRefs={slotRefs} />
         <div className="relative flex gap-2 overflow-x-auto p-2">
@@ -427,7 +442,60 @@ function FavoriteDiceFlyout({
           ))}
         </div>
       </div>
-    </motion.div>,
+    </FlyoutPanel>,
+    document.body,
+  )
+}
+
+/**
+ * What the ★ says when a type has no favourites yet. It occupies the tray's own
+ * position so the control always resolves to something, and any tap anywhere
+ * dismisses it — a hint the player did not ask for must never need aiming at to
+ * get rid of.
+ */
+function FavoriteDiceEmptyHint({
+  anchorRef,
+  label,
+  onDismiss,
+}: {
+  anchorRef: RefObject<HTMLElement | null>
+  label: string
+  onDismiss: () => void
+}) {
+  const { currentTheme } = useTheme()
+  const anchor = useFlyoutAnchor(anchorRef)
+
+  if (!anchor || typeof document === 'undefined') return null
+
+  return createPortal(
+    <>
+      {/* Not focusable: keyboard users close with the ★ toggle they opened it
+          with. This exists so a stray tap anywhere counts as "dismiss". */}
+      <button
+        type="button"
+        aria-hidden="true"
+        tabIndex={-1}
+        onClick={onDismiss}
+        className="fixed inset-0 z-[71] cursor-default"
+        style={{ backgroundColor: 'transparent', border: 'none' }}
+        data-testid="favorite-dice-hint-backdrop"
+      />
+      <FlyoutPanel
+        anchor={anchor}
+        ariaLabel={`No favorite ${label} dice yet`}
+        className="z-[72]"
+        onClick={onDismiss}
+        testId="favorite-dice-empty-hint"
+      >
+        <p
+          className="p-3 text-xs leading-snug"
+          style={{ color: currentTheme.tokens.colors.text.primary }}
+        >
+          No favorite {label} dice yet. Star dice in the Inventory panel to keep
+          them one tap away here.
+        </p>
+      </FlyoutPanel>
+    </>,
     document.body,
   )
 }
