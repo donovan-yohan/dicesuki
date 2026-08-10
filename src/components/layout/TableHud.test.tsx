@@ -149,6 +149,7 @@ describe('TableHud (Layout A)', () => {
     // order instead, which keeps one uniform gap on both form factors.
     renderHud({ isMobile: false, isDiceManagerOpen: true })
 
+    expect(screen.queryByRole('button', { name: 'Motion Mode' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Hide UI' })).toHaveStyle({ bottom: '80px' })
     expect(screen.getByTestId('rotate-view-button')).toHaveStyle({ bottom: '136px' })
     expect(screen.getByTestId('dice-toolbar-rail')).toHaveStyle({ bottom: '192px' })
