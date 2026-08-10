@@ -134,6 +134,26 @@ describe('TableHud (Layout A)', () => {
     expect(screen.getByRole('button', { name: 'Hide UI' })).toBeInTheDocument()
   })
 
+  it('stacks the mobile cluster one control per slot', () => {
+    renderHud({ isMobile: true, isDiceManagerOpen: true })
+
+    expect(screen.getByRole('button', { name: 'Hide UI' })).toHaveStyle({ bottom: '80px' })
+    expect(screen.getByRole('button', { name: 'Motion Mode' })).toHaveStyle({ bottom: '136px' })
+    expect(screen.getByTestId('rotate-view-button')).toHaveStyle({ bottom: '192px' })
+    expect(screen.getByTestId('dice-toolbar-rail')).toHaveStyle({ bottom: '248px' })
+  })
+
+  it('collapses the cluster over the absent motion slot on desktop', () => {
+    // Desktop never renders the motion toggle, so leaving its slot empty showed
+    // as a dead gap between the eye and rotate. Slots are assigned by rendered
+    // order instead, which keeps one uniform gap on both form factors.
+    renderHud({ isMobile: false, isDiceManagerOpen: true })
+
+    expect(screen.getByRole('button', { name: 'Hide UI' })).toHaveStyle({ bottom: '80px' })
+    expect(screen.getByTestId('rotate-view-button')).toHaveStyle({ bottom: '136px' })
+    expect(screen.getByTestId('dice-toolbar-rail')).toHaveStyle({ bottom: '192px' })
+  })
+
   it('routes each HUD control to its callback', () => {
     const { handlers } = renderHud()
 
@@ -179,7 +199,7 @@ describe('TableHud (Layout A)', () => {
     })
     renderHud({ isDiceManagerOpen: true })
 
-    const lane = getDiceToolbarLane(window.innerHeight)
+    const lane = getDiceToolbarLane(window.innerHeight, true)
     const rail = screen.getByTestId('dice-toolbar-rail')
     expect(rail).toHaveStyle({
       bottom: `${lane.bottom}px`,

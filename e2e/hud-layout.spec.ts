@@ -83,7 +83,9 @@ for (const viewport of VIEWPORTS) {
       expect(railBox.y).toBeGreaterThanOrEqual(gearBox.y + gearBox.height)
 
       // The rendered rail matches the lane model that hudLayout.test.ts asserts.
-      const lane = getDiceToolbarLane(viewport.height)
+      // The cluster below the rail collapses on desktop, so the lane depends on
+      // the form factor the app itself derives from the viewport width.
+      const lane = getDiceToolbarLane(viewport.height, viewport.width < 768)
       const scroll = await page.getByTestId('dice-toolbar-scroll').evaluate(element => ({
         scrollHeight: element.scrollHeight,
         clientHeight: element.clientHeight,

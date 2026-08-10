@@ -23,6 +23,11 @@ import { getDiceToolbarLane } from './hudLayout'
 
 interface DiceToolbarProps {
   isOpen: boolean
+  /**
+   * Drives the rail's bottom anchor: the mobile-only motion toggle adds a slot
+   * to the control cluster below it, so the rail sits one slot lower on desktop.
+   */
+  isMobile: boolean
   onAddDice: (type: DiceShape, inventoryDieId?: string) => void
   onClearAllDice: () => void
   onOpenInventory: () => void
@@ -64,10 +69,10 @@ function useViewportHeight(): number {
   return height
 }
 
-export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory }: DiceToolbarProps) {
+export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpenInventory }: DiceToolbarProps) {
   const reduceMotion = shouldReduceMotion()
   const viewportHeight = useViewportHeight()
-  const railLane = getDiceToolbarLane(viewportHeight)
+  const railLane = getDiceToolbarLane(viewportHeight, isMobile)
   const { dice: inventoryDice } = useInventoryStore()
   const multiplayerDiceOnTable = useMultiplayerStore(state => state.dice)
   const localPlayerId = useMultiplayerStore(state => state.localPlayerId)
