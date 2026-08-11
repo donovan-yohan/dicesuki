@@ -13,6 +13,7 @@ import {
 } from '../../animations/ui-transitions'
 import { useTheme } from '../../contexts/ThemeContext'
 import { hasAsset } from '../../lib/themeHelpers'
+import { ThemeIcon } from '../icons/ThemeIcon'
 
 interface CenterRollButtonProps {
   onClick: () => void
@@ -62,11 +63,13 @@ export function CenterRollButton({
     >
       {/* Icon or Text */}
       {hasAsset(rollIcon) ? (
-        <img
-          src={rollIcon || undefined}
-          alt="Roll"
+        <ThemeIcon
+          src={rollIcon}
+          label="Roll"
           className="w-8 h-8"
           style={{
+            // Bundled icons are `currentColor` (already `on-accent`); the
+            // filter still matters for image-based theme packs.
             filter: disabled ? 'grayscale(100%)' : 'none',
           }}
         />

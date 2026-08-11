@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ThemeContext } from '../../contexts/ThemeContext'
-import { defaultTheme } from '../../themes/tokens'
+import { ICONLESS_THEME } from '../../test/themeFixtures'
+import { defaultTheme, type Theme } from '../../themes/tokens'
 import { BottomNav } from './BottomNav'
 
-function renderNav(rollDisabled = false) {
+function renderNav(rollDisabled = false, theme: Theme = defaultTheme) {
   const handlers = {
     onOpenDiceManager: vi.fn(),
     onOpenSavedRolls: vi.fn(),
@@ -16,10 +17,10 @@ function renderNav(rollDisabled = false) {
   render(
     <ThemeContext.Provider
       value={{
-        currentTheme: defaultTheme,
+        currentTheme: theme,
         setTheme: vi.fn(),
-        availableThemes: [defaultTheme],
-        ownedThemes: [defaultTheme.id],
+        availableThemes: [theme],
+        ownedThemes: [theme.id],
         purchaseTheme: vi.fn(async () => true),
       }}
     >
@@ -100,5 +101,45 @@ describe('BottomNav Layout A', () => {
     expect(handlers.onOpenSavedRolls).toHaveBeenCalledOnce()
     expect(handlers.onOpenHistory).toHaveBeenCalledOnce()
     expect(handlers.onOpenPlayerPanel).toHaveBeenCalledOnce()
+  })
+
+  describe('themed nav glyphs', () => {
+    const SLOTS = [
+      ['Manage Dice', '/icons/default/dice.svg', 'DICE'],
+      ['My Dice Rolls', '/icons/default/saved-rolls.svg', '📋'],
+      ['Roll History', '/icons/default/history.svg', 'HIST'],
+      ['Room Players', '/icons/default/profile.svg', '👥'],
+    ] as const
+
+    it.each(SLOTS)('paints %s from the default theme icon set', (label, src) => {
+      renderNav()
+
+      const icon = screen
+        .getByRole('button', { name: label })
+        .querySelector(`[data-theme-icon="${src}"]`)
+      expect(icon, `${label} should render ${src}`).not.toBeNull()
+      // Inline SVG, not <img>: only inlined markup inherits the button colour.
+      expect(icon!.querySelector('svg')).not.toBeNull()
+    })
+
+    it.each(SLOTS)('falls back to the %s label when the theme has no icon', (label, src, fallback) => {
+      renderNav(false, ICONLESS_THEME)
+
+      const button = screen.getByRole('button', { name: label })
+      expect(button.querySelector(`[data-theme-icon="${src}"]`)).toBeNull()
+      expect(button.querySelector('svg')).toBeNull()
+      expect(button.textContent).toContain(fallback)
+    })
+
+    it('fills the centre roll button with the roll icon, and with the "Roll" word without one', () => {
+      renderNav()
+
+      const roll = screen.getByRole('button', { name: 'Roll dice' })
+      expect(roll.querySelector('[data-theme-icon="/icons/default/roll.svg"] svg')).not.toBeNull()
+      cleanup()
+
+      renderNav(false, ICONLESS_THEME)
+      expect(screen.getByRole('button', { name: 'Roll dice' }).textContent).toContain('Roll')
+    })
   })
 })

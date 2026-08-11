@@ -133,7 +133,33 @@ export interface ThemeIcons {
   settings: string | null // Settings icon
   profile: string | null // Profile/room icon
   uiToggle: string | null // UI visibility toggle icon
+  savedRolls: string | null // Saved rolls icon
+  shop: string | null // Shop hub icon
+  rotate: string | null // Rotate-view icon
+  motion: string | null // Motion mode icon
 }
+
+/**
+ * Every icon slot a theme can fill, as a runtime list.
+ *
+ * `ThemeIcons` has no runtime form, so the completeness guard
+ * (`registry.test.ts`) needs this. The `satisfies` makes adding a key to
+ * `ThemeIcons` without adding it here a compile error, and the guard then makes
+ * a theme that skipped the new key a test failure (Frontend-ADR-003: no partial
+ * themes).
+ */
+export const THEME_ICON_KEYS = [
+  'roll',
+  'dice',
+  'history',
+  'settings',
+  'profile',
+  'uiToggle',
+  'savedRolls',
+  'shop',
+  'rotate',
+  'motion',
+] as const satisfies readonly (keyof ThemeIcons)[]
 
 export interface ThemeSounds {
   roll?: string | null // Dice roll sound effect
@@ -399,12 +425,19 @@ export const defaultTheme: Theme = {
       dice: null,
     },
     icons: {
-      roll: null, // Future: '/icons/default/roll.svg'
-      dice: null, // Future: '/icons/default/dice.svg'
-      history: null, // Future: '/icons/default/history.svg'
-      settings: null, // Future: '/icons/default/settings.svg'
-      profile: null, // Future: '/icons/default/profile.svg'
-      uiToggle: null, // Future: '/icons/default/eye.svg'
+      // 24x24 `currentColor` line icons bundled with the app. They are inlined
+      // (not <img>-ed) at render time so `currentColor` inherits the button's
+      // colour — see `src/themes/bundledIcons.ts`.
+      roll: '/icons/default/roll.svg',
+      dice: '/icons/default/dice.svg',
+      history: '/icons/default/history.svg',
+      settings: '/icons/default/settings.svg',
+      profile: '/icons/default/profile.svg',
+      uiToggle: '/icons/default/ui-toggle.svg',
+      savedRolls: '/icons/default/saved-rolls.svg',
+      shop: '/icons/default/shop.svg',
+      rotate: '/icons/default/rotate.svg',
+      motion: '/icons/default/motion.svg',
     },
   },
 
@@ -571,6 +604,10 @@ export const fantasyTheme: Theme = {
       settings: null, // Future: '/themes/fantasy-earth/icons/crystal.svg' - 🔮
       profile: null, // Future: '/themes/fantasy-earth/icons/shield.svg' - 🛡️
       uiToggle: null, // Future: '/themes/fantasy-earth/icons/magic-eye.svg' - 👁️
+      savedRolls: null, // Future: '/themes/fantasy-earth/icons/spellbook.svg' - 📋
+      shop: null, // Future: '/themes/fantasy-earth/icons/market-stall.svg' - 🛍️
+      rotate: null, // Future: '/themes/fantasy-earth/icons/compass.svg' - 🔄
+      motion: null, // Future: '/themes/fantasy-earth/icons/shaking-potion.svg' - PHYS
     },
     sounds: {
       roll: null, // Future: '/themes/fantasy-earth/sounds/magic-roll.mp3'
@@ -747,6 +784,10 @@ export const critterForestTheme: Theme = {
       settings: null, // Future: flower
       profile: null, // Future: cute critter face
       uiToggle: null, // Future: blinking eye
+      savedRolls: null, // Future: pressed-flower notebook
+      shop: null, // Future: woven basket
+      rotate: null, // Future: spinning leaf
+      motion: null, // Future: bouncing acorn
     },
     sounds: {
       roll: null, // Future: cheerful chime
@@ -922,6 +963,10 @@ export const dungeonCastleTheme: Theme = {
       settings: null, // Future: iron gear
       profile: null, // Future: helmet
       uiToggle: null, // Future: torch
+      savedRolls: null, // Future: bound spell ledger
+      shop: null, // Future: merchant's strongbox
+      rotate: null, // Future: turning portcullis wheel
+      motion: null, // Future: rattling gauntlet
     },
     sounds: {
       roll: null, // Future: stone grinding
@@ -1089,6 +1134,10 @@ export const neonCyberCityTheme: Theme = {
       settings: null, // Future: pixel gear
       profile: null, // Future: pixel avatar
       uiToggle: null, // Future: pixel eye
+      savedRolls: null, // Future: pixel clipboard
+      shop: null, // Future: neon vending panel
+      rotate: null, // Future: pixel refresh arrow
+      motion: null, // Future: pixel handheld
     },
     sounds: {
       roll: null, // Future: 8-bit blip
