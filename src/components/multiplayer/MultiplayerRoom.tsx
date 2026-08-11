@@ -5,8 +5,14 @@ import { useMultiplayerDiceBackend } from '../../hooks/useMultiplayerDiceBackend
 import { DiceBackendProvider } from '../../contexts/DiceBackendProvider'
 import { useDiceStore } from '../../store/useDiceStore'
 import { usePlayerIdentityStore } from '../../store/usePlayerIdentityStore'
-import { getRoomServerConfig, READINESS_MAX_RETRIES } from '../../lib/multiplayerServer'
+import { getRoomServerConfig } from '../../lib/multiplayerServer'
 import { preflightRoom, type PreflightResult } from '../../lib/roomPreflight'
+import {
+  COLDSTART_WAKING_BODY,
+  COLDSTART_WAKING_TITLE,
+  formatColdStartElapsed,
+  type ColdStartPhase,
+} from '../../lib/coldStartWait'
 import { consumePendingRoomSetup, fitCarriedDice } from '../../lib/roomCarry'
 import Scene from '../Scene'
 import { StartupGate, StartupSplash } from '../brand/StartupSplash'
@@ -48,9 +54,12 @@ export function MultiplayerRoom() {
   // Deep-link preflight state: the room may be gone or the server unreachable.
   const [preflightNotice, setPreflightNotice] = useState<PreflightResult | null>(null)
   const [isChecking, setIsChecking] = useState(false)
-  // Interim "server waking up, retrying…" message while a cold-starting public
-  // server is retried during preflight (#109); null when not retrying.
-  const [wakingNotice, setWakingNotice] = useState<string | null>(null)
+  // Staged cold-start preflight state (see `lib/coldStartWait.ts`). Phase 1
+  // (0–30s) keeps the ordinary "Checking…" affordance; phase 2 (30s–3min) says
+  // plainly that the free-tier room server is asleep and shows elapsed time.
+  const [waitPhase, setWaitPhase] = useState<ColdStartPhase>('connecting')
+  const [waitElapsedSeconds, setWaitElapsedSeconds] = useState(0)
+  const isWaking = isChecking && waitPhase === 'waking'
 
   const multiplayerBackend = useMultiplayerDiceBackend()
   const roomIsReady =
@@ -78,25 +87,33 @@ export function MultiplayerRoom() {
     setDisplayName(saved.displayName)
     setColor(saved.color)
     setIsChecking(true)
+    setWaitPhase('connecting')
+    setWaitElapsedSeconds(0)
     let cancelled = false
+    const controller = new AbortController()
     void preflightRoom(serverConfig.httpUrl, roomId, {
-      maxRetries: READINESS_MAX_RETRIES,
-      onRetry: ({ attempt, maxRetries }) => {
-        setWakingNotice(`Server waking up, retrying… (attempt ${attempt} of ${maxRetries})`)
+      signal: controller.signal,
+      onProgress: ({ phase, elapsedMs }) => {
+        if (cancelled) return
+        setWaitPhase(phase)
+        setWaitElapsedSeconds(Math.floor(elapsedMs / 1000))
       },
     }).then((result) => {
-      if (cancelled) return
+      // 'aborted' means we unmounted mid-wait: drop it, never render it.
+      if (cancelled || result === 'aborted') return
       setIsChecking(false)
-      setWakingNotice(null)
+      setWaitPhase('connecting')
       if (result !== 'ok') {
         setPreflightNotice(result)
         return
       }
+      // Ready — continue straight into the join the user already asked for.
       connect(roomId, saved.displayName, saved.color, serverConfig.wsUrl)
       setHasJoined(true)
     })
     return () => {
       cancelled = true
+      controller.abort()
       autoResumeStartedRef.current = false
     }
   }, [connect, roomId, serverConfig.httpUrl, serverConfig.wsUrl])
@@ -169,6 +186,18 @@ export function MultiplayerRoom() {
     store.spawnCarriedDice(fitCarriedDice(setup.dice, setup.sourceArena, destArena))
   }, [roomId, isHost, connectionStatus])
 
+  // A staged wait can run for ~3 minutes, far longer than this route may live.
+  // Abort it on unmount and guard every post-await setState.
+  const joinAbortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      joinAbortRef.current?.abort()
+    }
+  }, [])
+
   const handleJoin = async () => {
     if (!roomId || !displayName.trim() || isChecking) return
     const trimmedName = displayName.trim()
@@ -176,24 +205,34 @@ export function MultiplayerRoom() {
     // Remember the identity for next time before we do anything else (issue #78).
     setIdentity({ displayName: trimmedName, color })
     setPreflightNotice(null)
-    setWakingNotice(null)
 
-    // Preflight the room so a dead link fails fast and kindly. Public servers
-    // retry through cold starts; local loopback fast-fails (#109).
+    // Preflight the room on the staged cold-start schedule: a dead link still
+    // fails fast (404 is authoritative), but a sleeping free-tier server is
+    // woken rather than reported unreachable.
+    const controller = new AbortController()
+    joinAbortRef.current = controller
     setIsChecking(true)
+    setWaitPhase('connecting')
+    setWaitElapsedSeconds(0)
     const result = await preflightRoom(serverConfig.httpUrl, roomId, {
-      maxRetries: READINESS_MAX_RETRIES,
-      onRetry: ({ attempt, maxRetries }) => {
-        setWakingNotice(`Server waking up, retrying… (attempt ${attempt} of ${maxRetries})`)
+      signal: controller.signal,
+      onProgress: ({ phase, elapsedMs }) => {
+        if (!mountedRef.current) return
+        setWaitPhase(phase)
+        setWaitElapsedSeconds(Math.floor(elapsedMs / 1000))
       },
     })
+    if (joinAbortRef.current === controller) joinAbortRef.current = null
+    // 'aborted' means we unmounted mid-wait: drop it, never render it.
+    if (!mountedRef.current || result === 'aborted') return
     setIsChecking(false)
-    setWakingNotice(null)
+    setWaitPhase('connecting')
     if (result !== 'ok') {
       setPreflightNotice(result)
       return
     }
 
+    // Ready — continue straight into the join, no extra click.
     connect(roomId, trimmedName, color, serverConfig.wsUrl)
     setHasJoined(true)
   }
@@ -276,7 +315,7 @@ export function MultiplayerRoom() {
             <strong>Connection failed.</strong> {connectionError}
           </div>
         )}
-        {wakingNotice && (
+        {isWaking && (
           <div
             role="status"
             data-testid="join-waking-notice"
@@ -291,7 +330,10 @@ export function MultiplayerRoom() {
               lineHeight: 1.4,
             }}
           >
-            <strong>Server waking up.</strong> {wakingNotice.replace(/^Server waking up, /, '')}
+            <strong>{COLDSTART_WAKING_TITLE}.</strong> {COLDSTART_WAKING_BODY}
+            <div style={{ marginTop: '0.4rem', opacity: 0.75, fontSize: '0.8rem' }}>
+              {formatColdStartElapsed(waitElapsedSeconds * 1000)}
+            </div>
           </div>
         )}
         {preflightNotice && (
@@ -317,8 +359,9 @@ export function MultiplayerRoom() {
               </>
             ) : (
               <>
-                <strong>Can&apos;t reach the room server.</strong> Check your
-                connection and try again in a moment.
+                <strong>Can&apos;t reach the room server.</strong> We waited a
+                few minutes for it to wake up and it never answered. Check your
+                connection and use Try Again below, or head back to start.
               </>
             )}
             <div style={{ marginTop: '0.75rem' }}>
@@ -380,8 +423,8 @@ export function MultiplayerRoom() {
           }}
         >
           {isChecking
-            ? wakingNotice
-              ? 'Waking server…'
+            ? isWaking
+              ? `${COLDSTART_WAKING_TITLE}…`
               : 'Checking…'
             : showConnectionError || preflightNotice
               ? 'Try Again'
