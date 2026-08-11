@@ -656,6 +656,22 @@ pub(crate) mod test_support {
         pub created: Mutex<Vec<(String, serde_json::Value)>>,
         pub edited: Mutex<Vec<(String, String, serde_json::Value)>>,
         pub deleted: Mutex<Vec<(String, String)>>,
+        /// `(channel_id, message_id, payload)` per **Start Thread from Message**
+        /// call (#255).
+        pub threads_started: Mutex<Vec<(String, String, serde_json::Value)>>,
+        /// When set, only `create_thread_from_message` fails with this error —
+        /// the shape of a guild that grants posting but not thread creation.
+        pub thread_failure: Option<DiscordApiError>,
+        /// When set, `create_message` fails with this error but *only* for a
+        /// channel id this fake handed out as a thread — the shape of a bot
+        /// holding CREATE_PUBLIC_THREADS but not SEND_MESSAGES_IN_THREADS.
+        pub thread_message_failure: Option<DiscordApiError>,
+        /// Thread ids this fake has issued, so `create_message` can tell a
+        /// thread post from a channel post.
+        pub issued_thread_ids: Mutex<BTreeSet<String>>,
+        /// When set, only `edit_message` fails — a Discord that accepts posts
+        /// but cannot complete the anchor's archive PATCH.
+        pub edit_failure: Option<DiscordApiError>,
     }
 
     impl FakeDiscord {
@@ -673,7 +689,24 @@ pub(crate) mod test_support {
                 created: Mutex::new(Vec::new()),
                 edited: Mutex::new(Vec::new()),
                 deleted: Mutex::new(Vec::new()),
+                threads_started: Mutex::new(Vec::new()),
+                thread_failure: None,
+                thread_message_failure: None,
+                issued_thread_ids: Mutex::new(BTreeSet::new()),
+                edit_failure: None,
             }
+        }
+
+        /// Messages this fake received on a channel it issued as a thread id.
+        pub fn thread_messages(&self) -> Vec<(String, serde_json::Value)> {
+            let threads = self.issued_thread_ids.lock().expect("fake lock");
+            self.created
+                .lock()
+                .expect("fake lock")
+                .iter()
+                .filter(|(channel_id, _)| threads.contains(channel_id))
+                .cloned()
+                .collect()
         }
 
         /// Install a guild with `permissions` granting everything needed, one
@@ -816,6 +849,16 @@ pub(crate) mod test_support {
                 if let Some(failure) = self.failure {
                     return Err(failure);
                 }
+                let is_thread = self
+                    .issued_thread_ids
+                    .lock()
+                    .expect("fake lock")
+                    .contains(channel_id);
+                if is_thread {
+                    if let Some(failure) = self.thread_message_failure {
+                        return Err(failure);
+                    }
+                }
                 let mut created = self.created.lock().expect("fake lock");
                 created.push((channel_id.to_string(), payload.clone()));
                 Ok(format!("9{:017}", created.len()))
@@ -829,7 +872,7 @@ pub(crate) mod test_support {
             payload: &'a serde_json::Value,
         ) -> ApiFuture<'a, ()> {
             Box::pin(async move {
-                if let Some(failure) = self.failure {
+                if let Some(failure) = self.failure.or(self.edit_failure) {
                     return Err(failure);
                 }
                 self.edited.lock().expect("fake lock").push((
@@ -855,6 +898,34 @@ pub(crate) mod test_support {
                     .expect("fake lock")
                     .push((channel_id.to_string(), message_id.to_string()));
                 Ok(())
+            })
+        }
+
+        fn create_thread_from_message<'a>(
+            &'a self,
+            channel_id: &'a str,
+            message_id: &'a str,
+            payload: &'a serde_json::Value,
+        ) -> ApiFuture<'a, String> {
+            Box::pin(async move {
+                if let Some(failure) = self.failure.or(self.thread_failure) {
+                    return Err(failure);
+                }
+                let mut started = self.threads_started.lock().expect("fake lock");
+                started.push((
+                    channel_id.to_string(),
+                    message_id.to_string(),
+                    payload.clone(),
+                ));
+                // Discord makes the thread id equal the source message id; the
+                // fake keeps that invariant so nothing can accidentally depend
+                // on them differing.
+                let thread_id = message_id.to_string();
+                self.issued_thread_ids
+                    .lock()
+                    .expect("fake lock")
+                    .insert(thread_id.clone());
+                Ok(thread_id)
             })
         }
     }
