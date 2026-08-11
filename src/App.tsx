@@ -12,6 +12,7 @@ import { MultiplayerRoom } from './components/multiplayer/MultiplayerRoom'
 import { RoomBrowser } from './components/multiplayer/RoomBrowser'
 import { StartupSplash } from './components/brand/StartupSplash'
 import { isPaymentsEnabled } from './lib/paymentsConfig'
+import { useEconomyAccess } from './hooks/useEconomyAccess'
 
 // Payments (Xsolla sandbox checkout, issue #153) is flag-gated OFF by default.
 // Lazy so the checkout code — and, deeper, the Pay Station SDK — is NEVER part
@@ -81,12 +82,19 @@ function MainApp() {
 }
 
 export function AppRoutes({ paymentsEnabled }: { paymentsEnabled: boolean }) {
+  // The only economy chrome outside the table `Scene`, so it takes the same
+  // per-user gate (`src/hooks/useEconomyAccess.ts`). The `/checkout/return`
+  // route below is deliberately NOT gated: it is the landing URL an external
+  // payment provider redirects to, and hiding it would strand a player
+  // mid-transaction with no status. It stays behind the payments env flag and
+  // is unreachable without a checkout that only a flagged player can start.
+  const economyAccess = useEconomyAccess()
   return (
     <>
       {/* Cold-relaunch reconciliation: if a purchase was in flight when the app
           was last closed, surface a "confirming purchase" affordance. Flag-gated
           and null when there is no pending order, so it is inert by default. */}
-      {paymentsEnabled && (
+      {paymentsEnabled && economyAccess && (
         <Suspense fallback={null}>
           <PendingPurchaseBanner />
         </Suspense>

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Session, User } from '@supabase/supabase-js'
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient'
 import { fetchOrCreateProfile, type Profile } from '../lib/profile'
+import { fetchEconomyAccess } from '../lib/economyAccess'
 import { usePlayerIdentityStore } from './usePlayerIdentityStore'
 
 /**
@@ -31,6 +32,17 @@ export interface AuthState {
   user: User | null
   /** The player's profile, or null in guest mode / before it loads. */
   profile: Profile | null
+  /**
+   * Per-user monetization gate, fetched alongside the profile on sign-in
+   * (`src/lib/economyAccess.ts`, migration 0034). Guests, signed-out users and
+   * unconfigured projects are always `false`; new accounts default to `false`.
+   *
+   * It lives on the auth store rather than a store of its own (Frontend-ADR-002)
+   * because it is account identity state: it arrives with the session, has
+   * exactly the session's lifetime, and is cleared by the same sign-out path.
+   * Read it through `useEconomyAccess()`, never directly from a component.
+   */
+  economyAccess: boolean
 
   /** Bootstrap from any existing session and subscribe to auth changes. */
   initialize: () => Promise<void>
@@ -60,23 +72,35 @@ export const useAuthStore = create<AuthState>()((set) => ({
   isConfigured: isSupabaseConfigured(),
   user: null,
   profile: null,
+  economyAccess: false,
 
   initialize: async () => {
     const client = getSupabaseClient()
     if (!client) {
       // Unconfigured: stay in guest mode, silently. No console noise.
-      set({ status: 'guest', isConfigured: false, user: null, profile: null })
+      set({ status: 'guest', isConfigured: false, user: null, profile: null, economyAccess: false })
       return
     }
 
     const applySession = async (session: Session | null) => {
       if (!session?.user) {
-        set({ status: 'guest', user: null, profile: null })
+        set({ status: 'guest', user: null, profile: null, economyAccess: false })
         return
       }
-      const profile = await fetchOrCreateProfile(client, session.user)
+      // Identity and the monetization gate arrive together, so the first paint
+      // after sign-in already knows whether economy chrome may render.
+      // `fetchEconomyAccess` is fail-closed and never throws.
+      const [profile, economyAccess] = await Promise.all([
+        fetchOrCreateProfile(client, session.user),
+        fetchEconomyAccess(client, session.user.id),
+      ])
       if (profile) seedIdentityFromProfile(profile)
-      set({ status: 'authenticated', user: session.user, profile })
+      set({
+        status: 'authenticated',
+        user: session.user,
+        profile,
+        economyAccess: economyAccess.enabled,
+      })
     }
 
     // Subscribe once so re-initialize (e.g. HMR) doesn't stack listeners.
@@ -92,7 +116,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       await applySession(data.session ?? null)
     } catch {
       // Transient failure — degrade to guest rather than crash.
-      set({ status: 'guest', user: null, profile: null })
+      set({ status: 'guest', user: null, profile: null, economyAccess: false })
     }
   },
 
@@ -111,6 +135,6 @@ export const useAuthStore = create<AuthState>()((set) => ({
     const client = getSupabaseClient()
     if (!client) return
     await client.auth.signOut()
-    set({ status: 'guest', user: null, profile: null })
+    set({ status: 'guest', user: null, profile: null, economyAccess: false })
   },
 }))

@@ -43,6 +43,12 @@ export const COMMAND_SPECS = Object.freeze({
     values: ['limit'],
     mutating: false,
   },
+  'economy-access': {
+    summary: 'Print the economy access flag and its permanent passport anchor for a player.',
+    usage: 'economy-access <email|display-name|uuid> [--json]',
+    positionals: ['query'],
+    mutating: false,
+  },
   'grant-stars': {
     summary: 'Credit (or correct) promotional Stars via append_wallet_ledger_entry.',
     usage:
@@ -92,6 +98,24 @@ export const COMMAND_SPECS = Object.freeze({
     // default so a typo'd catalog id cannot become permanent.
     defaultDryRun: true,
   },
+  'set-economy-access': {
+    summary: 'Turn the economy on or off for a player via set_user_economy_access.',
+    usage:
+      'set-economy-access <user> <on|off> --operator <name> --note <why> ' +
+      '[--dry-run|--no-dry-run] [--yes] [--json]',
+    positionals: ['query', 'decision'],
+    values: ['operator', 'note'],
+    required: ['operator', 'note'],
+    mutating: true,
+    // The boolean itself is reversible — but the FIRST enable permanently
+    // stamps `economy_access_granted_at`, and that timestamp is the New
+    // Collector Passport's 12-week anchor: it is set once and never moved
+    // (0034_economy_access_flag.sql:128-155 — the `coalesce` is the set-once
+    // rule). So a typo'd user id silently starts a
+    // stranger's passport clock and there is no correcting write. Dry-run by
+    // default, like grant-die and cancel-session.
+    defaultDryRun: true,
+  },
   'cancel-session': {
     summary: 'Inspect a live pull hold and print the operator cancellation path.',
     usage: 'cancel-session <user> [--confirm] [--operator <name>] [--note <why>] [--json]',
@@ -132,6 +156,21 @@ export function parseAmount(raw) {
     throw new UsageError('Amount must be nonzero — the ledger rejects zero deltas')
   }
   return value
+}
+
+/**
+ * Parse the `on|off` positional of `set-economy-access`.
+ *
+ * Deliberately strict: `true`, `yes`, `1` and `ON` are all plausible ways an
+ * operator (or a shell) might spell "enable", and quietly accepting them would
+ * let a mistyped token flip a flag whose first enable permanently stamps the
+ * passport anchor (0034_economy_access_flag.sql:147-151). Two literals, nothing
+ * else.
+ */
+export function parseAccessDecision(raw) {
+  if (raw === 'on') return true
+  if (raw === 'off') return false
+  throw new UsageError(`Decision must be exactly "on" or "off", got "${raw}"`)
 }
 
 function parseLimit(raw) {
@@ -247,6 +286,9 @@ export function parseArgs(argv) {
   if (spec.positionals.includes('amount')) {
     request.amount = parseAmount(positionals[spec.positionals.indexOf('amount')])
   }
+  if (spec.positionals.includes('decision')) {
+    request.decision = parseAccessDecision(positionals[spec.positionals.indexOf('decision')])
+  }
   if (valueNames.has('operator')) request.operator = flags.get('operator')
   if (valueNames.has('note')) request.note = flags.get('note')
   if (valueNames.has('key')) request.idempotencyKey = flags.get('key') ?? null
@@ -277,8 +319,10 @@ export function usageText(topic = null) {
       'Global options: --json  --yes  --help',
     ].join('\n')
   }
+  // 20 = the longest command name (`set-economy-access`, 18) plus a two-space
+  // gutter, so the summary column stays aligned for every row.
   const rows = Object.entries(COMMAND_SPECS).map(([name, spec]) => {
-    return `  ${name.padEnd(16)}${spec.summary}`
+    return `  ${name.padEnd(20)}${spec.summary}`
   })
   return [
     'dicesuki-admin — operator/support CLI for the Dicesuki Supabase project.',
@@ -292,7 +336,8 @@ export function usageText(topic = null) {
     '  --json               machine-readable output on stdout',
     '  --yes                skip the interactive confirmation (required with --json)',
     '  --dry-run            print the exact call without executing (mutating commands)',
-    '  --no-dry-run         execute (grant-die and cancel-session are dry-run by default)',
+    '  --no-dry-run         execute (grant-die, set-economy-access and cancel-session are',
+    '                       dry-run by default)',
     '  --help               show help, optionally for one command',
     '',
     'Environment (never committed, never logged):',

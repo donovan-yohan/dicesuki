@@ -15,6 +15,7 @@ import { useDeviceMotionState } from '../contexts/DeviceMotionContext'
 import { useTheme } from '../contexts/ThemeContext'
 
 // Hooks
+import { useEconomyAccess } from '../hooks/useEconomyAccess'
 import { useEnvironmentTheme } from '../hooks/useEnvironmentTheme'
 import { PerformanceOverlay } from './effects/PerformanceOverlay'
 import { useMultiplayerDrag } from '../hooks/useMultiplayerDrag'
@@ -535,7 +536,16 @@ function SceneContent({ onReady }: SceneProps) {
   // Get the active backend — always provided by SoloRoom / MultiplayerRoom
   const activeBackend = useDiceBackend()
   const isMultiplayer = activeBackend.mode === 'multiplayer'
-  const showShop = isPaymentsEnabled() || STANDARD_ROLL_CONVERSION_AVAILABLE
+
+  // THE economy gate for the table UI. Both the HUD entry point and the panel
+  // mount hang off this one predicate, so there is exactly one way in.
+  // Un-flagged players (and every guest) get a clean tabletop dice roller with
+  // no shop button, no wallet, no banners, no pass — see
+  // `src/hooks/useEconomyAccess.ts`. Gating the button alone would not be
+  // enough: `ShopPanel` owns the whole economy subtree and would still be
+  // mountable through `isShopOpen`.
+  const economyAccess = useEconomyAccess()
+  const showShop = economyAccess && (isPaymentsEnabled() || STANDARD_ROLL_CONVERSION_AVAILABLE)
 
   // Delegate add/remove/clear through the active room backend
   const handleAddDice = useCallback(
@@ -594,6 +604,14 @@ function SceneContent({ onReady }: SceneProps) {
     setInspectedInventoryDieId(null)
     railBeforeOverlayRef.current = false
   }, [isUIVisible])
+
+  // Losing economy access (sign-out, or an operator disabling the flag) must
+  // not strand `isShopOpen` set: the panel unmounts, but the stale flag would
+  // keep `isOverlayOpen` true and suppress the HUD with nothing on screen.
+  useEffect(() => {
+    if (economyAccess) return
+    setIsShopOpen(false)
+  }, [economyAccess])
 
   // Any overlay that owns the screen (full-screen shop, bottom sheets, the
   // settings flyout, the hero inspector). While one is open the HUD must not
@@ -739,14 +757,19 @@ function SceneContent({ onReady }: SceneProps) {
             onClose={() => setIsSettingsOpen(false)}
           />
 
-          <ShopPanel
-            isOpen={isShopOpen}
-            onClose={() => setIsShopOpen(false)}
-            initialTab="banners"
-            onAddDie={(type, inventoryDieId) => activeBackend.addDie(type, inventoryDieId)}
-            tableDiceCount={multiplayerDice.size}
-            deviceTier={renderDeviceTier}
-          />
+          {/* Economy subtree: shop, wallet HUD, banners/pulls, odds & fairness
+              modal, Stars→rolls conversion, Lunar Pass, Star bundles. Mounted
+              only for accounts an operator has flagged on. */}
+          {economyAccess && (
+            <ShopPanel
+              isOpen={isShopOpen}
+              onClose={() => setIsShopOpen(false)}
+              initialTab="banners"
+              onAddDie={(type, inventoryDieId) => activeBackend.addDie(type, inventoryDieId)}
+              tableDiceCount={multiplayerDice.size}
+              deviceTier={renderDeviceTier}
+            />
+          )}
 
           {inspectedInventoryDie && (
             <HeroDieInspector

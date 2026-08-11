@@ -12,6 +12,7 @@
 //   payment_orders              0013_paid_checkout_foundation.sql:564
 //   payment_events              0013_paid_checkout_foundation.sql:565
 //   catalog_items               0004_collectible_catalog.sql:362
+//   user_economy_access         0034_economy_access_flag.sql:86-89
 
 import { GRANT_WRITE_TARGETS, isUuid } from './plans.mjs'
 import { findAuthUsers, likePattern } from './supabase.mjs'
@@ -206,6 +207,31 @@ export async function fetchTicketLedger(client, userId, limit) {
         .limit(limit),
       'roll_ticket_ledger_entries',
     ) ?? []
+  )
+}
+
+/**
+ * The economy access flag.
+ *
+ * Returns `null` when the player has no row, which is NOT "unknown": no row is
+ * written until an operator makes a decision, and `economy_access` defaults to
+ * false (0034_economy_access_flag.sql:39-49). Absence therefore means access is OFF
+ * and the passport anchor has never been stamped — the report layer says so in
+ * words rather than printing a column of dashes.
+ */
+export async function fetchEconomyAccess(client, userId) {
+  return (
+    unwrap(
+      await client
+        .from('user_economy_access')
+        .select(
+          'user_id, economy_access, economy_access_granted_at, updated_at, ' +
+            'last_changed_by, last_change_note',
+        )
+        .eq('user_id', userId)
+        .maybeSingle(),
+      'user_economy_access',
+    ) ?? null
   )
 }
 

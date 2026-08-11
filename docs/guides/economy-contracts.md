@@ -315,3 +315,109 @@ a behavioral case that seeds an owner of the retired featured set with a banked
 counter (see the banked-pity block in
 `supabase/tests/0032_earned_economy_dice_content_wave_1.test.sql`). Migrations in
 this lineage never touch guarantee counters, and their tests assert that.
+
+## Economy access flag — utility-first default
+
+Before public monetization launch the app must read as a clean tabletop dice
+roller: basic dice, saved rolls, history, multiplayer, themes, favorites, and
+Discord sign-in with cross-device sync, with **zero** economy chrome. Economy
+surfaces appear only for accounts an operator has explicitly enabled.
+
+### Storage: a dedicated table, not a `profiles` column
+
+`public.user_economy_access` (`supabase/migrations/0034_economy_access_flag.sql`):
+
+| column | meaning |
+|--------|---------|
+| `user_id` | PK, `references auth.users` |
+| `economy_access` | the gate; `not null default false` |
+| `economy_access_granted_at` | when the flag was **first** enabled; set once, never moved |
+| `updated_at`, `last_changed_by`, `last_change_note` | operator audit fields |
+
+It is deliberately **not** a column on `public.profiles`. `0005_security_hardening.sql`
+grants table-wide `update` on `profiles` to `authenticated`, and `profiles` is
+only `enable row level security`, not `force` — so any column added there is
+freely self-writable through the Data API. A player could flag themselves on
+and, worse, backdate `economy_access_granted_at` to mint twelve weeks of
+passport catch-up. The dedicated table follows the same posture as every
+economy table from `0004` onward: forced RLS, own-row `select` for
+`authenticated`, **no** `insert`/`update`/`delete` grant to any API role, and
+writes only through a `security definer` RPC granted to `service_role`.
+`supabase/tests/0034_economy_access_flag.test.sql` carries the negative control.
+
+Guests and signed-out users are always off; new signups default to off.
+
+### Enforcement is UI-only, on purpose
+
+The economy RPCs stay auth-gated exactly as they were — **no RPC-level flag
+check was added**. The weekly roll-completion Star faucet keeps granting
+server-side for un-flagged players; the wallet is simply invisible until the
+flag is on, and its accrued balance appears retroactively when it flips.
+
+Client wiring:
+
+| File | Role |
+|------|------|
+| `src/lib/economyAccess.ts` | `fetchEconomyAccess()` — fail-closed read; absent row, error, or throw all resolve to off. |
+| `src/store/useAuthStore.ts` | `economyAccess: boolean`, fetched in parallel with the profile on sign-in and cleared by every guest transition. It lives on the auth store (Frontend-ADR-002) because it is account identity state with exactly the session's lifetime. |
+| `src/hooks/useEconomyAccess.ts` | `useEconomyAccess()` — THE predicate. True only for an authenticated, flagged account. |
+| `src/components/Scene.tsx` | Gates the HUD shop button (`showShop`) *and* the `<ShopPanel>` mount. Gating the button alone is insufficient: `ShopPanel` owns the entire economy subtree and stays mountable through `isShopOpen`. |
+| `src/App.tsx` | Gates `PendingPurchaseBanner`, the only economy chrome outside `Scene`. |
+
+Gated surfaces, all descendants of the `ShopPanel` mount unless noted: shop
+entry icon (top-right HUD), wallet/currency HUD, banner & pull screens, pull
+progress/reveal overlays, pull CTAs, Stars→standard-roll conversion (both the
+shop section and the inline bottom sheet), the "how to earn more rolls" sheet,
+the odds/pity/fairness details modal, Lunar Pass card and its daily claim, Star
+bundle previews, and every inline economy `role="status"`/`role="alert"` notice
+they own. Outside `Scene`: the pending-purchase banner.
+
+Deliberately **not** gated: `/terms` and `/privacy` stay public (legal pages),
+and `/checkout/return` stays registered behind the payments env flag — it is the
+landing URL an external payment provider redirects to, and hiding it would
+strand a player mid-transaction. Neither is reachable as chrome.
+
+`src/components/economy/economyAccessGate.guard.test.ts` is the backpressure. It
+walks `src/components` plus `src/App.tsx`, flags any file with an economy import
+edge that is not in its `REGISTRY`, and pins the two `Scene` gates and the
+`App.tsx` gate by source. The failure it exists for is a *future* one: a new
+economy surface mounted outside the gated subtree. Registry rows also rot-check
+themselves, so a file that stops touching the economy must be de-registered.
+
+### The passport clock anchors to the flag, not to the first claim
+
+Before `0034`, the New Collector Passport's 12-week window was anchored lazily
+at the **first passport claim** — `private.issue_earned_reward_claim` inserted
+`earned_reward_passport_enrollments.enrolled_period_start` from the claim's own
+UTC-Monday period. (It was never anchored at account creation.) With the
+storefront hidden that anchor becomes arbitrary: the window would start whenever
+a newly enabled player happened to first open the shop.
+
+`0034` re-anchors it to the UTC-Monday period of `economy_access_granted_at` via
+`private.passport_enrollment_anchor_period(p_user_id, p_fallback_period)`, which
+returns `least(fallback, monday(granted_at))`. The `least()` is a fail-safe: a
+future-dated or clock-skewed grant must never produce an anchor later than the
+claim, because the claim path rejects that with `Claim time precedes passport
+enrollment`. With no `user_economy_access` row the helper returns the fallback,
+so pre-`0034` behaviour is exactly preserved.
+
+Three consequences worth knowing:
+
+* **Existing enrollments are untouched.** They are append-only (reject
+  update/delete triggers, `0010:262-267`); rewriting them would confiscate or
+  gift claims. The new anchor applies only to enrollments created from now on.
+* **`get_earned_reward_status()` was not modified.** It derives everything from
+  `enrollment.enrolled_period_start`, so it follows the new anchor for free once
+  a row exists.
+* **The Community Die faucet inherits the same anchor** — it reads the same
+  `enrolled_period_start` — and was deliberately not changed separately. Its
+  cadence is `floor(weeks_since_anchor / 4)`: unbounded, no `least()` clamp, no
+  `claim_index` ceiling, therefore no expiry cliff and no expiry-shaped problem
+  to fix. Giving it a second anchor would also break the invariant that a
+  Community claim requires passport enrollment to already exist.
+
+### Operating the flag
+
+`scripts/admin/dicesuki-admin.mjs` (service-role) owns the flag; see
+`scripts/admin/README.md` for the runbook. The first enable permanently stamps
+`economy_access_granted_at`, so the mutating command is dry-run by default.
