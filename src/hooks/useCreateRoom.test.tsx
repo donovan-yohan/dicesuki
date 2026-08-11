@@ -192,6 +192,66 @@ describe('useCreateRoom', () => {
     expect(navigateMock).toHaveBeenCalledWith('/room/ABC123')
   })
 
+  it('drops a superseded attempt instead of letting it navigate or clobber the phase', async () => {
+    useStagedFakeTimers()
+    const onRoomCreated = vi.fn()
+    // The first attempt clears health and reaches the (slow) create POST; by the
+    // time that POST answers, a second createRoom() has taken over the panel.
+    let releaseCreate: ((response: Response) => void) | undefined
+    let healthIsUp = true
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockImplementation(async (url) => {
+      if (String(url).endsWith('/api/rooms')) {
+        return new Promise<Response>((resolve) => { releaseCreate = resolve })
+      }
+      return healthIsUp
+        ? jsonResponse({ status: 'ok', instanceId: 'srv123' })
+        : jsonResponse({}, { ok: false, status: 503 })
+    }))
+
+    const { result } = renderHook(() => useCreateRoom({ onRoomCreated }))
+
+    let first: Promise<void> | undefined
+    let second: Promise<void> | undefined
+    await act(async () => {
+      first = result.current.createRoom()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(result.current.phase).toBe('creating')
+
+    // Re-entry: the second attempt supersedes the first and starts its own wait.
+    healthIsUp = false
+    await act(async () => {
+      second = result.current.createRoom()
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    // The stale POST finally answers. It must not stash carry state for a room
+    // the user is no longer creating, and must not navigate out from under the
+    // live attempt.
+    await act(async () => {
+      releaseCreate!(jsonResponse({ roomId: 'STALE' }, { status: 201 }))
+      await first
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(onRoomCreated).not.toHaveBeenCalled()
+    expect(navigateMock).not.toHaveBeenCalled()
+    // ...and the superseded `finally` must not have returned the panel to idle.
+    expect(result.current.isCreating).toBe(true)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COLDSTART_PHASE2_AT_MS + 5_000)
+    })
+    expect(result.current.phase).toBe('waking')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COLDSTART_DEADLINE_MS)
+      await second
+    })
+    vi.useRealTimers()
+    expect(result.current.phase).toBe('idle')
+    expect(result.current.error).toMatchObject({ kind: 'unavailable' })
+  })
+
   it('does not update state after unmount mid-wait', async () => {
     useStagedFakeTimers()
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch')))

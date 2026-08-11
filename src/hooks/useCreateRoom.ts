@@ -76,6 +76,12 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
   // Guard every post-await setState: a 3-minute wait easily outlives the panel.
   const mountedRef = useRef(true)
   const abortRef = useRef<AbortController | null>(null)
+  // Only the newest call may drive the UI. Without this, a second createRoom()
+  // started while the first is still waiting has its phase clobbered back to
+  // 'idle' by the first call's `finally` — the panel would look ready while a
+  // wait was still running. The `fetch`-and-navigate tail has no abort signal
+  // of its own, so a generation check is the guard that covers every await.
+  const runIdRef = useRef(0)
   useEffect(() => {
     mountedRef.current = true
     return () => {
@@ -85,6 +91,11 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
   }, [])
 
   async function createRoom(): Promise<void> {
+    // Re-entry supersedes the in-flight attempt: stop its polling immediately
+    // rather than leaving two waits hammering /health.
+    abortRef.current?.abort()
+    const runId = ++runIdRef.current
+    const isCurrent = () => mountedRef.current && runIdRef.current === runId
     const controller = new AbortController()
     abortRef.current = controller
     setPhase('checking')
@@ -97,13 +108,13 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
         // Drive the staged UI: phase 1 keeps the plain spinner, phase 2 admits
         // the server is asleep and shows elapsed time (#109 follow-up).
         onProgress: ({ phase: waitPhase, elapsedMs }) => {
-          if (!mountedRef.current) return
+          if (!isCurrent()) return
           setPhase(waitPhase === 'waking' ? 'waking' : 'checking')
           setWaitElapsedSeconds(Math.floor(elapsedMs / 1000))
           setWakingMessage(waitPhase === 'waking' ? COLDSTART_WAKING_BODY : null)
         },
       })
-      if (!mountedRef.current || readiness.state === 'aborted') return
+      if (!isCurrent() || readiness.state === 'aborted') return
       setWakingMessage(null)
       if (!readiness.ok) {
         const kind = readiness.state === 'ready' ? 'unavailable' : readiness.state
@@ -126,7 +137,9 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
       if (typeof data.roomId !== 'string') {
         throw new Error('Room server response did not include a roomId')
       }
-      if (!mountedRef.current) return
+      // A superseded attempt must not stash carry state or navigate — that
+      // would hand the newer attempt's room off to the stale one's setup.
+      if (!isCurrent()) return
 
       // Room exists now: let the caller key any hand-off state to this exact id
       // before we navigate into it.
@@ -139,7 +152,7 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
       const query = params.toString()
       navigate(`/room/${data.roomId}${query ? `?${query}` : ''}`)
     } catch (err) {
-      if (!mountedRef.current) return
+      if (!isCurrent()) return
       console.error('Failed to create room:', err)
       setError({
         kind: 'create-failed',
@@ -148,7 +161,9 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
         command: config.startCommand,
       })
     } finally {
-      if (mountedRef.current) {
+      // Only the newest attempt may return the panel to idle; a superseded one
+      // must leave the live attempt's phase alone.
+      if (isCurrent()) {
         setPhase('idle')
         setWakingMessage(null)
         setWaitElapsedSeconds(0)

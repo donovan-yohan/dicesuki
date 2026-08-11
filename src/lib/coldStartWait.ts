@@ -165,9 +165,32 @@ export function isColdStartAborted(error: unknown): error is ColdStartAbortedErr
   return error instanceof ColdStartAbortedError
 }
 
-function defaultSleep(ms: number): Promise<void> {
+/**
+ * Abort-aware sleep. The wait's inter-probe gap is the only place a caller can
+ * unmount mid-flight, and a plain `setTimeout` would keep an orphaned timer
+ * armed for up to a full poll interval after the abort throws out of the loop.
+ * Cancel the timer on abort, and drop the listener on normal resolution so a
+ * long wait doesn't accumulate one listener per tick.
+ *
+ * Resolves rather than rejects on abort: the caller re-checks the signal
+ * immediately after every sleep and raises {@link ColdStartAbortedError} there,
+ * keeping one abort path instead of two.
+ */
+function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
+    if (signal?.aborted) {
+      resolve()
+      return
+    }
+    const onAbort = () => {
+      window.clearTimeout(timer)
+      resolve()
+    }
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
 
@@ -205,7 +228,7 @@ export async function runColdStartWait<T>(
   options: ColdStartWaitOptions = {},
 ): Promise<T> {
   const now = options.nowImpl ?? defaultNow
-  const sleep = options.sleepImpl ?? defaultSleep
+  const sleep = options.sleepImpl ?? ((ms: number) => defaultSleep(ms, options.signal))
   const phase2AtMs = options.phase2AtMs ?? COLDSTART_PHASE2_AT_MS
   const deadlineMs = options.deadlineMs ?? COLDSTART_DEADLINE_MS
   const attemptTimeoutMs = options.attemptTimeoutMs ?? COLDSTART_ATTEMPT_TIMEOUT_MS

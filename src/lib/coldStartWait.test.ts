@@ -159,4 +159,40 @@ describe('runColdStartWait', () => {
     await vi.advanceTimersByTimeAsync(60_000)
     expect(probe).toHaveBeenCalledTimes(callsAtAbort)
   })
+
+  it('leaves no armed timer behind when the signal aborts mid-gap', async () => {
+    useStagedFakeTimers()
+    const controller = new AbortController()
+    const promise = runColdStartWait(async () => ({ done: false, value: 'waiting' }), {
+      signal: controller.signal,
+    })
+    void promise.catch(() => {})
+
+    // Land inside an inter-probe gap, where a sleep timer is armed.
+    await vi.advanceTimersByTimeAsync(2_500)
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+
+    controller.abort()
+    await vi.advanceTimersByTimeAsync(0)
+    // The orphaned timeout must be cleared, not left to fire later.
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not accumulate abort listeners across a long wait', async () => {
+    useStagedFakeTimers()
+    const controller = new AbortController()
+    const addSpy = vi.spyOn(controller.signal, 'addEventListener')
+    const removeSpy = vi.spyOn(controller.signal, 'removeEventListener')
+
+    const promise = runColdStartWait(async () => ({ done: false, value: 'waiting' }), {
+      signal: controller.signal,
+      deadlineMs: 30_000,
+    })
+    await vi.advanceTimersByTimeAsync(35_000)
+    await promise
+
+    // Every sleep that resolved normally dropped its listener again.
+    expect(addSpy.mock.calls.length).toBeGreaterThan(5)
+    expect(removeSpy).toHaveBeenCalledTimes(addSpy.mock.calls.length)
+  })
 })
