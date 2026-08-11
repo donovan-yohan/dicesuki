@@ -189,7 +189,7 @@ describe('accent label scanner', () => {
     ).toHaveLength(1)
   })
 
-  // DiceToolbar.tsx:256 inverts on purpose — a surface-coloured glyph punched
+  // DiceToolbar.tsx:246 inverts on purpose — a surface-coloured glyph punched
   // out of an accent chip. Gated by the `surface on accent fill` pairing.
   it('accepts a surface-coloured label on an accent fill', () => {
     expect(

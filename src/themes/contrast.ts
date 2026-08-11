@@ -217,6 +217,17 @@ export const BACKDROPS = {
     base: 'accent',
     source: 'accent-filled buttons — CenterRollButton, Pull CTAs, selected chips',
   },
+  // A fixed dark slate at 0.92, NOT a token — the flyout floats over the live 3D
+  // table, where no theme token describes what is behind it. Modelled over
+  // `background` because that is the only backdrop a theme controls here; at
+  // 0.92 the base contributes ~8%, so the result is near theme-independent.
+  // Gated so a future light theme cannot silently paint pale copy on it.
+  flyoutGlass: {
+    id: 'flyout-glass',
+    base: 'background',
+    overlay: { color: '#1f2937', alpha: 0.92 },
+    source: 'DiceToolbar.tsx quick-slot ★ flyout — rgba(31,41,55,0.92) over the table',
+  },
 } as const satisfies Record<string, Backdrop>
 
 export function resolveBackdrop(theme: Theme, backdrop: Backdrop): string {
@@ -272,6 +283,7 @@ export const CONTRAST_PAIRINGS: readonly ContrastPairing[] = [
   { name: 'text.primary on chip over surface', fg: 'text.primary', bg: BACKDROPS.chipOnSurface, threshold: 'normal', usedBy: 'DicePool.tsx:42 +4/+8 quantity chips (paints 0.08; modelled at 0.10)' },
   { name: 'text.primary on chip over background', fg: 'text.primary', bg: BACKDROPS.chipOnBackground, threshold: 'normal', usedBy: 'defensive backdrop — see BACKDROPS.chipOnBackground; no current render site' },
   { name: 'text.primary on tinted row', fg: 'text.primary', bg: BACKDROPS.tintedRow, threshold: 'normal', usedBy: 'SettingsPanel "Change Theme" row, ThemeSelector current theme name' },
+  { name: 'text.primary on flyout glass', fg: 'text.primary', bg: BACKDROPS.flyoutGlass, threshold: 'normal', usedBy: 'DiceToolbar.tsx empty-favorites hint copy on the ★ flyout glass' },
 
   // ── text.secondary ───────────────────────────────────────────────────────
   { name: 'text.secondary on background', fg: 'text.secondary', bg: BACKDROPS.background, threshold: 'normal', usedBy: 'PullRevealOverlay result copy, DiceEntryCard advanced options' },
@@ -282,7 +294,7 @@ export const CONTRAST_PAIRINGS: readonly ContrastPairing[] = [
 
   // ── text.muted ───────────────────────────────────────────────────────────
   { name: 'text.muted on background', fg: 'text.muted', bg: BACKDROPS.background, threshold: 'normal', usedBy: 'ThemeSelector purchase hint, RollBuilder owned-die rarity line' },
-  { name: 'text.muted on surface', fg: 'text.muted', bg: BACKDROPS.surface, threshold: 'normal', usedBy: 'SettingsPanel legal footer, SavedRollsPanel empty state' },
+  { name: 'text.muted on surface', fg: 'text.muted', bg: BACKDROPS.surface, threshold: 'normal', usedBy: 'SettingsPanel legal footer, SavedRollsPanel empty state, DiceToolbar.tsx ★ glyph on a type with no favorites' },
   { name: 'text.muted on primary fill', fg: 'text.muted', bg: BACKDROPS.primaryFill, threshold: 'normal', usedBy: 'artist-tools secondary labels on bg-theme-primary rows' },
   { name: 'text.muted on tinted row', fg: 'text.muted', bg: BACKDROPS.tintedRow, threshold: 'normal', usedBy: 'SettingsPanel row subtitles, AccountSection "Signed in with Discord"' },
 
@@ -297,7 +309,7 @@ export const CONTRAST_PAIRINGS: readonly ContrastPairing[] = [
   // accent chips with a surface-coloured glyph, which reads as a punched-out
   // hole in the chip. It clears AA on every theme (6.07-15.34:1), so it is
   // declared and gated rather than normalised to onAccent.
-  { name: 'surface on accent fill', fg: 'surface', bg: BACKDROPS.accentFill, threshold: 'normal', usedBy: 'DiceToolbar.tsx:256 quick-slot add buttons (accentColor fill, surfaceColor glyph)' },
+  { name: 'surface on accent fill', fg: 'surface', bg: BACKDROPS.accentFill, threshold: 'normal', usedBy: 'DiceToolbar.tsx:246 quick-slot add buttons (accentColor fill, surfaceColor glyph)' },
 
   // ── destructive / validation ─────────────────────────────────────────────
   { name: 'error text on background', fg: 'error', bg: BACKDROPS.background, threshold: 'normal', usedBy: 'PullProgressOverlay.tsx:114 and PullRevealOverlay.tsx:233 role="alert" copy on the full-screen overlay' },
