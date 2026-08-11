@@ -248,11 +248,16 @@ to turn the bot on; nothing here is committed.
    intents — the bot only makes REST calls, and the single-member membership
    lookup it relies on is not gated by `GUILD_MEMBERS`.
 3. **Build the invite URL** that guild admins will use (this is the self-serve
-   install link the share sheet offers): *OAuth2 → URL Generator*, scope `bot`,
-   permissions **View Channel** + **Send Messages** + **Embed Links** +
-   **Manage Messages** (Manage Messages lets it edit/archive its own embeds) +
+   install link the share sheet offers): *OAuth2 → URL Generator*, scope `bot`
+   only (the bot registers no slash commands, so `applications.commands` is not
+   needed), permissions **View Channel** + **Send Messages** + **Embed Links** +
    **Create Public Threads** + **Send Messages in Threads** (#255 — the
    per-session thread and its roll log).
+
+   Tick exactly those five. **Manage Messages** is *not* required and must not be
+   added: a bot may always edit and delete its **own** messages, which is all the
+   advert lifecycle ever does, and ticking it produces `309237672960` instead of
+   the documented integer below.
 
    The canonical link should carry `permissions=309237664768`
    (`VIEW_CHANNEL | SEND_MESSAGES | EMBED_LINKS | CREATE_PUBLIC_THREADS |
