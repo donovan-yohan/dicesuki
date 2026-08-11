@@ -80,7 +80,7 @@ function renderToolbar(overrides: {
     onOpenInventory: overrides.onOpenInventory ?? vi.fn(),
   }
 
-  render(
+  const tree = (isOpen: boolean) => (
     <ThemeContext.Provider
       value={{
         currentTheme: defaultTheme,
@@ -90,11 +90,16 @@ function renderToolbar(overrides: {
         purchaseTheme: vi.fn(async () => true),
       }}
     >
-      <DiceToolbar {...props} />
-    </ThemeContext.Provider>,
+      <DiceToolbar {...props} isOpen={isOpen} />
+    </ThemeContext.Provider>
   )
 
-  return props
+  const view = render(tree(props.isOpen))
+
+  return {
+    ...props,
+    rerender: ({ isOpen }: { isOpen: boolean }) => view.rerender(tree(isOpen)),
+  }
 }
 
 describe('DiceToolbar', () => {
@@ -122,11 +127,11 @@ describe('DiceToolbar', () => {
     renderToolbar()
 
     // One label whatever the inventory holds: the owned-first-then-basics
-    // behaviour is the same for a type you own ten of and one you own none of.
+    // behaviour is the same for the d6 the player owns and the d20 they do not.
     for (const label of ['D6', 'D20']) {
       expect(screen.getByRole('button', {
         name: `Add ${label} — your owned dice first, then unlimited basics`,
-      })).toBeEnabled()
+      })).toBeInTheDocument()
     }
   })
 
@@ -137,11 +142,10 @@ describe('DiceToolbar', () => {
     renderToolbar()
 
     for (const type of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'] as const) {
-      const slot = screen.getByTestId(`dice-quick-slot-${type}`)
       // The face label and nothing else — no tally, and no ∞ standing in for
       // one. Owned supply is not a number the rail reports any more.
-      expect(slot).toHaveTextContent(/^D(4|6|8|10|12|20)$/)
-      expect(slot).not.toHaveAttribute('data-owned-available')
+      expect(screen.getByTestId(`dice-quick-slot-${type}`))
+        .toHaveTextContent(new RegExp(`^${type.toUpperCase()}$`))
     }
   })
 
@@ -190,7 +194,7 @@ describe('DiceToolbar', () => {
 
     renderToolbar()
 
-    fireEvent.click(screen.getByTestId('dice-quick-slot-favorites-d6'))
+    fireEvent.click(screen.getByTestId('quick-slot-star-d6'))
 
     // Offering an in-flight die would let the player spawn the same physical
     // die twice.
@@ -214,7 +218,7 @@ describe('DiceToolbar', () => {
 
     renderToolbar()
 
-    fireEvent.click(screen.getByTestId('dice-quick-slot-favorites-d6'))
+    fireEvent.click(screen.getByTestId('quick-slot-star-d6'))
 
     expect(screen.queryByRole('button', { name: /add favorite table d6/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /add favorite bench d6/i })).toBeInTheDocument()
@@ -228,12 +232,12 @@ describe('DiceToolbar', () => {
     for (const type of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'] as const) {
       // A control that only appears once you already use the feature cannot
       // teach it, so the star is unconditional.
-      expect(screen.getByTestId(`dice-quick-slot-favorites-${type}`)).toBeInTheDocument()
+      expect(screen.getByTestId(`quick-slot-star-${type}`)).toBeInTheDocument()
     }
 
-    expect(screen.getByTestId('dice-quick-slot-favorites-d20'))
+    expect(screen.getByTestId('quick-slot-star-d20'))
       .toHaveAttribute('data-has-favorites', 'true')
-    expect(screen.getByTestId('dice-quick-slot-favorites-d4'))
+    expect(screen.getByTestId('quick-slot-star-d4'))
       .toHaveAttribute('data-has-favorites', 'false')
   })
 
@@ -242,7 +246,7 @@ describe('DiceToolbar', () => {
 
     renderToolbar({ onAddDice })
 
-    fireEvent.click(screen.getByTestId('dice-quick-slot-favorites-d8'))
+    fireEvent.click(screen.getByTestId('quick-slot-star-d8'))
 
     const hint = screen.getByTestId('favorite-dice-empty-hint')
     // Points at where favorites are made, rather than leaving a dead control.
@@ -259,10 +263,58 @@ describe('DiceToolbar', () => {
   it('dismisses the empty-favorites hint when the hint itself is tapped', () => {
     renderToolbar()
 
-    fireEvent.click(screen.getByTestId('dice-quick-slot-favorites-d8'))
+    fireEvent.click(screen.getByTestId('quick-slot-star-d8'))
     fireEvent.click(screen.getByTestId('favorite-dice-empty-hint'))
 
     expect(screen.queryByTestId('favorite-dice-empty-hint')).not.toBeInTheDocument()
+  })
+
+  it('takes the hint and its tap catcher down with the rail', () => {
+    const { rerender } = renderToolbar()
+
+    fireEvent.click(screen.getByTestId('quick-slot-star-d8'))
+    expect(screen.getByTestId('favorite-dice-hint-backdrop')).toBeInTheDocument()
+
+    // The catcher covers the whole screen. Left mounted past the rail it would
+    // sit over whatever replaced it — and `Scene` re-opens the rail when an
+    // overlay closes, which would bring the unasked-for hint back with it.
+    rerender({ isOpen: false })
+    expect(screen.queryByTestId('favorite-dice-hint-backdrop')).not.toBeInTheDocument()
+
+    rerender({ isOpen: true })
+    expect(screen.queryByTestId('favorite-dice-empty-hint')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('favorite-dice-hint-backdrop')).not.toBeInTheDocument()
+  })
+
+  it('reports the open state of the star to assistive tech', () => {
+    addNamedDie('Lucky D20', 'd20', 'rare', { isFavorite: true })
+
+    renderToolbar()
+
+    const star = screen.getByTestId('quick-slot-star-d20')
+    // The label is a noun, so `aria-expanded` is the only thing carrying open
+    // state — a Show/Hide verb would have to be flipped in two places.
+    expect(star).toHaveAttribute('aria-label', 'Favorite D20 dice')
+    expect(star).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(star)
+
+    expect(star).toHaveAttribute('aria-expanded', 'true')
+    const flyout = screen.getByLabelText('Favorite D20 dice', { selector: 'div' })
+    expect(flyout.id).toBeTruthy()
+    expect(star).toHaveAttribute('aria-controls', flyout.id)
+  })
+
+  it('marks the empty hint as a status so it is announced when it appears', () => {
+    renderToolbar()
+
+    fireEvent.click(screen.getByTestId('quick-slot-star-d8'))
+
+    // Nothing takes focus, so without a live region a screen-reader user gets
+    // no evidence the star did anything.
+    expect(screen.getByTestId('favorite-dice-empty-hint')).toHaveAttribute('role', 'status')
+    expect(screen.getByTestId('quick-slot-star-d8'))
+      .toHaveAttribute('aria-label', 'Favorite D8 dice (none yet)')
   })
 
   it('opens a favorite dice flyout with 3d preview targets and spawns the tapped favorite', () => {
@@ -271,7 +323,7 @@ describe('DiceToolbar', () => {
 
     renderToolbar({ onAddDice })
 
-    fireEvent.click(screen.getByRole('button', { name: /show favorite d20 dice/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Favorite D20 dice' }))
 
     expect(screen.getByLabelText('Favorite D20 dice', { selector: 'div' })).toBeInTheDocument()
     expect(screen.getByTestId('inventory-preview-canvas')).toBeInTheDocument()

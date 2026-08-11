@@ -5,7 +5,7 @@
  * exposing the trash drop target for active table dice.
  */
 
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useIsPresent } from 'framer-motion'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
@@ -78,6 +78,17 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
   const localPlayerId = useMultiplayerStore(state => state.localPlayerId)
   const pendingInventoryDieIds = useMultiplayerStore(state => state.pendingInventoryDieIds)
   const [activeFavoriteType, setActiveFavoriteType] = useState<DiceShape | null>(null)
+
+  /**
+   * Close whatever the ★ opened whenever the rail is dismissed. Without this the
+   * hint's full-screen tap catcher outlives the rail twice over: once through
+   * the ~0.5s exit animation, where it sits above the bottom sheet that replaced
+   * the rail and eats its first tap, and again when `Scene` auto-restores the
+   * rail after an overlay closes and the unrequested hint comes back with it.
+   */
+  useEffect(() => {
+    if (!isOpen) setActiveFavoriteType(null)
+  }, [isOpen])
 
   const unavailableInventoryIds = useMemo(() => {
     const ids = new Set<string>()
@@ -219,6 +230,11 @@ function DiceQuickSlot({
 }: DiceQuickSlotProps) {
   const reduceMotion = shouldReduceMotion()
   const { currentTheme } = useTheme()
+  // While the rail plays its exit animation, `AnimatePresence` keeps rendering
+  // the element tree it captured at removal — parent state no longer reaches
+  // it. Without this the hint's full-screen tap catcher would linger over
+  // whatever replaced the rail and eat its first tap.
+  const isPresent = useIsPresent()
   const accentColor = currentTheme.tokens.colors.accent
   const surfaceColor = currentTheme.tokens.colors.surface
   const hasFavorites = favorites.length > 0
@@ -226,9 +242,11 @@ function DiceQuickSlot({
   // No count: the supply is effectively unlimited, so the only thing a number
   // could tell the player is which of two indistinguishable dice they get.
   const actionLabel = `Add ${label} — your owned dice first, then unlimited basics`
-  const favoritesLabel = hasFavorites
-    ? `${isFavoriteOpen ? 'Hide' : 'Show'} favorite ${label} dice`
-    : `Show favorite ${label} dice (none yet)`
+  // A noun, not a Show/Hide verb: `aria-expanded` already reports the open
+  // state, and the verb form went stale on the empty branch (it kept saying
+  // "Show" while the hint was on screen).
+  const favoritesLabel = `Favorite ${label} dice${hasFavorites ? '' : ' (none yet)'}`
+  const favoritesPanelId = `quick-slot-favorites-${type}`
 
   return (
     <motion.div
@@ -272,7 +290,11 @@ function DiceQuickSlot({
 
       {/* Always present, favourites or not: the ★ is where favourites live, and
           a control that appears only once you already know about the feature
-          cannot teach it. Empty types open the hint instead of the tray. */}
+          cannot teach it. Empty types open the hint instead of the tray.
+
+          The testid is deliberately NOT under the `dice-quick-slot-` prefix —
+          `hud-layout.spec.ts` measures every element matching that prefix as a
+          rail slot, and a star answering to it would silently double the count. */}
       <button
         type="button"
         onClick={(event) => {
@@ -282,30 +304,40 @@ function DiceQuickSlot({
         className="absolute -right-2 -bottom-2 z-[72] flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold shadow-lg"
         style={{
           backgroundColor: isFavoriteOpen ? currentTheme.tokens.colors.dice.highlight : surfaceColor,
-          color: isFavoriteOpen ? surfaceColor : accentColor,
+          // The empty state is a declared token, not an opacity multiplier: the
+          // rail floats over the live 3D table, and dimming would composite the
+          // glyph against the scene where no contrast pairing can model it.
+          color: isFavoriteOpen
+            ? surfaceColor
+            : hasFavorites
+              ? accentColor
+              : currentTheme.tokens.colors.text.muted,
           border: `2px solid ${accentColor}`,
-          opacity: hasFavorites ? 1 : 0.75,
         }}
         aria-label={favoritesLabel}
         title={favoritesLabel}
-        data-testid={`dice-quick-slot-favorites-${type}`}
+        aria-expanded={isFavoriteOpen}
+        aria-controls={isFavoriteOpen ? favoritesPanelId : undefined}
+        data-testid={`quick-slot-star-${type}`}
         data-has-favorites={hasFavorites}
       >
         ★
       </button>
 
-      {isFavoriteOpen && (
+      {isFavoriteOpen && isPresent && (
         hasFavorites ? (
           <FavoriteDiceFlyout
             anchorRef={slotRef}
             dice={favorites}
             label={label}
+            panelId={favoritesPanelId}
             onSpawn={onSpawnFavorite}
           />
         ) : (
           <FavoriteDiceEmptyHint
             anchorRef={slotRef}
             label={label}
+            panelId={favoritesPanelId}
             onDismiss={onCloseFavorites}
           />
         )
@@ -345,19 +377,26 @@ function useFlyoutAnchor(anchorRef: RefObject<HTMLElement | null>) {
 /**
  * The shared chrome for anything the ★ opens — one definition of the tinted
  * panel, so the favourites tray and its empty state cannot drift apart.
+ *
+ * Named for the quick slot to keep it distinct from `panels/FlyoutPanel.tsx`,
+ * the unrelated full-height slide-in panel.
  */
-function FlyoutPanel({
+function QuickSlotFlyoutPanel({
   anchor,
   ariaLabel,
   className = '',
+  id,
   onClick,
+  role,
   testId,
   children,
 }: {
   anchor: { top: number; left: number }
   ariaLabel: string
   className?: string
+  id?: string
   onClick?: () => void
+  role?: string
   testId?: string
   children: ReactNode
 }) {
@@ -365,7 +404,7 @@ function FlyoutPanel({
 
   return (
     <motion.div
-      className={`fixed overflow-hidden rounded-lg shadow-xl ${className}`}
+      className={`fixed overflow-hidden rounded-lg shadow-xl ${className}`.trim()}
       style={{
         top: `${anchor.top}px`,
         left: `${anchor.left}px`,
@@ -379,7 +418,9 @@ function FlyoutPanel({
       animate={{ opacity: 1, x: 0, y: '-50%', scale: 1 }}
       transition={{ duration: 0.16 }}
       aria-label={ariaLabel}
+      id={id}
       onClick={onClick}
+      role={role}
       data-testid={testId}
     >
       {children}
@@ -390,16 +431,22 @@ function FlyoutPanel({
 /**
  * Rendered into `document.body` because the rail is a scroll container on short
  * viewports, and an in-tree flyout would be clipped by its overflow.
+ *
+ * Deliberately has no tap-anywhere catcher, unlike its empty state: this one
+ * holds spawn targets, so swallowing the tap that lands on a die would cost the
+ * player the action they came for. It closes on spawn or on the ★.
  */
 function FavoriteDiceFlyout({
   anchorRef,
   dice,
   label,
+  panelId,
   onSpawn,
 }: {
   anchorRef: RefObject<HTMLElement | null>
   dice: InventoryDie[]
   label: string
+  panelId: string
   onSpawn: (die: InventoryDie) => void
 }) {
   const { currentTheme } = useTheme()
@@ -410,7 +457,12 @@ function FavoriteDiceFlyout({
   if (!anchor || typeof document === 'undefined') return null
 
   return createPortal(
-    <FlyoutPanel anchor={anchor} ariaLabel={`Favorite ${label} dice`} className="z-40">
+    <QuickSlotFlyoutPanel
+      anchor={anchor}
+      ariaLabel={`Favorite ${label} dice`}
+      className="z-40"
+      id={panelId}
+    >
       <div ref={hostRef} className="relative">
         <SharedInventoryDicePreviewCanvas dice={dice} hostRef={hostRef} slotRefs={slotRefs} />
         <div className="relative flex gap-2 overflow-x-auto p-2">
@@ -442,7 +494,7 @@ function FavoriteDiceFlyout({
           ))}
         </div>
       </div>
-    </FlyoutPanel>,
+    </QuickSlotFlyoutPanel>,
     document.body,
   )
 }
@@ -456,10 +508,12 @@ function FavoriteDiceFlyout({
 function FavoriteDiceEmptyHint({
   anchorRef,
   label,
+  panelId,
   onDismiss,
 }: {
   anchorRef: RefObject<HTMLElement | null>
   label: string
+  panelId: string
   onDismiss: () => void
 }) {
   const { currentTheme } = useTheme()
@@ -469,22 +523,25 @@ function FavoriteDiceEmptyHint({
 
   return createPortal(
     <>
-      {/* Not focusable: keyboard users close with the ★ toggle they opened it
-          with. This exists so a stray tap anywhere counts as "dismiss". */}
-      <button
-        type="button"
+      {/* A plain div, matching BottomSheet's backdrop: a <button> here would
+          take mouse focus off the ★ on the way to unmounting itself, stranding
+          the keyboard user at <body>. Keyboard closes with the ★ toggle, which
+          `aria-expanded` describes; this only exists so a stray tap counts as
+          "dismiss" instead of falling through to the table. */}
+      <div
         aria-hidden="true"
-        tabIndex={-1}
         onClick={onDismiss}
-        className="fixed inset-0 z-[71] cursor-default"
-        style={{ backgroundColor: 'transparent', border: 'none' }}
+        className="fixed inset-0 z-[71]"
         data-testid="favorite-dice-hint-backdrop"
       />
-      <FlyoutPanel
+      <QuickSlotFlyoutPanel
         anchor={anchor}
         ariaLabel={`No favorite ${label} dice yet`}
+        // Above the catcher, so the hint the catcher exists for stays readable.
         className="z-[72]"
+        id={panelId}
         onClick={onDismiss}
+        role="status"
         testId="favorite-dice-empty-hint"
       >
         <p
@@ -494,7 +551,7 @@ function FavoriteDiceEmptyHint({
           No favorite {label} dice yet. Star dice in the Inventory panel to keep
           them one tap away here.
         </p>
-      </FlyoutPanel>
+      </QuickSlotFlyoutPanel>
     </>,
     document.body,
   )

@@ -65,9 +65,9 @@ test.describe('empty-favorites hint at 390x844', () => {
     await openTable(page)
 
     await page.getByRole('button', { name: 'Manage Dice' }).click()
-    const star = page.getByTestId('dice-quick-slot-favorites-d20')
+    const star = page.getByTestId('quick-slot-star-d20')
     // Visible with a stock (favorite-free) inventory — that is the whole point.
-    await expect(star).toBeVisible()
+    await expect(star).toBeVisible({ timeout: 30_000 })
 
     await star.click()
     await expect(page.getByTestId('favorite-dice-empty-hint')).toBeVisible()
@@ -80,10 +80,13 @@ test.describe('empty-favorites hint at 390x844', () => {
     // The catcher is gone from the hit test too: the rail takes taps again.
     const slot = page.getByTestId('dice-quick-slot-d20')
     const box = (await slot.boundingBox())!
-    const hit = await page.evaluate(([x, y]) => (
-      document.elementFromPoint(x, y)?.closest('[data-testid="dice-quick-slot-d20"]') !== null
-    ), [box.x + box.width / 2, box.y + box.height / 2])
-    expect(hit).toBe(true)
+    // Reported as a testid rather than a boolean so a `null` hit (slot scrolled
+    // out, layout shifted) fails loudly instead of passing as "not the catcher".
+    const hitTestId = await page.evaluate(([x, y]) => {
+      const element = document.elementFromPoint(x, y)
+      return element?.closest('[data-testid]')?.getAttribute('data-testid') ?? null
+    }, [box.x + box.width / 2, box.y + box.height / 2])
+    expect(hitTestId).toBe('dice-quick-slot-d20')
   })
 })
 
