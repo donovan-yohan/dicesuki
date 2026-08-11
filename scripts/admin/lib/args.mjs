@@ -110,10 +110,10 @@ export const COMMAND_SPECS = Object.freeze({
     // The boolean itself is reversible — but the FIRST enable permanently
     // stamps `economy_access_granted_at`, and that timestamp is the New
     // Collector Passport's 12-week anchor: it is set once and never moved
-    // (0034_economy_access_flag.sql:128-155 — the `coalesce` is the set-once
-    // rule). So a typo'd user id silently starts a
-    // stranger's passport clock and there is no correcting write. Dry-run by
-    // default, like grant-die and cancel-session.
+    // (0034_economy_access_flag.sql:145-155 — the `coalesce` in the upsert is
+    // the set-once rule). So a typo'd user id silently starts a stranger's
+    // passport clock and there is no correcting write. Dry-run by default,
+    // like grant-die and cancel-session.
     defaultDryRun: true,
   },
   'cancel-session': {

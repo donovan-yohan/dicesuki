@@ -21,12 +21,3 @@ import { useAuthStore } from '../store/useAuthStore'
 export function useEconomyAccess(): boolean {
   return useAuthStore(state => state.status === 'authenticated' && state.economyAccess)
 }
-
-/**
- * Non-React accessor for the same predicate (Frontend-ADR-002 allows reading a
- * store via `getState()` outside React).
- */
-export function getEconomyAccess(): boolean {
-  const state = useAuthStore.getState()
-  return state.status === 'authenticated' && state.economyAccess
-}

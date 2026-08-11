@@ -14,16 +14,25 @@
  * can only assert about surfaces that already exist; this one fails on the
  * arrival of an unregistered new one.
  *
- * Detection is by IMPORT EDGE: a real economy surface has to get its data or
- * its children from somewhere — the wallet store, the pull RPCs, the payments
- * client, the currency glyphs, the shop catalog, or an existing economy
- * component. Any file under `src/components/economy/` counts by path alone.
+ * Detection uses three signals:
  *
- * Known limit, stated so nobody mistakes this for proof: a surface that imports
- * none of those markers (a hardcoded "Buy Stars" button that does nothing) is
- * invisible here. Widen `ECONOMY_IMPORT_MARKERS` when that becomes real; the
- * markers deliberately over-match, because an unnecessary registry row costs
- * one line and a miss costs a leaked storefront.
+ * 1. PATH — anything under `src/components/economy/` is economy by location.
+ * 2. IMPORT EDGE — a real economy surface usually gets its data or its children
+ *    from somewhere: the wallet store, the pull RPCs, the payments client, the
+ *    currency glyphs, the shop catalog, an existing economy component.
+ * 3. USAGE TOKEN — for economy state that arrives through a general-purpose
+ *    provider, where the import edge is indistinguishable from a non-economy
+ *    one. `ThemeSelector` is the motivating case: it renders dollar prices and
+ *    a purchase affordance, but it only imports `useTheme` from `ThemeContext`,
+ *    exactly like ~20 components that have nothing to do with money. Matching
+ *    the context would drown the registry in false positives, so we match the
+ *    two members that are unambiguously about buying and owning instead.
+ *
+ * Known limit, stated so nobody mistakes this for proof: a surface that trips
+ * none of the three (a hardcoded "Buy Stars" button wired to nothing) is
+ * invisible here. Widen the marker lists when that becomes real; they
+ * deliberately over-match, because an unnecessary registry row costs one line
+ * and a miss costs a leaked storefront.
  *
  * If this fails: register the file in `REGISTRY` with the gate that actually
  * protects it, and make sure that gate is real.
@@ -100,6 +109,11 @@ const REGISTRY: ReadonlyArray<{ file: string; gate: Gate; note: string }> = [
     note: 'Wallet/currency balances. Rendered only by ShopPanel.',
   },
   {
+    file: 'components/ThemeSelector.tsx',
+    gate: 'economy-access',
+    note: 'Priced themes are a storefront. Hides dollar prices, the purchase affordance, and unowned priced themes, and refuses to call purchaseTheme, unless flagged on. Inert today only because ThemeProvider dev-grants every theme id.',
+  },
+  {
     file: 'components/panels/lunarPassOffer.ts',
     gate: 'primitive',
     note: 'Lunar Pass offer constants. Data module consumed only by LunarPassCard.',
@@ -170,6 +184,15 @@ const ECONOMY_IMPORT_MARKERS = [
   'PendingPurchaseBanner',
 ] as const
 
+/**
+ * Tokens whose mere USE marks a file as an economy surface, regardless of where
+ * they came from. Reserved for economy state delivered through a general-purpose
+ * provider, where the import specifier carries no signal (see #3 above). Keep
+ * this list tiny and unambiguous — a token that also appears in non-economy code
+ * turns the guard into noise.
+ */
+const ECONOMY_USAGE_MARKERS = ['purchaseTheme', 'ownedThemes'] as const
+
 /** `import … from '<specifier>'` / `import('<specifier>')` specifiers only. */
 function importSpecifiers(source: string): string[] {
   const out: string[] = []
@@ -181,11 +204,17 @@ function importSpecifiers(source: string): string[] {
 }
 
 function isEconomySurface(rel: string, source: string): boolean {
-  // Path rule: everything under src/components/economy/ is economy by location.
+  // 1. Path rule: everything under src/components/economy/ is economy by location.
   if (rel.startsWith('components/economy/')) return true
-  return importSpecifiers(source).some(specifier =>
+  // 2. Import edge.
+  const byImport = importSpecifiers(source).some(specifier =>
     ECONOMY_IMPORT_MARKERS.some(marker => specifier.includes(marker)),
   )
+  if (byImport) return true
+  // 3. Usage token, over the comment-stripped source so a mention in prose
+  //    cannot register a file (nor exempt one).
+  const code = executable(source)
+  return ECONOMY_USAGE_MARKERS.some(marker => code.includes(marker))
 }
 
 function walk(dir: string): string[] {
@@ -269,8 +298,14 @@ describe('economy surfaces stay behind useEconomyAccess', () => {
     // The HUD button. Gating this alone is not enough, hence the next assertion.
     expect(scene).toMatch(/const\s+showShop\s*=\s*economyAccess\s*&&/)
     // The panel mount — ShopPanel owns the entire economy subtree and would
-    // otherwise stay mountable through `isShopOpen`.
-    expect(scene).toMatch(/\{\s*economyAccess\s*&&\s*\(\s*<ShopPanel\b/)
+    // otherwise stay mountable through `isShopOpen`. The bounded window lets a
+    // <Suspense> wrapper sit between the gate and the element without letting
+    // an unrelated, ungated <ShopPanel> elsewhere in the file satisfy it.
+    expect(scene).toMatch(/\{\s*economyAccess\s*&&\s*\([\s\S]{0,200}?<ShopPanel\b/)
+    // Structural, not just visual: an un-flagged player must not even download
+    // the storefront chunk (banners, pull overlays, Lunar Pass, SKU strings).
+    expect(scene).toMatch(/lazy\(\s*\(\)\s*=>\s*import\('\.\/panels\/ShopPanel'\)/)
+    expect(scene).not.toMatch(/^import\s*\{[^}]*\bShopPanel\b[^}]*\}\s*from/m)
     // A stale `isShopOpen` would keep `isOverlayOpen` true with nothing on screen.
     expect(scene).toMatch(/if\s*\(\s*economyAccess\s*\)\s*return\s*\n?\s*setIsShopOpen\(false\)/)
   })

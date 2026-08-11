@@ -1,7 +1,7 @@
 // External libraries
 import { Environment } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
@@ -59,7 +59,13 @@ import { RoomNotices } from './multiplayer/RoomNotices'
 import { MultiplayerMotionController } from './multiplayer/MultiplayerMotionController'
 import { RoomMotionHint } from './multiplayer/RoomMotionHint'
 import { STANDARD_ROLL_CONVERSION_AVAILABLE } from './economy/shopCatalog'
-import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel, ShopPanel } from './panels'
+import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
+
+// The storefront is lazy so the economy gate is STRUCTURAL, not just visual:
+// an un-flagged player never downloads the shop, the banner screen, the pull
+// overlays, the Lunar Pass card, or the unreleased Star-bundle SKU strings.
+// Same posture `src/App.tsx` already takes for the checkout tree.
+const ShopPanel = lazy(() => import('./panels/ShopPanel').then(m => ({ default: m.ShopPanel })))
 import type { TableDieSummary } from '../types/tableDice'
 
 const LOD_DEBUG_NAMESPACE = 'RenderLOD'
@@ -761,14 +767,16 @@ function SceneContent({ onReady }: SceneProps) {
               modal, Stars→rolls conversion, Lunar Pass, Star bundles. Mounted
               only for accounts an operator has flagged on. */}
           {economyAccess && (
-            <ShopPanel
-              isOpen={isShopOpen}
-              onClose={() => setIsShopOpen(false)}
-              initialTab="banners"
-              onAddDie={(type, inventoryDieId) => activeBackend.addDie(type, inventoryDieId)}
-              tableDiceCount={multiplayerDice.size}
-              deviceTier={renderDeviceTier}
-            />
+            <Suspense fallback={null}>
+              <ShopPanel
+                isOpen={isShopOpen}
+                onClose={() => setIsShopOpen(false)}
+                initialTab="banners"
+                onAddDie={(type, inventoryDieId) => activeBackend.addDie(type, inventoryDieId)}
+                tableDiceCount={multiplayerDice.size}
+                deviceTier={renderDeviceTier}
+              />
+            </Suspense>
           )}
 
           {inspectedInventoryDie && (

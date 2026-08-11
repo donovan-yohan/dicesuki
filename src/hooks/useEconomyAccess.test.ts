@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { getEconomyAccess, useEconomyAccess } from './useEconomyAccess'
+import { useEconomyAccess } from './useEconomyAccess'
 import { useAuthStore, type AuthStatus } from '../store/useAuthStore'
 
 function setAuth(status: AuthStatus, economyAccess: boolean) {
@@ -21,7 +21,6 @@ describe('useEconomyAccess', () => {
   it('is false for a guest even if a stale flag survives in the store', () => {
     setAuth('guest', true)
     expect(renderHook(() => useEconomyAccess()).result.current).toBe(false)
-    expect(getEconomyAccess()).toBe(false)
   })
 
   it('is false while auth is still loading', () => {
@@ -32,13 +31,11 @@ describe('useEconomyAccess', () => {
   it('is false for an authenticated account that has not been flagged on', () => {
     setAuth('authenticated', false)
     expect(renderHook(() => useEconomyAccess()).result.current).toBe(false)
-    expect(getEconomyAccess()).toBe(false)
   })
 
   it('is true only for an authenticated, flagged account', () => {
     setAuth('authenticated', true)
     expect(renderHook(() => useEconomyAccess()).result.current).toBe(true)
-    expect(getEconomyAccess()).toBe(true)
   })
 
   it('re-renders when the flag flips', () => {

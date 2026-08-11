@@ -67,7 +67,7 @@ export function resetAuthSubscriptionForTests(): void {
   authSubscribed = false
 }
 
-export const useAuthStore = create<AuthState>()((set) => ({
+export const useAuthStore = create<AuthState>()((set, get) => ({
   status: isSupabaseConfigured() ? 'loading' : 'guest',
   isConfigured: isSupabaseConfigured(),
   user: null,
@@ -95,11 +95,21 @@ export const useAuthStore = create<AuthState>()((set) => ({
         fetchEconomyAccess(client, session.user.id),
       ])
       if (profile) seedIdentityFromProfile(profile)
+      // A failed read is "unknown", not "off". `onAuthStateChange` fires on
+      // every hourly token refresh, so collapsing a network blip to false would
+      // silently revoke a flagged player's storefront mid-session. On an
+      // unresolved read, carry the value we already hold for THIS user; a
+      // different user (or no prior session) still falls back to off.
+      const previous = get()
+      const carryOver =
+        previous.status === 'authenticated' && previous.user?.id === session.user.id
+          ? previous.economyAccess
+          : false
       set({
         status: 'authenticated',
         user: session.user,
         profile,
-        economyAccess: economyAccess.enabled,
+        economyAccess: economyAccess.resolved ? economyAccess.enabled : carryOver,
       })
     }
 

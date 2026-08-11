@@ -68,7 +68,7 @@ export function sqlstateHint(code, rpc) {
         ? 'An argument was rejected: --operator must be 1-64 characters and --note 1-512, ' +
             'both non-blank after trimming, and the on/off decision must not be null ' +
             '(0034_economy_access_flag.sql:111-123). This RPC has no idempotency key, so this ' +
-            'plain validation failure and never a replay conflict.'
+            'is a plain validation failure and never a replay conflict.'
         : 'An argument was rejected, or this idempotency key was already used with different ' +
             'arguments (0028_sku_fulfillment.sql:508-521). Re-run the identical command to ' +
             'replay, or change --note (or pass --key) to make it a genuinely new grant.'
@@ -83,7 +83,7 @@ export function sqlstateHint(code, rpc) {
       return rpc === 'set_user_economy_access'
         ? 'No such auth user — check the uuid. user_economy_access.user_id references ' +
             'auth.users (0034_economy_access_flag.sql:124-126), and this CLI resolves identity ' +
-            'the GoTrue admin API, so a stale uuid pasted from a ticket is the usual cause.'
+            'via the GoTrue admin API, so a stale uuid pasted from a ticket is the usual cause.'
         : 'A referenced row does not exist (unknown economy edition or unknown catalog item).'
     case '42501':
       return (

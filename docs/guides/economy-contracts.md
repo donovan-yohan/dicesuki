@@ -361,8 +361,9 @@ Client wiring:
 | `src/lib/economyAccess.ts` | `fetchEconomyAccess()` — fail-closed read; absent row, error, or throw all resolve to off. |
 | `src/store/useAuthStore.ts` | `economyAccess: boolean`, fetched in parallel with the profile on sign-in and cleared by every guest transition. It lives on the auth store (Frontend-ADR-002) because it is account identity state with exactly the session's lifetime. |
 | `src/hooks/useEconomyAccess.ts` | `useEconomyAccess()` — THE predicate. True only for an authenticated, flagged account. |
-| `src/components/Scene.tsx` | Gates the HUD shop button (`showShop`) *and* the `<ShopPanel>` mount. Gating the button alone is insufficient: `ShopPanel` owns the entire economy subtree and stays mountable through `isShopOpen`. |
-| `src/App.tsx` | Gates `PendingPurchaseBanner`, the only economy chrome outside `Scene`. |
+| `src/components/Scene.tsx` | Gates the HUD shop button (`showShop`) *and* the `<ShopPanel>` mount. Gating the button alone is insufficient: `ShopPanel` owns the entire economy subtree and stays mountable through `isShopOpen`. `ShopPanel` is `lazy()`, so the gate is structural — an un-flagged player never downloads the storefront chunk or its unreleased SKU strings. |
+| `src/App.tsx` | Gates `PendingPurchaseBanner`. |
+| `src/components/ThemeSelector.tsx` | Gates priced themes: dollar prices, the "click to purchase" affordance, unowned priced themes, and the `purchaseTheme()` call itself. Inert today only because `ThemeProvider` dev-grants every theme id — which is precisely why it is gated before theme ownership becomes real. |
 
 Gated surfaces, all descendants of the `ShopPanel` mount unless noted: shop
 entry icon (top-right HUD), wallet/currency HUD, banner & pull screens, pull
@@ -370,7 +371,9 @@ progress/reveal overlays, pull CTAs, Stars→standard-roll conversion (both the
 shop section and the inline bottom sheet), the "how to earn more rolls" sheet,
 the odds/pity/fairness details modal, Lunar Pass card and its daily claim, Star
 bundle previews, and every inline economy `role="status"`/`role="alert"` notice
-they own. Outside `Scene`: the pending-purchase banner.
+they own. Outside the `ShopPanel` subtree: the pending-purchase banner
+(`src/App.tsx`) and the priced-theme chrome in `ThemeSelector`, reached from
+Settings → Select Theme.
 
 Deliberately **not** gated: `/terms` and `/privacy` stay public (legal pages),
 and `/checkout/return` stays registered behind the payments env flag — it is the
@@ -378,9 +381,14 @@ landing URL an external payment provider redirects to, and hiding it would
 strand a player mid-transaction. Neither is reachable as chrome.
 
 `src/components/economy/economyAccessGate.guard.test.ts` is the backpressure. It
-walks `src/components` plus `src/App.tsx`, flags any file with an economy import
-edge that is not in its `REGISTRY`, and pins the two `Scene` gates and the
-`App.tsx` gate by source. The failure it exists for is a *future* one: a new
+walks `src/components` plus `src/App.tsx` and flags any file that is not in its
+`REGISTRY` but trips one of three signals — path (`components/economy/`), an
+economy import edge, or a usage token for economy state that arrives through a
+general-purpose provider (`purchaseTheme` / `ownedThemes`; that third signal
+exists because `ThemeSelector` reaches the economy through `useTheme()`, which
+~20 innocent components also import). It also pins the `Scene` gates, the
+lazy-import boundary, and the `App.tsx` gate by source.
+`src/components/ThemeSelector.test.tsx` is its behavioural counterpart. The failure it exists for is a *future* one: a new
 economy surface mounted outside the gated subtree. Registry rows also rot-check
 themselves, so a file that stops touching the economy must be de-registered.
 
@@ -409,6 +417,14 @@ Three consequences worth knowing:
 * **`get_earned_reward_status()` was not modified.** It derives everything from
   `enrollment.enrolled_period_start`, so it follows the new anchor for free once
   a row exists.
+* **The anchor is a UI-flow guarantee, not an authorization one.**
+  `public.claim_new_collector_passport` is granted to `authenticated`
+  (`0010:1040-1041`) and the anchor is derived only at enrollment *creation*.
+  An un-flagged player who calls the RPC directly today anchors their window at
+  today; because enrollments are append-only, being flagged later does not
+  re-derive it. That is the accepted cost of UI-only enforcement (PO decision:
+  no RPC-level flag checks). Nothing in the client imports the claim helpers
+  today (`src/lib/earnedEconomy.ts` exports them; no component consumes them).
 * **The Community Die faucet inherits the same anchor** — it reads the same
   `enrolled_period_start` — and was deliberately not changed separately. Its
   cadence is `floor(weeks_since_anchor / 4)`: unbounded, no `least()` clamp, no

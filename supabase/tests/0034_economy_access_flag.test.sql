@@ -6,7 +6,10 @@ insert into auth.users (id) values
   ('d0340000-0000-4034-8034-000000000003'),
   ('d0340000-0000-4034-8034-000000000004'),
   ('d0340000-0000-4034-8034-000000000005'),
-  ('d0340000-0000-4034-8034-000000000006');
+  ('d0340000-0000-4034-8034-000000000006'),
+  ('d0340000-0000-4034-8034-000000000007'),
+  ('d0340000-0000-4034-8034-000000000008'),
+  ('d0340000-0000-4034-8034-000000000009');
 
 -- ---------------------------------------------------------------------------
 -- Posture. The gate table forces RLS and hands no API role a write privilege;
@@ -110,7 +113,7 @@ insert into public.user_economy_access (
   (
     'd0340000-0000-4034-8034-000000000001',
     true,
-    (((private.utc_monday_period_start(statement_timestamp()) - 35) + time '12:00')
+    (((private.utc_monday_period_start(transaction_timestamp()) - 35) + time '12:00')
       at time zone 'UTC'),
     'slice34-operator',
     'granted five UTC weeks before the first claim'
@@ -118,7 +121,7 @@ insert into public.user_economy_access (
   (
     'd0340000-0000-4034-8034-000000000003',
     true,
-    (((private.utc_monday_period_start(statement_timestamp()) + 21) + time '12:00')
+    (((private.utc_monday_period_start(transaction_timestamp()) + 21) + time '12:00')
       at time zone 'UTC'),
     'slice34-operator',
     'future dated grant that must be clamped'
@@ -126,10 +129,39 @@ insert into public.user_economy_access (
   (
     'd0340000-0000-4034-8034-000000000004',
     true,
-    (((private.utc_monday_period_start(statement_timestamp())) + time '12:00')
+    (((private.utc_monday_period_start(transaction_timestamp())) + time '12:00')
       at time zone 'UTC'),
     'slice34-operator',
     'negative control subject'
+  ),
+  -- What a first-ever `set-economy-access ... off` creates: a gate row with no
+  -- anchor at all. utc_monday_period_start(null) is null, so the coalesce must
+  -- fall back to the claim period rather than propagating a null anchor.
+  (
+    'd0340000-0000-4034-8034-000000000007',
+    false,
+    null,
+    'slice34-operator',
+    'never enabled, so never anchored'
+  ),
+  -- A disabled row that still carries its stamped anchor. Access is off but the
+  -- anchor is never cleared, so the passport window still starts at the grant
+  -- week -- enforcement is UI-only and the faucet keeps accruing underneath.
+  (
+    'd0340000-0000-4034-8034-000000000008',
+    false,
+    (((private.utc_monday_period_start(transaction_timestamp()) - 35) + time '12:00')
+      at time zone 'UTC'),
+    'slice34-operator',
+    'enabled five weeks ago, later disabled'
+  ),
+  (
+    'd0340000-0000-4034-8034-000000000009',
+    true,
+    (((private.utc_monday_period_start(transaction_timestamp()) - 35) + time '12:00')
+      at time zone 'UTC'),
+    'slice34-operator',
+    'flagged with backdated grant, has never claimed'
   );
 
 -- ---------------------------------------------------------------------------
@@ -146,7 +178,7 @@ declare
   community_claim public.earned_reward_claim_outcomes%rowtype;
   enrollment public.earned_reward_passport_enrollments%rowtype;
   status jsonb;
-  claim_period date := (date_trunc('week', statement_timestamp() at time zone 'UTC'))::date;
+  claim_period date := (date_trunc('week', transaction_timestamp() at time zone 'UTC'))::date;
 begin
   first_claim := public.claim_new_collector_passport('slice34:passport:backdated:0001');
 
@@ -192,6 +224,20 @@ reset role;
 -- A user with no gate row keeps the pre-0034 behaviour exactly: the anchor is
 -- the claim period and there is no catch-up.
 -- ---------------------------------------------------------------------------
+-- Asserted as the migration owner: under RLS an `authenticated` caller sees
+-- only their own rows, so counting from inside the session below would re-test
+-- RLS rather than prove this user was never given a gate row.
+do $$
+begin
+  if (select count(*)
+      from public.user_economy_access
+      where user_id = 'd0340000-0000-4034-8034-000000000002')
+     is distinct from 0::bigint then
+    raise exception 'The ungated fixture user unexpectedly has an economy access row';
+  end if;
+end;
+$$;
+
 set local "request.jwt.claims" =
   '{"sub":"d0340000-0000-4034-8034-000000000002","is_anonymous":false}';
 set local role authenticated;
@@ -200,8 +246,20 @@ do $$
 declare
   enrollment public.earned_reward_passport_enrollments%rowtype;
   status jsonb;
-  claim_period date := (date_trunc('week', statement_timestamp() at time zone 'UTC'))::date;
+  pre_claim_status jsonb;
+  claim_period date := (date_trunc('week', transaction_timestamp() at time zone 'UTC'))::date;
 begin
+  -- Pre-enrollment read path: with no gate row at all the projection must stay
+  -- at the pre-0034 zeros, which is what 0010's own suite depends on.
+  pre_claim_status := public.get_earned_reward_status();
+  if (pre_claim_status #>> '{passport,state}') is distinct from 'not_enrolled' or
+     (pre_claim_status #>> '{passport,availableClaimCount}')::integer is distinct from 0 or
+     (pre_claim_status #>> '{passport,catchUpClaimCount}')::integer is distinct from 0 or
+     (pre_claim_status #>> '{community,availableClaimCount}')::integer is distinct from 0 or
+     (pre_claim_status #> '{passport,enrolledPeriodStart}') is distinct from 'null'::jsonb then
+    raise exception 'A user with no economy access row was projected non-zero catch-up';
+  end if;
+
   perform public.claim_new_collector_passport('slice34:passport:ungated:0002');
 
   select * into strict enrollment
@@ -210,10 +268,7 @@ begin
 
   status := public.get_earned_reward_status();
 
-  if (select count(*)
-      from public.user_economy_access
-      where user_id = 'd0340000-0000-4034-8034-000000000002') is distinct from 0::bigint or
-     enrollment.enrolled_period_start is distinct from claim_period or
+  if enrollment.enrolled_period_start is distinct from claim_period or
      (status #>> '{passport,availableClaimCount}')::integer is distinct from 1 or
      (status #>> '{passport,claimedCount}')::integer is distinct from 1 or
      (status #>> '{passport,catchUpClaimCount}')::integer is distinct from 0 or
@@ -239,7 +294,7 @@ do $$
 declare
   enrollment public.earned_reward_passport_enrollments%rowtype;
   status jsonb;
-  claim_period date := (date_trunc('week', statement_timestamp() at time zone 'UTC'))::date;
+  claim_period date := (date_trunc('week', transaction_timestamp() at time zone 'UTC'))::date;
 begin
   begin
     perform public.claim_new_collector_passport('slice34:passport:future:0003');
@@ -257,6 +312,141 @@ begin
      (status #>> '{passport,availableClaimCount}')::integer is distinct from 1 or
      (status #>> '{passport,catchUpClaimCount}')::integer is distinct from 0 then
     raise exception 'A future economy access grant was not clamped to the claim week';
+  end if;
+end;
+$$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- A gate row that was never enabled carries a null anchor.
+-- utc_monday_period_start(null) is null, so the coalesce inside the helper must
+-- fall back to the claim period instead of propagating the null into
+-- enrolled_period_start (which is NOT NULL and would abort the claim).
+-- ---------------------------------------------------------------------------
+set local "request.jwt.claims" =
+  '{"sub":"d0340000-0000-4034-8034-000000000007","is_anonymous":false}';
+set local role authenticated;
+
+do $$
+declare
+  enrollment public.earned_reward_passport_enrollments%rowtype;
+  status jsonb;
+  claim_period date := (date_trunc('week', transaction_timestamp() at time zone 'UTC'))::date;
+begin
+  status := public.get_earned_reward_status();
+  if (status #>> '{passport,availableClaimCount}')::integer is distinct from 0 or
+     (status #>> '{passport,catchUpClaimCount}')::integer is distinct from 0 then
+    raise exception 'A gate row with no grant timestamp was projected non-zero catch-up';
+  end if;
+
+  perform public.claim_new_collector_passport('slice34:passport:unanchored:0007');
+
+  select * into strict enrollment
+  from public.earned_reward_passport_enrollments
+  where user_id = 'd0340000-0000-4034-8034-000000000007';
+
+  if enrollment.enrolled_period_start is distinct from claim_period then
+    raise exception 'A gate row with no grant timestamp did not fall back to the claim week';
+  end if;
+end;
+$$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- Disabling never clears the anchor, so a disabled player still anchors to the
+-- grant week. Enforcement is UI-only in this slice: the faucet keeps accruing
+-- underneath a hidden surface, which is the whole point of never moving the
+-- stamp.
+-- ---------------------------------------------------------------------------
+set local "request.jwt.claims" =
+  '{"sub":"d0340000-0000-4034-8034-000000000008","is_anonymous":false}';
+set local role authenticated;
+
+do $$
+declare
+  enrollment public.earned_reward_passport_enrollments%rowtype;
+  status jsonb;
+  claim_period date := (date_trunc('week', transaction_timestamp() at time zone 'UTC'))::date;
+begin
+  perform public.claim_new_collector_passport('slice34:passport:disabled:0008');
+
+  select * into strict enrollment
+  from public.earned_reward_passport_enrollments
+  where user_id = 'd0340000-0000-4034-8034-000000000008';
+
+  status := public.get_earned_reward_status();
+
+  if (select economy_access
+      from public.user_economy_access
+      where user_id = 'd0340000-0000-4034-8034-000000000008') is distinct from false or
+     enrollment.enrolled_period_start is distinct from (claim_period - 35) or
+     (status #>> '{passport,availableClaimCount}')::integer is distinct from 6 or
+     (status #>> '{passport,catchUpClaimCount}')::integer is distinct from 5 then
+    raise exception 'A disabled gate row lost its stamped passport anchor';
+  end if;
+end;
+$$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- The read path agrees with the claim path BEFORE enrollment exists. This is
+-- the user class the feature creates: flagged with a backdated grant, never
+-- claimed. Pre-0034 the status RPC reported zero available while the claim path
+-- would immediately mint six.
+-- ---------------------------------------------------------------------------
+set local "request.jwt.claims" =
+  '{"sub":"d0340000-0000-4034-8034-000000000009","is_anonymous":false}';
+set local role authenticated;
+
+do $$
+declare
+  enrollment public.earned_reward_passport_enrollments%rowtype;
+  projected jsonb;
+  settled jsonb;
+  claim_period date := (date_trunc('week', transaction_timestamp() at time zone 'UTC'))::date;
+begin
+  if exists (
+    select 1
+    from public.earned_reward_passport_enrollments
+    where user_id = 'd0340000-0000-4034-8034-000000000009'
+  ) then
+    raise exception 'The never-claimed fixture user unexpectedly has an enrollment';
+  end if;
+
+  projected := public.get_earned_reward_status();
+
+  -- There genuinely is no enrollment row, so the state string and
+  -- enrolledPeriodStart stay honest; only the counts become truthful.
+  if (projected #>> '{passport,state}') is distinct from 'not_enrolled' or
+     (projected #> '{passport,enrolledPeriodStart}') is distinct from 'null'::jsonb or
+     (projected #>> '{passport,claimedCount}')::integer is distinct from 0 or
+     (projected #>> '{passport,availableClaimCount}')::integer is distinct from 6 or
+     (projected #>> '{passport,catchUpClaimCount}')::integer is distinct from 6 or
+     (projected #>> '{community,availableClaimCount}')::integer is distinct from 1 then
+    raise exception 'A flagged never-claimed user was told they have no passport claims';
+  end if;
+
+  -- The projection is not merely non-zero, it is exactly what the claim path
+  -- then produces. Read and write cannot drift: both go through
+  -- private.passport_enrollment_anchor_period.
+  perform public.claim_new_collector_passport('slice34:passport:projected:0009');
+
+  select * into strict enrollment
+  from public.earned_reward_passport_enrollments
+  where user_id = 'd0340000-0000-4034-8034-000000000009';
+
+  settled := public.get_earned_reward_status();
+
+  if enrollment.enrolled_period_start is distinct from (claim_period - 35) or
+     (settled #>> '{passport,availableClaimCount}')::integer
+       is distinct from (projected #>> '{passport,availableClaimCount}')::integer or
+     (settled #>> '{community,availableClaimCount}')::integer
+       is distinct from (projected #>> '{community,availableClaimCount}')::integer or
+     (settled #>> '{passport,claimedCount}')::integer is distinct from 1 then
+    raise exception 'The projected passport catch-up did not match what the claim path minted';
   end if;
 end;
 $$;

@@ -106,7 +106,7 @@ describe('0034 economy access flag', () => {
       /alter table public\.user_economy_access force row level security;/i,
     )
     expect(statements).toMatch(
-      /create policy "users read their own economy access"\s+on public\.user_economy_access\s+for select\s+to authenticated\s+using \(\(select auth\.uid\(\)\) = user_id\);/i,
+      /create policy "users read their own economy access"\s+on public\.user_economy_access\s+for select\s+to authenticated\s+using \(\(select auth\.uid\(\)\) is not null and \(select auth\.uid\(\)\) = user_id\);/i,
     )
     expect(statements).toMatch(
       /revoke all on table public\.user_economy_access\s+from public, anon, authenticated, service_role;/i,
@@ -191,12 +191,19 @@ describe('0034 economy access flag', () => {
       /comment on function public\.set_user_economy_access\(uuid, boolean, text, text\) is/i,
     )
 
-    // Exhaustive: service_role is the only grantee of any execute privilege in
-    // this migration. A player can never call the gate write.
+    // Exhaustive: the gate write is granted to service_role and nothing else.
+    // The only other execute grant re-issues 0010's own authenticated grant on
+    // the status read, unchanged.
     const executeGrants = (
       statements.match(/grant execute on function[^;]*;/gi) ?? []
     ).map(collapse)
     expect(executeGrants).toEqual([
+      'grant execute on function public.set_user_economy_access(uuid, boolean, text, text) to service_role;',
+      'grant execute on function public.get_earned_reward_status() to authenticated;',
+    ])
+    expect(
+      executeGrants.filter(grant => grant.includes('set_user_economy_access')),
+    ).toEqual([
       'grant execute on function public.set_user_economy_access(uuid, boolean, text, text) to service_role;',
     ])
 
@@ -261,6 +268,7 @@ describe('0034 economy access flag', () => {
       'create or replace function public.set_user_economy_access(',
       'create or replace function private.passport_enrollment_anchor_period(',
       'create or replace function private.issue_earned_reward_claim(',
+      'create or replace function public.get_earned_reward_status(',
     ])
     expect(statements).not.toMatch(/\bcreate\s+function\b/i)
 
@@ -273,8 +281,12 @@ describe('0034 economy access flag', () => {
     expect(statements).not.toMatch(
       /\bupdate\s+public\.earned_reward_claim_outcomes/i,
     )
-    // The derived status projection is untouched; it follows the anchor already.
-    expect(statements).not.toMatch(/get_earned_reward_status/i)
+    // The status read is re-created, never dropped, and its 0010 ACL is
+    // re-issued rather than widened.
+    expect(statements).not.toMatch(/drop function[^;]*get_earned_reward_status/i)
+    expect(statements).toMatch(
+      /revoke all on function public\.get_earned_reward_status\(\)\s+from public, anon, authenticated, service_role;/i,
+    )
     // No existing economy RPC gains a gate check in this slice.
     expect(statements).not.toMatch(/claim_new_collector_passport/i)
     expect(statements).not.toMatch(/claim_community_die/i)
@@ -353,6 +365,84 @@ describe('0034 economy access flag', () => {
     )
   })
 
+  it('re-creates the 0010 status read verbatim apart from the projection', () => {
+    // 0010 lines 870-972 are the only definition of the status read.
+    expect(
+      claimsSql.match(/create or replace function public\.get_earned_reward_status\(/g),
+    ).toHaveLength(1)
+
+    const original = claimsSql.split('\n').slice(869, 972).join('\n')
+    expect(original.startsWith(
+      'create or replace function public.get_earned_reward_status()',
+    )).toBe(true)
+    expect(original.endsWith('$$;')).toBe(true)
+
+    const originalBranch = [
+      "    community_state := case",
+      "      when community_available > community_claimed then 'claimable'",
+      "      else 'waiting'",
+      '    end;',
+      '  end if;',
+      '',
+    ].join('\n')
+    const projectedBranch = [
+      "    community_state := case",
+      "      when community_available > community_claimed then 'claimable'",
+      "      else 'waiting'",
+      '    end;',
+      '  else',
+      '    select access.economy_access_granted_at into access_granted_at',
+      '    from public.user_economy_access as access',
+      '    where access.user_id = caller_user_id;',
+      '',
+      '    if access_granted_at is not null then',
+      '      prospective_anchor := private.passport_enrollment_anchor_period(',
+      '        caller_user_id,',
+      '        current_period',
+      '      );',
+      '      passport_available := least(',
+      '        program.passport_duration_weeks::integer,',
+      '        greatest(0, ((current_period - prospective_anchor) / program.period_days)::integer + 1)',
+      '      );',
+      '      community_available := greatest(',
+      '        0,',
+      '        ((current_period - prospective_anchor)',
+      '          / (program.community_interval_weeks * program.period_days))::integer',
+      '      );',
+      '    end if;',
+      '  end if;',
+      '',
+    ].join('\n')
+
+    expect(original.split(originalBranch)).toHaveLength(2)
+    expect(
+      original.split("  community_state text := 'not_enrolled';\n"),
+    ).toHaveLength(2)
+
+    const expected = original
+      .replace(
+        "  community_state text := 'not_enrolled';\n",
+        "  community_state text := 'not_enrolled';\n  access_granted_at timestamptz;\n  prospective_anchor date;\n",
+      )
+      .replace(originalBranch, projectedBranch)
+
+    // Byte-exact: the shipped body differs from 0010 only by the two
+    // declarations and the pre-enrollment projection arm.
+    expect(sql).toContain(expected)
+
+    // The projection reuses the same clamped helper the claim path uses, so the
+    // read and the write cannot disagree about the anchor.
+    expect(expected).toContain('private.passport_enrollment_anchor_period(')
+    // The pre-enrollment branch still reports no enrollment; only counts move.
+    expect(expected).not.toMatch(/else\s+passport_state :=/i)
+    expect(executable(sql)).not.toMatch(
+      /passport_state := 'active'[\s\S]{0,200}access_granted_at/i,
+    )
+    // A caller with no grant timestamp keeps the pre-0034 zeros: the whole
+    // projection sits behind `if access_granted_at is not null`.
+    expect(expected).toContain('if access_granted_at is not null then')
+  })
+
   it('backs every gate and anchor claim with live SQL assertions', () => {
     const behavior = executable(behavioralSql)
     const evidence = [
@@ -361,6 +451,14 @@ describe('0034 economy access flag', () => {
       'Community Die did not inherit the economy access anchor',
       'A user with no economy access row did not anchor the passport to the claim week',
       'A future economy access grant was not clamped to the claim week',
+      'The ungated fixture user unexpectedly has an economy access row',
+      'A user with no economy access row was projected non-zero catch-up',
+      'A gate row with no grant timestamp was projected non-zero catch-up',
+      'A gate row with no grant timestamp did not fall back to the claim week',
+      'A disabled gate row lost its stamped passport anchor',
+      'The never-claimed fixture user unexpectedly has an enrollment',
+      'A flagged never-claimed user was told they have no passport claims',
+      'The projected passport catch-up did not match what the claim path minted',
       'Authenticated economy access update unexpectedly succeeded',
       'Authenticated economy access insert unexpectedly succeeded',
       'Authenticated set_user_economy_access unexpectedly succeeded',
@@ -415,6 +513,37 @@ describe('0034 economy access flag', () => {
     )
     expect(behavior).toMatch(
       /enrollment\.enrolled_period_start is distinct from \(claim_period - 35\)/i,
+    )
+
+    // Every period in the suite derives from one fixed clock, so a UTC-Monday
+    // rollover mid-transaction cannot make fixtures and assertions disagree.
+    expect(behavior).not.toMatch(
+      /date_trunc\('week', statement_timestamp\(\)/i,
+    )
+    expect(behavior).not.toMatch(
+      /private\.utc_monday_period_start\(statement_timestamp\(\)\)/i,
+    )
+    expect(behavior).toMatch(
+      /date_trunc\('week', transaction_timestamp\(\) at time zone 'UTC'\)/i,
+    )
+
+    // The pre-enrollment projection is pinned on both sides of the branch: a
+    // flagged backdated user sees catch-up, an ungated user still sees zero.
+    expect(behavior).toMatch(
+      /projected #>> '\{passport,availableClaimCount\}'\)::integer is distinct from 6/i,
+    )
+    expect(behavior).toMatch(
+      /projected #>> '\{passport,catchUpClaimCount\}'\)::integer is distinct from 6/i,
+    )
+    expect(behavior).toMatch(
+      /pre_claim_status #>> '\{passport,availableClaimCount\}'\)::integer is distinct from 0/i,
+    )
+    // 'not_enrolled' and a null enrolledPeriodStart survive the projection.
+    expect(behavior).toMatch(
+      /projected #>> '\{passport,state\}'\) is distinct from 'not_enrolled'/i,
+    )
+    expect(behavior).toMatch(
+      /projected #> '\{passport,enrolledPeriodStart\}'\) is distinct from 'null'::jsonb/i,
     )
   })
 })

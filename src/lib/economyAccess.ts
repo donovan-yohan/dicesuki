@@ -21,15 +21,31 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * rewards keep accruing server-side for un-flagged players. The wallet is
  * simply invisible until the flag is on.
  *
- * This module is fail-CLOSED: any error, any missing row, any unconfigured
- * Supabase project resolves to "no access". A transient network failure must
- * never leak the storefront to a player who is not supposed to see it.
+ * This module is fail-CLOSED on a FIRST read: a missing row, an unconfigured
+ * project, or a failed read all yield `enabled: false`, so a transient network
+ * failure can never leak the storefront to a player who should not see it.
+ *
+ * A failed read is reported as `resolved: false` so callers can tell "the
+ * database says off" from "we could not ask". Only the former is an answer.
+ * See `useAuthStore.initialize` for why that matters on re-reads.
  */
 
 /** Client-side economy-access shape (camelCase), mapped from the row. */
 export interface EconomyAccess {
-  /** True only when the operator has explicitly enabled this account. */
+  /**
+   * False whenever `resolved` is false — never read `enabled` as an answer
+   * unless the read actually reached the database.
+   */
   enabled: boolean
+  /**
+   * True when the database answered — including the common "no row, therefore
+   * off" answer. False only when the read FAILED (PostgREST error, throw,
+   * offline). The distinction matters on re-reads: `onAuthStateChange` fires on
+   * every hourly token refresh, and treating a network blip as an authoritative
+   * "off" would yank the storefront out from under a flagged player mid-session
+   * (and hide the pending-purchase banner from someone who just paid).
+   */
+  resolved: boolean
   /**
    * When the flag was FIRST enabled, or null if it never has been. Set once by
    * the admin RPC and never moved, because it is the New Collector Passport's
@@ -41,6 +57,14 @@ export interface EconomyAccess {
 /** The default for guests, signed-out users, unconfigured projects, and errors. */
 export const NO_ECONOMY_ACCESS: EconomyAccess = Object.freeze({
   enabled: false,
+  resolved: true,
+  grantedAt: null,
+})
+
+/** The read failed. Callers keep whatever they already knew for this user. */
+export const UNKNOWN_ECONOMY_ACCESS: EconomyAccess = Object.freeze({
+  enabled: false,
+  resolved: false,
   grantedAt: null,
 })
 
@@ -68,15 +92,18 @@ export async function fetchEconomyAccess(
       .eq('user_id', userId)
       .maybeSingle()
 
-    if (error || !data) return NO_ECONOMY_ACCESS
+    if (error) return UNKNOWN_ECONOMY_ACCESS
+    // No row is a real answer, not a failure: the table is written only by the
+    // admin RPC, so a player who was never flagged simply has no row.
+    if (!data) return NO_ECONOMY_ACCESS
 
     const row = data as EconomyAccessRow
     return {
       enabled: row.economy_access === true,
+      resolved: true,
       grantedAt: row.economy_access_granted_at ?? null,
     }
   } catch {
-    // Fail closed. Never surface economy chrome because a fetch threw.
-    return NO_ECONOMY_ACCESS
+    return UNKNOWN_ECONOMY_ACCESS
   }
 }

@@ -19,11 +19,19 @@
 -- were never earned. Existing enrollments keep their original anchor; the new
 -- anchor applies only to enrollments created from now on.
 --
+-- public.get_earned_reward_status() is re-created for the same reason. Once an
+-- enrollment row exists it already derives everything from
+-- enrolled_period_start and so follows the new anchor for free. Its
+-- pre-enrollment branch, however, hard-coded zero available claims -- which was
+-- a harmless 0-vs-1 disagreement with the claim path before 0034 but becomes a
+-- 0-vs-12 lie for exactly the user this feature creates: someone an operator
+-- flags whose grant week is already weeks in the past and who has never
+-- claimed. The read path now projects the same prospective anchor the claim
+-- path would use, so a freshly flagged player is not told they have nothing.
+-- The state string stays 'not_enrolled' and enrolledPeriodStart stays null --
+-- there genuinely is no enrollment row yet; only the counts become truthful.
+--
 -- Deliberate non-changes:
---   * public.get_earned_reward_status() is untouched. It derives passport and
---     Community state entirely from enrollment.enrolled_period_start, so it
---     follows the new anchor for free once an enrollment row exists, and its
---     pre-enrollment 'not_enrolled' projection is unchanged from 0010.
 --   * The Community Die faucet is untouched. It shares the same
 --     enrolled_period_start anchor and so inherits this change for free. It has
 --     no expiry cliff to mis-fire on: its availability is an unbounded
@@ -81,7 +89,7 @@ create policy "users read their own economy access"
   on public.user_economy_access
   for select
   to authenticated
-  using ((select auth.uid()) = user_id);
+  using ((select auth.uid()) is not null and (select auth.uid()) = user_id);
 
 revoke all on table public.user_economy_access
   from public, anon, authenticated, service_role;
@@ -446,3 +454,151 @@ $$;
 
 revoke all on function private.issue_earned_reward_claim(uuid, text, text, timestamptz)
   from public, anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- Re-anchor the derived read path too.
+--
+-- The body below is 0010_earned_reward_claims.sql lines 870-972 verbatim, with
+-- exactly two changes: the two new declarations, and an `else` arm on the
+-- `enrollment.account_id is not null` branch that projects the prospective
+-- anchor for a flagged-but-never-claimed caller. A caller with no gate row, or
+-- with a gate row whose economy_access_granted_at is still null, keeps the
+-- pre-0034 zeros exactly -- 0010's own suite depends on that.
+--
+-- The projection deliberately reuses private.passport_enrollment_anchor_period,
+-- so the number the player is shown is computed by the same clamped helper the
+-- claim path will use a moment later. The two cannot drift.
+-- ---------------------------------------------------------------------------
+create or replace function public.get_earned_reward_status()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  caller_user_id uuid;
+  program public.earned_reward_program_versions%rowtype;
+  target_account public.wallet_accounts%rowtype;
+  enrollment public.earned_reward_passport_enrollments%rowtype;
+  current_period date := private.utc_monday_period_start(statement_timestamp());
+  weekly_credited integer := 0;
+  passport_claimed integer := 0;
+  passport_available integer := 0;
+  community_claimed integer := 0;
+  community_available integer := 0;
+  passport_state text := 'not_enrolled';
+  community_state text := 'not_enrolled';
+  access_granted_at timestamptz;
+  prospective_anchor date;
+begin
+  caller_user_id := private.require_non_anonymous_user();
+  select * into strict program
+  from public.earned_reward_program_versions
+  where id = 'earned-collection@1/rewards@1';
+
+  select * into target_account
+  from public.wallet_accounts
+  where user_id = caller_user_id;
+
+  if found then
+    select count(*) into weekly_credited
+    from public.authoritative_roll_completion_events
+    where account_id = target_account.id
+      and period_start = current_period
+      and credited_slot is not null;
+
+    select * into enrollment
+    from public.earned_reward_passport_enrollments
+    where account_id = target_account.id and program_id = program.id;
+  end if;
+
+  if enrollment.account_id is not null then
+    select count(*) into passport_claimed
+    from public.earned_reward_claim_outcomes
+    where account_id = target_account.id and program_id = program.id and claim_kind = 'passport';
+    select count(*) into community_claimed
+    from public.earned_reward_claim_outcomes
+    where account_id = target_account.id and program_id = program.id and claim_kind = 'community';
+
+    passport_available := least(
+      program.passport_duration_weeks::integer,
+      greatest(0, ((current_period - enrollment.enrolled_period_start) / program.period_days)::integer + 1)
+    );
+    community_available := greatest(
+      0,
+      ((current_period - enrollment.enrolled_period_start)
+        / (program.community_interval_weeks * program.period_days))::integer
+    );
+    passport_state := case
+      when passport_claimed >= program.passport_duration_weeks then 'complete'
+      else 'active'
+    end;
+    community_state := case
+      when community_available > community_claimed then 'claimable'
+      else 'waiting'
+    end;
+  else
+    select access.economy_access_granted_at into access_granted_at
+    from public.user_economy_access as access
+    where access.user_id = caller_user_id;
+
+    if access_granted_at is not null then
+      prospective_anchor := private.passport_enrollment_anchor_period(
+        caller_user_id,
+        current_period
+      );
+      passport_available := least(
+        program.passport_duration_weeks::integer,
+        greatest(0, ((current_period - prospective_anchor) / program.period_days)::integer + 1)
+      );
+      community_available := greatest(
+        0,
+        ((current_period - prospective_anchor)
+          / (program.community_interval_weeks * program.period_days))::integer
+      );
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'programId', program.id,
+    'economyEditionId', program.economy_edition_id,
+    'asOf', statement_timestamp(),
+    'weekStart', current_period,
+    'weeklyRolls', jsonb_build_object(
+      'creditedRolls', weekly_credited,
+      'maximumCreditedRolls', program.maximum_rewarded_rolls,
+      'starsPerRoll', program.roll_reward_stars,
+      'starsEarned', weekly_credited * program.roll_reward_stars
+    ),
+    'passport', jsonb_build_object(
+      'state', passport_state,
+      'enrolledPeriodStart', enrollment.enrolled_period_start,
+      'claimedCount', passport_claimed,
+      'availableClaimCount', passport_available,
+      'catchUpClaimCount', greatest(0, passport_available - passport_claimed),
+      'maximumClaims', program.passport_duration_weeks
+    ),
+    'community', jsonb_build_object(
+      'state', community_state,
+      'claimedCount', community_claimed,
+      'availableClaimCount', community_available,
+      'catchUpClaimCount', greatest(0, community_available - community_claimed),
+      'intervalWeeks', program.community_interval_weeks,
+      'nextEligiblePeriodStart', case
+        when enrollment.account_id is null then null
+        else enrollment.enrolled_period_start
+          + ((community_claimed + 1) * program.community_interval_weeks * program.period_days)
+      end
+    )
+  );
+end;
+$$;
+
+comment on function public.get_earned_reward_status() is
+  'Authenticated non-anonymous derived reward status. Passport completion and catch-up are computed from immutable enrollment/claim history; before enrollment the counts are projected from the economy-access grant week so the read path cannot understate what the claim path will mint.';
+
+revoke all on function public.get_earned_reward_status()
+  from public, anon, authenticated, service_role;
+grant execute on function public.get_earned_reward_status()
+  to authenticated;
