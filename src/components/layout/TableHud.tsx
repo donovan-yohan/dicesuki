@@ -13,7 +13,7 @@ import type { DiceShape } from '../../types/diceShape'
 import { BottomNav } from './BottomNav'
 import { CornerIcon } from './CornerIcon'
 import { DiceToolbar } from './DiceToolbar'
-import { HUD_LAYOUT } from './hudLayout'
+import { getHudClusterControlBottom, HUD_CLUSTER } from './hudLayout'
 import { UIToggleMini } from './UIToggleMini'
 
 export interface TableHudProps {
@@ -72,6 +72,12 @@ export function TableHud({
   // eye) only exists when no overlay owns the screen.
   const showControlCluster = !isOverlayOpen
 
+  // Slots come from the cluster stack, not from per-button constants: a control
+  // with no slot on this form factor (motion, on desktop) is not rendered, and
+  // the controls above it collapse down so the gaps stay uniform everywhere.
+  const rotateBottom = getHudClusterControlBottom('rotate', isMobile)
+  const motionBottom = getHudClusterControlBottom('motion', isMobile)
+
   return (
     <>
       {isUIVisible && (
@@ -110,12 +116,12 @@ export function TableHud({
             </CornerIcon>
           )}
 
-          {showControlCluster && (
+          {showControlCluster && rotateBottom !== null && (
             <button
               type="button"
               onClick={onRotateView}
               className="fixed left-4 z-40 flex items-center justify-center rounded-full transition-all hover:scale-105"
-              style={bottomLeftControlStyle(HUD_LAYOUT.rotate.bottom)}
+              style={bottomLeftControlStyle(rotateBottom)}
               aria-label="Rotate view 90 degrees"
               title="Rotate my view 90°"
               data-testid="rotate-view-button"
@@ -123,13 +129,13 @@ export function TableHud({
               🔄
             </button>
           )}
-          {showControlCluster && isMobile && (
+          {showControlCluster && motionBottom !== null && (
             <button
               type="button"
               onClick={onToggleMotion}
               className="fixed left-4 z-40 flex items-center justify-center rounded-full transition-all hover:scale-105"
               style={{
-                ...bottomLeftControlStyle(HUD_LAYOUT.motion.bottom),
+                ...bottomLeftControlStyle(motionBottom),
                 // Active state swaps the fill to accent, so the label has to
                 // swap with it — text.primary is not legible on every accent.
                 backgroundColor: motionMode ? 'var(--color-accent)' : 'var(--color-surface)',
@@ -145,6 +151,7 @@ export function TableHud({
 
           <DiceToolbar
             isOpen={isDiceManagerOpen}
+            isMobile={isMobile}
             onAddDice={onAddDice}
             onClearAllDice={onClearAllDice}
             onOpenInventory={onOpenInventory}
@@ -167,8 +174,8 @@ export function TableHud({
 function bottomLeftControlStyle(bottom: number) {
   return {
     bottom: `${bottom}px`,
-    width: `${HUD_LAYOUT.rotate.size}px`,
-    height: `${HUD_LAYOUT.rotate.size}px`,
+    width: `${HUD_CLUSTER.size}px`,
+    height: `${HUD_CLUSTER.size}px`,
     backgroundColor: 'var(--color-surface)',
     color: 'var(--color-text-primary)',
     boxShadow: 'var(--shadow-md)',

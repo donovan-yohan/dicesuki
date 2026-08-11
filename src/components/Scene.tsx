@@ -491,8 +491,13 @@ function SceneContent({ onReady }: SceneProps) {
   const detectedRenderDeviceTierRef = useRef<RenderDeviceTier | null>(null)
   const railBeforeOverlayRef = useRef(false)
 
-  // Detect if mobile
-  const [isMobile, setIsMobile] = useState(false)
+  // Detect if mobile. Resolved synchronously on the first render, not in the
+  // effect below: the HUD cluster collapses when the mobile-only motion toggle
+  // is absent, so a `false` first paint would lay a phone out as desktop and
+  // then reflow the whole cluster one slot when the effect landed.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 768,
+  )
   useEffect(() => {
     let isCancelled = false
 

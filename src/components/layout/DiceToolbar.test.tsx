@@ -67,12 +67,14 @@ function makeMultiplayerDie(overrides: Partial<MultiplayerDie>): MultiplayerDie 
 }
 
 function renderToolbar(overrides: {
+  isMobile?: boolean
   onAddDice?: (type: DiceShape, inventoryDieId?: string) => void
   onClearAllDice?: () => void
   onOpenInventory?: () => void
 } = {}) {
   const props = {
     isOpen: true,
+    isMobile: overrides.isMobile ?? true,
     onAddDice: overrides.onAddDice ?? vi.fn(),
     onClearAllDice: overrides.onClearAllDice ?? vi.fn(),
     onOpenInventory: overrides.onOpenInventory ?? vi.fn(),
