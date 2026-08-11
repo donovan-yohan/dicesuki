@@ -300,21 +300,59 @@ describe('DiceToolbar', () => {
     fireEvent.click(star)
 
     expect(star).toHaveAttribute('aria-expanded', 'true')
-    const flyout = screen.getByLabelText('Favorite D20 dice', { selector: 'div' })
+    const flyout = screen.getByLabelText('Favorite D20 dice tray')
     expect(flyout.id).toBeTruthy()
     expect(star).toHaveAttribute('aria-controls', flyout.id)
   })
 
-  it('marks the empty hint as a status so it is announced when it appears', () => {
+  it('announces the empty hint through a live region that predates it', () => {
+    renderToolbar()
+
+    // Present and empty from the rail's first render. A region portalled in
+    // together with its text is the shape screen readers do not announce, so
+    // the region must exist BEFORE the copy lands in it.
+    const liveRegion = screen.getByTestId('dice-toolbar-live-region')
+    expect(liveRegion).toHaveTextContent('')
+
+    fireEvent.click(screen.getByTestId('quick-slot-star-d8'))
+
+    expect(liveRegion).toHaveTextContent(/star dice in the inventory panel/i)
+    // Same sentence the sighted player reads — one source, so they cannot drift.
+    expect(liveRegion.textContent)
+      .toBe(screen.getByTestId('favorite-dice-empty-hint').textContent)
+
+    fireEvent.click(screen.getByTestId('favorite-dice-hint-backdrop'))
+    expect(liveRegion).toHaveTextContent('')
+  })
+
+  it('keeps the empty hint out of the accessibility tree as a second, silent copy', () => {
     renderToolbar()
 
     fireEvent.click(screen.getByTestId('quick-slot-star-d8'))
 
-    // Nothing takes focus, so without a live region a screen-reader user gets
-    // no evidence the star did anything.
-    expect(screen.getByTestId('favorite-dice-empty-hint')).toHaveAttribute('role', 'status')
+    // An `aria-label` here would make the atomic region read its name instead
+    // of the actionable half of the copy.
+    const hint = screen.getByTestId('favorite-dice-empty-hint')
+    expect(hint).not.toHaveAttribute('role')
+    expect(hint).not.toHaveAttribute('aria-label')
     expect(screen.getByTestId('quick-slot-star-d8'))
       .toHaveAttribute('aria-label', 'Favorite D8 dice (none yet)')
+  })
+
+  it('stops advertising a controlled panel once the rail is on its way out', () => {
+    const { rerender } = renderToolbar()
+
+    fireEvent.click(screen.getByTestId('quick-slot-star-d8'))
+    expect(screen.getByTestId('quick-slot-star-d8')).toHaveAttribute('aria-expanded', 'true')
+
+    rerender({ isOpen: false })
+
+    // The star outlives the panel by an exit animation, so asserting on the
+    // star would depend on that timing. The invariant that matters holds either
+    // way: once the rail is dismissed nothing claims to be expanded, and no
+    // `aria-controls` points at a panel that is gone.
+    expect(document.querySelectorAll('[aria-expanded="true"]')).toHaveLength(0)
+    expect(document.querySelectorAll('[aria-controls]')).toHaveLength(0)
   })
 
   it('opens a favorite dice flyout with 3d preview targets and spawns the tapped favorite', () => {
@@ -325,7 +363,7 @@ describe('DiceToolbar', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Favorite D20 dice' }))
 
-    expect(screen.getByLabelText('Favorite D20 dice', { selector: 'div' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Favorite D20 dice tray')).toBeInTheDocument()
     expect(screen.getByTestId('inventory-preview-canvas')).toBeInTheDocument()
     expect(screen.getAllByTestId('favorite-dice-preview')).toHaveLength(1)
 

@@ -42,6 +42,18 @@ const ALL_DICE_TYPES: Array<{ type: DiceShape; label: string }> = [
   { type: 'd20', label: 'D20' },
 ]
 
+const labelForType = (type: DiceShape): string =>
+  ALL_DICE_TYPES.find(entry => entry.type === type)?.label ?? type.toUpperCase()
+
+/**
+ * One definition of the empty-favourites copy, read by both the visible hint and
+ * the rail's live region. Two hand-kept copies of the same sentence would drift,
+ * and a reader hearing one sentence while the screen shows another is worse than
+ * either alone.
+ */
+const favoritesEmptyHint = (label: string): string =>
+  `No favorite ${label} dice yet. Star dice in the Inventory panel to keep them one tap away here.`
+
 /**
  * Track the visual viewport height so the rail can be clamped to the space it
  * actually has. `visualViewport` follows mobile browser chrome collapsing,
@@ -126,6 +138,20 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
     return grouped
   }, [inventoryDice, unavailableInventoryIds])
 
+  /**
+   * The empty-favourites hint's copy, mirrored into the rail's live region.
+   *
+   * The hint itself cannot be the live region: it is portalled in with its text
+   * already inside, and a region inserted together with its content is the one
+   * shape screen readers reliably do NOT announce. The region below is instead
+   * mounted with the rail — in the accessibility tree well before any ★ is
+   * tapped — so writing into it is a change the reader picks up.
+   */
+  const activeFavorites = activeFavoriteType ? favoriteDiceByType.get(activeFavoriteType) : undefined
+  const liveHint = activeFavoriteType && !activeFavorites?.length
+    ? favoritesEmptyHint(labelForType(activeFavoriteType))
+    : ''
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -141,6 +167,15 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
             maxHeight: `${railLane.maxHeight}px`,
           }}
         >
+          <p
+            className="sr-only"
+            role="status"
+            aria-live="polite"
+            data-testid="dice-toolbar-live-region"
+          >
+            {liveHint}
+          </p>
+
           {/* The negative margin widens only the scroll box, so the ★ sub-buttons
               that overhang each slot are not clipped while the slots themselves
               stay on the same x. */}
@@ -244,9 +279,14 @@ function DiceQuickSlot({
   const actionLabel = `Add ${label} — your owned dice first, then unlimited basics`
   // A noun, not a Show/Hide verb: `aria-expanded` already reports the open
   // state, and the verb form went stale on the empty branch (it kept saying
-  // "Show" while the hint was on screen).
+  // "Show" while the hint was on screen). The native tooltip keeps the verb —
+  // it is sighted-only and has no `aria-expanded` equivalent to lean on.
   const favoritesLabel = `Favorite ${label} dice${hasFavorites ? '' : ' (none yet)'}`
+  const favoritesTitle = `${isFavoriteOpen ? 'Hide' : 'Show'} favorite ${label} dice`
   const favoritesPanelId = `quick-slot-favorites-${type}`
+  // The panel only exists while the slot is present; advertising it through the
+  // rail's exit animation would leave `aria-controls` pointing at nothing.
+  const isPanelOpen = isFavoriteOpen && isPresent
 
   return (
     <motion.div
@@ -315,16 +355,16 @@ function DiceQuickSlot({
           border: `2px solid ${accentColor}`,
         }}
         aria-label={favoritesLabel}
-        title={favoritesLabel}
-        aria-expanded={isFavoriteOpen}
-        aria-controls={isFavoriteOpen ? favoritesPanelId : undefined}
+        title={favoritesTitle}
+        aria-expanded={isPanelOpen}
+        aria-controls={isPanelOpen ? favoritesPanelId : undefined}
         data-testid={`quick-slot-star-${type}`}
         data-has-favorites={hasFavorites}
       >
         ★
       </button>
 
-      {isFavoriteOpen && isPresent && (
+      {isPanelOpen && (
         hasFavorites ? (
           <FavoriteDiceFlyout
             anchorRef={slotRef}
@@ -392,7 +432,7 @@ function QuickSlotFlyoutPanel({
   children,
 }: {
   anchor: { top: number; left: number }
-  ariaLabel: string
+  ariaLabel?: string
   className?: string
   id?: string
   onClick?: () => void
@@ -459,7 +499,10 @@ function FavoriteDiceFlyout({
   return createPortal(
     <QuickSlotFlyoutPanel
       anchor={anchor}
-      ariaLabel={`Favorite ${label} dice`}
+      // "tray", so the panel does not share an accessible name with the ★ that
+      // opens it — two nodes answering to "Favorite D20 dice" is ambiguous to
+      // read out and ambiguous to query.
+      ariaLabel={`Favorite ${label} dice tray`}
       className="z-40"
       id={panelId}
     >
@@ -534,22 +577,24 @@ function FavoriteDiceEmptyHint({
         className="fixed inset-0 z-[71]"
         data-testid="favorite-dice-hint-backdrop"
       />
+      {/* No `role="status"` and no `aria-label` here: this panel is portalled in
+          with its copy already inside, which is precisely the live region a
+          reader will not announce, and an atomic region with a name gets read as
+          its name — dropping the actionable half. The rail owns the live region
+          instead; this is the sighted rendering of the same sentence. */}
       <QuickSlotFlyoutPanel
         anchor={anchor}
-        ariaLabel={`No favorite ${label} dice yet`}
         // Above the catcher, so the hint the catcher exists for stays readable.
         className="z-[72]"
         id={panelId}
         onClick={onDismiss}
-        role="status"
         testId="favorite-dice-empty-hint"
       >
         <p
           className="p-3 text-xs leading-snug"
           style={{ color: currentTheme.tokens.colors.text.primary }}
         >
-          No favorite {label} dice yet. Star dice in the Inventory panel to keep
-          them one tap away here.
+          {favoritesEmptyHint(label)}
         </p>
       </QuickSlotFlyoutPanel>
     </>,
