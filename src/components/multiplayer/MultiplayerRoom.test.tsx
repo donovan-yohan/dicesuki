@@ -298,13 +298,29 @@ describe('MultiplayerRoom join-phase server errors (#264)', () => {
   it('resolves the loader into stale-session copy when the token is rejected', async () => {
     await joinIntoLoadingState()
 
-    rejectJoin('AUTH_REQUIRED', 'Authentication token is invalid or expired')
+    rejectJoin('AUTH_INVALID', 'Authentication token is invalid or expired')
 
     const notice = await screen.findByTestId('join-auth-notice')
     expect(notice).toHaveTextContent('Your session has expired')
     expect(notice).toHaveTextContent('Sign out and sign back in')
     // Distinct from room-gone / server-down, and retryable.
     expect(screen.queryByTestId('join-preflight-notice')).toBeNull()
+    expect(screen.getByText('Try Again')).toBeInTheDocument()
+  })
+
+  it('asks an unauthenticated player to sign in, with no sign-out to offer', async () => {
+    // AUTH_REQUIRED is the opposite problem from a stale token: there is no
+    // session to discard, so "sign out" would be a dead end.
+    const signOut = vi.fn().mockResolvedValue(undefined)
+    useAuthStore.setState({ status: 'authenticated', signOut })
+    await joinIntoLoadingState()
+
+    rejectJoin('AUTH_REQUIRED', 'Authentication required to join this room')
+
+    const notice = await screen.findByTestId('join-auth-notice')
+    expect(notice).toHaveTextContent('Sign in to join this room')
+    expect(notice).not.toHaveTextContent('Your session has expired')
+    expect(screen.queryByTestId('join-auth-sign-out')).toBeNull()
     expect(screen.getByText('Try Again')).toBeInTheDocument()
   })
 
@@ -321,8 +337,11 @@ describe('MultiplayerRoom join-phase server errors (#264)', () => {
 
   it('retries the join from the error state', async () => {
     await joinIntoLoadingState()
-    rejectJoin('AUTH_REQUIRED', 'Authentication token is invalid or expired')
+    rejectJoin('AUTH_REQUIRED', 'Authentication required to join this room')
     await screen.findByTestId('join-auth-notice')
+    // failJoin parked the connection: socket dropped, auto-reconnect suppressed.
+    expect(useMultiplayerStore.getState().socket).toBeNull()
+    expect(useMultiplayerStore.getState().intentionalDisconnect).toBe(true)
 
     fireEvent.click(screen.getByText('Try Again'))
 
@@ -330,6 +349,12 @@ describe('MultiplayerRoom join-phase server errors (#264)', () => {
       expect(useMultiplayerStore.getState().connectionErrorCode).toBeNull()
       expect(useMultiplayerStore.getState().lastJoin).toMatchObject({ roomId: 'ROOM42' })
     })
+    const state = useMultiplayerStore.getState()
+    // Not just cleared state: a socket is genuinely being opened again, and the
+    // suppression failJoin set is lifted so a later drop can auto-reconnect.
+    expect(state.intentionalDisconnect).toBe(false)
+    expect(state.socket).not.toBeNull()
+    expect(state.connectionStatus).toBe('connecting')
     expect(screen.queryByTestId('join-auth-notice')).toBeNull()
   })
 
@@ -347,7 +372,7 @@ describe('MultiplayerRoom join-phase server errors (#264)', () => {
   it('hides the sign-out affordance for a guest', async () => {
     await joinIntoLoadingState()
 
-    rejectJoin('AUTH_REQUIRED', 'Authentication token is invalid or expired')
+    rejectJoin('AUTH_INVALID', 'Authentication token is invalid or expired')
 
     await screen.findByTestId('join-auth-notice')
     expect(screen.queryByTestId('join-auth-sign-out')).toBeNull()

@@ -325,6 +325,23 @@ const AUTH_REFRESH_RETRY_CODES = new Set(['AUTH_INVALID'])
 
 const STALE_SESSION_MESSAGE =
   'Your sign-in session is no longer valid for this room server.'
+const SIGN_IN_REQUIRED_MESSAGE =
+  'This room server needs you signed in before it will seat you.'
+
+/**
+ * Player-facing text for a join the server refused.
+ *
+ * The two auth codes are different problems with different remedies — a
+ * credential the server will not accept (`AUTH_INVALID`, fixed by replacing the
+ * session) versus no usable credential at all (`AUTH_REQUIRED`, fixed by
+ * signing in) — so each gets its own copy rather than the server's
+ * developer-facing detail. Every other code is reported verbatim.
+ */
+export function joinFailureMessage(code: string, serverMessage: string): string {
+  if (code === 'AUTH_INVALID') return STALE_SESSION_MESSAGE
+  if (code === 'AUTH_REQUIRED') return SIGN_IN_REQUIRED_MESSAGE
+  return serverMessage
+}
 
 /** True while a join is in flight: the socket exists but `room_state` has not landed. */
 function isJoinPhase(get: StoreGet): boolean {
@@ -353,9 +370,7 @@ function failJoin(
   }
   set({
     intentionalDisconnect: true,
-    connectionError: AUTH_JOIN_ERROR_CODES.has(error.code)
-      ? STALE_SESSION_MESSAGE
-      : error.message,
+    connectionError: joinFailureMessage(error.code, error.message),
     connectionErrorCode: error.code,
     connectionStatus: 'disconnected',
     lastJoin: null,
@@ -390,7 +405,7 @@ async function retryJoinWithRefreshedSession(
   }
   // The room may have been left (or joined by a racing retry) while we awaited.
   if (get().socket !== socket || get().localPlayerId !== null) return
-  if (!authToken || !socket || !replay || socket.readyState !== WebSocket.OPEN) {
+  if (!authToken || !socket || !replay) {
     failJoin(set, get, error)
     return
   }
@@ -402,7 +417,21 @@ async function retryJoinWithRefreshedSession(
     reconnectToken: replay.token,
     authToken,
   }
-  socket.send(JSON.stringify(joinMsg))
+  // The socket can drop while the refresh is in flight, so the liveness check
+  // sits immediately before the send — and a `send` that throws anyway (a
+  // socket torn down mid-call) is caught rather than escaping as an unhandled
+  // rejection. Either path means the retry never reaches the server, and nothing
+  // else would resolve the join, so it has to fail terminally here instead of
+  // leaving the loader spinning (#264).
+  try {
+    if (socket.readyState !== WebSocket.OPEN) {
+      failJoin(set, get, error)
+      return
+    }
+    socket.send(JSON.stringify(joinMsg))
+  } catch {
+    failJoin(set, get, error)
+  }
 }
 
 /**
@@ -505,6 +534,12 @@ function establishConnection(
   }
 
   socket.onmessage = (event) => {
+    // A superseded socket must not speak for the store. `reconnectNow()` can
+    // replace the socket while the old one still has frames queued, and since
+    // #264 an `error` frame is terminal for whatever join is in flight — so a
+    // dying socket's rejection could otherwise kill its replacement's join.
+    // `onopen`/`onclose` already guard this way; `onmessage` now matches.
+    if (get().socket !== socket) return
     try {
       const msg: ServerMessage = JSON.parse(event.data)
       get().handleServerMessage(msg)

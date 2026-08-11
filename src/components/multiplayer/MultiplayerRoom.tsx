@@ -244,11 +244,14 @@ export function MultiplayerRoom() {
   // Show join form if not connected
   if (!hasJoined || connectionStatus === 'disconnected') {
     const showConnectionError = hasJoined && connectionError
-    // A stale/invalid Supabase session is its own failure mode: unlike a gone
-    // room or a sleeping server, retrying as-is cannot help until the session is
-    // renewed, so it gets sign-out copy instead of the generic banner (#264).
+    // An auth rejection is its own failure mode: unlike a gone room or a
+    // sleeping server, retrying as-is cannot help until the session changes, so
+    // it gets its own banner instead of the generic one (#264). The two codes
+    // are different problems — AUTH_REQUIRED means there is no session to fix,
+    // so it asks for a sign-in and offers no sign-out button.
     const showStaleSessionError =
       Boolean(showConnectionError) && isStaleSessionErrorCode(connectionErrorCode)
+    const needsSignIn = connectionErrorCode === 'AUTH_REQUIRED'
     return (
       <div style={{
         width: '100vw',
@@ -322,10 +325,20 @@ export function MultiplayerRoom() {
               lineHeight: 1.4,
             }}
           >
-            <strong>Your session has expired.</strong> The room server rejected
-            your sign-in, so we couldn&apos;t get you a seat. Sign out and sign
-            back in, then use Try Again below.
-            {authStatus === 'authenticated' && (
+            {needsSignIn ? (
+              <>
+                <strong>Sign in to join this room.</strong> The room server
+                would not seat you without an account. Sign in, then use Try
+                Again below.
+              </>
+            ) : (
+              <>
+                <strong>Your session has expired.</strong> The room server
+                rejected your sign-in, so we couldn&apos;t get you a seat. Sign
+                out and sign back in, then use Try Again below.
+              </>
+            )}
+            {!needsSignIn && authStatus === 'authenticated' && (
               <div style={{ marginTop: '0.75rem' }}>
                 <button
                   type="button"
