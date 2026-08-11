@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { MultiplayerRoom } from './MultiplayerRoom'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { usePlayerIdentityStore, DEFAULT_PLAYER_COLOR } from '../../store/usePlayerIdentityStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { saveRoomSession } from '../../lib/roomSession'
 import {
   COLDSTART_DEADLINE_MS,
@@ -247,5 +248,133 @@ describe('MultiplayerRoom join deep-link flow (#78)', () => {
     expect(screen.getByTestId('removed-from-room-notice')).toHaveTextContent(
       'The host removed you from the room.',
     )
+  })
+})
+
+describe('MultiplayerRoom join-phase server errors (#264)', () => {
+  beforeEach(() => {
+    useMultiplayerStore.getState().reset()
+    usePlayerIdentityStore.setState({ displayName: '', color: DEFAULT_PLAYER_COLOR })
+    useAuthStore.setState({ status: 'guest' })
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  /**
+   * Join a room and land on the "preparing your room" loader, exactly where the
+   * bug left players stranded: socket open, `room_state` not yet received.
+   */
+  async function joinIntoLoadingState() {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200 }))
+    vi.stubGlobal('WebSocket', StubSocket)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderRoom()
+
+    fireEvent.change(screen.getByPlaceholderText('Display name'), { target: { value: 'Sam' } })
+    fireEvent.click(screen.getByText('Join'))
+
+    await waitFor(() => {
+      expect(useMultiplayerStore.getState().lastJoin).toMatchObject({ roomId: 'ROOM42' })
+    })
+    // The join form is gone: only the branded loader is on screen.
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('Display name')).toBeNull()
+    })
+  }
+
+  /** Deliver a server `error` on the still-open, not-yet-joined socket. */
+  function rejectJoin(code: string, message: string) {
+    act(() => {
+      useMultiplayerStore.setState({ connectionStatus: 'connected', localPlayerId: null })
+      useMultiplayerStore.getState().handleServerMessage({ type: 'error', code, message })
+    })
+  }
+
+  it('resolves the loader into stale-session copy when the token is rejected', async () => {
+    await joinIntoLoadingState()
+
+    rejectJoin('AUTH_INVALID', 'Authentication token is invalid or expired')
+
+    const notice = await screen.findByTestId('join-auth-notice')
+    expect(notice).toHaveTextContent('Your session has expired')
+    expect(notice).toHaveTextContent('Sign out and sign back in')
+    // Distinct from room-gone / server-down, and retryable.
+    expect(screen.queryByTestId('join-preflight-notice')).toBeNull()
+    expect(screen.getByText('Try Again')).toBeInTheDocument()
+  })
+
+  it('asks an unauthenticated player to sign in, with no sign-out to offer', async () => {
+    // AUTH_REQUIRED is the opposite problem from a stale token: there is no
+    // session to discard, so "sign out" would be a dead end.
+    const signOut = vi.fn().mockResolvedValue(undefined)
+    useAuthStore.setState({ status: 'authenticated', signOut })
+    await joinIntoLoadingState()
+
+    rejectJoin('AUTH_REQUIRED', 'Authentication required to join this room')
+
+    const notice = await screen.findByTestId('join-auth-notice')
+    expect(notice).toHaveTextContent('Sign in to join this room')
+    expect(notice).not.toHaveTextContent('Your session has expired')
+    expect(screen.queryByTestId('join-auth-sign-out')).toBeNull()
+    expect(screen.getByText('Try Again')).toBeInTheDocument()
+  })
+
+  it('resolves the loader for a generic error code too, rather than spinning', async () => {
+    await joinIntoLoadingState()
+
+    rejectJoin('ROOM_FULL', 'Room is full (8/8 players)')
+
+    const notice = await screen.findByTestId('join-connection-notice')
+    expect(notice).toHaveTextContent('Connection failed')
+    expect(notice).toHaveTextContent('Room is full (8/8 players)')
+    expect(screen.queryByTestId('join-auth-notice')).toBeNull()
+  })
+
+  it('retries the join from the error state', async () => {
+    await joinIntoLoadingState()
+    rejectJoin('AUTH_REQUIRED', 'Authentication required to join this room')
+    await screen.findByTestId('join-auth-notice')
+    // failJoin parked the connection: socket dropped, auto-reconnect suppressed.
+    expect(useMultiplayerStore.getState().socket).toBeNull()
+    expect(useMultiplayerStore.getState().intentionalDisconnect).toBe(true)
+
+    fireEvent.click(screen.getByText('Try Again'))
+
+    await waitFor(() => {
+      expect(useMultiplayerStore.getState().connectionErrorCode).toBeNull()
+      expect(useMultiplayerStore.getState().lastJoin).toMatchObject({ roomId: 'ROOM42' })
+    })
+    const state = useMultiplayerStore.getState()
+    // Not just cleared state: a socket is genuinely being opened again, and the
+    // suppression failJoin set is lifted so a later drop can auto-reconnect.
+    expect(state.intentionalDisconnect).toBe(false)
+    expect(state.socket).not.toBeNull()
+    expect(state.connectionStatus).toBe('connecting')
+    expect(screen.queryByTestId('join-auth-notice')).toBeNull()
+  })
+
+  it('offers sign-out only to a signed-in player', async () => {
+    const signOut = vi.fn().mockResolvedValue(undefined)
+    useAuthStore.setState({ status: 'authenticated', signOut })
+    await joinIntoLoadingState()
+
+    rejectJoin('AUTH_INVALID', 'Authentication token is invalid or expired: InvalidAlgorithm')
+
+    fireEvent.click(await screen.findByTestId('join-auth-sign-out'))
+    expect(signOut).toHaveBeenCalled()
+  })
+
+  it('hides the sign-out affordance for a guest', async () => {
+    await joinIntoLoadingState()
+
+    rejectJoin('AUTH_INVALID', 'Authentication token is invalid or expired')
+
+    await screen.findByTestId('join-auth-notice')
+    expect(screen.queryByTestId('join-auth-sign-out')).toBeNull()
   })
 })

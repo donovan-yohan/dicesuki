@@ -1,6 +1,7 @@
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
-import { useMultiplayerStore } from '../../store/useMultiplayerStore'
+import { isStaleSessionErrorCode, useMultiplayerStore } from '../../store/useMultiplayerStore'
+import { useAuthStore } from '../../store/useAuthStore'
 import { useMultiplayerDiceBackend } from '../../hooks/useMultiplayerDiceBackend'
 import { DiceBackendProvider } from '../../contexts/DiceBackendProvider'
 import { useDiceStore } from '../../store/useDiceStore'
@@ -23,6 +24,7 @@ export function MultiplayerRoom() {
   const [searchParams] = useSearchParams()
   const connectionStatus = useMultiplayerStore((s) => s.connectionStatus)
   const connectionError = useMultiplayerStore((s) => s.connectionError)
+  const connectionErrorCode = useMultiplayerStore((s) => s.connectionErrorCode)
   const roomClosedNotice = useMultiplayerStore((s) => s.roomClosedNotice)
   const removedFromRoomNotice = useMultiplayerStore((s) => s.removedFromRoomNotice)
   const playerCount = useMultiplayerStore((s) => s.players.size)
@@ -37,6 +39,8 @@ export function MultiplayerRoom() {
   const setRoomTheme = useMultiplayerStore((s) => s.setRoomTheme)
 
   const navigate = useNavigate()
+  const authStatus = useAuthStore((s) => s.status)
+  const signOut = useAuthStore((s) => s.signOut)
   const rememberedName = usePlayerIdentityStore((s) => s.displayName)
   const rememberedColor = usePlayerIdentityStore((s) => s.color)
   const setIdentity = usePlayerIdentityStore((s) => s.setIdentity)
@@ -240,6 +244,14 @@ export function MultiplayerRoom() {
   // Show join form if not connected
   if (!hasJoined || connectionStatus === 'disconnected') {
     const showConnectionError = hasJoined && connectionError
+    // An auth rejection is its own failure mode: unlike a gone room or a
+    // sleeping server, retrying as-is cannot help until the session changes, so
+    // it gets its own banner instead of the generic one (#264). The two codes
+    // are different problems — AUTH_REQUIRED means there is no session to fix,
+    // so it asks for a sign-in and offers no sign-out button.
+    const showStaleSessionError =
+      Boolean(showConnectionError) && isStaleSessionErrorCode(connectionErrorCode)
+    const needsSignIn = connectionErrorCode === 'AUTH_REQUIRED'
     return (
       <div style={{
         width: '100vw',
@@ -298,9 +310,59 @@ export function MultiplayerRoom() {
             <strong>Removed from room.</strong> {removedFromRoomNotice}
           </div>
         )}
-        {showConnectionError && (
+        {showStaleSessionError ? (
           <div
             role="alert"
+            data-testid="join-auth-notice"
+            style={{
+              maxWidth: '28rem',
+              padding: '0.875rem 1rem',
+              borderRadius: '10px',
+              border: '1px solid rgba(248, 113, 113, 0.45)',
+              background: 'rgba(127, 29, 29, 0.45)',
+              color: '#fecaca',
+              fontSize: '0.9rem',
+              lineHeight: 1.4,
+            }}
+          >
+            {needsSignIn ? (
+              <>
+                <strong>Sign in to join this room.</strong> The room server
+                would not seat you without an account. Sign in, then use Try
+                Again below.
+              </>
+            ) : (
+              <>
+                <strong>Your session has expired.</strong> The room server
+                rejected your sign-in, so we couldn&apos;t get you a seat. Sign
+                out and sign back in, then use Try Again below.
+              </>
+            )}
+            {!needsSignIn && authStatus === 'authenticated' && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <button
+                  type="button"
+                  data-testid="join-auth-sign-out"
+                  onClick={() => void signOut()}
+                  style={{
+                    padding: '0.4rem 0.9rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(254, 202, 202, 0.5)',
+                    background: 'transparent',
+                    color: '#fecaca',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
+        ) : showConnectionError ? (
+          <div
+            role="alert"
+            data-testid="join-connection-notice"
             style={{
               maxWidth: '28rem',
               padding: '0.875rem 1rem',
@@ -314,7 +376,7 @@ export function MultiplayerRoom() {
           >
             <strong>Connection failed.</strong> {connectionError}
           </div>
-        )}
+        ) : null}
         {isWaking && (
           <div
             role="status"

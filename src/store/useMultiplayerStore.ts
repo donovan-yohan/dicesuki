@@ -119,6 +119,13 @@ interface MultiplayerState {
   socket: RoomSocket | null
   serverUrl: string
   connectionError: string | null
+  /**
+   * Machine-readable code of the server `error` that failed the join, when the
+   * failure came from the room protocol rather than the transport. Lets the join
+   * surface pick specific copy (e.g. a stale Supabase session) instead of the
+   * generic "Connection failed" banner. `null` for transport-level failures.
+   */
+  connectionErrorCode: string | null
   roomActionError: { code: string; message: string } | null
 
   // Room
@@ -251,6 +258,7 @@ const createInitialState = () => ({
   socket: null as RoomSocket | null,
   serverUrl: getWsServerUrl(),
   connectionError: null as string | null,
+  connectionErrorCode: null as string | null,
   roomActionError: null as { code: string; message: string } | null,
   roomId: null as string | null,
   players: new Map<string, PlayerInfo>(),
@@ -286,18 +294,145 @@ const ROOM_CLOSED_MESSAGE =
 const SOLO_ENGINE_STOPPED_MESSAGE = 'The local dice engine stopped unexpectedly.'
 
 /**
- * Server `error` codes that can only occur while attempting to join (before a
- * `room_state` arrives). These are terminal for the join attempt — retrying with
- * the same input will not help — so we surface them on the join form instead of
- * silently swallowing the error or auto-reconnecting.
+ * Auth rejections the room can raise in place of accepting a `join` (issue #264).
+ *
+ * The server verifies the Supabase access token against its cached JWKS and
+ * answers `AUTH_INVALID` / `AUTH_REQUIRED` *without closing the socket*, so the
+ * client has to treat these as a terminal join failure itself. They get their
+ * own copy on the join surface because the remedy is a fresh session, not a
+ * retry against a different room.
  */
-const JOIN_ERROR_CODES = new Set([
-  'ROOM_FULL',
-  'INVALID_NAME',
-  'INVALID_COLOR',
-  'ALREADY_JOINED',
-  'RECONNECT_UNAUTHORIZED',
-])
+const AUTH_JOIN_ERROR_CODES = new Set(['AUTH_INVALID', 'AUTH_REQUIRED'])
+
+/**
+ * Did this join fail because the player's Supabase session is stale/invalid?
+ * The join surface asks this to choose sign-out copy over the generic banner.
+ */
+export function isStaleSessionErrorCode(code: string | null): boolean {
+  return code !== null && AUTH_JOIN_ERROR_CODES.has(code)
+}
+
+/**
+ * Codes worth one silent self-heal before showing the player anything.
+ *
+ * The realistic cause is an access token minted under a signing key the server
+ * has since rotated away from: supabase-js considers it unexpired and will not
+ * refresh on its own, but exchanging the (opaque) refresh token yields a token
+ * signed by the current key. One re-`join` on the still-open socket fixes it.
+ * Bounded to a single attempt per socket so a genuinely bad session fails fast.
+ */
+const AUTH_REFRESH_RETRY_CODES = new Set(['AUTH_INVALID'])
+
+const STALE_SESSION_MESSAGE =
+  'Your sign-in session is no longer valid for this room server.'
+const SIGN_IN_REQUIRED_MESSAGE =
+  'This room server needs you signed in before it will seat you.'
+
+/**
+ * Player-facing text for a join the server refused.
+ *
+ * The two auth codes are different problems with different remedies — a
+ * credential the server will not accept (`AUTH_INVALID`, fixed by replacing the
+ * session) versus no usable credential at all (`AUTH_REQUIRED`, fixed by
+ * signing in) — so each gets its own copy rather than the server's
+ * developer-facing detail. Every other code is reported verbatim.
+ */
+export function joinFailureMessage(code: string, serverMessage: string): string {
+  if (code === 'AUTH_INVALID') return STALE_SESSION_MESSAGE
+  if (code === 'AUTH_REQUIRED') return SIGN_IN_REQUIRED_MESSAGE
+  return serverMessage
+}
+
+/** True while a join is in flight: the socket exists but `room_state` has not landed. */
+function isJoinPhase(get: StoreGet): boolean {
+  return get().socket !== null && get().localPlayerId === null
+}
+
+/**
+ * Fail the in-flight join terminally and surface it on the join form.
+ *
+ * A join-phase rejection arrives on an open socket but before `room_state`, and
+ * the server keeps that socket open. Nothing else resolves the "preparing your
+ * room" state, so ANY error in this window has to stop the socket here —
+ * otherwise the loader spins forever (issue #264). Auto-reconnect is suppressed
+ * so we don't hammer a room that will keep rejecting us.
+ */
+function failJoin(
+  set: StoreSet,
+  get: StoreGet,
+  error: { code: string; message: string },
+) {
+  clearReconnectTimer()
+  const { socket, roomId, lastJoin } = get()
+  if (error.code === 'RECONNECT_UNAUTHORIZED') {
+    const rejectedRoomId = roomId ?? lastJoin?.roomId
+    if (rejectedRoomId) clearRoomSession(rejectedRoomId)
+  }
+  set({
+    intentionalDisconnect: true,
+    connectionError: joinFailureMessage(error.code, error.message),
+    connectionErrorCode: error.code,
+    connectionStatus: 'disconnected',
+    lastJoin: null,
+    ...(error.code === 'RECONNECT_UNAUTHORIZED' ? { reconnectToken: null } : {}),
+  })
+  if (socket) socket.close()
+  set({ socket: null })
+}
+
+/**
+ * Exchange the refresh token for a freshly signed access token and re-send
+ * `join` on the same open socket. Falls through to {@link failJoin} whenever the
+ * refresh cannot produce a usable token, so the player never waits on a retry
+ * that silently went nowhere.
+ */
+async function retryJoinWithRefreshedSession(
+  set: StoreSet,
+  get: StoreGet,
+  error: { code: string; message: string },
+) {
+  const socket = get().socket
+  const replay = get().lastJoin
+  let authToken: string | undefined
+  if (socket && replay) {
+    try {
+      const refreshed = await getSupabaseClient()?.auth.refreshSession()
+      authToken = refreshed?.data.session?.access_token
+    } catch {
+      // Network/refresh failure is indistinguishable from a dead session here:
+      // fall through and report the original rejection.
+    }
+  }
+  // The room may have been left (or joined by a racing retry) while we awaited.
+  if (get().socket !== socket || get().localPlayerId !== null) return
+  if (!authToken || !socket || !replay) {
+    failJoin(set, get, error)
+    return
+  }
+  const joinMsg: ClientMessage = {
+    type: 'join',
+    roomId: replay.roomId,
+    displayName: replay.displayName,
+    color: replay.color,
+    reconnectToken: replay.token,
+    authToken,
+  }
+  // The socket can drop while the refresh is in flight, so the liveness check
+  // sits immediately before the send — and a `send` that throws anyway (a
+  // socket torn down mid-call) is caught rather than escaping as an unhandled
+  // rejection. Either path means the retry never reaches the server, and nothing
+  // else would resolve the join, so it has to fail terminally here instead of
+  // leaving the loader spinning (#264).
+  try {
+    if (socket.readyState !== WebSocket.OPEN) {
+      failJoin(set, get, error)
+      return
+    }
+    socket.send(JSON.stringify(joinMsg))
+  } catch {
+    failJoin(set, get, error)
+  }
+}
 
 /**
  * Do these name the same dice, order aside?
@@ -313,6 +448,9 @@ function sameDiceIdSet(left: readonly string[], right: readonly string[]): boole
 }
 
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+/** Whether this socket already spent its one silent session-refresh retry (#264). */
+let authRefreshRetryUsed = false
 
 /** Timestamp (performance.now) of the last sent motion field, for throttling.
  *  Starts at -Infinity so the first field always passes the throttle. */
@@ -354,6 +492,8 @@ function establishConnection(
   }
 
   const socket = createRoomSocket(transport, { roomId, serverUrl })
+  // Each fresh socket gets its own single-retry budget for a stale session.
+  authRefreshRetryUsed = false
   set({ socket, connectionStatus: 'connecting', serverUrl, parseErrorCount: 0 })
 
   socket.onopen = async () => {
@@ -368,6 +508,7 @@ function establishConnection(
       roomId,
       reconnectAttempts: 0,
       connectionError: null,
+      connectionErrorCode: null,
       roomClosedNotice: null,
       removedFromRoomNotice: null,
     })
@@ -393,6 +534,12 @@ function establishConnection(
   }
 
   socket.onmessage = (event) => {
+    // A superseded socket must not speak for the store. `reconnectNow()` can
+    // replace the socket while the old one still has frames queued, and since
+    // #264 an `error` frame is terminal for whatever join is in flight — so a
+    // dying socket's rejection could otherwise kill its replacement's join.
+    // `onopen`/`onclose` already guard this way; `onmessage` now matches.
+    if (get().socket !== socket) return
     try {
       const msg: ServerMessage = JSON.parse(event.data)
       get().handleServerMessage(msg)
@@ -478,6 +625,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     // record so reload/browser restoration can reclaim a held seat.
     set({
       connectionError: null,
+      connectionErrorCode: null,
       roomClosedNotice: null,
       removedFromRoomNotice: null,
       intentionalDisconnect: false,
@@ -925,25 +1073,18 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         if (get().pendingInventoryDieIds.size > 0) {
           set({ pendingInventoryDieIds: new Set<string>() })
         }
-        // A join-phase rejection (e.g. room full) arrives on an open socket but
-        // before `room_state`. Surface it on the join form and stop the socket so
-        // auto-reconnect doesn't hammer a room that will keep rejecting us.
-        if (JOIN_ERROR_CODES.has(msg.code) && get().localPlayerId === null) {
-          clearReconnectTimer()
-          const { socket, roomId, lastJoin } = get()
-          if (msg.code === 'RECONNECT_UNAUTHORIZED') {
-            const rejectedRoomId = roomId ?? lastJoin?.roomId
-            if (rejectedRoomId) clearRoomSession(rejectedRoomId)
+        // Any rejection arriving on an open socket before `room_state` is a
+        // failed join. The server does not close the socket after answering, so
+        // if we swallow the error here the join surface waits forever (#264) —
+        // there is no other signal that resolves it. Mid-session errors (a
+        // `localPlayerId` exists) keep their own per-action handling above.
+        if (isJoinPhase(get)) {
+          if (AUTH_REFRESH_RETRY_CODES.has(msg.code) && !authRefreshRetryUsed) {
+            authRefreshRetryUsed = true
+            void retryJoinWithRefreshedSession(set, get, msg)
+            break
           }
-          set({
-            intentionalDisconnect: true,
-            connectionError: msg.message,
-            connectionStatus: 'disconnected',
-            lastJoin: null,
-            ...(msg.code === 'RECONNECT_UNAUTHORIZED' ? { reconnectToken: null } : {}),
-          })
-          if (socket) socket.close()
-          set({ socket: null })
+          failJoin(set, get, msg)
         }
         break
       }
@@ -1162,6 +1303,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     clearReconnectTimer()
     lastMotionFieldSentAt = Number.NEGATIVE_INFINITY
     lastMotionFieldWasZero = false
+    authRefreshRetryUsed = false
     set({
       ...createInitialState(),
       // `serverUrl` is connection configuration, not room state: leaving a room
