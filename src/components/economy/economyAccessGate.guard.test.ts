@@ -206,14 +206,16 @@ function importSpecifiers(source: string): string[] {
 function isEconomySurface(rel: string, source: string): boolean {
   // 1. Path rule: everything under src/components/economy/ is economy by location.
   if (rel.startsWith('components/economy/')) return true
+  // Both remaining signals read the comment-stripped source. Prose must not be
+  // able to register a file (a comment explaining why something is NOT imported
+  // was enough to trip the import scan) and must not be able to exempt one.
+  const code = executable(source)
   // 2. Import edge.
-  const byImport = importSpecifiers(source).some(specifier =>
+  const byImport = importSpecifiers(code).some(specifier =>
     ECONOMY_IMPORT_MARKERS.some(marker => specifier.includes(marker)),
   )
   if (byImport) return true
-  // 3. Usage token, over the comment-stripped source so a mention in prose
-  //    cannot register a file (nor exempt one).
-  const code = executable(source)
+  // 3. Usage token.
   return ECONOMY_USAGE_MARKERS.some(marker => code.includes(marker))
 }
 
@@ -306,14 +308,23 @@ describe('economy surfaces stay behind useEconomyAccess', () => {
     // the storefront chunk (banners, pull overlays, Lunar Pass, SKU strings).
     expect(scene).toMatch(/lazy\(\s*\(\)\s*=>\s*import\('\.\/panels\/ShopPanel'\)/)
     expect(scene).not.toMatch(/^import\s*\{[^}]*\bShopPanel\b[^}]*\}\s*from/m)
-    // And no import of the `./panels` BARREL, which re-exports ShopPanel. That
-    // static edge silently collapses the lazy boundary: Rollup inlines a
-    // dynamically imported module back into the parent chunk when a static
-    // import of it also exists, and the build stops emitting ShopPanel-*.js
-    // with no error. Caught exactly that way once; pinned so it stays caught.
+    // And no import of the `./panels` BARREL from Scene.
     expect(scene).not.toMatch(/from '\.\/panels'/)
     // A stale `isShopOpen` would keep `isOverlayOpen` true with nothing on screen.
     expect(scene).toMatch(/if\s*\(\s*economyAccess\s*\)\s*return\s*\n?\s*setIsShopOpen\(false\)/)
+  })
+
+  /**
+   * The lazy boundary is only real if NOTHING gives Rollup a static edge to
+   * ShopPanel. It had one — the `./panels` barrel re-exported it — and the
+   * build silently inlined the dynamic import back into the main chunk: no
+   * warning that fails anything, no test failure, just a 79 kB storefront
+   * shipped to every un-flagged player. Assert on the barrel itself, because
+   * that is the file that can reintroduce it for any importer, not just Scene.
+   */
+  it('the panels barrel does not re-export ShopPanel', () => {
+    const barrel = readFileSync(join(COMPONENTS_DIR, 'panels', 'index.ts'), 'utf8')
+    expect(executable(barrel)).not.toMatch(/ShopPanel/)
   })
 
   it('App gates the pending-purchase banner', () => {

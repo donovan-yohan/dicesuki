@@ -95,16 +95,30 @@ describe('ThemeSelector economy gate', () => {
     expect(screen.getByText('Owned')).toBeInTheDocument()
   })
 
-  it('never calls purchaseTheme for an un-flagged player', async () => {
-    // Force the unowned priced theme to render despite the gate, by owning
-    // nothing: the free theme is unowned and priced 0, so it still lists. Then
-    // prove the click handler itself refuses, not just the rendering.
+  it('never buys a PRICED theme for an un-flagged player', async () => {
+    // Render the priced theme despite the gate by flipping access on, then
+    // revoke it before clicking: proves the click handler itself refuses, not
+    // just the rendering filter.
+    const purchaseTheme = vi.fn().mockResolvedValue(true)
+    renderSelector({ economyAccess: true, ownedThemes: [], purchaseTheme })
+    useAuthStore.setState({ economyAccess: false })
+
+    await userEvent.click(screen.getByText('Cozy Forest'))
+
+    expect(purchaseTheme).not.toHaveBeenCalled()
+  })
+
+  it('still lets an un-flagged player select a FREE unowned theme', async () => {
+    // `purchaseTheme` doubles as the free-theme grant path (price === 0 just
+    // marks it owned). Themes are part of the un-flagged experience, so gating
+    // this would lock a player out of a theme that costs nothing — the exact
+    // over-reach an access-based gate causes and a price-based gate does not.
     const purchaseTheme = vi.fn().mockResolvedValue(true)
     renderSelector({ economyAccess: false, ownedThemes: [], purchaseTheme })
 
     await userEvent.click(screen.getByText('Default'))
 
-    expect(purchaseTheme).not.toHaveBeenCalled()
+    expect(purchaseTheme).toHaveBeenCalledWith('default')
   })
 
   it('calls purchaseTheme for a flagged player buying an unowned theme', async () => {

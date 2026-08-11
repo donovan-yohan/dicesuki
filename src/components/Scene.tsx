@@ -59,10 +59,9 @@ import { RoomNotices } from './multiplayer/RoomNotices'
 import { MultiplayerMotionController } from './multiplayer/MultiplayerMotionController'
 import { RoomMotionHint } from './multiplayer/RoomMotionHint'
 import { STANDARD_ROLL_CONVERSION_AVAILABLE } from './economy/shopCatalog'
-// Imported from their concrete modules, NOT the `./panels` barrel: the barrel
-// also re-exports `ShopPanel`, which would put a static edge to the storefront
-// in this chunk and silently collapse the lazy boundary below back into the
-// main bundle (Rollup inlines a dynamic import when a static one exists).
+// Concrete modules rather than the `./panels` barrel. The barrel no longer
+// re-exports `ShopPanel` (see the note there), and importing it here would be
+// the other way to reintroduce a static edge to the storefront.
 import { HeroDieInspector } from './panels/HeroDieInspector'
 import { HistoryPanel } from './panels/HistoryPanel'
 import { InventoryPanel } from './panels/InventoryPanel'
@@ -73,7 +72,7 @@ import { SettingsPanel } from './panels/SettingsPanel'
 // an un-flagged player never downloads the shop, the banner screen, the pull
 // overlays, the Lunar Pass card, or the unreleased Star-bundle SKU strings.
 // Same posture `src/App.tsx` already takes for the checkout tree.
-const ShopPanel = lazy(() => import('./panels/ShopPanel').then(m => ({ default: m.ShopPanel })))
+const ShopPanel = lazy(() => import('./panels/ShopPanel'))
 import type { TableDieSummary } from '../types/tableDice'
 
 const LOD_DEBUG_NAMESPACE = 'RenderLOD'

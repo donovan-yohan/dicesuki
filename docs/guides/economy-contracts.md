@@ -361,7 +361,7 @@ Client wiring:
 | `src/lib/economyAccess.ts` | `fetchEconomyAccess()` — fail-closed read; absent row, error, or throw all resolve to off. |
 | `src/store/useAuthStore.ts` | `economyAccess: boolean`, fetched in parallel with the profile on sign-in and cleared by every guest transition. It lives on the auth store (Frontend-ADR-002) because it is account identity state with exactly the session's lifetime. |
 | `src/hooks/useEconomyAccess.ts` | `useEconomyAccess()` — THE predicate. True only for an authenticated, flagged account. |
-| `src/components/Scene.tsx` | Gates the HUD shop button (`showShop`) *and* the `<ShopPanel>` mount. Gating the button alone is insufficient: `ShopPanel` owns the entire economy subtree and stays mountable through `isShopOpen`. `ShopPanel` is `lazy()`, so the gate is structural — an un-flagged player never downloads the storefront chunk (`ShopPanel-*.js`, 78.85 kB / 21.54 kB gzip) or its unreleased SKU strings. `Scene` therefore imports the other panels from their concrete modules, never from the `./panels` barrel: the barrel re-exports `ShopPanel`, and that static edge makes Rollup inline the dynamic import straight back into the main chunk with no warning. The guard pins it. |
+| `src/components/Scene.tsx` | Gates the HUD shop button (`showShop`) *and* the `<ShopPanel>` mount. Gating the button alone is insufficient: `ShopPanel` owns the entire economy subtree and stays mountable through `isShopOpen`. `ShopPanel` is `lazy()`, so the gate is structural — an un-flagged player never downloads the storefront chunk (`ShopPanel-*.js`, 78.85 kB / 21.54 kB gzip) or its unreleased SKU strings. The `./panels` barrel therefore does **not** re-export `ShopPanel`: a static edge to it anywhere makes Rollup inline the dynamic import straight back into the main chunk, with no warning and no failing test. The guard asserts on the barrel itself. |
 | `src/App.tsx` | Gates `PendingPurchaseBanner`. |
 | `src/components/ThemeSelector.tsx` | Gates priced themes: dollar prices, the "click to purchase" affordance, unowned priced themes, and the `purchaseTheme()` call itself. Inert today only because `ThemeProvider` dev-grants every theme id — which is precisely why it is gated before theme ownership becomes real. |
 
@@ -425,6 +425,12 @@ Three consequences worth knowing:
   re-derive it. That is the accepted cost of UI-only enforcement (PO decision:
   no RPC-level flag checks). Nothing in the client imports the claim helpers
   today (`src/lib/earnedEconomy.ts` exports them; no component consumes them).
+* **The pre-enrollment projection covers the passport only.** `get_earned_reward_status()`
+  reports `community.availableClaimCount = 0` until an enrollment row exists,
+  because `claim_community_die` refuses outright before the first passport claim
+  (`0010:659-663`). Projecting the 4-week cadence there would offer a count the
+  claim path cannot mint — the same read/write disagreement the projection was
+  added to remove.
 * **The Community Die faucet inherits the same anchor** — it reads the same
   `enrolled_period_start` — and was deliberately not changed separately. Its
   cadence is `floor(weeks_since_anchor / 4)`: unbounded, no `least()` clamp, no

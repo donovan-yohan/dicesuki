@@ -33,9 +33,12 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
       onClose()
       return
     }
-    // Un-flagged players have no purchase path at all — never call into the
-    // purchase flow for them, even if an unowned theme somehow renders.
-    if (!economyAccess) return
+    // Gate on PRICE, not on access. `purchaseTheme` doubles as the free-theme
+    // grant path (`ThemeProvider`: `price === 0` just marks it owned), and a
+    // free unowned theme is a designed state that belongs to the un-flagged
+    // experience. Only a real money purchase needs the flag.
+    const theme = availableThemes.find(candidate => candidate.id === themeId)
+    if (theme && theme.price > 0 && !economyAccess) return
     const success = await purchaseTheme(themeId)
     if (success) {
       setTheme(themeId)

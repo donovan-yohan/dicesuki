@@ -425,9 +425,23 @@ begin
      (projected #>> '{passport,claimedCount}')::integer is distinct from 0 or
      (projected #>> '{passport,availableClaimCount}')::integer is distinct from 6 or
      (projected #>> '{passport,catchUpClaimCount}')::integer is distinct from 6 or
-     (projected #>> '{community,availableClaimCount}')::integer is distinct from 1 then
+     (projected #>> '{community,availableClaimCount}')::integer is distinct from 0 then
     raise exception 'A flagged never-claimed user was told they have no passport claims';
   end if;
+
+  -- The Community count is 0 rather than the projected cadence for a concrete
+  -- reason, pinned here so nobody "fixes" it back: the claim path refuses
+  -- outright until an enrollment row exists, so any non-zero read would offer
+  -- a claim that cannot be minted.
+  begin
+    perform public.claim_community_die('slice34:community:preenroll:0009');
+    raise exception 'A Community claim succeeded before passport enrollment';
+  exception
+    when sqlstate '55000' then
+      if sqlerrm is distinct from 'Community Die requires New Collector Passport enrollment' then
+        raise exception 'Unexpected pre-enrollment Community rejection: %', sqlerrm;
+      end if;
+  end;
 
   -- The projection is not merely non-zero, it is exactly what the claim path
   -- then produces. Read and write cannot drift: both go through
@@ -443,10 +457,16 @@ begin
   if enrollment.enrolled_period_start is distinct from (claim_period - 35) or
      (settled #>> '{passport,availableClaimCount}')::integer
        is distinct from (projected #>> '{passport,availableClaimCount}')::integer or
-     (settled #>> '{community,availableClaimCount}')::integer
-       is distinct from (projected #>> '{community,availableClaimCount}')::integer or
      (settled #>> '{passport,claimedCount}')::integer is distinct from 1 then
     raise exception 'The projected passport catch-up did not match what the claim path minted';
+  end if;
+
+  -- Community deliberately does NOT match the projection: it was 0 before
+  -- enrollment because no claim was possible, and becomes the real cadence
+  -- (35 days / 28 = 1) the moment the enrollment row anchors it to the grant
+  -- week. Asserting both ends keeps the transition honest in each direction.
+  if (settled #>> '{community,availableClaimCount}')::integer is distinct from 1 then
+    raise exception 'Community availability did not open once the grant-anchored enrollment existed';
   end if;
 end;
 $$;

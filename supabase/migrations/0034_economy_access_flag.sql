@@ -552,11 +552,16 @@ begin
         program.passport_duration_weeks::integer,
         greatest(0, ((current_period - prospective_anchor) / program.period_days)::integer + 1)
       );
-      community_available := greatest(
-        0,
-        ((current_period - prospective_anchor)
-          / (program.community_interval_weeks * program.period_days))::integer
-      );
+      -- Deliberately NOT projected. private.issue_earned_reward_claim raises
+      -- 55000 'Community Die requires New Collector Passport enrollment' for
+      -- any caller with no enrollment row (0010:659-663), so a Community claim
+      -- is unconditionally unavailable before the first passport claim no
+      -- matter how far back the grant sits. Projecting the cadence here would
+      -- offer a count the claim path refuses to mint, which is exactly the
+      -- read/write disagreement this function was re-created to remove. It
+      -- becomes correct the instant an enrollment row exists, via the branch
+      -- above.
+      community_available := 0;
     end if;
   end if;
 
@@ -596,7 +601,7 @@ end;
 $$;
 
 comment on function public.get_earned_reward_status() is
-  'Authenticated non-anonymous derived reward status. Passport completion and catch-up are computed from immutable enrollment/claim history; before enrollment the counts are projected from the economy-access grant week so the read path cannot understate what the claim path will mint.';
+  'Authenticated non-anonymous derived reward status. Passport completion and catch-up are computed from immutable enrollment/claim history; before enrollment the passport count is projected from the economy-access grant week so the read path cannot understate what the claim path will mint, while the Community count stays 0 because a Community claim requires an enrollment row that does not exist yet.';
 
 revoke all on function public.get_earned_reward_status()
   from public, anon, authenticated, service_role;
