@@ -1,7 +1,7 @@
 // External libraries
 import { Environment } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Config
@@ -15,6 +15,7 @@ import { useDeviceMotionState } from '../contexts/DeviceMotionContext'
 import { useTheme } from '../contexts/ThemeContext'
 
 // Hooks
+import { useEconomyAccess } from '../hooks/useEconomyAccess'
 import { useEnvironmentTheme } from '../hooks/useEnvironmentTheme'
 import { PerformanceOverlay } from './effects/PerformanceOverlay'
 import { useMultiplayerDrag } from '../hooks/useMultiplayerDrag'
@@ -58,7 +59,20 @@ import { RoomNotices } from './multiplayer/RoomNotices'
 import { MultiplayerMotionController } from './multiplayer/MultiplayerMotionController'
 import { RoomMotionHint } from './multiplayer/RoomMotionHint'
 import { STANDARD_ROLL_CONVERSION_AVAILABLE } from './economy/shopCatalog'
-import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel, ShopPanel } from './panels'
+// Concrete modules rather than the `./panels` barrel. The barrel no longer
+// re-exports `ShopPanel` (see the note there), and importing it here would be
+// the other way to reintroduce a static edge to the storefront.
+import { HeroDieInspector } from './panels/HeroDieInspector'
+import { HistoryPanel } from './panels/HistoryPanel'
+import { InventoryPanel } from './panels/InventoryPanel'
+import { SavedRollsPanel } from './panels/SavedRollsPanel'
+import { SettingsPanel } from './panels/SettingsPanel'
+
+// The storefront is lazy so the economy gate is STRUCTURAL, not just visual:
+// an un-flagged player never downloads the shop, the banner screen, the pull
+// overlays, the Lunar Pass card, or the unreleased Star-bundle SKU strings.
+// Same posture `src/App.tsx` already takes for the checkout tree.
+const ShopPanel = lazy(() => import('./panels/ShopPanel'))
 import type { TableDieSummary } from '../types/tableDice'
 
 const LOD_DEBUG_NAMESPACE = 'RenderLOD'
@@ -535,7 +549,16 @@ function SceneContent({ onReady }: SceneProps) {
   // Get the active backend — always provided by SoloRoom / MultiplayerRoom
   const activeBackend = useDiceBackend()
   const isMultiplayer = activeBackend.mode === 'multiplayer'
-  const showShop = isPaymentsEnabled() || STANDARD_ROLL_CONVERSION_AVAILABLE
+
+  // THE economy gate for the table UI. Both the HUD entry point and the panel
+  // mount hang off this one predicate, so there is exactly one way in.
+  // Un-flagged players (and every guest) get a clean tabletop dice roller with
+  // no shop button, no wallet, no banners, no pass — see
+  // `src/hooks/useEconomyAccess.ts`. Gating the button alone would not be
+  // enough: `ShopPanel` owns the whole economy subtree and would still be
+  // mountable through `isShopOpen`.
+  const economyAccess = useEconomyAccess()
+  const showShop = economyAccess && (isPaymentsEnabled() || STANDARD_ROLL_CONVERSION_AVAILABLE)
 
   // Delegate add/remove/clear through the active room backend
   const handleAddDice = useCallback(
@@ -594,6 +617,14 @@ function SceneContent({ onReady }: SceneProps) {
     setInspectedInventoryDieId(null)
     railBeforeOverlayRef.current = false
   }, [isUIVisible])
+
+  // Losing economy access (sign-out, or an operator disabling the flag) must
+  // not strand `isShopOpen` set: the panel unmounts, but the stale flag would
+  // keep `isOverlayOpen` true and suppress the HUD with nothing on screen.
+  useEffect(() => {
+    if (economyAccess) return
+    setIsShopOpen(false)
+  }, [economyAccess])
 
   // Any overlay that owns the screen (full-screen shop, bottom sheets, the
   // settings flyout, the hero inspector). While one is open the HUD must not
@@ -739,14 +770,21 @@ function SceneContent({ onReady }: SceneProps) {
             onClose={() => setIsSettingsOpen(false)}
           />
 
-          <ShopPanel
-            isOpen={isShopOpen}
-            onClose={() => setIsShopOpen(false)}
-            initialTab="banners"
-            onAddDie={(type, inventoryDieId) => activeBackend.addDie(type, inventoryDieId)}
-            tableDiceCount={multiplayerDice.size}
-            deviceTier={renderDeviceTier}
-          />
+          {/* Economy subtree: shop, wallet HUD, banners/pulls, odds & fairness
+              modal, Stars→rolls conversion, Lunar Pass, Star bundles. Mounted
+              only for accounts an operator has flagged on. */}
+          {economyAccess && (
+            <Suspense fallback={null}>
+              <ShopPanel
+                isOpen={isShopOpen}
+                onClose={() => setIsShopOpen(false)}
+                initialTab="banners"
+                onAddDie={(type, inventoryDieId) => activeBackend.addDie(type, inventoryDieId)}
+                tableDiceCount={multiplayerDice.size}
+                deviceTier={renderDeviceTier}
+              />
+            </Suspense>
+          )}
 
           {inspectedInventoryDie && (
             <HeroDieInspector

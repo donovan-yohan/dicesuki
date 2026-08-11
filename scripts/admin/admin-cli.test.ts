@@ -10,25 +10,47 @@ vi.mock('./lib/queries.mjs', async importOriginal => {
     fetchCatalogItem: vi.fn(),
     fetchPullSessions: vi.fn(),
     findExistingGrant: vi.fn(),
+    fetchEconomyAccess: vi.fn(),
+    fetchWalletBalances: vi.fn(),
+    fetchTicketBalances: vi.fn(),
+    fetchCopySummary: vi.fn(),
+    fetchWalletLedger: vi.fn(),
+    fetchTicketLedger: vi.fn(),
   }
 })
 
-import { DEFAULT_LIMIT, MAX_LIMIT, UsageError, parseArgs, usageText } from './lib/args.mjs'
+import {
+  COMMAND_SPECS,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  UsageError,
+  parseAccessDecision,
+  parseArgs,
+  usageText,
+} from './lib/args.mjs'
 import { createIo } from './dicesuki-admin.mjs'
 import { isRetryable, runCommand, sqlstateHint } from './lib/commands.mjs'
 import {
   fetchCatalogItem,
+  fetchCopySummary,
+  fetchEconomyAccess,
   fetchPullSessions,
+  fetchTicketBalances,
+  fetchTicketLedger,
+  fetchWalletBalances,
+  fetchWalletLedger,
   findExistingGrant,
   resolveUserCandidates,
 } from './lib/queries.mjs'
 import {
   DICE_COPY_KEY_PATTERN,
   ECONOMY_EDITION_ID,
+  GRANT_WRITE_TARGETS,
   REASON_CODE_PATTERN,
   assertSupportReasonCode,
   buildCancelSessionSql,
   buildDieGrantPlan,
+  buildEconomyAccessPlan,
   buildProvenance,
   buildSourceReference,
   buildTicketGrantPlan,
@@ -194,6 +216,8 @@ describe('parseArgs', () => {
       'user',
       'ledger',
       'orders',
+      'economy-access',
+      'set-economy-access',
       'grant-stars',
       'grant-dust',
       'grant-tickets',
@@ -202,6 +226,84 @@ describe('parseArgs', () => {
     ]) {
       expect(text).toContain(command)
     }
+  })
+
+  it('keeps the summary column aligned for the 18-character set-economy-access', () => {
+    const lines = usageText().split('\n')
+    const columns = Object.entries(COMMAND_SPECS).map(([name, spec]) => {
+      const row = lines.find(line => line.startsWith(`  ${name}`) && line.includes(spec.summary))
+      expect(row, `no usage row for ${name}`).toBeDefined()
+      return (row ?? '').indexOf(spec.summary)
+    })
+    expect(new Set(columns).size).toBe(1)
+    // Two-space indent + the longest name + a two-space gutter.
+    expect(columns[0]).toBeGreaterThanOrEqual(2 + 'set-economy-access'.length + 2)
+  })
+})
+
+describe('parseArgs — economy access', () => {
+  const setArgs = (decision: string, ...extra: string[]) =>
+    parseArgs(['set-economy-access', USER, decision, '--operator', 'po', '--note', 'n', ...extra])
+
+  it('parses the lookup as a non-mutating one-positional read', () => {
+    expect(parseArgs(['economy-access', ' player@example.com '])).toMatchObject({
+      command: 'economy-access',
+      query: 'player@example.com',
+      mutating: false,
+      json: false,
+    })
+    expect(parseArgs(['economy-access', USER, '--json']).json).toBe(true)
+    expect(() => parseArgs(['economy-access'])).toThrow(/expects 1 argument/)
+    expect(() => parseArgs(['economy-access', USER, 'on'])).toThrow(/expects 1 argument/)
+    // Nothing to dry-run: the flag is only offered on mutating commands.
+    expect(() => parseArgs(['economy-access', USER, '--dry-run'])).toThrow(
+      /Unknown option --dry-run/,
+    )
+  })
+
+  it('takes exactly two positionals for the flip', () => {
+    expect(() => parseArgs(['set-economy-access', USER, '--operator', 'po', '--note', 'n'])).toThrow(
+      /expects 2 argument/,
+    )
+    expect(() =>
+      parseArgs(['set-economy-access', USER, 'on', 'off', '--operator', 'po', '--note', 'n']),
+    ).toThrow(/expects 2 argument/)
+  })
+
+  it('accepts only the literals on and off, naming both when it refuses', () => {
+    expect(setArgs('on').decision).toBe(true)
+    expect(setArgs('off').decision).toBe(false)
+    expect(parseAccessDecision('on')).toBe(true)
+    expect(parseAccessDecision('off')).toBe(false)
+    // Every one of these is a plausible mistyping of "enable"; none of them is
+    // allowed to flip a flag whose first enable is permanent.
+    for (const bad of ['ON', 'Off', 'true', 'yes', '1', 'enable', 'disabled', '']) {
+      expect(() => setArgs(bad)).toThrow(/"on"/)
+      expect(() => setArgs(bad)).toThrow(/"off"/)
+      expect(() => parseAccessDecision(bad)).toThrow(UsageError)
+    }
+  })
+
+  it('requires the audit trail, exactly like the grant commands', () => {
+    expect(() => parseArgs(['set-economy-access', USER, 'on'])).toThrow(/requires --operator/)
+    expect(() => parseArgs(['set-economy-access', USER, 'on', '--operator', 'po'])).toThrow(
+      /requires --note/,
+    )
+  })
+
+  it('defaults to dry-run, because the first enable is permanent', () => {
+    expect(setArgs('on').dryRun).toBe(true)
+    expect(setArgs('on', '--no-dry-run').dryRun).toBe(false)
+    expect(setArgs('on', '--dry-run').dryRun).toBe(true)
+    expect(setArgs('on').mutating).toBe(true)
+  })
+
+  it('rejects contradictory and unconfirmable flag combinations', () => {
+    expect(() => setArgs('on', '--dry-run', '--no-dry-run')).toThrow(/mutually exclusive/)
+    expect(() => setArgs('on', '--no-dry-run', '--json')).toThrow(/pass --yes/)
+    expect(setArgs('on', '--no-dry-run', '--json', '--yes').yes).toBe(true)
+    // A dry run needs no confirmation, so --json alone is fine there.
+    expect(setArgs('on', '--json').json).toBe(true)
   })
 })
 
@@ -502,6 +604,93 @@ describe('ticket and die grant plans', () => {
   })
 })
 
+describe('economy access plans', () => {
+  const enable = buildEconomyAccessPlan({ userId: USER, enabled: true, ...GRANT })
+
+  it('sends set_user_economy_access arguments in declared order with their casts', () => {
+    expect(enable.rpc).toBe('set_user_economy_access')
+    expect(enable.args.map(argument => argument.name)).toEqual([
+      'p_user_id',
+      'p_enabled',
+      'p_operator',
+      'p_note',
+    ])
+    expect(enable.args.map(argument => argument.cast)).toEqual([
+      'uuid',
+      'boolean',
+      'text',
+      'text',
+    ])
+    expect(enable.payload).toEqual({
+      p_user_id: USER,
+      p_enabled: true,
+      p_operator: 'po',
+      p_note: 'ticket 1234 goodwill',
+    })
+    expect(Object.keys(enable.payload)).toEqual(enable.args.map(argument => argument.name))
+  })
+
+  it('carries no idempotency key, because the row is a state and not an append', () => {
+    expect(enable.payload).not.toHaveProperty('p_idempotency_key')
+    expect(enable.payload).not.toHaveProperty('p_provenance')
+    // ...so there is no write target to pre-flight, and `findExistingGrant`
+    // returns null: the "REPLAYED" report can never fire on an access flip.
+    expect(GRANT_WRITE_TARGETS).not.toHaveProperty('set_user_economy_access')
+  })
+
+  it('labels both directions and names the permanent side effect', () => {
+    expect(enable.effect).toBe('enable')
+    expect(enable.summary).toMatch(/^Enable economy access for /)
+    expect(enable.summary).toMatch(/economy_access_granted_at \(the passport anchor\)/)
+
+    const disable = buildEconomyAccessPlan({ userId: USER, enabled: false, ...GRANT })
+    expect(disable.effect).toBe('disable')
+    expect(disable.summary).toMatch(/^Disable economy access for /)
+    expect(disable.summary).toMatch(/passport anchor.*left untouched/)
+    expect(disable.payload.p_enabled).toBe(false)
+  })
+
+  it('rejects arguments the RPC would refuse with 23503 or 22023', () => {
+    expect(() =>
+      buildEconomyAccessPlan({ userId: 'player@example.com', enabled: true, ...GRANT }),
+    ).toThrow(/Not a user uuid/)
+    expect(() =>
+      buildEconomyAccessPlan({ userId: USER, enabled: true, operator: '   ', note: 'n' }),
+    ).toThrow(/--operator must not be empty/)
+    expect(() =>
+      buildEconomyAccessPlan({ userId: USER, enabled: true, operator: 'x'.repeat(65), note: 'n' }),
+    ).toThrow(/at most 64/)
+    expect(() =>
+      buildEconomyAccessPlan({ userId: USER, enabled: true, operator: 'po', note: ' ' }),
+    ).toThrow(/--note must not be empty/)
+    expect(() =>
+      buildEconomyAccessPlan({ userId: USER, enabled: true, operator: 'po', note: 'n'.repeat(513) }),
+    ).toThrow(/at most 512/)
+  })
+
+  it('refuses a decision that is not exactly a boolean', () => {
+    for (const notABoolean of ['on', 'true', 1, null, undefined]) {
+      expect(() =>
+        buildEconomyAccessPlan({ userId: USER, enabled: notABoolean, ...GRANT }),
+      ).toThrow(/must be exactly "on" or "off"/)
+    }
+  })
+
+  it('renders a pasteable named-argument call', () => {
+    expect(formatSqlPreview(enable)).toBe(
+      'select * from public.set_user_economy_access(\n' +
+        `  p_user_id => '${USER}'::uuid,\n` +
+        '  p_enabled => true::boolean,\n' +
+        "  p_operator => 'po'::text,\n" +
+        "  p_note => 'ticket 1234 goodwill'::text\n" +
+        ');',
+    )
+    expect(
+      formatSqlPreview(buildEconomyAccessPlan({ userId: USER, enabled: false, ...GRANT })),
+    ).toContain('p_enabled => false::boolean')
+  })
+})
+
 describe('SQL rendering', () => {
   it('escapes single quotes instead of interpolating them', () => {
     expect(sqlLiteral("O'Brien")).toBe("'O''Brien'")
@@ -725,6 +914,12 @@ afterEach(() => {
   vi.mocked(fetchCatalogItem).mockReset()
   vi.mocked(fetchPullSessions).mockReset()
   vi.mocked(findExistingGrant).mockReset()
+  vi.mocked(fetchEconomyAccess).mockReset()
+  vi.mocked(fetchWalletBalances).mockReset()
+  vi.mocked(fetchTicketBalances).mockReset()
+  vi.mocked(fetchCopySummary).mockReset()
+  vi.mocked(fetchWalletLedger).mockReset()
+  vi.mocked(fetchTicketLedger).mockReset()
 })
 
 describe('user resolution refusals', () => {
@@ -956,6 +1151,206 @@ describe('grant-die catalog validation', () => {
   })
 })
 
+describe('economy access commands', () => {
+  const ACCESS_ON = {
+    user_id: USER,
+    economy_access: true,
+    economy_access_granted_at: '2026-08-01T10:00:00Z',
+    updated_at: '2026-08-02T11:30:00Z',
+    last_changed_by: 'donovan',
+    last_change_note: 'ticket 1500: closed beta wave 2',
+  }
+
+  const setAccessArgs = (decision: string, ...extra: string[]) =>
+    parseArgs([
+      'set-economy-access',
+      USER,
+      decision,
+      '--operator',
+      'po',
+      '--note',
+      'ticket 1500: closed beta wave 2',
+      ...extra,
+    ])
+
+  beforeEach(() => {
+    vi.mocked(resolveUserCandidates).mockResolvedValue([CANDIDATE])
+  })
+
+  it('prints the flag and labels the timestamp as the passport anchor', async () => {
+    vi.mocked(fetchEconomyAccess).mockResolvedValue(ACCESS_ON)
+    const io = fakeIo()
+    const result = await runCommand(parseArgs(['economy-access', USER]), {
+      client: fakeClient(),
+      environment: {},
+      io,
+    })
+    expect(io.text()).toContain('Economy access')
+    expect(io.text()).toContain('access:          on')
+    expect(io.text()).toContain(
+      'granted at:      2026-08-01T10:00:00Z (passport anchor — set once, never moved)',
+    )
+    expect(io.text()).toContain('last changed by: donovan')
+    expect(result).toEqual({ user: { id: USER }, economyAccess: ACCESS_ON })
+  })
+
+  it('says "off" in words when the player has no row at all', async () => {
+    // Absence of a row IS off. Rendering a dash here would read as "unknown"
+    // and send support chasing a state that simply does not exist yet.
+    vi.mocked(fetchEconomyAccess).mockResolvedValue(null)
+    const io = fakeIo()
+    const result = await runCommand(parseArgs(['economy-access', USER]), {
+      client: fakeClient(),
+      environment: {},
+      io,
+    })
+    expect(io.text()).toContain('off (no user_economy_access row — never granted)')
+    expect(io.text()).toContain('- (passport anchor never stamped)')
+    expect(io.text()).not.toMatch(/access:\s+-\s*$/m)
+    expect(result.economyAccess).toBeNull()
+  })
+
+  it('shows the current state before the plan, and executes nothing on a dry run', async () => {
+    vi.mocked(fetchEconomyAccess).mockResolvedValue(null)
+    const client = fakeClient()
+    const io = fakeIo()
+    const result = await runCommand(setAccessArgs('on'), { client, environment: {}, io })
+
+    const text = io.text()
+    expect(text.indexOf('Economy access (current)')).toBeLessThan(text.indexOf('Planned call'))
+    expect(text).toContain('off (no user_economy_access row — never granted)')
+    expect(text).toContain('effect:  enable')
+    expect(text).toContain('DRY RUN — nothing was executed.')
+    expect(client.rpc).not.toHaveBeenCalled()
+    expect(io.confirm).not.toHaveBeenCalled()
+    expect(findExistingGrant).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ dryRun: true, executed: false, replayed: false })
+    expect(result.economyAccessBefore).toBeNull()
+    // The permanence of a first enable is a stderr warning, not buried in the plan.
+    expect(io.warned.join('\n')).toMatch(/FIRST enable.*12-week anchor/s)
+  })
+
+  it('calls set_user_economy_access with the exact payload under --no-dry-run --yes', async () => {
+    vi.mocked(fetchEconomyAccess).mockResolvedValue(null)
+    const client = fakeClient({
+      data: { ...ACCESS_ON, economy_access_granted_at: '2026-08-10T08:00:00Z' },
+      error: null,
+    })
+    const io = fakeIo()
+    const result = await runCommand(setAccessArgs('on', '--no-dry-run', '--yes'), {
+      client,
+      environment: {},
+      io,
+    })
+    expect(client.rpc).toHaveBeenCalledTimes(1)
+    expect(client.rpc).toHaveBeenCalledWith('set_user_economy_access', {
+      p_user_id: USER,
+      p_enabled: true,
+      p_operator: 'po',
+      p_note: 'ticket 1500: closed beta wave 2',
+    })
+    expect(result).toMatchObject({ dryRun: false, executed: true, replayed: false })
+    expect(io.text()).toContain('DONE — Enable economy access')
+  })
+
+  it('cannot report a REPLAY, because there is no key to replay on', async () => {
+    // findExistingGrant is stubbed here, but the real one short-circuits on a
+    // missing GRANT_WRITE_TARGETS entry (asserted in "economy access plans").
+    vi.mocked(fetchEconomyAccess).mockResolvedValue(null)
+    vi.mocked(findExistingGrant).mockResolvedValue(null)
+    const io = fakeIo()
+    const result = await runCommand(setAccessArgs('off', '--no-dry-run', '--yes'), {
+      client: fakeClient(),
+      environment: {},
+      io,
+    })
+    expect(result.replayed).toBe(false)
+    expect(io.text()).not.toContain('REPLAYED')
+  })
+
+  it('reports a no-op flip plainly and still lets it refresh the audit fields', async () => {
+    vi.mocked(fetchEconomyAccess).mockResolvedValue(ACCESS_ON)
+    const client = fakeClient({ data: ACCESS_ON, error: null })
+    const io = fakeIo()
+    const result = await runCommand(setAccessArgs('on', '--no-dry-run', '--yes'), {
+      client,
+      environment: {},
+      io,
+    })
+    expect(io.text()).toContain(
+      'NO CHANGE — economy access is already on (granted at 2026-08-01T10:00:00Z)',
+    )
+    expect(result.noChange).toBe(true)
+    expect(client.rpc).toHaveBeenCalledTimes(1)
+    // Re-enabling an already-anchored player is not a first enable.
+    expect(io.warned.join('\n')).not.toMatch(/FIRST enable/)
+  })
+
+  it('does not print "undefined" in the retry hint for a keyless plan', async () => {
+    vi.mocked(fetchEconomyAccess).mockResolvedValue(null)
+    const client = fakeClient({ data: null, error: { code: '40001', message: 'serialization' } })
+    const error = await runCommand(setAccessArgs('on', '--no-dry-run', '--yes'), {
+      client,
+      environment: {},
+      io: fakeIo(),
+    }).catch((thrown: Error) => thrown)
+    expect(error.message).toContain('state write with no idempotency key')
+    expect(error.message).not.toContain('undefined')
+    expect(error.message).not.toContain('--key')
+  })
+
+  it('leaves the key-based hint untouched for the keyed grant RPCs', async () => {
+    const client = fakeClient({ data: null, error: { code: '40001', message: 'serialization' } })
+    const error = await runCommand(grantStarsArgs('--yes'), {
+      client,
+      environment: {},
+      io: fakeIo(),
+    }).catch((thrown: Error) => thrown)
+    expect(error.message).toMatch(
+      /Retry with --key 'admin-grant:\d{4}-\d{2}-\d{2}:[0-9a-f]{12}' \(or re-run the identical command\): the key is stable, so a retry cannot double-grant\./,
+    )
+    expect(error.message).not.toContain('no idempotency key')
+  })
+
+  it('puts the economy-access block in the user report, including the no-row case', async () => {
+    vi.mocked(fetchWalletBalances).mockResolvedValue([])
+    vi.mocked(fetchTicketBalances).mockResolvedValue([])
+    vi.mocked(fetchCopySummary).mockResolvedValue({
+      totalCopies: 0,
+      liveCopies: 0,
+      scrappedCopies: 0,
+      recentCopies: [],
+    })
+    vi.mocked(fetchWalletLedger).mockResolvedValue([])
+    vi.mocked(fetchTicketLedger).mockResolvedValue([])
+    vi.mocked(fetchPullSessions).mockResolvedValue({ sessions: [], activeSession: null })
+    vi.mocked(fetchEconomyAccess).mockResolvedValue(ACCESS_ON)
+
+    const io = fakeIo()
+    const result = await runCommand(parseArgs(['user', USER]), {
+      client: fakeClient(),
+      environment: {},
+      io,
+    })
+    const text = io.text()
+    expect(text).toContain('Economy access')
+    expect(text).toContain('2026-08-01T10:00:00Z (passport anchor — set once, never moved)')
+    // Support's first stop reads access before balances.
+    expect(text.indexOf('Economy access')).toBeLessThan(text.indexOf('Wallet balances'))
+    expect(result.economyAccess).toEqual(ACCESS_ON)
+
+    vi.mocked(fetchEconomyAccess).mockResolvedValue(null)
+    const emptyIo = fakeIo()
+    const empty = await runCommand(parseArgs(['user', USER]), {
+      client: fakeClient(),
+      environment: {},
+      io: emptyIo,
+    })
+    expect(emptyIo.text()).toContain('off (no user_economy_access row — never granted)')
+    expect(empty.economyAccess).toBeNull()
+  })
+})
+
 describe('SQLSTATE hints are scoped to the RPC that raised them', () => {
   it('only explains the pull-hold pause for die grants', () => {
     expect(sqlstateHint('55000', 'record_dice_copy_grant')).toMatch(/prepared pull hold is live/)
@@ -970,6 +1365,24 @@ describe('SQLSTATE hints are scoped to the RPC that raised them', () => {
 
   it('returns null for codes it has nothing useful to say about', () => {
     expect(sqlstateHint('40001', 'append_wallet_ledger_entry')).toBeNull()
+  })
+
+  it('does not offer idempotency-key advice for the keyless access RPC', () => {
+    const access = sqlstateHint('22023', 'set_user_economy_access')
+    expect(access).toMatch(/--operator must be 1-64 characters and --note 1-512/)
+    expect(access).toMatch(/no idempotency key/)
+    expect(access).not.toMatch(/pass --key/)
+    // The ledger-flavoured wording is unchanged for the RPCs that do have keys.
+    expect(sqlstateHint('22023', 'append_wallet_ledger_entry')).toMatch(
+      /idempotency key was already used with different arguments/,
+    )
+  })
+
+  it('reads 23503 as an unknown auth user for the access RPC', () => {
+    expect(sqlstateHint('23503', 'set_user_economy_access')).toMatch(
+      /No such auth user — check the uuid/,
+    )
+    expect(sqlstateHint('23503', 'record_dice_copy_grant')).toMatch(/unknown catalog item/)
   })
 })
 

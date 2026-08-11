@@ -15,6 +15,12 @@ vi.mock('../lib/profile', () => ({
   fetchOrCreateProfile: fetchOrCreateProfileMock,
 }))
 
+const fetchEconomyAccessMock = vi.hoisted(() => vi.fn())
+vi.mock('../lib/economyAccess', () => ({
+  fetchEconomyAccess: fetchEconomyAccessMock,
+  NO_ECONOMY_ACCESS: { enabled: false, grantedAt: null },
+}))
+
 import { useAuthStore, resetAuthSubscriptionForTests } from './useAuthStore'
 import { usePlayerIdentityStore, DEFAULT_PLAYER_COLOR } from './usePlayerIdentityStore'
 
@@ -46,7 +52,14 @@ describe('useAuthStore', () => {
     resetAuthSubscriptionForTests()
     isSupabaseConfiguredMock.mockReturnValue(true)
     fetchOrCreateProfileMock.mockResolvedValue(PROFILE)
-    useAuthStore.setState({ status: 'loading', isConfigured: true, user: null, profile: null })
+    fetchEconomyAccessMock.mockResolvedValue({ enabled: false, resolved: true, grantedAt: null })
+    useAuthStore.setState({
+      status: 'loading',
+      isConfigured: true,
+      user: null,
+      profile: null,
+      economyAccess: false,
+    })
     usePlayerIdentityStore.setState({ displayName: '', color: DEFAULT_PLAYER_COLOR })
   })
 
@@ -131,5 +144,186 @@ describe('useAuthStore', () => {
     expect(useAuthStore.getState().user).toBeNull()
     expect(useAuthStore.getState().profile).toBeNull()
     expect(client.auth.signOut).toHaveBeenCalledOnce()
+  })
+})
+
+describe('useAuthStore economy access flag', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetAuthSubscriptionForTests()
+    isSupabaseConfiguredMock.mockReturnValue(true)
+    fetchOrCreateProfileMock.mockResolvedValue(PROFILE)
+    fetchEconomyAccessMock.mockResolvedValue({ enabled: false, grantedAt: null })
+    useAuthStore.setState({
+      status: 'loading',
+      isConfigured: true,
+      user: null,
+      profile: null,
+      economyAccess: false,
+    })
+    usePlayerIdentityStore.setState({ displayName: '', color: DEFAULT_PLAYER_COLOR })
+  })
+
+  it('defaults to off for a brand-new signed-in account', async () => {
+    getSupabaseClientMock.mockReturnValue(makeFakeClient({ session: { user: { id: 'user-123' } } }))
+
+    await useAuthStore.getState().initialize()
+
+    expect(useAuthStore.getState().status).toBe('authenticated')
+    expect(useAuthStore.getState().economyAccess).toBe(false)
+    expect(fetchEconomyAccessMock).toHaveBeenCalledWith(expect.anything(), 'user-123')
+  })
+
+  it('turns on for a flagged account', async () => {
+    fetchEconomyAccessMock.mockResolvedValue({ enabled: true, resolved: true, grantedAt: '2026-08-10T00:00:00Z' })
+    getSupabaseClientMock.mockReturnValue(makeFakeClient({ session: { user: { id: 'user-123' } } }))
+
+    await useAuthStore.getState().initialize()
+
+    expect(useAuthStore.getState().economyAccess).toBe(true)
+  })
+
+  it('never fetches the flag for a guest', async () => {
+    getSupabaseClientMock.mockReturnValue(makeFakeClient({ session: null }))
+
+    await useAuthStore.getState().initialize()
+
+    expect(fetchEconomyAccessMock).not.toHaveBeenCalled()
+    expect(useAuthStore.getState().economyAccess).toBe(false)
+  })
+
+  it('never fetches the flag when Supabase is unconfigured', async () => {
+    getSupabaseClientMock.mockReturnValue(null)
+
+    await useAuthStore.getState().initialize()
+
+    expect(fetchEconomyAccessMock).not.toHaveBeenCalled()
+    expect(useAuthStore.getState().economyAccess).toBe(false)
+  })
+
+  it('clears the flag on sign out', async () => {
+    fetchEconomyAccessMock.mockResolvedValue({ enabled: true, resolved: true, grantedAt: '2026-08-10T00:00:00Z' })
+    getSupabaseClientMock.mockReturnValue(makeFakeClient({ session: { user: { id: 'user-123' } } }))
+    await useAuthStore.getState().initialize()
+    expect(useAuthStore.getState().economyAccess).toBe(true)
+
+    await useAuthStore.getState().signOut()
+
+    expect(useAuthStore.getState().economyAccess).toBe(false)
+  })
+
+  it('clears the flag when the auth listener reports a sign-out', async () => {
+    fetchEconomyAccessMock.mockResolvedValue({ enabled: true, resolved: true, grantedAt: '2026-08-10T00:00:00Z' })
+    const client = makeFakeClient({ session: { user: { id: 'user-123' } } })
+    getSupabaseClientMock.mockReturnValue(client)
+    await useAuthStore.getState().initialize()
+    expect(useAuthStore.getState().economyAccess).toBe(true)
+
+    const capturedCallback = (client.auth.onAuthStateChange.mock.calls[0] as unknown[])[0] as (
+      event: string,
+      session: unknown,
+    ) => void
+    capturedCallback('SIGNED_OUT', null)
+
+    await vi.waitFor(() => {
+      expect(useAuthStore.getState().economyAccess).toBe(false)
+    })
+  })
+
+  it('degrades to guest with the flag off when getSession throws', async () => {
+    const client = makeFakeClient({ session: null })
+    client.auth.getSession = vi.fn().mockRejectedValue(new Error('offline'))
+    getSupabaseClientMock.mockReturnValue(client)
+
+    await useAuthStore.getState().initialize()
+
+    expect(useAuthStore.getState().status).toBe('guest')
+    expect(useAuthStore.getState().economyAccess).toBe(false)
+  })
+})
+
+describe('useAuthStore economy access refresh safety', () => {
+  const RESOLVED_ON = { enabled: true, resolved: true, grantedAt: '2026-08-10T00:00:00Z' }
+  const RESOLVED_OFF = { enabled: false, resolved: true, grantedAt: null }
+  const UNRESOLVED = { enabled: false, resolved: false, grantedAt: null }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetAuthSubscriptionForTests()
+    isSupabaseConfiguredMock.mockReturnValue(true)
+    fetchOrCreateProfileMock.mockResolvedValue(PROFILE)
+    fetchEconomyAccessMock.mockResolvedValue(RESOLVED_OFF)
+    useAuthStore.setState({
+      status: 'loading',
+      isConfigured: true,
+      user: null,
+      profile: null,
+      economyAccess: false,
+    })
+    usePlayerIdentityStore.setState({ displayName: '', color: DEFAULT_PLAYER_COLOR })
+  })
+
+  /** Drive a second `applySession` the way a token refresh does. */
+  async function refresh(client: ReturnType<typeof makeFakeClient>, userId: string) {
+    const cb = (client.auth.onAuthStateChange.mock.calls[0] as unknown[])[0] as (
+      event: string,
+      session: unknown,
+    ) => void
+    cb('TOKEN_REFRESHED', { user: { id: userId } })
+    await vi.waitFor(() => {
+      expect(fetchEconomyAccessMock.mock.calls.length).toBeGreaterThan(1)
+    })
+  }
+
+  it('keeps a resolved-on flag when a later refetch fails', async () => {
+    fetchEconomyAccessMock.mockResolvedValue(RESOLVED_ON)
+    const client = makeFakeClient({ session: { user: { id: 'user-123' } } })
+    getSupabaseClientMock.mockReturnValue(client)
+    await useAuthStore.getState().initialize()
+    expect(useAuthStore.getState().economyAccess).toBe(true)
+
+    // TOKEN_REFRESHED fires roughly hourly; a network blip here must not
+    // silently revoke the storefront mid-session.
+    fetchEconomyAccessMock.mockResolvedValue(UNRESOLVED)
+    await refresh(client, 'user-123')
+
+    expect(useAuthStore.getState().economyAccess).toBe(true)
+  })
+
+  it('still honours an authoritative off on refresh', async () => {
+    fetchEconomyAccessMock.mockResolvedValue(RESOLVED_ON)
+    const client = makeFakeClient({ session: { user: { id: 'user-123' } } })
+    getSupabaseClientMock.mockReturnValue(client)
+    await useAuthStore.getState().initialize()
+    expect(useAuthStore.getState().economyAccess).toBe(true)
+
+    // An operator actually disabled the flag — that IS an answer, so apply it.
+    fetchEconomyAccessMock.mockResolvedValue(RESOLVED_OFF)
+    await refresh(client, 'user-123')
+
+    expect(useAuthStore.getState().economyAccess).toBe(false)
+  })
+
+  it('does not carry one user\'s flag over to a different user', async () => {
+    fetchEconomyAccessMock.mockResolvedValue(RESOLVED_ON)
+    const client = makeFakeClient({ session: { user: { id: 'user-123' } } })
+    getSupabaseClientMock.mockReturnValue(client)
+    await useAuthStore.getState().initialize()
+    expect(useAuthStore.getState().economyAccess).toBe(true)
+
+    // Account switch with a failed read: fail closed, never inherit.
+    fetchEconomyAccessMock.mockResolvedValue(UNRESOLVED)
+    await refresh(client, 'user-999')
+
+    expect(useAuthStore.getState().economyAccess).toBe(false)
+  })
+
+  it('fails closed when the very first read is unresolved', async () => {
+    fetchEconomyAccessMock.mockResolvedValue(UNRESOLVED)
+    getSupabaseClientMock.mockReturnValue(makeFakeClient({ session: { user: { id: 'user-123' } } }))
+
+    await useAuthStore.getState().initialize()
+
+    expect(useAuthStore.getState().economyAccess).toBe(false)
   })
 })
