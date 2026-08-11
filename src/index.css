@@ -189,6 +189,23 @@ canvas {
   user-select: none;
 }
 
+/*
+ * Inlined theme icons (see `ThemeIcon`). The bundled SVGs carry only a
+ * `viewBox`, so the wrapper's sizing classes have to drive the glyph — an
+ * unsized inline <svg> would otherwise fall back to its 300x150 default.
+ */
+.theme-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .inventory-dice-preview-svg {
   display: block;
   overflow: visible;

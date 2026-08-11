@@ -10,6 +10,9 @@
  */
 
 import type { DiceShape } from '../../types/diceShape'
+import { useTheme } from '../../contexts/ThemeContext'
+import { hasAsset } from '../../lib/themeHelpers'
+import { ThemeIcon } from '../icons/ThemeIcon'
 import { BottomNav } from './BottomNav'
 import { CornerIcon } from './CornerIcon'
 import { DiceToolbar } from './DiceToolbar'
@@ -78,6 +81,11 @@ export function TableHud({
   const rotateBottom = getHudClusterControlBottom('rotate', isMobile)
   const motionBottom = getHudClusterControlBottom('motion', isMobile)
 
+  // Themed HUD glyphs. Every slot keeps its emoji/text fallback for themes that
+  // ship no icon of its own (Frontend-ADR-003 progressive enhancement).
+  const { currentTheme } = useTheme()
+  const icons = currentTheme.assets.icons
+
   return (
     <>
       {isUIVisible && (
@@ -101,7 +109,11 @@ export function TableHud({
             label="Settings"
             isVisible
           >
-            ⚙️
+            {hasAsset(icons.settings) ? (
+              <ThemeIcon src={icons.settings} label="Settings" className="w-7 h-7" />
+            ) : (
+              '⚙️'
+            )}
           </CornerIcon>
 
           {/* Top-right shop hub keeps the existing payments/conversion gate. */}
@@ -112,7 +124,11 @@ export function TableHud({
               label="Shop"
               isVisible
             >
-              🛍️
+              {hasAsset(icons.shop) ? (
+                <ThemeIcon src={icons.shop} label="Shop" className="w-7 h-7" />
+              ) : (
+                '🛍️'
+              )}
             </CornerIcon>
           )}
 
@@ -126,7 +142,11 @@ export function TableHud({
               title="Rotate my view 90°"
               data-testid="rotate-view-button"
             >
-              🔄
+              {hasAsset(icons.rotate) ? (
+                <ThemeIcon src={icons.rotate} label="Rotate view" className="w-6 h-6" />
+              ) : (
+                '🔄'
+              )}
             </button>
           )}
           {showControlCluster && motionBottom !== null && (
@@ -145,7 +165,11 @@ export function TableHud({
               title="Motion Mode"
               aria-pressed={motionMode}
             >
-              PHYS
+              {hasAsset(icons.motion) ? (
+                <ThemeIcon src={icons.motion} label="Motion Mode" className="w-6 h-6" />
+              ) : (
+                'PHYS'
+              )}
             </button>
           )}
 

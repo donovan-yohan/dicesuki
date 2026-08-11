@@ -16,6 +16,7 @@ import {
   shouldReduceMotion,
 } from '../../animations/ui-transitions'
 import { useTheme } from '../../contexts/ThemeContext'
+import { ThemeIcon } from '../icons/ThemeIcon'
 import { CenterRollButton } from './CenterRollButton'
 
 interface BottomNavProps {
@@ -75,7 +76,7 @@ export function BottomNav({
           onClick={onOpenSavedRolls}
           label="My Dice Rolls"
           navItem="Saved Rolls"
-          icon="📋"
+          icon={getIcon('savedRolls') || '📋'}
         />
       </div>
 
@@ -100,7 +101,7 @@ export function BottomNav({
           onClick={onOpenPlayerPanel}
           label="Room Players"
           navItem="Players/Room"
-          icon="👥"
+          icon={getIcon('profile') || '👥'}
         />
       </div>
     </motion.nav>
@@ -152,7 +153,7 @@ function NavButton({ onClick, label, navItem = label, icon, active = false }: Na
     >
       {/* Icon - just use the icon directly (emojis already provided as fallback) */}
       <div className="text-xs font-bold">
-        {isImage ? <img src={icon} alt={label} className="w-5 h-5" /> : icon}
+        {isImage ? <ThemeIcon src={icon} label={label} className="w-5 h-5" /> : icon}
       </div>
     </motion.button>
   )
