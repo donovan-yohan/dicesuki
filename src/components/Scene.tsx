@@ -59,7 +59,15 @@ import { RoomNotices } from './multiplayer/RoomNotices'
 import { MultiplayerMotionController } from './multiplayer/MultiplayerMotionController'
 import { RoomMotionHint } from './multiplayer/RoomMotionHint'
 import { STANDARD_ROLL_CONVERSION_AVAILABLE } from './economy/shopCatalog'
-import { HeroDieInspector, HistoryPanel, InventoryPanel, SavedRollsPanel, SettingsPanel } from './panels'
+// Imported from their concrete modules, NOT the `./panels` barrel: the barrel
+// also re-exports `ShopPanel`, which would put a static edge to the storefront
+// in this chunk and silently collapse the lazy boundary below back into the
+// main bundle (Rollup inlines a dynamic import when a static one exists).
+import { HeroDieInspector } from './panels/HeroDieInspector'
+import { HistoryPanel } from './panels/HistoryPanel'
+import { InventoryPanel } from './panels/InventoryPanel'
+import { SavedRollsPanel } from './panels/SavedRollsPanel'
+import { SettingsPanel } from './panels/SettingsPanel'
 
 // The storefront is lazy so the economy gate is STRUCTURAL, not just visual:
 // an un-flagged player never downloads the shop, the banner screen, the pull

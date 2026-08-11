@@ -306,6 +306,12 @@ describe('economy surfaces stay behind useEconomyAccess', () => {
     // the storefront chunk (banners, pull overlays, Lunar Pass, SKU strings).
     expect(scene).toMatch(/lazy\(\s*\(\)\s*=>\s*import\('\.\/panels\/ShopPanel'\)/)
     expect(scene).not.toMatch(/^import\s*\{[^}]*\bShopPanel\b[^}]*\}\s*from/m)
+    // And no import of the `./panels` BARREL, which re-exports ShopPanel. That
+    // static edge silently collapses the lazy boundary: Rollup inlines a
+    // dynamically imported module back into the parent chunk when a static
+    // import of it also exists, and the build stops emitting ShopPanel-*.js
+    // with no error. Caught exactly that way once; pinned so it stays caught.
+    expect(scene).not.toMatch(/from '\.\/panels'/)
     // A stale `isShopOpen` would keep `isOverlayOpen` true with nothing on screen.
     expect(scene).toMatch(/if\s*\(\s*economyAccess\s*\)\s*return\s*\n?\s*setIsShopOpen\(false\)/)
   })
