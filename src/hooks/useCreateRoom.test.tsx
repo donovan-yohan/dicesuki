@@ -1,6 +1,15 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useCreateRoom } from './useCreateRoom'
+import {
+  COLDSTART_DEADLINE_MS,
+  COLDSTART_PHASE2_AT_MS,
+  COLDSTART_WAKING_BODY,
+} from '../lib/coldStartWait'
+
+function useStagedFakeTimers() {
+  vi.useFakeTimers({ toFake: ['performance', 'setTimeout', 'clearTimeout'] })
+}
 
 const navigateMock = vi.hoisted(() => vi.fn())
 
@@ -105,16 +114,16 @@ describe('useCreateRoom', () => {
   })
 
   it('keeps users on the panel with an actionable unavailable-server error', async () => {
-    vi.useFakeTimers()
+    useStagedFakeTimers()
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch')))
 
     const { result } = renderHook(() => useCreateRoom())
 
     await act(async () => {
       const pending = result.current.createRoom()
-      // Public readiness retries a down server through cold starts (#109); flush
-      // all backoff waits so the error surfaces without a real 10s wall wait.
-      await vi.runAllTimersAsync()
+      // The staged wait rides out the full ~3 minute cold-start budget before
+      // admitting defeat; flush it so the error surfaces without a wall wait.
+      await vi.advanceTimersByTimeAsync(COLDSTART_DEADLINE_MS + 10_000)
       await pending
     })
     vi.useRealTimers()
@@ -124,5 +133,87 @@ describe('useCreateRoom', () => {
       kind: 'unavailable',
       command: null,
     })
+  })
+
+  it('stays on the plain checking phase for the first 30s, then admits the server is waking', async () => {
+    useStagedFakeTimers()
+    // Health never answers until we let it; every probe is a cold-start blip.
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse({}, { ok: false, status: 503 }),
+    ))
+
+    const { result } = renderHook(() => useCreateRoom())
+
+    let pending: Promise<void> | undefined
+    await act(async () => {
+      pending = result.current.createRoom()
+      await vi.advanceTimersByTimeAsync(COLDSTART_PHASE2_AT_MS - 2_000)
+    })
+    expect(result.current.phase).toBe('checking')
+    expect(result.current.wakingMessage).toBeNull()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000)
+    })
+    expect(result.current.phase).toBe('waking')
+    expect(result.current.wakingMessage).toBe(COLDSTART_WAKING_BODY)
+    expect(result.current.waitElapsedSeconds).toBeGreaterThanOrEqual(30)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COLDSTART_DEADLINE_MS)
+      await pending
+    })
+    vi.useRealTimers()
+    expect(result.current.error).toMatchObject({ kind: 'unavailable' })
+  })
+
+  it('auto-continues into creation the moment a waking server answers', async () => {
+    useStagedFakeTimers()
+    const wakesAt = performance.now() + COLDSTART_PHASE2_AT_MS + 15_000
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+      if (String(url).endsWith('/api/rooms')) return jsonResponse({ roomId: 'ABC123' }, { status: 201 })
+      return performance.now() >= wakesAt
+        ? jsonResponse({ status: 'ok', instanceId: 'srv123' })
+        : jsonResponse({}, { ok: false, status: 503 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { result } = renderHook(() => useCreateRoom())
+
+    await act(async () => {
+      const pending = result.current.createRoom()
+      // Well short of the 3-minute deadline: no extra click, no hard error.
+      await vi.advanceTimersByTimeAsync(COLDSTART_PHASE2_AT_MS + 25_000)
+      await pending
+    })
+    vi.useRealTimers()
+
+    expect(result.current.error).toBeNull()
+    expect(navigateMock).toHaveBeenCalledWith('/room/ABC123')
+  })
+
+  it('does not update state after unmount mid-wait', async () => {
+    useStagedFakeTimers()
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch')))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { result, unmount } = renderHook(() => useCreateRoom())
+
+    let pending: Promise<void> | undefined
+    await act(async () => {
+      pending = result.current.createRoom()
+      await vi.advanceTimersByTimeAsync(5_000)
+    })
+
+    unmount()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(COLDSTART_DEADLINE_MS + 10_000)
+      await pending
+    })
+    vi.useRealTimers()
+
+    // React logs an "update on unmounted component" style error if we leaked a
+    // setState; the abort must have stopped the wait instead.
+    expect(consoleError).not.toHaveBeenCalled()
   })
 })

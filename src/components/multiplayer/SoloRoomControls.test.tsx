@@ -8,6 +8,7 @@ import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useCreateRoom, type UseCreateRoomOptions } from '../../hooks/useCreateRoom'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus'
 import { consumePendingRoomSetup, clearPendingRoomSetup } from '../../lib/roomCarry'
+import { COLDSTART_WAKING_BODY, COLDSTART_WAKING_TITLE } from '../../lib/coldStartWait'
 import { SoloRoomControls } from './SoloRoomControls'
 
 const navigateMock = vi.hoisted(() => vi.fn())
@@ -73,6 +74,7 @@ describe('SoloRoomControls (go online)', () => {
         phase: 'idle',
         isCreating: false,
         wakingMessage: null,
+        waitElapsedSeconds: 0,
         error: null,
         createRoom: createRoomMock,
         clearError: vi.fn(),
@@ -141,6 +143,29 @@ describe('SoloRoomControls (go online)', () => {
     renderControls()
     fireEvent.click(screen.getByTestId('go-online-browse'))
     expect(navigateMock).toHaveBeenCalledWith('/rooms')
+  })
+
+  it('shows honest cold-start copy with elapsed time in the waking phase', () => {
+    vi.mocked(useCreateRoom).mockImplementation((options = {}) => {
+      capturedOptions = options
+      return {
+        phase: 'waking',
+        isCreating: true,
+        wakingMessage: COLDSTART_WAKING_BODY,
+        waitElapsedSeconds: 48,
+        error: null,
+        createRoom: createRoomMock,
+        clearError: vi.fn(),
+      }
+    })
+    renderControls()
+
+    expect(screen.getByTestId('go-online-create')).toHaveTextContent(COLDSTART_WAKING_TITLE)
+    const notice = screen.getByTestId('go-online-waking')
+    expect(notice).toHaveTextContent('Free hosting naps when idle')
+    expect(notice).toHaveTextContent('48s elapsed')
+    // A wake-up is not an error: the failure surface stays clear.
+    expect(screen.queryByTestId('go-online-error')).toBeNull()
   })
 
   it('disables the actions and stashes nothing when offline', () => {

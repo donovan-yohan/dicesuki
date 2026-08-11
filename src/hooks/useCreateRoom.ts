@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   checkRoomServerReadiness,
@@ -6,11 +6,16 @@ import {
   type RoomServerMode,
   type RoomServerReadinessState,
 } from '../lib/multiplayerServer'
+import { COLDSTART_WAKING_BODY } from '../lib/coldStartWait'
 
+/**
+ * `'waking'` is the phase-2 stage of the staged cold-start wait: we have been
+ * polling for 30s+ and now say plainly that the free-tier server is asleep.
+ */
 type CreateRoomPhase = 'idle' | 'checking' | 'waking' | 'creating'
 
 export interface CreateRoomError {
-  kind: Exclude<RoomServerReadinessState, 'ready'> | 'create-failed'
+  kind: Exclude<RoomServerReadinessState, 'ready' | 'aborted'> | 'create-failed'
   title: string
   message: string
   command: string | null
@@ -38,10 +43,12 @@ interface UseCreateRoomResult {
   phase: CreateRoomPhase
   isCreating: boolean
   /**
-   * User-facing "server waking up, retrying…" message while readiness retries a
-   * cold-starting public server (#109); null otherwise.
+   * User-facing cold-start message while the staged wait rides out a sleeping
+   * public server; null outside phase 2.
    */
   wakingMessage: string | null
+  /** Seconds elapsed in the current staged wait, for a progress hint. */
+  waitElapsedSeconds: number
   error: CreateRoomError | null
   createRoom: () => Promise<void>
   clearError: () => void
@@ -50,30 +57,53 @@ interface UseCreateRoomResult {
 /**
  * Hook that handles creating a multiplayer room via the server REST API
  * and navigating to the room page on success.
+ *
+ * Readiness runs the staged cold-start wait (`coldStartWait.ts`) so a sleeping
+ * Render free-tier server is woken rather than reported dead: ordinary
+ * "checking" for 30s, honest cold-start copy up to ~3 minutes, and an automatic
+ * hand-off into creation the moment /health answers.
  */
 export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoomResult {
   const navigate = useNavigate()
   const [phase, setPhase] = useState<CreateRoomPhase>('idle')
   const [wakingMessage, setWakingMessage] = useState<string | null>(null)
+  const [waitElapsedSeconds, setWaitElapsedSeconds] = useState(0)
   const [error, setError] = useState<CreateRoomError | null>(null)
   const mode = options.mode || 'public'
   const config = getRoomServerConfig(mode)
   const isCreating = phase !== 'idle'
 
+  // Guard every post-await setState: a 3-minute wait easily outlives the panel.
+  const mountedRef = useRef(true)
+  const abortRef = useRef<AbortController | null>(null)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      abortRef.current?.abort()
+    }
+  }, [])
+
   async function createRoom(): Promise<void> {
+    const controller = new AbortController()
+    abortRef.current = controller
     setPhase('checking')
     setWakingMessage(null)
+    setWaitElapsedSeconds(0)
     setError(null)
     try {
       const readiness = await checkRoomServerReadiness(config, {
-        // Surface the cold-start wait instead of a silent spinner (#109).
-        onRetry: ({ attempt, maxRetries }) => {
-          setPhase('waking')
-          setWakingMessage(
-            `${config.label} is waking up, retrying… (attempt ${attempt} of ${maxRetries})`,
-          )
+        signal: controller.signal,
+        // Drive the staged UI: phase 1 keeps the plain spinner, phase 2 admits
+        // the server is asleep and shows elapsed time (#109 follow-up).
+        onProgress: ({ phase: waitPhase, elapsedMs }) => {
+          if (!mountedRef.current) return
+          setPhase(waitPhase === 'waking' ? 'waking' : 'checking')
+          setWaitElapsedSeconds(Math.floor(elapsedMs / 1000))
+          setWakingMessage(waitPhase === 'waking' ? COLDSTART_WAKING_BODY : null)
         },
       })
+      if (!mountedRef.current || readiness.state === 'aborted') return
       setWakingMessage(null)
       if (!readiness.ok) {
         const kind = readiness.state === 'ready' ? 'unavailable' : readiness.state
@@ -86,6 +116,7 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
         return
       }
 
+      // Ready — continue automatically into creation, no extra click.
       setPhase('creating')
       const response = await fetch(`${config.httpUrl}/api/rooms`, { method: 'POST' })
       if (!response.ok) {
@@ -95,6 +126,7 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
       if (typeof data.roomId !== 'string') {
         throw new Error('Room server response did not include a roomId')
       }
+      if (!mountedRef.current) return
 
       // Room exists now: let the caller key any hand-off state to this exact id
       // before we navigate into it.
@@ -107,6 +139,7 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
       const query = params.toString()
       navigate(`/room/${data.roomId}${query ? `?${query}` : ''}`)
     } catch (err) {
+      if (!mountedRef.current) return
       console.error('Failed to create room:', err)
       setError({
         kind: 'create-failed',
@@ -115,8 +148,12 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
         command: config.startCommand,
       })
     } finally {
-      setPhase('idle')
-      setWakingMessage(null)
+      if (mountedRef.current) {
+        setPhase('idle')
+        setWakingMessage(null)
+        setWaitElapsedSeconds(0)
+      }
+      if (abortRef.current === controller) abortRef.current = null
     }
   }
 
@@ -124,5 +161,5 @@ export function useCreateRoom(options: UseCreateRoomOptions = {}): UseCreateRoom
     setError(null)
   }
 
-  return { phase, isCreating, wakingMessage, error, createRoom, clearError }
+  return { phase, isCreating, wakingMessage, waitElapsedSeconds, error, createRoom, clearError }
 }

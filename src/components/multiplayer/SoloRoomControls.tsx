@@ -10,6 +10,7 @@ import {
   type RoomVisibility,
 } from '../../lib/multiplayerMessages'
 import { setPendingRoomSetup, type ArenaFootprint } from '../../lib/roomCarry'
+import { COLDSTART_WAKING_TITLE, formatColdStartElapsed } from '../../lib/coldStartWait'
 import { RoomSizeControl } from './RoomSizeControl'
 
 /**
@@ -38,7 +39,7 @@ export function SoloRoomControls() {
   // succeeded), keyed to that exact room so it can never be applied to a
   // different room the user later joins. Snapshots the live dice + the solo
   // arena they were captured in at that moment.
-  const { createRoom, isCreating, phase, error, clearError } = useCreateRoom({
+  const { createRoom, isCreating, phase, wakingMessage, waitElapsedSeconds, error, clearError } = useCreateRoom({
     themeId: currentThemeId,
     onRoomCreated: (roomId) => {
       const state = useMultiplayerStore.getState()
@@ -160,7 +161,7 @@ export function SoloRoomControls() {
           <span className="text-lg" aria-hidden>🌐</span>
           <span className="text-sm font-semibold">
             {phase === 'waking'
-              ? 'Server waking up…'
+              ? `${COLDSTART_WAKING_TITLE}…`
               : isCreating
                 ? 'Creating room…'
                 : 'Create Room'}
@@ -168,6 +169,28 @@ export function SoloRoomControls() {
         </span>
         <span aria-hidden>→</span>
       </button>
+
+      {/* Phase 2 of the staged cold-start wait: the free-tier room server is
+          asleep. Say so honestly, with elapsed time, instead of a mute spinner
+          or a wrong "unavailable" error. */}
+      {phase === 'waking' && wakingMessage && (
+        <div
+          role="status"
+          data-testid="go-online-waking"
+          className="rounded-md px-2 py-1.5 text-xs"
+          style={{
+            backgroundColor: 'rgba(96, 165, 250, 0.14)',
+            border: '1px solid rgba(96, 165, 250, 0.35)',
+            color: colors.text.secondary,
+            lineHeight: 1.35,
+          }}
+        >
+          {wakingMessage}{' '}
+          <span style={{ color: colors.text.muted }}>
+            ({formatColdStartElapsed(waitElapsedSeconds * 1000)})
+          </span>
+        </div>
+      )}
 
       {/* Browse — join an existing public room instead. */}
       <button

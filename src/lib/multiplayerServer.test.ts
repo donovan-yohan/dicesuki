@@ -4,9 +4,13 @@ import {
   getHttpServerUrl,
   getRoomServerConfig,
   getWsServerUrl,
-  READINESS_MAX_RETRIES,
   type RoomServerConfig,
 } from './multiplayerServer'
+import { COLDSTART_DEADLINE_MS, COLDSTART_PHASE2_AT_MS } from './coldStartWait'
+
+function useStagedFakeTimers() {
+  vi.useFakeTimers({ toFake: ['performance', 'setTimeout', 'clearTimeout'] })
+}
 
 function okHealth(): Response {
   return { ok: true, status: 200, json: async () => ({ status: 'ok', instanceId: 'srv123' }) } as Response
@@ -53,22 +57,25 @@ describe('checkRoomServerReadiness', () => {
 
   // Port-conflict and unreachable each had a second, weaker copy here that
   // asserted the same state without the call-count. They were merged into the
-  // retry suite below, which pins both the state and the number of attempts;
-  // their one unique assertion (`command: null`) travelled with them.
+  // staged-wait suite below, which pins both the state and the polling shape.
 
-  it('does not retry when maxRetries is 0 (fast-fail, #109)', async () => {
+  it('gives up with an unavailable readiness once the deadline expires', async () => {
+    useStagedFakeTimers()
     const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'))
 
-    await expect(checkRoomServerReadiness(config, { fetchImpl, maxRetries: 0 })).resolves.toMatchObject({
+    const promise = checkRoomServerReadiness(config, { fetchImpl })
+    await vi.advanceTimersByTimeAsync(COLDSTART_DEADLINE_MS + 10_000)
+
+    await expect(promise).resolves.toMatchObject({
       ok: false,
       state: 'unavailable',
       command: null,
     })
-    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
   })
 })
 
-describe('checkRoomServerReadiness retry through cold starts (#109)', () => {
+describe('checkRoomServerReadiness staged cold-start wait', () => {
   const publicConfig: RoomServerConfig = {
     mode: 'public',
     label: 'Public multiplayer server',
@@ -81,52 +88,88 @@ describe('checkRoomServerReadiness retry through cold starts (#109)', () => {
     vi.useRealTimers()
   })
 
-  it('retries transient statuses and succeeds (404 → 404 → 200)', async () => {
-    vi.useFakeTimers()
+  it('polls through transient statuses and succeeds (404 → 404 → 200)', async () => {
+    useStagedFakeTimers()
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(statusResponse(404))
       .mockResolvedValueOnce(statusResponse(404))
       .mockResolvedValueOnce(okHealth())
-    const onRetry = vi.fn()
+    const onProgress = vi.fn()
 
-    const promise = checkRoomServerReadiness(publicConfig, { fetchImpl, onRetry })
-    await vi.runAllTimersAsync()
+    const promise = checkRoomServerReadiness(publicConfig, { fetchImpl, onProgress })
+    await vi.advanceTimersByTimeAsync(10_000)
 
     await expect(promise).resolves.toMatchObject({ ok: true, state: 'ready' })
     expect(fetchImpl).toHaveBeenCalledTimes(3)
-    expect(onRetry).toHaveBeenCalledTimes(2)
-    expect(onRetry).toHaveBeenLastCalledWith(
-      expect.objectContaining({ attempt: 2, maxRetries: READINESS_MAX_RETRIES }),
-    )
+    // Under 30s the caller stays on the ordinary "checking" copy.
+    expect(onProgress.mock.calls.every(([p]) => p.phase === 'connecting')).toBe(true)
   })
 
-  it('retries network errors before succeeding', async () => {
-    vi.useFakeTimers()
+  it('polls network errors before succeeding', async () => {
+    useStagedFakeTimers()
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
       .mockResolvedValueOnce(okHealth())
 
     const promise = checkRoomServerReadiness(publicConfig, { fetchImpl })
-    await vi.runAllTimersAsync()
+    await vi.advanceTimersByTimeAsync(5_000)
 
     await expect(promise).resolves.toMatchObject({ ok: true, state: 'ready' })
     expect(fetchImpl).toHaveBeenCalledTimes(2)
   })
 
-  it('exhausts retries and surfaces the last transient failure as an error', async () => {
-    vi.useFakeTimers()
+  it('switches to the waking phase at 30s and keeps polling past the old 12s budget', async () => {
+    useStagedFakeTimers()
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(statusResponse(503))
+    const onProgress = vi.fn()
 
-    const promise = checkRoomServerReadiness(publicConfig, { fetchImpl })
-    await vi.runAllTimersAsync()
+    const promise = checkRoomServerReadiness(publicConfig, { fetchImpl, onProgress })
 
+    await vi.advanceTimersByTimeAsync(COLDSTART_PHASE2_AT_MS - 1_000)
+    expect(onProgress.mock.calls.at(-1)?.[0].phase).toBe('connecting')
+
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(onProgress.mock.calls.at(-1)?.[0].phase).toBe('waking')
+    // Still probing at ~81s, where the old fixed-retry policy had long given up.
+    const callsAt31s = fetchImpl.mock.calls.length
+    await vi.advanceTimersByTimeAsync(50_000)
+    expect(fetchImpl.mock.calls.length).toBeGreaterThan(callsAt31s)
+
+    await vi.advanceTimersByTimeAsync(COLDSTART_DEADLINE_MS)
     await expect(promise).resolves.toMatchObject({ ok: false, state: 'unavailable' })
-    expect(fetchImpl).toHaveBeenCalledTimes(READINESS_MAX_RETRIES + 1)
   })
 
-  it('does not retry a non-transient status (e.g. HTTP 500)', async () => {
+  it('resolves as ready the moment a sleeping server answers mid-wait', async () => {
+    useStagedFakeTimers()
+    const wakesAt = performance.now() + COLDSTART_PHASE2_AT_MS + 20_000
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () =>
+        performance.now() >= wakesAt ? okHealth() : statusResponse(503),
+      )
+
+    const promise = checkRoomServerReadiness(publicConfig, { fetchImpl })
+    await vi.advanceTimersByTimeAsync(COLDSTART_PHASE2_AT_MS + 30_000)
+
+    await expect(promise).resolves.toMatchObject({ ok: true, state: 'ready' })
+  })
+
+  it('reports an aborted readiness when the caller cancels the wait', async () => {
+    useStagedFakeTimers()
+    const controller = new AbortController()
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(statusResponse(503))
+
+    const promise = checkRoomServerReadiness(publicConfig, { fetchImpl, signal: controller.signal })
+    await vi.advanceTimersByTimeAsync(4_000)
+    controller.abort()
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    await expect(promise).resolves.toMatchObject({ ok: false, state: 'aborted' })
+  })
+
+  it('does not poll a non-transient status (e.g. HTTP 500)', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(statusResponse(500))
 
     await expect(checkRoomServerReadiness(publicConfig, { fetchImpl })).resolves.toMatchObject({
@@ -136,7 +179,7 @@ describe('checkRoomServerReadiness retry through cold starts (#109)', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
-  it('does not retry a port conflict (wrong payload from another app)', async () => {
+  it('does not poll a port conflict (wrong payload from another app)', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       { ok: true, status: 200, json: async () => ({ status: 'ok' }) } as Response,
     )

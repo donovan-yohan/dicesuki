@@ -1,3 +1,10 @@
+import {
+  isColdStartAborted,
+  runColdStartWait,
+  type ColdStartProgress,
+  type ColdStartWaitOptions,
+} from './coldStartWait'
+
 /**
  * Room-server target. Solo no longer uses a native loopback server — it runs
  * in-browser against the WASM room worker (issue #114) — so `'public'` is the
@@ -5,7 +12,12 @@
  */
 export type RoomServerMode = 'public'
 
-export type RoomServerReadinessState = 'ready' | 'unavailable' | 'port-conflict'
+/**
+ * `'aborted'` is not a server condition: it means the caller (usually an
+ * unmounting component) cancelled the staged wait, and the result must be
+ * dropped rather than rendered.
+ */
+export type RoomServerReadinessState = 'ready' | 'unavailable' | 'port-conflict' | 'aborted'
 
 export interface RoomServerConfig {
   mode: RoomServerMode
@@ -22,59 +34,27 @@ export interface RoomServerReadiness {
   command: string | null
 }
 
-/** Details passed to {@link ReadinessOptions.onRetry} before each retry wait. */
-export interface ReadinessRetryInfo {
-  /** 1-based index of the retry about to be attempted (1 == first retry). */
-  attempt: number
-  /** Total number of retries that will be attempted before giving up. */
-  maxRetries: number
-  /** The transient failure that triggered the retry (message from the attempt). */
-  reason: string
-}
-
-interface ReadinessOptions {
+/**
+ * Readiness options: the staged cold-start knobs (see {@link ColdStartWaitOptions})
+ * plus this module's own injectables.
+ */
+export interface ReadinessOptions
+  extends Pick<
+    ColdStartWaitOptions,
+    'phase2AtMs' | 'deadlineMs' | 'attemptTimeoutMs' | 'progressTickMs' | 'signal' | 'sleepImpl' | 'nowImpl'
+  > {
   fetchImpl?: typeof fetch
-  timeoutMs?: number
   /**
-   * Number of retries after the first attempt. Defaults to
-   * {@link READINESS_MAX_RETRIES} so a cold-starting public server is ridden out
-   * before giving up (#109).
+   * Fires after each failed probe and on every progress tick while waiting, so
+   * the UI can flip to cold-start copy and show elapsed time.
    */
-  maxRetries?: number
-  /** Delay between attempts in ms. Defaults to {@link READINESS_RETRY_DELAY_MS}. */
-  retryDelayMs?: number
-  /** Called once before each backoff wait so the UI can surface a "waking" state. */
-  onRetry?: (info: ReadinessRetryInfo) => void
-  /** Injectable delay, for tests. Defaults to a `setTimeout`-based sleep. */
-  sleepImpl?: (ms: number) => Promise<void>
+  onProgress?: (progress: ColdStartProgress) => void
 }
 
 const DEFAULT_PUBLIC_WS_URL = 'ws://localhost:8080'
-const READINESS_TIMEOUT_MS = 2_500
 
-/**
- * Retry tuning for public room-server readiness (#109). Render free-tier
- * instances spin down when idle and have no zero-downtime deploys, so a cold
- * start or mid-deploy blip answers /health with 404/502/503 (or a network
- * error) for a few seconds before becoming ready.
- *
- * Policy: 4 retries (5 attempts total) at a fixed 2.5s spacing. That covers a
- * ~10s+ readiness window (plus per-attempt request timeouts) — long enough to
- * ride out a typical warm-up blip, short enough that a truly-down server still
- * surfaces a clear error before the user gives up. Beyond this the user can
- * simply retry manually rather than stare at a spinner for a full cold start.
- */
-export const READINESS_MAX_RETRIES = 4
-/** Fixed backoff between readiness attempts, in ms (see {@link READINESS_MAX_RETRIES}). */
-export const READINESS_RETRY_DELAY_MS = 2_500
-/** Transient HTTP statuses that warrant a readiness retry (cold start / deploy blip). */
+/** Transient HTTP statuses that mean "still waking", not "broken". */
 export const READINESS_RETRY_STATUSES = new Set([404, 502, 503])
-
-function readinessSleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
-}
 
 function readEnv(key: keyof ImportMetaEnv): string | undefined {
   try {
@@ -188,10 +168,11 @@ interface ReadinessAttempt {
 async function attemptRoomServerReadiness(
   config: RoomServerConfig,
   options: ReadinessOptions,
+  attemptTimeoutMs: number,
 ): Promise<ReadinessAttempt> {
   const fetchImpl = options.fetchImpl || fetch
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), options.timeoutMs || READINESS_TIMEOUT_MS)
+  const timeout = window.setTimeout(() => controller.abort(), attemptTimeoutMs)
 
   try {
     const response = await fetchImpl(`${config.httpUrl}/health`, {
@@ -265,39 +246,52 @@ async function attemptRoomServerReadiness(
 }
 
 /**
- * Probe the room server's /health endpoint, retrying transient failures
- * (network errors and HTTP 404/502/503) through cold starts and deploy blips
- * before giving up (#109). Public servers retry per {@link READINESS_MAX_RETRIES};
- * local loopback fast-fails so real misconfiguration surfaces immediately.
+ * Probe the room server's /health endpoint on the staged cold-start schedule
+ * (see `coldStartWait.ts`): poll through the ~81s Render free-tier wake-up,
+ * switching the caller's UI to honest cold-start copy at 30s and giving up only
+ * after ~3 minutes.
  *
- * On success or a definitive failure (port conflict / non-transient status) it
- * returns straight away. `onRetry` fires before each backoff wait so callers can
- * surface a "server waking up, retrying…" state.
+ * Both a dropped connection and a per-attempt timeout count as "still waking",
+ * because a cold container does both. Success or a definitive failure (port
+ * conflict / non-transient status) returns straight away, so the caller can
+ * continue into the create flow with no extra click.
+ *
+ * On abort (caller unmounted) it resolves to a `'aborted'` readiness the caller
+ * must ignore rather than render.
  */
 export async function checkRoomServerReadiness(
   config: RoomServerConfig,
   options: ReadinessOptions = {},
 ): Promise<RoomServerReadiness> {
-  const maxRetries = options.maxRetries ?? READINESS_MAX_RETRIES
-  const retryDelayMs = options.retryDelayMs ?? READINESS_RETRY_DELAY_MS
-  const sleep = options.sleepImpl ?? readinessSleep
-
-  let lastReadiness: RoomServerReadiness | null = null
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const outcome = await attemptRoomServerReadiness(config, options)
-    if (outcome.readiness.ok || !outcome.retryable) {
-      return outcome.readiness
+  try {
+    return await runColdStartWait<RoomServerReadiness>(
+      async ({ attemptTimeoutMs }) => {
+        const outcome = await attemptRoomServerReadiness(config, options, attemptTimeoutMs)
+        return {
+          done: outcome.readiness.ok || !outcome.retryable,
+          value: outcome.readiness,
+        }
+      },
+      {
+        phase2AtMs: options.phase2AtMs,
+        deadlineMs: options.deadlineMs,
+        attemptTimeoutMs: options.attemptTimeoutMs,
+        progressTickMs: options.progressTickMs,
+        signal: options.signal,
+        sleepImpl: options.sleepImpl,
+        nowImpl: options.nowImpl,
+        onProgress: options.onProgress,
+      },
+    )
+  } catch (error) {
+    if (isColdStartAborted(error)) {
+      return {
+        state: 'aborted',
+        ok: false,
+        message: `${config.label} readiness check was cancelled.`,
+        command: config.startCommand,
+      }
     }
-    lastReadiness = outcome.readiness
-    if (attempt < maxRetries) {
-      options.onRetry?.({
-        attempt: attempt + 1,
-        maxRetries,
-        reason: outcome.readiness.message,
-      })
-      await sleep(retryDelayMs)
-    }
+    throw error
   }
-  // Exhausted all retries — surface the last transient failure as the error.
-  return lastReadiness as RoomServerReadiness
 }
