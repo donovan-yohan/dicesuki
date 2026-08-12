@@ -192,7 +192,7 @@ src/
 ├── lib/              # Utilities and helpers
 │   ├── geometries.ts # Dice geometries
 │   ├── haptics.ts    # Haptic utilities
-│   ├── customDiceDB.ts # IndexedDB for custom dice GLB files
+│   ├── customDiceDB.ts # IndexedDB compatibility for retained local dice GLB files
 │   └── *.ts          # Other utilities
 ├── store/            # Zustand stores
 │   ├── useDiceManagerStore.ts  # Dice state management

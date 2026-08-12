@@ -63,8 +63,9 @@ gated behind `isSupabaseConfigured()` + an authenticated session.
 - **Saved rolls** (`useSavedRollsStore`): `savedRolls` (the editing draft `currentlyEditing` is ephemeral, not synced).
 - **Settings** (`useSettingsStore`): `themeId` (selected theme).
 
-**Not synced** (device-local / ephemeral, by design): custom-dice binary models
-(IndexedDB blobs — metadata syncs, the model file stays device-local), haptic /
+**Not synced** (device-local / ephemeral, by design): retained legacy custom-dice
+binary models (IndexedDB blobs — metadata syncs, the model file stays device-local;
+customer uploads are retired), haptic /
 motion / UI-visibility prefs (`useUIStore`, device-ergonomic), owned themes
 (`dicesuki-owned-themes` — a dev grants-all placeholder), and live connection
 state.

@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+const customDiceDb = vi.hoisted(() => ({
+  createBlobUrlFromStorage: vi.fn(),
+  deleteCustomDiceModel: vi.fn(),
+}))
+
+vi.mock('../lib/customDiceDB', () => customDiceDb)
+
 import {
   migratePersistedInventoryState,
   useInventoryStore,
@@ -30,6 +38,7 @@ const makeNewDie = (overrides: Partial<NewInventoryDie> = {}): NewInventoryDie =
 
 describe('useInventoryStore', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     useInventoryStore.getState().reset()
   })
 
@@ -122,6 +131,76 @@ describe('useInventoryStore', () => {
 
     expect(configured.catalogRef?.itemId).toBe('adventurer-starter/d6/common@1')
     expect(custom.catalogRef).toBeUndefined()
+  })
+
+  describe('regenerateCustomDiceBlobUrls', () => {
+    it('restores a legacy local die without a storage marker and skips bundled catalog GLBs', async () => {
+      const legacy = useInventoryStore.getState().addDie(makeNewDie({
+        id: 'legacy-local-die',
+        setId: 'custom-artist',
+        customAsset: {
+          assetId: 'legacy-local-model',
+          modelUrl: 'blob:expired-local-model',
+          metadata: {
+            version: '1.0', diceType: 'd6', name: 'Legacy local die', artist: 'Test',
+            created: '2025-11-16', scale: 1, faceNormals: [],
+            physics: { density: 1, restitution: 0.3, friction: 0.6 },
+            colliderType: 'roundCuboid', colliderArgs: {},
+          },
+        },
+      }))
+      const bundled = useInventoryStore.getState().addDie(makeNewDie({
+        id: 'bundled-catalog-die',
+        setId: 'cozy-forest-imagegen-set',
+        customAsset: {
+          assetId: 'cozy-forest-imagegen-set/hearthwood-d6',
+          modelUrl: '/dice/cozy-forest-imagegen-set/hearthwood-d6/model.glb',
+          storage: 'bundled',
+          metadata: {
+            version: '1.0', diceType: 'd6', name: 'Hearthwood D6', artist: 'Operator',
+            created: '2026-08-01', scale: 1, faceNormals: [],
+            physics: { density: 1, restitution: 0.3, friction: 0.6 },
+            colliderType: 'roundCuboid', colliderArgs: {},
+          },
+        },
+      }))
+      customDiceDb.createBlobUrlFromStorage.mockResolvedValue('blob:restored-local-model')
+
+      await useInventoryStore.getState().regenerateCustomDiceBlobUrls()
+
+      expect(customDiceDb.createBlobUrlFromStorage).toHaveBeenCalledTimes(1)
+      expect(customDiceDb.createBlobUrlFromStorage).toHaveBeenCalledWith('legacy-local-model')
+      expect(useInventoryStore.getState().dice.find(die => die.id === legacy.id)?.customAsset?.modelUrl)
+        .toBe('blob:restored-local-model')
+      expect(useInventoryStore.getState().dice.find(die => die.id === bundled.id)?.customAsset?.modelUrl)
+        .toBe('/dice/cozy-forest-imagegen-set/hearthwood-d6/model.glb')
+      expect(useInventoryStore.getState().customDiceLoadErrors).toEqual([])
+    })
+
+    it('reports a legacy die when its IndexedDB model bytes are missing', async () => {
+      const legacy = useInventoryStore.getState().addDie(makeNewDie({
+        id: 'missing-local-die',
+        setId: 'custom-artist',
+        customAsset: {
+          assetId: 'missing-local-model',
+          modelUrl: 'blob:expired-missing-model',
+          metadata: {
+            version: '1.0', diceType: 'd6', name: 'Missing legacy die', artist: 'Test',
+            created: '2025-11-16', scale: 1, faceNormals: [],
+            physics: { density: 1, restitution: 0.3, friction: 0.6 },
+            colliderType: 'roundCuboid', colliderArgs: {},
+          },
+        },
+      }))
+      customDiceDb.createBlobUrlFromStorage.mockResolvedValue(null)
+
+      await useInventoryStore.getState().regenerateCustomDiceBlobUrls()
+
+      expect(customDiceDb.createBlobUrlFromStorage).toHaveBeenCalledWith('missing-local-model')
+      expect(useInventoryStore.getState().dice.find(die => die.id === legacy.id)?.customAsset?.modelUrl)
+        .toBe('blob:expired-missing-model')
+      expect(useInventoryStore.getState().customDiceLoadErrors).toEqual([legacy.id])
+    })
   })
 
   describe('v3 catalog ref migration', () => {

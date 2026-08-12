@@ -14,7 +14,6 @@ import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { ThemeSelector } from '../ThemeSelector'
 import { FlyoutPanel } from './FlyoutPanel'
 import { AccountSection } from './AccountSection'
-import { ArtistTestingPanel } from './artist-tools/ArtistTestingPanel'
 
 interface SettingsPanelProps {
   isOpen: boolean
@@ -23,7 +22,6 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showThemeSelector, setShowThemeSelector] = useState(false)
-  const [showArtistPanel, setShowArtistPanel] = useState(false)
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
 
   return (
@@ -134,44 +132,6 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           </div>
         </div>
 
-        {/* Developer Tools Section */}
-        <div className="mb-8">
-          <h3
-            className="text-sm font-semibold mb-3"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
-            Developer Tools
-          </h3>
-
-          <button
-            onClick={() => setShowArtistPanel(true)}
-            className="w-full flex items-center justify-between p-4 rounded-lg transition-all"
-            style={{
-              backgroundColor: 'rgba(156, 137, 196, 0.12)',
-              border: '1px solid rgba(156, 137, 196, 0.35)',
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🎨</span>
-              <div className="text-left">
-                <div
-                  className="font-semibold text-sm"
-                  style={{ color: 'var(--color-text-primary)' }}
-                >
-                  Artist Testing Platform
-                </div>
-                <div
-                  className="text-xs"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  Upload and test custom dice models
-                </div>
-              </div>
-            </div>
-            <span style={{ color: 'var(--color-accent)' }}>→</span>
-          </button>
-        </div>
-
         <footer
           className="flex items-center gap-4 border-t pt-4 text-xs"
           style={{
@@ -193,26 +153,6 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         isOpen={showThemeSelector}
         onClose={() => setShowThemeSelector(false)}
       />
-
-      {/* Artist Testing Panel - Fullscreen Modal */}
-      {showArtistPanel && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-theme-bg/80"
-          onClick={() => setShowArtistPanel(false)}
-        >
-          <div
-            className="w-full max-w-3xl max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ArtistTestingPanel
-              onClose={() => setShowArtistPanel(false)}
-              onDiceLoaded={(asset) => {
-                console.log('Custom dice loaded:', asset)
-              }}
-            />
-          </div>
-        </div>
-      )}
     </>
   )
 }
