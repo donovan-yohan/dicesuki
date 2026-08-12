@@ -86,56 +86,49 @@ When `/orchestrate` is invoked:
 
 ### Example 2: Complex Multi-Domain Feature
 ```
-/orchestrate Add custom dice upload feature
+/orchestrate Promote an operator-authored dice set into the shop catalog
 
 → Orchestrator Analysis:
-  Intent: New feature (upload + persist + render)
-  Scope: ArtistTestingPanel, customDiceDB, CustomDice
+  Intent: Controlled catalog expansion (author + validate + ship)
+  Scope: collectibleCatalogSource, production sidecar, immutable edition, runtime assets
   Complexity: Complex
-  Agents: State (foundation), Frontend (UI), Physics (rendering), Testing
+  Agents: Config (foundation), Frontend (shop/inventory display), Testing
 
 → Task Breakdown:
-  Wave 1: State Agent (1800 tokens) - Foundation
-    - Create customDiceDB.ts with IndexedDB
-    - Define interfaces: CustomDiceAsset, DiceMetadata
-    - Export save/load functions
+  Wave 1: Config Agent (1800 tokens) - Authoring and catalog foundation
+    - Add controlled metadata and immutable versioned GLB paths
+    - Prepare the catalog edition and generated snapshot
+    - Validate catalog and runtime-asset contracts
 
   Wave 2: Parallel Execution
     Frontend Agent (2000 tokens)
-      - Build upload UI in ArtistTestingPanel
-      - File input + metadata form
-
-    Physics Agent (2000 tokens)
-      - Create CustomDice component
-      - Load GLB via useCustomDiceLoader
-      - Auto-detect collider type
+      - Render the promoted catalog definition in shop/inventory surfaces
+      - Preserve catalog references and lazy bundled-GLB delivery
 
   Wave 3: Integration (1500 tokens)
-    - Wire components together
-    - Add blob URL regeneration
-    - Handle upload → persist → spawn
+    - Verify catalog resolution and entitlement projection
+    - Verify immutable asset version and runtime delivery path
 
   Wave 4: Testing Agent (1500 tokens)
-    - Test upload flow
-    - Test IndexedDB persistence
-    - Test GLB rendering
+    - Test catalog/edition invariants
+    - Test shop/inventory rendering
+    - Test bundled GLB resolution
 
 → Execution:
-  [✓] Wave 1: State Agent (1,750 tokens, 1.2s)
+  [✓] Wave 1: Config Agent (1,750 tokens, 1.2s)
   [✓] Wave 2: Frontend Agent (1,920 tokens, 1.1s)
-  [✓] Wave 2: Physics Agent (1,880 tokens, 1.0s)
   [✓] Wave 3: Integration (1,450 tokens, 0.9s)
   [✓] Wave 4: Testing Agent (1,480 tokens, 0.8s)
 
 → Validation:
-  ✓ Type safety: CustomDiceAsset interface matches across agents
-  ✓ Imports: No circular dependencies
+  ✓ Type safety: CatalogAssetVersion interface matches across agents
+  ✓ Catalog: immutable item and asset versions validate
   ✓ Test coverage: 88%
   ✓ No conflicts detected
 
 → Results:
-  Files created: customDiceDB.ts, CustomDice.tsx, useCustomDiceLoader.ts
-  Files modified: ArtistTestingPanel.tsx, useInventoryStore.ts
+  Files created: catalog edition, migration, versioned runtime asset files
+  Files modified: collectible catalog source, generated catalog snapshot, shop/inventory surfaces
   Total tokens: 8,480 (vs 22,000 traditional = 61% savings)
   Success: All tasks complete, no conflicts
 ```

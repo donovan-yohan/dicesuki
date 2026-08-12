@@ -125,41 +125,34 @@ Task 2: Testing Agent (1200 tokens)
 ---
 
 ### Example 2: Complex Multi-Domain Feature
-**Request**: "Add custom dice upload feature"
+**Request**: "Promote an operator-authored dice set into the shop catalog"
 
 **Analysis**:
-- Intent: New feature (upload + persist + render)
-- Scope: ArtistTestingPanel, customDiceDB, CustomDice component
+- Intent: Controlled catalog expansion (author + validate + ship)
+- Scope: collectible catalog source, production sidecar, immutable edition, runtime assets
 - Complexity: Complex
-- Domains: Frontend, State, Physics, Testing
+- Domains: Config, Frontend, Testing
 
 **Task Breakdown**:
 ```
-Wave 1: State Agent (1800 tokens) - Foundation
-- Create customDiceDB.ts with IndexedDB logic
-- Define interfaces: CustomDiceAsset, DiceMetadata
-- Export: saveCustomDiceModel(), loadCustomDiceModel()
+Wave 1: Config Agent (1800 tokens) - Authoring and catalog foundation
+- Add controlled metadata and immutable versioned GLB paths
+- Prepare the catalog edition and generated snapshot
+- Validate catalog and runtime-asset contracts
 
 Wave 2: Parallel Execution
   Frontend Agent (2000 tokens)
-  - Build upload UI in ArtistTestingPanel
-  - File input + metadata form
-  - Integration with customDiceDB
-
-  Physics Agent (2000 tokens)
-  - Create CustomDice component
-  - Load GLB via useCustomDiceLoader hook
-  - Auto-detect collider type
+  - Render the promoted catalog definition in shop/inventory surfaces
+  - Preserve catalog references and lazy bundled-GLB delivery
 
 Wave 3: Integration (1500 tokens)
-- Wire components together
-- Add blob URL regeneration on app load
-- Handle upload → persist → spawn workflow
+- Verify catalog resolution and entitlement projection
+- Verify immutable asset version and runtime delivery path
 
 Wave 4: Testing Agent (1500 tokens)
-- Test upload flow
-- Test IndexedDB persistence
-- Test GLB rendering
+- Test catalog/edition invariants
+- Test shop/inventory rendering
+- Test bundled GLB resolution
 ```
 
 **Execution**: Sequential waves with parallel within waves

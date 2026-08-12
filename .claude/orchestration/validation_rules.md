@@ -218,32 +218,31 @@ function useCustomDiceLoader(modelUrl: string) {
 
 ```
 🔍 Validation Report
-   Task ID: custom-dice-upload-003
-   Agents: State, Frontend, Physics
+   Task ID: catalog-dice-promotion-003
+   Agents: Config, Frontend, Testing
 
 ✅ Type Safety: PASS
    - 3 interfaces validated
    - 0 conflicts detected
 
-❌ State Contracts: FAIL (CRITICAL)
-   - Store: useInventoryStore
-     Property 'customDice' accessed but not defined
-     Agent: Frontend (ArtistTestingPanel.tsx:45)
-     Fix: Add 'customDice' to InventoryState interface
+❌ Catalog Contracts: FAIL (CRITICAL)
+   - Catalog: collectibleCatalogSource
+     Asset version referenced by the shop is not present in the generated catalog
+     Agent: Frontend (ShopPanel.tsx)
+     Fix: Prepare the immutable catalog edition and regenerate the snapshot
 
 ✅ API Contracts: PASS
    - 2 components validated
    - All prop usages correct
 
-⚠️  Dependencies: WARNING (HIGH)
-   - Circular dependency detected:
-     customDiceDB.ts → useInventoryStore.ts → customDiceDB.ts
-   Fix: Extract DiceMetadata interface to src/types/
+⚠️  Catalog history: WARNING (HIGH)
+   - Immutable asset path was reused by a new catalog revision
+   Fix: Add an append-only edition with a new versioned model path
 
 ⚠️  Test Coverage: WARNING (MEDIUM)
    - Missing tests for:
-     * src/lib/customDiceDB.ts (new file)
-     * src/hooks/useCustomDiceLoader.ts (new file)
+     * scripts/catalog-edition-planner.test.ts (new edition behavior)
+     * src/lib/collectibleCatalog.test.ts (new bundled asset resolution)
    Fix: Create test files
 
 🚨 DEPLOYMENT BLOCKED
@@ -307,22 +306,21 @@ interface UIStore {
 
 ### Pattern 2: Cross-Agent Coordination
 ```typescript
-// Frontend Agent creates component
-interface CustomDiceProps {
-  modelUrl: string
-  metadata: DiceMetadata  // References State Agent's interface
+// Frontend Agent consumes a controlled catalog asset
+interface CatalogDicePreviewProps {
+  asset: CatalogAssetVersion  // References Config Agent's generated contract
 }
 
-// State Agent must export
-export interface DiceMetadata {
-  name: string
-  colliderType: ColliderType
-  scale: number
-  mass: number
+// Config Agent must export
+export interface CatalogAssetVersion {
+  id: string
+  catalogItemId: string
+  assetVersion: number
+  modelPath: string
 }
 
 // Validation checks:
-// ✓ DiceMetadata exported by State Agent
+// ✓ CatalogAssetVersion exported by Config Agent
 // ✓ Frontend Agent can import it
 // ✓ No circular dependency created
 ```

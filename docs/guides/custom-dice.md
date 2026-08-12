@@ -1,122 +1,56 @@
-# Custom Dice Persistence System
+# Retired Customer Dice Uploads and Legacy Local Dice
 
-> Part of the [Harness documentation system](../../CLAUDE.md). Edit this file for detailed custom dice guidance.
+> Part of the [Harness documentation system](../../CLAUDE.md). This is the
+> current product boundary; completed plans and the changelog intentionally
+> retain their historical upload details.
 
-## Overview
-Custom dice uploaded through the Artist Testing Platform persist across page reloads using IndexedDB. The system stores GLB file data and regenerates blob URLs on app initialization.
+## Product boundary
 
-## Architecture
+Customers cannot upload dice models. The former Artist Testing Platform and its
+client-side metadata authoring tools were retired when Dicesuki moved to a
+controlled shop/catalog model.
 
-### Core Components
-1. **`src/lib/customDiceDB.ts`**: IndexedDB operations for GLB file storage
-2. **`src/store/useInventoryStore.ts`**: Blob URL regeneration on app load
-3. **`src/components/panels/ArtistTestingPanel.tsx`**: Upload UI with IndexedDB integration
-4. **`src/hooks/useCustomDiceLoader.ts`**: GLB loading hook for custom dice
+New dice are authored and promoted by operators through the
+[Dice Set Authoring](dice-set-authoring.md) pipeline, then released as immutable
+catalog assets following the [Collectible Catalog](collectible-catalog.md)
+workflow. Runtime GLB paths are versioned catalog delivery paths, never
+customer-supplied URLs.
 
-### Database Schema
-```typescript
-// IndexedDB Database
-DB_NAME = 'DicesukiCustomDiceDB'
-STORE_NAME = 'customDiceModels'
+## Retained compatibility path
 
-// Key-Value Structure
-key: diceId (string)
-value: ArrayBuffer (GLB file data)
-```
+Do not remove the following merely because Settings has no upload entry point:
 
-## Blob URL Lifecycle
+1. `src/lib/customDiceDB.ts` retains GLB bytes stored by the retired upload
+   flow on a customer's device.
+2. `useInventoryStore.regenerateCustomDiceBlobUrls()` recreates session-scoped
+   blob URLs for retained legacy inventory records at application startup.
+3. `src/hooks/useCustomDiceLoader.ts` renders both those legacy records and
+   operator-promoted bundled catalog GLBs through the shared `CustomDiceAsset`
+   contract.
+4. The `custom-artist` set remains a local compatibility identity only. It is
+   neither a catalog item nor entitlement evidence.
 
-### 1. Upload Phase
-When artist uploads custom die:
-- User selects GLB file + metadata
-- `handleAddToInventory()` creates blob URL: `URL.createObjectURL(file)`
-- Adds die to inventory with `customAsset: { modelUrl: blobUrl, metadata }`
-- Saves GLB file to IndexedDB: `saveCustomDiceModel(diceId, file)`
-- **Important**: Blob URLs are NOT revoked to prevent breaking multiple uploads
+This is a read-and-render compatibility commitment, not a way to create new
+local assets. Existing devices can still use already-stored dice; a legacy
+record whose IndexedDB bytes are missing remains unavailable and is surfaced by
+`customDiceLoadErrors`.
 
-### 2. Page Reload
-On app initialization (`useInventoryStore` mount):
-- `regenerateCustomDiceBlobUrls()` scans inventory for custom dice
-- For each custom die: loads ArrayBuffer from IndexedDB
-- Creates fresh blob URL: `createBlobUrlFromStorage(diceId)`
-- Updates inventory store with new blob URL
-- Old session blob URLs become invalid automatically
+## Data and sync caveat
 
-### 3. Spawn Phase
-When spawning custom die:
-- Scene.tsx checks if die has `customAsset`
-- Renders `<CustomDice>` instead of standard `<Dice>`
-- `useCustomDiceLoader` loads GLB from blob URL
-- Three.js GLTFLoader handles model rendering
+Legacy GLB binaries stay device-local in IndexedDB. Inventory metadata may sync
+with the existing inventory blob, but the binary model does not; therefore a
+legacy local die may be usable on its original device and unavailable on another
+device. This behavior predates upload retirement and is intentionally preserved
+to avoid invalidating local data.
 
-## Critical Fix: IndexedDB Transaction Timing
+## Verification when changing adjacent code
 
-### The Problem
-**Error**: `TransactionInactiveError: The transaction has finished`
+For a change touching inventory migration, catalog asset loading, or this
+compatibility path:
 
-IndexedDB transactions auto-commit when there's no pending work. Async operations like `Blob.arrayBuffer()` must complete BEFORE opening a transaction.
-
-### The Solution (src/lib/customDiceDB.ts)
-```typescript
-export async function saveCustomDiceModel(diceId: string, fileData: ArrayBuffer | Blob) {
-  // STEP 1: Convert Blob to ArrayBuffer FIRST (async operation)
-  const arrayBuffer = fileData instanceof Blob
-    ? await fileData.arrayBuffer()  // Do this BEFORE opening DB
-    : fileData
-
-  // STEP 2: THEN open database and transaction
-  const db = await openDatabase()
-  const transaction = db.transaction(STORE_NAME, 'readwrite')
-  const store = transaction.objectStore(STORE_NAME)
-
-  // STEP 3: Put ArrayBuffer (transaction still active)
-  return new Promise((resolve, reject) => {
-    const request = store.put(arrayBuffer, diceId)
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
-}
-```
-
-## Common Issues
-
-### Issue: Blob URL Revocation Breaking Multiple Uploads
-**Symptom**: Second upload causes first die's blob URL to become invalid
-**Root Cause**: `URL.revokeObjectURL()` invalidates blob URLs stored in inventory
-**Solution**: Remove ALL blob URL revocation logic from ArtistTestingPanel
-- Blob URLs persist for session (acceptable memory trade-off for dev dice)
-- Blob URLs regenerated fresh from IndexedDB on page reload anyway
-
-### Issue: Custom Dice Not Persisting on Reload
-**Symptom**: `ERR_FILE_NOT_FOUND` when trying to spawn custom die after reload
-**Diagnosis**:
-- Check browser console for `[CustomDiceDB]` logs
-- Verify IndexedDB save succeeded: `✓ Saved model for dice: ...`
-- Verify blob URL regeneration: `[InventoryStore] Regenerated blob URL for die: ...`
-- Check Application > IndexedDB > DicesukiCustomDiceDB in DevTools
-
-## Testing Workflow
-
-1. **Fresh Upload Test**:
-   - Remove old dev dice (button in Inventory)
-   - Upload new custom die through Artist Testing Platform
-   - Verify console: `[CustomDiceDB] ✓ Saved model for dice: ...`
-   - Spawn die in current session (should work)
-
-2. **Multiple Upload Test**:
-   - Upload first custom die
-   - Upload second custom die (same or different file)
-   - Verify both dice can be spawned in current session
-
-3. **Persistence Test**:
-   - Upload custom die
-   - Reload page (Cmd+R / Ctrl+R)
-   - Verify console: `[InventoryStore] Regenerating blob URLs for X custom dice`
-   - Spawn custom die after reload (should work with regenerated blob URL)
-
-## Performance Considerations
-
-1. **Memory**: Blob URLs kept alive for session (acceptable for dev dice)
-2. **Storage**: IndexedDB size limited by browser (~50MB typical)
-3. **Load Time**: Blob URL regeneration happens async on app init
-4. **File Size**: GLB files should be <10MB (5MB recommended)
+1. Run the targeted inventory and catalog tests.
+2. Confirm bundled catalog assets still resolve through
+   `getBundledCustomDiceAsset()` and `useCustomDiceLoader()`.
+3. Confirm `regenerateCustomDiceBlobUrls()` remains safe when no legacy dice or
+   no IndexedDB bytes are present.
+4. Run `npm test` and `npm run build` before merge.
