@@ -59,9 +59,8 @@ import { RoomNotices } from './multiplayer/RoomNotices'
 import { MultiplayerMotionController } from './multiplayer/MultiplayerMotionController'
 import { RoomMotionHint } from './multiplayer/RoomMotionHint'
 import { STANDARD_ROLL_CONVERSION_AVAILABLE } from './economy/shopCatalog'
-// Concrete modules rather than the `./panels` barrel. The barrel no longer
-// re-exports `ShopPanel` (see the note there), and importing it here would be
-// the other way to reintroduce a static edge to the storefront.
+// Concrete modules rather than a `./panels` barrel. A barrel would create a
+// static edge to the storefront and collapse its lazy import.
 import { HeroDieInspector } from './panels/HeroDieInspector'
 import { HistoryPanel } from './panels/HistoryPanel'
 import { InventoryPanel } from './panels/InventoryPanel'

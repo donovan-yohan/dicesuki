@@ -118,7 +118,7 @@ export const MOTION_ANGULAR_SAMPLE_STALE_MS = 100
 
 /**
  * Minimum acceleration magnitude (m/s²) that flags a shake for UI feedback
- * (DeviceMotionButton's "Shaking!" indicator). This is NOT a physics input — the
+ * (the on-screen "Shaking!" indicator). This is NOT a physics input — the
  * continuous field drives the dice; this only lights up the UI.
  * - `20` (current): moderate. `30` needs hard shaking; `10` triggers on light shakes.
  */

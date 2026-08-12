@@ -23,7 +23,6 @@ The frontend MUST use **React Three Fiber** (`@react-three/fiber` v9) as the Rea
 
 - `@react-three/fiber` v9 provides the declarative React component model for Three.js scenes
 - `@react-three/drei` v10 provides camera controls, environment lighting, and utility components
-- `@react-three/postprocessing` v3 is available for future visual effects
 - Three.js geometries MUST be memoized with `useMemo` to prevent per-frame allocations
 - Event callbacks MUST be wrapped in `useCallback` to avoid unnecessary re-renders
 - Components SHOULD be wrapped in `React.memo` when receiving stable props
@@ -64,7 +63,7 @@ The frontend MUST use **React Three Fiber** (`@react-three/fiber` v9) as the Rea
 ### Negative / Considerations
 
 - Testing R3F components requires extensive mocking (ResizeObserver, WebGL context, canvas APIs) as documented in CLAUDE.md test setup
-- Three.js upgrade path requires coordinating across `fiber`, `drei`, `rapier`, and `postprocessing` packages simultaneously
+- Three.js upgrade path requires coordinating across `fiber`, `drei`, and `rapier` packages simultaneously
 - WASM physics adds ~2MB to initial bundle size
 - Rapier WASM runs on the main thread; heavy scenes (many dice) can compete with rendering for frame budget
 - R3F abstractions occasionally leak (imperative Three.js access needed for advanced material/geometry work)

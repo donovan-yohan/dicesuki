@@ -39,7 +39,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 // Vitest runs from the project root (vite.config.ts lives there).
@@ -316,15 +316,14 @@ describe('economy surfaces stay behind useEconomyAccess', () => {
 
   /**
    * The lazy boundary is only real if NOTHING gives Rollup a static edge to
-   * ShopPanel. It had one — the `./panels` barrel re-exported it — and the
-   * build silently inlined the dynamic import back into the main chunk: no
-   * warning that fails anything, no test failure, just a 79 kB storefront
-   * shipped to every un-flagged player. Assert on the barrel itself, because
-   * that is the file that can reintroduce it for any importer, not just Scene.
-   */
-  it('the panels barrel does not re-export ShopPanel', () => {
-    const barrel = readFileSync(join(COMPONENTS_DIR, 'panels', 'index.ts'), 'utf8')
-    expect(executable(barrel)).not.toMatch(/ShopPanel/)
+ * ShopPanel. A former `./panels` barrel re-exported it and the build silently
+ * inlined the dynamic import back into the main chunk: no warning that fails
+ * anything, no test failure, just a 79 kB storefront shipped to every
+ * un-flagged player. There is now no panel barrel at all, so the broad static
+ * edge cannot return accidentally.
+ */
+  it('has no panels barrel that could re-export ShopPanel', () => {
+    expect(existsSync(join(COMPONENTS_DIR, 'panels', 'index.ts'))).toBe(false)
   })
 
   it('App gates the pending-purchase banner', () => {
