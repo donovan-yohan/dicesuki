@@ -159,7 +159,7 @@ export const BACKDROPS = {
   primaryFill: {
     id: 'primary-fill',
     base: 'primary',
-    source: 'bg-theme-primary controls (artist-tools, DiceSelector hover)',
+    source: 'bg-theme-primary controls in artist-tools',
   },
   // 0.10 is the largest white alpha any component paints as a container.
   // Sites painting exactly 0.10: BottomSheet.tsx:211 and FlyoutPanel.tsx:115
@@ -208,9 +208,8 @@ export const BACKDROPS = {
     base: 'surface',
     overlay: { color: '#ef4444', alpha: 0.2 },
     source:
-      'destructive affordances — DiceManagerPanel.tsx:115 remove button paints exactly ' +
-      'rgba(239,68,68,0.2); HistoryPanel.tsx:60 (0.1) and SavedRollsPanel.tsx:272 (0.14) ' +
-      'are lighter and covered conservatively',
+      'destructive affordances — HistoryPanel.tsx:60 (0.1) and SavedRollsPanel.tsx:272 (0.14); ' +
+      'the 0.2 model remains a conservative bound',
   },
   accentFill: {
     id: 'accent-fill',
@@ -314,7 +313,7 @@ export const CONTRAST_PAIRINGS: readonly ContrastPairing[] = [
   // ── destructive / validation ─────────────────────────────────────────────
   { name: 'error text on background', fg: 'error', bg: BACKDROPS.background, threshold: 'normal', usedBy: 'PullProgressOverlay.tsx:114 and PullRevealOverlay.tsx:233 role="alert" copy on the full-screen overlay' },
   { name: 'error text on surface', fg: 'error', bg: BACKDROPS.surface, threshold: 'normal', usedBy: 'RollBuilder.tsx:198 name-field error, RollBuilder.tsx:370 dice-required hint' },
-  { name: 'error text on error tint', fg: 'error', bg: BACKDROPS.errorTint, threshold: 'normal', usedBy: 'DiceManagerPanel.tsx:115 remove button, HistoryPanel.tsx:60 "Clear All History"' },
+  { name: 'error text on error tint', fg: 'error', bg: BACKDROPS.errorTint, threshold: 'normal', usedBy: 'HistoryPanel.tsx:60 "Clear All History"' },
 ] as const
 
 /**
@@ -331,12 +330,6 @@ export const EXCLUDED_PAIRINGS = [
       'The artist-tools hover states are tracked as a follow-up component fix.',
   },
   {
-    pairing: 'text on a `secondary` fill',
-    reason:
-      'The only site is `DeviceMotionButton` (`bg-theme-secondary text-theme-primary`), which is dead code — ' +
-      'nothing imports it. `DiceSelector` is likewise unimported.',
-  },
-  {
     pairing: '--color-border (rgba(255,255,255,0.14)) against its own backdrop',
     reason:
       'Non-text UI boundary (WCAG 1.4.11, 3:1), not covered by this text gate. It currently measures ' +
@@ -351,7 +344,7 @@ export const EXCLUDED_PAIRINGS = [
     reason: 'Decorative fills. No component renders theme text directly on a gradient.',
   },
   {
-    pairing: 'text over the live 3D canvas (Scene totals, RoomHeader, PlayerPanel)',
+    pairing: 'text over the live 3D canvas (Scene totals, PlayerPanel)',
     reason:
       'The backdrop is a per-frame render of the dice tray, not a token. These sites use their own opaque ' +
       'scrims (rgba(0,0,0,0.55-0.75)); auditing them needs pixel sampling, not token math.',
