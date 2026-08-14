@@ -30,9 +30,9 @@
   loads and rolls dice with the network fully offline. Verified end-to-end with a
   headless Chromium: load `/` online, `context.setOffline(true)`, reload → solo room
   reconnects from cache and rolls a die.
-- **Dice-themed icons** — `scripts/generate-pwa-icons.js` renders 192/512/512-maskable
-  PNGs (+ apple-touch, favicon.svg) with zero native deps (pure-Node PNG encoder), so
-  CI needs no ImageMagick/sharp. Output in `public/icons/`.
+- **Dice-themed icons** — the committed 192/512/512-maskable PNGs (+ apple-touch,
+  favicon.svg) live in `public/icons/`; `npm run generate:brand-icons` regenerates
+  the PNG variants from the brand SVG when branding changes.
 - **Update strategy** — `registerType: 'autoUpdate'` with `skipWaiting` + `clientsClaim`
   + `cleanupOutdatedCaches`: a new deploy's SW activates immediately and reloads open
   clients, deliberately avoiding the "stale bundle forever" trap. Precache is generated

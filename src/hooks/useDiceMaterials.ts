@@ -1,13 +1,10 @@
 import { useMemo, useEffect } from 'react'
 import * as THREE from 'three'
 import { DiceShape } from '../lib/geometries'
-import { getDiceFaceValues } from '../types/diceShape'
 import { createFaceMaterialsArray, createDebugMaterials } from '../lib/faceMaterialMapping'
 import {
-  renderDiceFaceToTexture,
   renderSimpleNumber,
   FaceRenderer,
-  disposeAllTextures,
 } from '../lib/textureRendering'
 import { buildDiceFaceMaterial } from '../lib/diceMaterial'
 import { type DiceRenderLodPolicy, resolveLodTextureSize } from '../lib/renderLod'
@@ -175,62 +172,4 @@ export function useDiceMaterials(config: DiceMaterialConfig): THREE.Material[] {
 
   // Always return array for consistency (Three.js accepts both)
   return Array.isArray(materials) ? materials : [materials]
-}
-
-/**
- * Hook for pre-rendering face textures (optimization for multiple dice)
- *
- * If you're spawning multiple dice of the same type, pre-render the textures
- * once and share them across all dice instances.
- *
- * @param config - Material configuration
- * @returns Map of face values to textures
- *
- * @example
- * ```typescript
- * const textures = usePreRenderedTextures({
- *   shape: 'd6',
- *   color: '#4ecdc4',
- *   faceRenderer: renderBorderedNumber
- * });
- *
- * // Use textures in multiple dice
- * const materials = useMemo(() => {
- *   return createFaceMaterialsArray('d6', (faceValue) => {
- *     return new THREE.MeshStandardMaterial({ map: textures[faceValue] });
- *   });
- * }, [textures]);
- * ```
- */
-export function usePreRenderedTextures(
-  config: Omit<DiceMaterialConfig, 'debugMode'>
-): Record<number, THREE.CanvasTexture> {
-  const {
-    shape,
-    color = '#ff6b35',
-    faceRenderer = renderSimpleNumber,
-    textureSize = 512,
-    lodPolicy,
-  } = config
-  const resolvedTextureSize = resolveLodTextureSize(config.textureSize, lodPolicy, textureSize)
-
-  const textures = useMemo(() => {
-    const textureMap: Record<number, THREE.CanvasTexture> = {}
-
-    // Render all faces (d10 reads 0-9, d10tens reads 00-90, others 1-N)
-    for (const faceValue of getDiceFaceValues(shape)) {
-      textureMap[faceValue] = renderDiceFaceToTexture(faceValue, color, faceRenderer, resolvedTextureSize)
-    }
-
-    return textureMap
-  }, [shape, color, faceRenderer, resolvedTextureSize])
-
-  // Cleanup textures on unmount
-  useEffect(() => {
-    return () => {
-      disposeAllTextures(textures)
-    }
-  }, [textures])
-
-  return textures
 }

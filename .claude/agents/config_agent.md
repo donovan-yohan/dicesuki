@@ -4,7 +4,7 @@
 
 ## Expertise
 - Vite configuration and build optimization
-- Package management (Bun, npm, dependencies)
+- Package management (npm, dependencies)
 - TypeScript configuration
 - Environment variables and secrets
 - Build scripts and deployment
@@ -163,8 +163,8 @@ VITE_ENABLE_DEBUG=true
 1. Identify package and version
 2. Check compatibility with existing deps
 3. Add to package.json
-4. Run: bun install
-5. Verify build: bun run build
+4. Run: npm install
+5. Verify build: npm run build
 6. Update documentation if needed
 ```
 
@@ -172,8 +172,8 @@ VITE_ENABLE_DEBUG=true
 ```
 1. Read vite.config.ts
 2. Apply changes (plugins, build options, etc.)
-3. Test dev server: bun run dev
-4. Test production build: bun run build
+3. Test dev server: npm run dev
+4. Test production build: npm run build
 5. Verify bundle size (no major increases)
 ```
 
@@ -242,13 +242,13 @@ import { useFrame } from '@react-three/fiber'  // ✅ Named import
 ### Security Audits
 ```bash
 # Check for vulnerabilities
-bun audit
+npm audit
 
 # Update dependencies
-bun update
+npm update
 
 # Check outdated packages
-bun outdated
+npm outdated
 ```
 
 ### License Compliance
@@ -297,13 +297,13 @@ interface ImportMeta {
 tsc --noEmit
 
 # 2. Run tests
-bun test
+npm test
 
 # 3. Build for production
-bun run build
+npm run build
 
 # 4. Preview production build
-bun run preview
+npm run preview
 
 # 5. Check bundle size
 ls -lh dist/assets/*.js
@@ -355,7 +355,7 @@ ls -lh dist/assets/*.js
 **Fix**: Rename variables, restart dev server
 
 ### 4. Dependency Conflicts
-**Diagnosis**: Run `bun install`, check for peer dep warnings
+**Diagnosis**: Run `npm install`, check for peer dependency warnings
 **Fix**: Update conflicting packages, use resolutions if needed
 
 ## Success Criteria

@@ -322,14 +322,6 @@ export const CONTRAST_PAIRINGS: readonly ContrastPairing[] = [
  */
 export const EXCLUDED_PAIRINGS = [
   {
-    pairing: 'secondary as a text colour',
-    reason:
-      '`secondary` is a surface/border token: 12 `bg-theme-secondary` fills and 6 `border-theme-secondary` ' +
-      'borders vs. 5 text uses, of which 4 are hover states inside the internal artist-tools panel and 1 ' +
-      'tints an SVG die icon. Gating it as text would force every theme to give up its mid-tone secondary. ' +
-      'The artist-tools hover states are tracked as a follow-up component fix.',
-  },
-  {
     pairing: '--color-border (rgba(255,255,255,0.14)) against its own backdrop',
     reason:
       'Non-text UI boundary (WCAG 1.4.11, 3:1), not covered by this text gate. It currently measures ' +

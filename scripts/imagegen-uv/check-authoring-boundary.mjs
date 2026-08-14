@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync, statSync } from 'node:fs'
+import { lstatSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -30,7 +30,6 @@ const AUTHORING_PAYLOAD_EXTENSIONS = new Set([
  * and these are enumerated here.
  */
 const REVIEWED_BINARY_FILE_LIMITS = new Map([
-  ['bun.lockb', 512 * 1024],
   ['public/dice/devil-set/devil-d6/model.glb', 20 * 1024 * 1024],
   ['public/icons/apple-touch-icon.png', 128 * 1024],
   ['public/icons/pwa-192x192.png', 128 * 1024],
@@ -80,7 +79,30 @@ export function checkAuthoringBoundary(repoRoot = process.cwd()) {
       errors.push(`${normalized} belongs in a checksum-locked external authoring archive, not public/`)
       continue
     }
-    const size = statSync(absolutePath).size
+    let fileStats
+    try {
+      const linkStats = lstatSync(absolutePath)
+      if (linkStats.isSymbolicLink()) {
+        try {
+          fileStats = statSync(absolutePath)
+        } catch (error) {
+          if (error?.code === 'ENOENT') {
+            errors.push(`${normalized} is a broken symbolic link`)
+            continue
+          }
+          throw error
+        }
+      } else {
+        fileStats = linkStats
+      }
+    } catch (error) {
+      // A file can disappear between the Git query and inspection. Deleted
+      // tracked files are filtered before this loop; tolerate only the same
+      // ENOENT race here and surface every other filesystem failure.
+      if (error?.code === 'ENOENT') continue
+      throw error
+    }
+    const size = fileStats.size
     const extension = path.extname(normalized).toLowerCase()
     const reviewedBinary = reviewedBinaryLimits.get(normalized)
     const maximumBytes = reviewedBinary?.maxBytes ?? DEFAULT_MAX_FILE_BYTES
@@ -144,12 +166,21 @@ function containsNullByte(file) {
 }
 
 function listVersionedAndCandidateFiles(repoRoot) {
+  const deleted = new Set(execFileSync(
+    'git',
+    ['ls-files', '--deleted', '-z'],
+    { cwd: repoRoot, encoding: 'utf8' },
+  ).split('\0').filter(Boolean))
   const output = execFileSync(
     'git',
     ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
     { cwd: repoRoot, encoding: 'utf8' },
   )
-  return [...new Set(output.split('\0').filter(Boolean))].sort()
+  return [...new Set(output.split('\0').filter(Boolean))]
+    // `--cached` includes an unstaged tracked deletion. Skip only paths Git
+    // identifies as deleted; `existsSync` would also hide broken symlinks.
+    .filter((file) => !deleted.has(file))
+    .sort()
 }
 
 function main() {

@@ -366,7 +366,7 @@ describe('aggregateSavedRollPlan — exploding chains and clamps', () => {
     expect(aggregateSavedRollPlan(plan, faces({ die: 3 })).total).toBe(3)
   })
 
-  it('clamps the group TOTAL, not each member, matching rollEngine', () => {
+  it('clamps the group TOTAL, not each member', () => {
     // Arrange — an exploded chain summing to 12, capped at 10
     const entry = makeEntry({
       id: 'e1',
