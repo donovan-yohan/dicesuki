@@ -63,10 +63,8 @@ gated behind `isSupabaseConfigured()` + an authenticated session.
 - **Saved rolls** (`useSavedRollsStore`): `savedRolls` (the editing draft `currentlyEditing` is ephemeral, not synced).
 - **Settings** (`useSettingsStore`): `themeId` (selected theme).
 
-**Not synced** (device-local / ephemeral, by design): retained legacy custom-dice
-binary models (IndexedDB blobs — metadata syncs, the model file stays device-local;
-customer uploads are retired), haptic /
-motion / UI-visibility prefs (`useUIStore`, device-ergonomic), owned themes
+**Not synced** (device-local / ephemeral, by design): haptic / motion /
+UI-visibility prefs (`useUIStore`, device-ergonomic), owned themes
 (`dicesuki-owned-themes` — a dev grants-all placeholder), and live connection
 state.
 
@@ -103,9 +101,10 @@ immutable `catalog_items` and `catalog_asset_versions` rows. Authenticated users
 may read only their own `user_entitlements`; normal clients cannot directly
 insert, update, or delete them. The fixed no-argument starter grant is the only
 client-callable entitlement write path. Existing-user backfill grants only the
-known 8-item free starter ownership set and never parses inventory JSON. The 23
-starter tray dice remain independent local instances backed by those distinct
-owned catalog items.
+known 8-item free starter ownership set and never parses inventory JSON. The
+former 23-row local starter tray was retired in inventory version 5; basic dice
+remain the always-available floor while entitlements describe owned catalog
+items.
 
 See [Collectible Catalog and Entitlements](collectible-catalog.md) and
 [ADR 012](../adrs/shared/012-collectible-catalog-entitlement-boundary.md) for the

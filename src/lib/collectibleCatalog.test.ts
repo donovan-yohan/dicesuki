@@ -118,7 +118,7 @@ describe('collectible catalog', () => {
     }, versionedCatalog)).toBe(true)
   })
 
-  it('maps legacy configured, materials-lab and production instances without treating custom dice as catalog items', () => {
+  it('maps legacy configured, materials-lab and production instances to catalog items', () => {
     expect(mapInventoryDieToCatalogRef(inventoryDie())?.itemId)
       .toBe('adventurer-starter/d6/common@1')
     expect(mapInventoryDieToCatalogRef(inventoryDie({
@@ -138,11 +138,6 @@ describe('collectible catalog', () => {
         }).customAsset!.metadata,
       },
     }))?.itemId).toBe('devil-set/devil-d6@1')
-    expect(mapInventoryDieToCatalogRef(inventoryDie({
-      setId: 'custom-artist',
-      rarity: 'rare',
-      isDev: true,
-    }))).toBeNull()
     expect(mapInventoryDieToCatalogRef(inventoryDie({
       setId: 'unrelated-bundled-asset',
       rarity: 'rare',

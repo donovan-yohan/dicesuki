@@ -133,12 +133,13 @@ export interface InventoryDie {
   // Assignment tracking
   assignedToRolls: string[]   // SavedRoll IDs using this die
 
-  // Custom dice (for artist-created models)
+  // Immutable catalog GLB delivery metadata.
   customAsset?: {
-    modelUrl: string            // Blob URL for current session
+    modelUrl: string            // Versioned bundled catalog URL
     thumbnailUrl?: string       // Lightweight catalog/card preview
-    assetId?: string            // IndexedDB key for persistence (optional for backwards compatibility)
-    storage?: 'bundled' | 'indexeddb'
+    assetId?: string            // Catalog key
+    /** Optional only while the v6 migration classifies historical records. */
+    storage?: 'bundled'
     metadata: DiceMetadata
   }
 }

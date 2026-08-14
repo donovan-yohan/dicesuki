@@ -2,8 +2,7 @@
  * Dice set registry.
  *
  * Shipped/configured collectible sets are sourced from the same deterministic
- * JSON input that generates the server catalog. The legacy local set remains
- * only so existing device-local dice records can continue to resolve safely.
+ * JSON input that generates the server catalog.
  */
 
 import catalogSource from './collectibleCatalogSource.json'
@@ -24,36 +23,7 @@ export const CELESTIAL_GOLD_SET = requireConfiguredSet('celestial-gold')
 export const VOID_CRYSTAL_SET = requireConfiguredSet('void-crystal')
 export const INFERNAL_OBSIDIAN_SET = requireConfiguredSet('infernal-obsidian')
 
-/** Legacy device-local dice are not catalog items or entitlement evidence. */
-export const CUSTOM_ARTIST_SET: DieSet = {
-  id: 'custom-artist',
-  name: 'Custom Artist Collection',
-  description: 'Unique dice created by talented artists in the community. Each die is a work of art.',
-  theme: {
-    colorPalette: ['#8b5cf6', '#a78bfa', '#c4b5fd'],
-    materialType: 'plastic',
-    visualStyle: 'fantasy',
-  },
-  rarityVariants: {
-    rare: {
-      appearance: {
-        baseColor: '#8b5cf6',
-        accentColor: '#ffffff',
-        material: 'plastic',
-        roughness: 0.7,
-        metalness: 0,
-      },
-      vfx: {},
-    },
-  },
-  availability: 'always',
-  releaseDate: 0,
-}
-
-export const DIE_SETS: DieSet[] = [
-  ...CONFIGURED_DIE_SETS,
-  CUSTOM_ARTIST_SET,
-]
+export const DIE_SETS: DieSet[] = CONFIGURED_DIE_SETS
 
 export function getDieSetById(id: string): DieSet | undefined {
   return DIE_SETS.find(set => set.id === id)

@@ -14,12 +14,11 @@
  * no dangling reference are returned untouched (same object identity), so a
  * repair pass over a healthy roll is a no-op.
  *
- * The one caller today is the inventory store's v4 → v5 migration, which drops
- * the retired 23-row local starter inventory and hands the exact ids it removed
- * to {@link pruneSavedRollsForRemovedDice}. Keyed on those ids specifically — a
- * blanket "is this die in the inventory right now?" sweep would wrongly wipe
- * references to authenticated server copies, which are never persisted and are
- * absent until sign-in completes.
+ * The inventory migration hands the exact ids removed in v4 → v5 (starter
+ * inventory) and v5 → v6 (customer-authored dice) to
+ * {@link pruneSavedRollsForRemovedDice}. Keying on those ids specifically —
+ * rather than asking whether a die is present right now — preserves references
+ * to authenticated server copies, which are absent until sign-in completes.
  */
 
 import type { RollSource, SavedRoll } from '../types/savedRolls'

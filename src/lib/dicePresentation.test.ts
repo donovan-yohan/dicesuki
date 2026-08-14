@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { InventoryDie } from '../types/inventory'
 import { createDicePresentationMetadata } from './dicePresentation'
 
-function die(storage: 'bundled' | 'indexeddb'): InventoryDie {
+function die(): InventoryDie {
   return {
     id: 'inventory-die',
     type: 'd6',
@@ -15,16 +15,16 @@ function die(storage: 'bundled' | 'indexeddb'): InventoryDie {
     isLocked: false,
     acquiredAt: 1,
     source: 'starter',
-    catalogRef: storage === 'bundled' ? {
+    catalogRef: {
       itemId: 'cozy-forest-imagegen-set/hearthwood-d6@1',
       assetVersionId: 'cozy-forest-imagegen-set/hearthwood-d6@1/asset@1',
-    } : undefined,
+    },
     stats: { timesRolled: 0, totalValue: 0, critsRolled: 0, failsRolled: 0 },
     assignedToRolls: [],
     customAsset: {
       modelUrl: '/dice/cozy-forest-imagegen-set/hearthwood-d6/model.glb',
       assetId: 'cozy-forest-imagegen-set/hearthwood-d6',
-      storage,
+      storage: 'bundled',
       metadata: {
         version: '1.0',
         diceType: 'd6',
@@ -43,15 +43,11 @@ function die(storage: 'bundled' | 'indexeddb'): InventoryDie {
 
 describe('dice presentation metadata', () => {
   it('allows bundled catalog GLBs to resolve on remote tables', () => {
-    expect(createDicePresentationMetadata(die('bundled'))).toMatchObject({
+    expect(createDicePresentationMetadata(die())).toMatchObject({
       customAssetId: 'cozy-forest-imagegen-set/hearthwood-d6',
       customAssetVersionId: 'cozy-forest-imagegen-set/hearthwood-d6@1/asset@1',
       customAssetName: 'Hearthwood D6',
     })
-    expect(createDicePresentationMetadata(die('bundled'))).not.toHaveProperty('unsupportedReason')
-  })
-
-  it('keeps local IndexedDB GLBs explicitly unsupported for remote players', () => {
-    expect(createDicePresentationMetadata(die('indexeddb')).unsupportedReason).toMatch(/local-only/)
+    expect(createDicePresentationMetadata(die())).not.toHaveProperty('unsupportedReason')
   })
 })

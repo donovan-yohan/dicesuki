@@ -203,7 +203,7 @@ describe('useInventoryStore server-copy slice', () => {
     })
 
     it('drops only starter rows and the assignments that named them', () => {
-      const { state, removedStarterDieIds } = migratePersistedInventory({
+      const { state, removedDieIds } = migratePersistedInventory({
         dice: [starterDie('die_starter_a'), keptDie('die_reward_b')],
         localDice: [starterDie('die_starter_a'), keptDie('die_reward_b')],
         assignments: { 'roll:entry:0': 'die_starter_a', 'roll:entry:1': 'die_reward_b' },
@@ -219,7 +219,7 @@ describe('useInventoryStore server-copy slice', () => {
         currency: { coins: number }
       }
 
-      expect(removedStarterDieIds).toEqual(['die_starter_a'])
+      expect(removedDieIds).toEqual(['die_starter_a'])
       expect(migrated.dice.map(die => die.id)).toEqual(['die_reward_b'])
       expect(migrated.localDice.map(die => die.id)).toEqual(['die_reward_b'])
       expect(migrated.assignments).toEqual({ 'roll:entry:1': 'die_reward_b' })
@@ -232,7 +232,7 @@ describe('useInventoryStore server-copy slice', () => {
       // The v1-v3 catalog pass needs `dice` to be an array and used to bail out
       // here — which skipped the starter purge entirely, so a starter row in
       // `localDice` survived and became the visible inventory on sign-out.
-      const { state, removedStarterDieIds } = migratePersistedInventory({
+      const { state, removedDieIds } = migratePersistedInventory({
         localDice: [starterDie('die_starter_a'), keptDie('die_reward_b')],
         localAssignments: { 'roll:entry:0': 'die_starter_a' },
       }, 4)
@@ -241,7 +241,7 @@ describe('useInventoryStore server-copy slice', () => {
         localDice: NewInventoryDie[]
         localAssignments: Record<string, string>
       }
-      expect(removedStarterDieIds).toEqual(['die_starter_a'])
+      expect(removedDieIds).toEqual(['die_starter_a'])
       expect(migrated.localDice.map(die => die.id)).toEqual(['die_reward_b'])
       expect(migrated.localAssignments).toEqual({})
     })
@@ -265,9 +265,9 @@ describe('useInventoryStore server-copy slice', () => {
         assignments: {},
         localAssignments: {},
       }
-      const { state, removedStarterDieIds } = migratePersistedInventory(persisted, 4)
+      const { state, removedDieIds } = migratePersistedInventory(persisted, 4)
 
-      expect(removedStarterDieIds).toEqual([])
+      expect(removedDieIds).toEqual([])
       expect(state).toBe(persisted)
     })
 
@@ -319,6 +319,92 @@ describe('useInventoryStore server-copy slice', () => {
         { kind: 'anonymous', quantity: 1 },
         { kind: 'specific', dieId: 'die_reward_b' },
       ])
+    })
+  })
+
+  describe('v5 -> v6 purges retired customer dice', () => {
+    const bundledAsset = () => ({
+      modelUrl: '/dice/example/model.glb',
+      storage: 'bundled' as const,
+      metadata: {
+        version: '1.0', diceType: 'd6' as const, name: 'Example', artist: 'Dicesuki',
+        created: '2026-08-14', scale: 1, faceNormals: [],
+        physics: { density: 1, restitution: 0.3, friction: 0.6 },
+        colliderType: 'roundCuboid' as const, colliderArgs: {},
+      },
+    })
+
+    it('removes custom-artist, IndexedDB, and missing-storage rows plus assignments', () => {
+      const customArtist = {
+        ...makeNewDie({ id: 'custom-artist-die', setId: 'custom-artist' }),
+        id: 'custom-artist-die', acquiredAt: 1,
+      }
+      const indexedDb = {
+        ...makeNewDie({
+          id: 'indexeddb-die',
+          customAsset: { ...bundledAsset(), storage: 'indexeddb' } as never,
+        }),
+        id: 'indexeddb-die', acquiredAt: 2,
+      }
+      const missingStorage = {
+        ...makeNewDie({
+          id: 'missing-storage-die',
+          customAsset: { ...bundledAsset(), storage: undefined },
+        }),
+        id: 'missing-storage-die', acquiredAt: 3,
+      }
+      const bundled = {
+        ...makeNewDie({ id: 'bundled-die', customAsset: bundledAsset() }),
+        id: 'bundled-die', acquiredAt: 4,
+      }
+
+      const { state, removedDieIds } = migratePersistedInventory({
+        dice: [customArtist, indexedDb, missingStorage, bundled],
+        localDice: [customArtist, indexedDb, missingStorage, bundled],
+        assignments: {
+          artist: customArtist.id,
+          indexeddb: indexedDb.id,
+          missing: missingStorage.id,
+          bundled: bundled.id,
+        },
+        localAssignments: { artist: customArtist.id, bundled: bundled.id },
+      }, 5)
+      const migrated = state as {
+        dice: NewInventoryDie[]
+        localDice: NewInventoryDie[]
+        assignments: Record<string, string>
+        localAssignments: Record<string, string>
+      }
+
+      expect(removedDieIds).toEqual([
+        customArtist.id, indexedDb.id, missingStorage.id,
+      ])
+      expect(migrated.dice.map(die => die.id)).toEqual([bundled.id])
+      expect(migrated.localDice.map(die => die.id)).toEqual([bundled.id])
+      expect(migrated.assignments).toEqual({ bundled: bundled.id })
+      expect(migrated.localAssignments).toEqual({ bundled: bundled.id })
+    })
+
+    it('never publishes a stale legacy row through the inventory sync payload', () => {
+      const retired = useInventoryStore.getState().addDie(makeNewDie({
+        id: 'stale-indexeddb',
+        customAsset: { ...bundledAsset(), storage: 'indexeddb' } as never,
+      }))
+      const bundled = useInventoryStore.getState().addDie(makeNewDie({
+        id: 'bundled-sync', customAsset: bundledAsset(),
+      }))
+      useInventoryStore.getState().assignDieToSlot('roll', 'entry', 0, retired.id)
+      useInventoryStore.getState().assignDieToSlot('roll', 'entry', 1, bundled.id)
+
+      const target = createRealTargets().find(candidate => candidate.table === 'inventory')
+      const payload = target?.getPayload() as {
+        v: number
+        dice: NewInventoryDie[]
+        assignments: Record<string, string>
+      }
+      expect(payload.v).toBe(6)
+      expect(payload.dice.map(die => die.id)).toEqual([bundled.id])
+      expect(payload.assignments).toEqual({ 'roll:entry:1': bundled.id })
     })
   })
 

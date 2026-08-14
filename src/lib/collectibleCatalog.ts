@@ -114,7 +114,7 @@ function validExplicitRef(ref: CatalogItemRef | undefined): CatalogItemRef | nul
 export function mapInventoryDieToCatalogRef(die: InventoryDie): CatalogItemRef | null {
   const explicit = validExplicitRef(die.catalogRef)
   if (explicit) return explicit
-  if (die.isDev || die.setId === 'custom-artist') return null
+  if (die.isDev) return null
 
   const productionKey = die.customAsset?.assetId === 'devil-set/devil-d6' ||
     die.customAsset?.modelUrl === '/dice/devil-set/devil-d6/model.glb'

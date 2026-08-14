@@ -33,7 +33,7 @@ docs/exec-plans/ → Execution plans (active + completed)
 | Debugging | [docs/guides/debugging.md](docs/guides/debugging.md) |
 | Code Patterns | [docs/guides/patterns.md](docs/guides/patterns.md) |
 | Haptic Feedback | [docs/guides/haptic-feedback.md](docs/guides/haptic-feedback.md) |
-| Custom Dice | [docs/guides/custom-dice.md](docs/guides/custom-dice.md) |
+| Managed GLB Assets | [docs/guides/custom-dice.md](docs/guides/custom-dice.md) |
 | Dice Set Authoring | [docs/guides/dice-set-authoring.md](docs/guides/dice-set-authoring.md) |
 | Economy Contracts | [docs/guides/economy-contracts.md](docs/guides/economy-contracts.md) |
 | Saved Rolls | [docs/guides/saved-rolls.md](docs/guides/saved-rolls.md) |

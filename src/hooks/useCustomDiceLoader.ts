@@ -54,7 +54,6 @@ export function useCustomDiceLoader(
   // This hook handles caching and automatic disposal
   // Note: We must call useGLTF unconditionally (React hooks rule)
   // When asset is null, use a fallback data URI to satisfy hook requirements
-  // Blob URLs are regenerated on app load via regenerateCustomDiceBlobUrls()
   const modelUrl = asset?.modelUrl || 'data:text/plain,'
 
   const gltf = useGLTF(modelUrl, useDraco)

@@ -16,7 +16,7 @@ code may trust.
 | Dice name, notes, tags, favorite/lock state, stats and recent rolls | Client inventory | Read/write |
 | Client appearance/VFX copies, acquisition labels and custom/dev flags | Client inventory | Read/write and untrusted |
 | Placeholder coins/gems/tokens in the legacy inventory blob | Client inventory | Read/write and non-monetary |
-| Retained legacy custom-dice metadata and IndexedDB model bytes | Client/device | Read/write, local-only; customer uploads are retired |
+| Managed GLB asset metadata | Immutable catalog | Public catalog read; customer-uploaded local assets are purged |
 | Saved rolls, durable settings, and editable profile fields | Existing user-data/profile tables | Existing own-row policies |
 
 A local inventory die may map to a catalog key so the UI can resolve canonical
