@@ -59,12 +59,8 @@
     "test:e2e:wallet-hud-layout": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18190} playwright test e2e/wallet-hud-layout.spec.ts"
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/sortable": "^10.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.0",
-    "@react-three/postprocessing": "^3.0.4",
     "@supabase/supabase-js": "^2.110.2",
     "@xsolla/pay-station-sdk": "1.1.0",
     "detect-gpu": "^5.0.0",

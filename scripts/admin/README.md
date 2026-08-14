@@ -66,7 +66,7 @@ The first line of output names the project and which env var the key came from
 | Audit trail is mandatory | Every `grant-*` requires `--operator <name>` and `--note <why>`; both land in the row's `provenance` alongside `source: "admin-grant"`. |
 | Nothing fires silently | Every mutating command prints the resolved target, the full RPC name, the provenance, and the exact SQL **before** doing anything. |
 | Interactive confirm | Mutations prompt `Type "yes" to continue:` unless `--yes` is passed. A non-TTY stdin without `--yes` is refused, not auto-approved. |
-| Dry-run by default where it matters | `grant-die` and `cancel-session` are `--dry-run` by default; they need `--no-dry-run` to act. Both write append-only rows that can never be corrected. |
+| Dry-run by default where it matters | `grant-die`, `set-economy-access` and `cancel-session` are `--dry-run` by default; they need `--no-dry-run` to act. The first two write something that can never be corrected (an undeletable copy; the permanent passport anchor), the third an append-only transition. |
 | Retry-safe by construction | The idempotency key is **derived deterministically from the grant itself**, so re-running the identical command replays instead of granting twice. See [Idempotency keys](#idempotency-keys). |
 | The database is the arbiter | The CLI never pre-computes a balance. Floors, holds, overflow, and idempotency drift are all decided server-side. |
 | No paid-Stars path | `grant-stars` only ever touches `stars`/`promotional`. The `paid` bucket is purchase-backed; refunds go through `refund_payment_order`, never a manual append. |
@@ -160,6 +160,101 @@ maps `*` to `%` for `ilike`), e.g. `user 'Ada*Lovelace'`.
 > `supabase/migrations/`) and `public.profiles` has no email column
 > (`0001_profiles.sql:15-23`). The display name comes from `public.profiles`, and
 > the two halves are merged on `id`.
+
+### `economy-access <user>`
+
+Read-only. Prints whether the player can see the economy, and when their New
+Collector Passport anchor was stamped.
+
+```bash
+node scripts/admin/dicesuki-admin.mjs economy-access someone@example.com
+```
+
+```
+Economy access — 3f4a2b10-...
+=============================
+  access:          on
+  granted at:      2026-08-01T10:00:00Z (passport anchor — set once, never moved)
+  updated:         2026-08-02T11:30:00Z
+  last changed by: donovan
+  note:            ticket 1500: closed beta wave 2
+```
+
+**No row means off.** `public.user_economy_access` has no row until an operator
+makes a decision and `economy_access` defaults to `false`, so the CLI prints
+`off (no user_economy_access row — never granted)` rather than a dash — absence
+is a known state, not a missing one.
+
+### `set-economy-access <user> <on|off>`
+
+Flip the flag via `public.set_user_economy_access`. **Dry-run by default.**
+
+```bash
+# 1. see the current state and the plan (no writes)
+node scripts/admin/dicesuki-admin.mjs set-economy-access someone@example.com on \
+  --operator donovan --note 'ticket 1500: closed beta wave 2'
+
+# 2. apply it
+node scripts/admin/dicesuki-admin.mjs set-economy-access someone@example.com on \
+  --operator donovan --note 'ticket 1500: closed beta wave 2' --no-dry-run
+```
+
+The decision positional is strict: only the literals `on` and `off` are accepted.
+`true`, `yes`, `1` and `ON` are all refused, because a mistyped or
+shell-expanded token must never flip a flag whose first enable is permanent.
+
+`--operator` and `--note` are mandatory, as on every grant; they land in
+`last_changed_by` / `last_change_note` and are the only record of why access
+moved.
+
+Every run prints the target identity and the **current** access state before the
+plan, so a dry run shows what is being changed *from* — including whether the
+anchor is already stamped:
+
+```
+Target
+======
+  user id:      3f4a2b10-...
+  email:        someone@example.com
+  ...
+
+Economy access (current)
+========================
+  access:          off (no user_economy_access row — never granted)
+  granted at:      - (passport anchor never stamped)
+  updated:         -
+  last changed by: -
+  note:            -
+
+Planned call
+============
+  command: set-economy-access
+  rpc:     public.set_user_economy_access
+  effect:  enable
+  summary: Enable economy access for 3f4a2b10-... — the first enable permanently
+           stamps economy_access_granted_at (the passport anchor)
+  mode:    DRY RUN (nothing executes)
+
+select * from public.set_user_economy_access(
+  p_user_id => '3f4a2b10-...'::uuid,
+  p_enabled => true::boolean,
+  p_operator => 'donovan'::text,
+  p_note => 'ticket 1500: closed beta wave 2'::text
+);
+
+DRY RUN — nothing was executed. Re-run with --no-dry-run to apply.
+```
+
+Re-applying a state the player is already in is allowed and says so first:
+
+```
+NO CHANGE — economy access is already on (granted at 2026-08-01T10:00:00Z). Executing
+refreshes updated_at / last_changed_by / last_change_note only.
+```
+
+There is **no idempotency key** on this RPC — the row is a state keyed on
+`user_id`, not an append — so re-running the identical command is inherently
+safe, no replay pre-flight runs, and a failure message never suggests `--key`.
 
 ### `grant-stars <user> <amount>`
 
@@ -310,9 +405,11 @@ identically.
 |---|---|---|
 | `55000` (on `grant-die`) | A prepared pull hold is live; collectible grants are paused (`0021_pull_copy_grant_rework.sql:968-981`) | Run `cancel-session` to see `expires_at`, wait, then re-run the identical command |
 | `22023` | An argument was rejected, or this key was already used with different arguments (`0028_sku_fulfillment.sql:508-521`) | Re-run identically to replay, or change `--note` / pass `--key` to make it a new grant |
+| `22023` (on `set-economy-access`) | `--operator` (1-64) or `--note` (1-512) was blank or too long, or the decision was null (`0034_economy_access_flag.sql:111-123`) | Fix the argument. This RPC has no idempotency key, so it is never a replay conflict |
 | `22003` (wallet) | Balance floor or overflow, including funds reserved by a live pull hold (`0028_sku_fulfillment.sql:536-566`) | Reduce the debit, or wait out the hold |
 | `22003` (tickets) | Ticket floor (`0014_roll_ticket_ledger.sql:196-203`) | Reduce the debit |
 | `23503` | Unknown economy edition or catalog item | Check the id |
+| `23503` (on `set-economy-access`) | No such `auth.users` row (`0034_economy_access_flag.sql:124-126`) | Check the uuid — a stale id pasted from a ticket is the usual cause |
 | `42501` | Permission denied | The key in use is not a service-role key |
 
 ---
@@ -402,6 +499,7 @@ Two failure modes to know:
 | `pull_session_transitions` | SELECT (`0017_pull_commit_reveal.sql:55`) |
 | `payment_orders` / `payment_events` | SELECT (`0013_paid_checkout_foundation.sql:564-565`) |
 | `profiles` | SELECT + DML (`0005_security_hardening.sql:37`) |
+| `user_economy_access` | SELECT (`0034_economy_access_flag.sql:86-89`) — **no DML for any API role**; writes go through `set_user_economy_access` |
 
 `supabase/tests/0031_admin_support_cli.test.mjs` asserts this boundary against a
 real Postgres instance, so a migration that widens it fails CI.
@@ -489,6 +587,68 @@ player's Stars are reserved and **all collectible grants raise `55000`**.
    (`:19`), and cancellation releases the reservation **without a refund**
    (`:1015-1016`) — so if the player also deserves their Stars back, follow it
    with an explicit `grant-stars`.
+
+### Granting economy access
+
+The economy is gated per player by `public.user_economy_access.economy_access`.
+
+1. **Check what they have now.**
+   ```bash
+   node scripts/admin/dicesuki-admin.mjs economy-access someone@example.com
+   ```
+   `user <query>` shows the same block, right under Identity — it is worth
+   reading first on any economy ticket, because a "my Stars are gone" report from
+   a player with access `off` is usually not a balance problem at all.
+
+   No row means **off**. It does not mean unknown.
+
+2. **Dry-run the grant.** This is the default, so just run it:
+   ```bash
+   node scripts/admin/dicesuki-admin.mjs set-economy-access someone@example.com on \
+     --operator donovan --note 'ticket 1500: closed beta wave 2'
+   ```
+   Read the `Target` block and confirm the email and uuid are the person in the
+   ticket. This is the step that catches the mistake described next.
+
+3. **Apply it.**
+   ```bash
+   node scripts/admin/dicesuki-admin.mjs set-economy-access someone@example.com on \
+     --operator donovan --note 'ticket 1500: closed beta wave 2' --no-dry-run
+   ```
+
+4. **Turning it back off** is the same command with `off`. The flag itself is a
+   plain state and moves freely in both directions.
+
+#### The first enable is permanent
+
+The first time `economy_access` goes true, the RPC stamps
+`economy_access_granted_at` — the **New Collector Passport's 12-week anchor** —
+and never moves it again. Disabling access does not clear it; re-enabling does
+not restart it; there is no correcting write and no operator path to reset it.
+
+So enabling the **wrong** user id permanently starts a stranger's passport clock,
+and all you can do afterwards is turn their flag back off. That asymmetry is the
+whole reason `set-economy-access` is dry-run by default and warns loudly on a
+first enable:
+
+```
+WARNING: this is the FIRST enable for 3f4a2b10-..., so it permanently stamps
+economy_access_granted_at — the New Collector Passport 12-week anchor. ...
+```
+
+`supabase/tests/0031_admin_support_cli.test.mjs` proves the write-once behaviour
+against a real Postgres: it enables, records the anchor, re-enables, disables,
+and asserts the anchor never moved.
+
+#### Disabling hides the UI — it does not stop the faucets
+
+`economy_access = false` gates what the player *sees*. Earned faucets keep
+accruing server-side regardless, so a disabled player can still have a growing
+Dust or ticket balance, and re-enabling them later reveals everything that piled
+up in the meantime. Never read a nonzero balance as evidence that access is on,
+and never treat "turn it off" as a way to freeze someone's economy — for that,
+the remedy is a ledger correction (`grant-*` with a negative amount) or a ban,
+not this flag.
 
 ### Lost items / rollback compensation
 

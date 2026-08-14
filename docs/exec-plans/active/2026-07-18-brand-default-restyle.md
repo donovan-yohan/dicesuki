@@ -36,7 +36,7 @@ Keep untouched: WoW-style rarity colors (`#ff8000/#a335ee/#0070dd/#1eff00`), pla
 
 ### Packet 3 — hardcoded-color sweep + asset cleanup
 
-- Convert hardcoded non-token colors to tokens in: `DiceSelector.tsx` (`bg-orange-600/bg-gray-700/bg-black`), `SettingsPanel.tsx`, `HeroDieInspector.tsx` (`bg-black`), `DeviceMotionButton.tsx`, `effects/PerformanceOverlay.tsx`, `ThemeSelector.tsx`, `panels/artist-tools/*`, `icons/DiceIconWithNumber.tsx`, multiplayer `#fecaca` usages. Grep for remaining inline hex + `bg-black|bg-gray-|orange-` Tailwind classes as final pass (audit sampled large files; small components may hide more).
+- Convert hardcoded non-token colors to tokens in: `SettingsPanel.tsx`, `HeroDieInspector.tsx` (`bg-black`), `effects/PerformanceOverlay.tsx`, `ThemeSelector.tsx`, `panels/artist-tools/*`, `icons/DiceIconWithNumber.tsx`, multiplayer `#fecaca` usages. `DiceSelector.tsx` and `DeviceMotionButton.tsx` were retired as dead UI in the architecture cleanup, so they require no color migration. Grep for remaining inline hex + `bg-black|bg-gray-|orange-` Tailwind classes as final pass (audit sampled large files; small components may hide more).
 - Cherry-pick/land parked commit `606c1c8` (`fix/brand-icon-halo`): clips icon base fills to outline, +regenerated PNG icons. Verify `BrandAssets.test.ts` (updated on origin/main) still passes.
 - Optional: simplified favicon (current `public/icons/favicon.svg` is the full 82K icon).
 

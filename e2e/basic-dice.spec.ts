@@ -126,12 +126,10 @@ test.describe('basic dice at 390x844', () => {
       await expect(slot).toBeVisible()
       await expect(slot).toBeEnabled()
     }
-    await expect(page.getByTestId('dice-quick-slot-d4'))
-      .toHaveAttribute('data-owned-available', '1')
-    await expect(page.getByTestId('dice-quick-slot-d6'))
-      .toHaveAttribute('data-owned-available', '0')
-    // Nothing to run out of.
-    await expect(page.getByTestId('dice-quick-slot-d6')).toContainText('∞')
+    // The rail reports no supply at all — not a tally, and not the ∞ that used
+    // to stand in for one. What you own is the Inventory panel's business.
+    await expect(page.getByTestId('dice-quick-slot-d4')).toHaveText('D4')
+    await expect(page.getByTestId('dice-quick-slot-d6')).toHaveText('D6')
 
     await page.screenshot({
       path: 'e2e/screenshots/basic-dice-toolbar-no-disabled-states.png',
@@ -142,10 +140,9 @@ test.describe('basic dice at 390x844', () => {
     await page.getByTestId('dice-quick-slot-d4').click()
     await expect(room).toHaveAttribute('data-room-dice-count', '2')
     await expect(room).toHaveAttribute('data-room-basic-dice-count', '1')
-    await expect(page.getByTestId('dice-quick-slot-d4'))
-      .toHaveAttribute('data-owned-available', '0')
 
-    // …then basics, without the rail ever refusing.
+    // …then basics, without the rail ever refusing. The player's one owned d4
+    // is on the table now, so this second tap can only be a basic one.
     await page.getByTestId('dice-quick-slot-d4').click()
     await expect(room).toHaveAttribute('data-room-dice-count', '3')
     await expect(room).toHaveAttribute('data-room-basic-dice-count', '2')

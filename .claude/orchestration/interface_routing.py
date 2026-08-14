@@ -29,7 +29,7 @@ class InterfaceRouter:
                 'ToolbarProps',
                 'BottomNavProps',
                 'SettingsPanelProps',
-                'ArtistTestingPanelProps',
+                'ShopPanelProps',
                 'ThemeSelectorProps',
                 'SavedRollsPanelProps',
                 'InventoryPanelProps',

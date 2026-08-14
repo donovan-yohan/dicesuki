@@ -2,11 +2,12 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThemeContext } from '../../contexts/ThemeContext'
 import { useInventoryStore } from '../../store/useInventoryStore'
-import { defaultTheme } from '../../themes/tokens'
+import { ICONLESS_THEME } from '../../test/themeFixtures'
+import { defaultTheme, type Theme } from '../../themes/tokens'
 import { TableHud, type TableHudProps } from './TableHud'
 import { getDiceToolbarLane } from './hudLayout'
 
-function renderHud(overrides: Partial<TableHudProps> = {}) {
+function renderHud(overrides: Partial<TableHudProps> = {}, theme: Theme = defaultTheme) {
   const handlers = {
     onToggleUIVisibility: vi.fn(),
     onOpenDiceManager: vi.fn(),
@@ -38,10 +39,10 @@ function renderHud(overrides: Partial<TableHudProps> = {}) {
   const view = render(
     <ThemeContext.Provider
       value={{
-        currentTheme: defaultTheme,
+        currentTheme: theme,
         setTheme: vi.fn(),
-        availableThemes: [defaultTheme],
-        ownedThemes: [defaultTheme.id],
+        availableThemes: [theme],
+        ownedThemes: [theme.id],
         purchaseTheme: vi.fn(async () => true),
       }}
     >
@@ -134,6 +135,27 @@ describe('TableHud (Layout A)', () => {
     expect(screen.getByRole('button', { name: 'Hide UI' })).toBeInTheDocument()
   })
 
+  it('stacks the mobile cluster one control per slot', () => {
+    renderHud({ isMobile: true, isDiceManagerOpen: true })
+
+    expect(screen.getByRole('button', { name: 'Hide UI' })).toHaveStyle({ bottom: '80px' })
+    expect(screen.getByRole('button', { name: 'Motion Mode' })).toHaveStyle({ bottom: '136px' })
+    expect(screen.getByTestId('rotate-view-button')).toHaveStyle({ bottom: '192px' })
+    expect(screen.getByTestId('dice-toolbar-rail')).toHaveStyle({ bottom: '248px' })
+  })
+
+  it('collapses the cluster over the absent motion slot on desktop', () => {
+    // Desktop never renders the motion toggle, so leaving its slot empty showed
+    // as a dead gap between the eye and rotate. Slots are assigned by rendered
+    // order instead, which keeps one uniform gap on both form factors.
+    renderHud({ isMobile: false, isDiceManagerOpen: true })
+
+    expect(screen.queryByRole('button', { name: 'Motion Mode' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Hide UI' })).toHaveStyle({ bottom: '80px' })
+    expect(screen.getByTestId('rotate-view-button')).toHaveStyle({ bottom: '136px' })
+    expect(screen.getByTestId('dice-toolbar-rail')).toHaveStyle({ bottom: '192px' })
+  })
+
   it('routes each HUD control to its callback', () => {
     const { handlers } = renderHud()
 
@@ -179,7 +201,7 @@ describe('TableHud (Layout A)', () => {
     })
     renderHud({ isDiceManagerOpen: true })
 
-    const lane = getDiceToolbarLane(window.innerHeight)
+    const lane = getDiceToolbarLane(window.innerHeight, true)
     const rail = screen.getByTestId('dice-toolbar-rail')
     expect(rail).toHaveStyle({
       bottom: `${lane.bottom}px`,
@@ -187,5 +209,57 @@ describe('TableHud (Layout A)', () => {
     })
     expect(screen.getByTestId('dice-toolbar-scroll').className).toContain('overflow-y-auto')
     expect(rail.className).toContain('z-40')
+  })
+
+  describe('themed HUD glyphs', () => {
+    const SLOTS = [
+      ['Settings', '/icons/default/settings.svg', '⚙️'],
+      ['Shop', '/icons/default/shop.svg', '🛍️'],
+      ['Rotate view 90 degrees', '/icons/default/rotate.svg', '🔄'],
+      ['Motion Mode', '/icons/default/motion.svg', 'PHYS'],
+    ] as const
+
+    it.each(SLOTS)('paints %s from the default theme icon set', (label, src) => {
+      renderHud()
+
+      const button = screen.getByRole('button', { name: label })
+      const icon = button.querySelector(`[data-theme-icon="${src}"]`)
+      expect(icon, `${label} should render ${src}`).not.toBeNull()
+      // Inlined, not <img>-ed: that is what lets the glyph inherit the
+      // button's colour instead of rendering black in its own document.
+      expect(icon!.querySelector('svg')).not.toBeNull()
+      expect(button.querySelector('img')).toBeNull()
+    })
+
+    it.each(SLOTS)('falls back to the %s emoji/text when the theme has no icon', (label, src, fallback) => {
+      renderHud({}, ICONLESS_THEME)
+
+      const button = screen.getByRole('button', { name: label })
+      expect(button.querySelector(`[data-theme-icon="${src}"]`)).toBeNull()
+      expect(button.querySelector('svg')).toBeNull()
+      expect(button.textContent).toContain(fallback)
+    })
+
+    it('keeps the bottom-nav and eye glyphs on the same themed/fallback split', () => {
+      const { unmount } = renderHud()
+      expect(
+        screen.getByRole('button', { name: 'My Dice Rolls' })
+          .querySelector('[data-theme-icon="/icons/default/saved-rolls.svg"] svg')
+      ).not.toBeNull()
+      expect(
+        screen.getByRole('button', { name: 'Room Players' })
+          .querySelector('[data-theme-icon="/icons/default/profile.svg"] svg')
+      ).not.toBeNull()
+      expect(
+        screen.getByRole('button', { name: 'Hide UI' })
+          .querySelector('[data-theme-icon="/icons/default/ui-toggle.svg"] svg')
+      ).not.toBeNull()
+      unmount()
+
+      renderHud({}, ICONLESS_THEME)
+      expect(screen.getByRole('button', { name: 'My Dice Rolls' }).textContent).toContain('📋')
+      expect(screen.getByRole('button', { name: 'Room Players' }).textContent).toContain('👥')
+      expect(screen.getByRole('button', { name: 'Hide UI' }).textContent).toContain('👁️')
+    })
   })
 })

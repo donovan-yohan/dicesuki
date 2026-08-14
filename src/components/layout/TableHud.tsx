@@ -10,10 +10,13 @@
  */
 
 import type { DiceShape } from '../../types/diceShape'
+import { useTheme } from '../../contexts/ThemeContext'
+import { hasAsset } from '../../lib/themeHelpers'
+import { ThemeIcon } from '../icons/ThemeIcon'
 import { BottomNav } from './BottomNav'
 import { CornerIcon } from './CornerIcon'
 import { DiceToolbar } from './DiceToolbar'
-import { HUD_LAYOUT } from './hudLayout'
+import { getHudClusterControlBottom, HUD_CLUSTER } from './hudLayout'
 import { UIToggleMini } from './UIToggleMini'
 
 export interface TableHudProps {
@@ -72,6 +75,17 @@ export function TableHud({
   // eye) only exists when no overlay owns the screen.
   const showControlCluster = !isOverlayOpen
 
+  // Slots come from the cluster stack, not from per-button constants: a control
+  // with no slot on this form factor (motion, on desktop) is not rendered, and
+  // the controls above it collapse down so the gaps stay uniform everywhere.
+  const rotateBottom = getHudClusterControlBottom('rotate', isMobile)
+  const motionBottom = getHudClusterControlBottom('motion', isMobile)
+
+  // Themed HUD glyphs. Every slot keeps its emoji/text fallback for themes that
+  // ship no icon of its own (Frontend-ADR-003 progressive enhancement).
+  const { currentTheme } = useTheme()
+  const icons = currentTheme.assets.icons
+
   return (
     <>
       {isUIVisible && (
@@ -95,7 +109,11 @@ export function TableHud({
             label="Settings"
             isVisible
           >
-            ⚙️
+            {hasAsset(icons.settings) ? (
+              <ThemeIcon src={icons.settings} label="Settings" className="w-7 h-7" />
+            ) : (
+              '⚙️'
+            )}
           </CornerIcon>
 
           {/* Top-right shop hub keeps the existing payments/conversion gate. */}
@@ -106,30 +124,38 @@ export function TableHud({
               label="Shop"
               isVisible
             >
-              🛍️
+              {hasAsset(icons.shop) ? (
+                <ThemeIcon src={icons.shop} label="Shop" className="w-7 h-7" />
+              ) : (
+                '🛍️'
+              )}
             </CornerIcon>
           )}
 
-          {showControlCluster && (
+          {showControlCluster && rotateBottom !== null && (
             <button
               type="button"
               onClick={onRotateView}
               className="fixed left-4 z-40 flex items-center justify-center rounded-full transition-all hover:scale-105"
-              style={bottomLeftControlStyle(HUD_LAYOUT.rotate.bottom)}
+              style={bottomLeftControlStyle(rotateBottom)}
               aria-label="Rotate view 90 degrees"
               title="Rotate my view 90°"
               data-testid="rotate-view-button"
             >
-              🔄
+              {hasAsset(icons.rotate) ? (
+                <ThemeIcon src={icons.rotate} label="Rotate view" className="w-6 h-6" />
+              ) : (
+                '🔄'
+              )}
             </button>
           )}
-          {showControlCluster && isMobile && (
+          {showControlCluster && motionBottom !== null && (
             <button
               type="button"
               onClick={onToggleMotion}
               className="fixed left-4 z-40 flex items-center justify-center rounded-full transition-all hover:scale-105"
               style={{
-                ...bottomLeftControlStyle(HUD_LAYOUT.motion.bottom),
+                ...bottomLeftControlStyle(motionBottom),
                 // Active state swaps the fill to accent, so the label has to
                 // swap with it — text.primary is not legible on every accent.
                 backgroundColor: motionMode ? 'var(--color-accent)' : 'var(--color-surface)',
@@ -139,12 +165,17 @@ export function TableHud({
               title="Motion Mode"
               aria-pressed={motionMode}
             >
-              PHYS
+              {hasAsset(icons.motion) ? (
+                <ThemeIcon src={icons.motion} label="Motion Mode" className="w-6 h-6" />
+              ) : (
+                'PHYS'
+              )}
             </button>
           )}
 
           <DiceToolbar
             isOpen={isDiceManagerOpen}
+            isMobile={isMobile}
             onAddDice={onAddDice}
             onClearAllDice={onClearAllDice}
             onOpenInventory={onOpenInventory}
@@ -167,8 +198,8 @@ export function TableHud({
 function bottomLeftControlStyle(bottom: number) {
   return {
     bottom: `${bottom}px`,
-    width: `${HUD_LAYOUT.rotate.size}px`,
-    height: `${HUD_LAYOUT.rotate.size}px`,
+    width: `${HUD_CLUSTER.size}px`,
+    height: `${HUD_CLUSTER.size}px`,
     backgroundColor: 'var(--color-surface)',
     color: 'var(--color-text-primary)',
     boxShadow: 'var(--shadow-md)',

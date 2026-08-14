@@ -248,9 +248,26 @@ to turn the bot on; nothing here is committed.
    intents — the bot only makes REST calls, and the single-member membership
    lookup it relies on is not gated by `GUILD_MEMBERS`.
 3. **Build the invite URL** that guild admins will use (this is the self-serve
-   install link the share sheet offers): *OAuth2 → URL Generator*, scope `bot`,
-   permissions **View Channel** + **Send Messages** + **Embed Links** +
-   **Manage Messages** (Manage Messages lets it edit/archive its own embeds).
+   install link the share sheet offers): *OAuth2 → URL Generator*, scope `bot`
+   only (the bot registers no slash commands, so `applications.commands` is not
+   needed), permissions **View Channel** + **Send Messages** + **Embed Links** +
+   **Create Public Threads** + **Send Messages in Threads** (#255 — the
+   per-session thread and its roll log).
+
+   Tick exactly those five. **Manage Messages** is *not* required and must not be
+   added: a bot may always edit and delete its **own** messages, which is all the
+   advert lifecycle ever does, and ticking it produces `309237672960` instead of
+   the documented integer below.
+
+   The canonical link should carry `permissions=309237664768`
+   (`VIEW_CHANNEL | SEND_MESSAGES | EMBED_LINKS | CREATE_PUBLIC_THREADS |
+   SEND_MESSAGES_IN_THREADS`; see `INVITE_PERMISSIONS` in
+   `server/src/discord_api.rs`). **Set this before wide distribution** —
+   permissions are granted at install time, so a guild that installed with the
+   older link keeps working but silently gets embed-only adverts with no session
+   thread, and only a re-invite fixes it. Note that Discord's
+   `CREATE_PUBLIC_THREADS` bit is `1 << 35`; `1 << 34` is `MANAGE_THREADS`,
+   which the bot does not need.
 4. **Set the frontend origin**: `APP_BASE_URL` = your deployed frontend base
    (e.g. `https://dicesuki.app`), used to build `/room/<id>` join links.
 5. *(Optional, legacy #84 billboard only)* **Get the channel id**: enable

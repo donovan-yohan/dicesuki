@@ -8,6 +8,7 @@
 import { motion } from 'framer-motion'
 import { useTheme } from '../../contexts/ThemeContext'
 import { hasAsset } from '../../lib/themeHelpers'
+import { ThemeIcon } from '../icons/ThemeIcon'
 import { HUD_LAYOUT } from './hudLayout'
 import {
   buttonPressScale,
@@ -55,7 +56,7 @@ export function UIToggleMini({ onClick, isVisible }: UIToggleMiniProps) {
       title={label}
     >
       {hasAsset(toggleIcon) ? (
-        <img src={toggleIcon} alt={label} className="w-6 h-6" />
+        <ThemeIcon src={toggleIcon} label={label} className="w-6 h-6" />
       ) : (
         <span className="text-xl">👁️</span>
       )}

@@ -37,9 +37,8 @@
 - `SettingsPanel.tsx`: User preferences
   - Haptic toggle
   - Theme selector
-- `ArtistTestingPanel.tsx`: Custom dice upload
-  - GLB file upload
-  - Metadata input (collider type, scale, mass)
+- Controlled dice delivery: operator-authored catalog assets render through
+  shop and inventory surfaces; customer model uploads are retired.
 
 ## Styling Rules
 - Inline styles with theme tokens (no CSS files)

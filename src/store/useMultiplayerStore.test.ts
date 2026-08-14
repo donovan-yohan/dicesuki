@@ -1,8 +1,20 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { useMultiplayerStore } from './useMultiplayerStore'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import {
+  useMultiplayerStore,
+  isStaleSessionErrorCode,
+  joinFailureMessage,
+} from './useMultiplayerStore'
 import { useDiceStore } from './useDiceStore'
 import type { ServerMessage } from '../lib/multiplayerMessages'
 import { loadRoomSession, saveRoomSession } from '../lib/roomSession'
+
+// Module-level mock (Frontend-ADR-004): the store reads the Supabase session on
+// socket open and, for #264, refreshes it once when the room rejects the token.
+// Guest mode (`null`) is the default; auth tests override per case.
+const getSupabaseClientMock = vi.hoisted(() => vi.fn(() => null as unknown))
+vi.mock('../lib/supabaseClient', () => ({
+  getSupabaseClient: getSupabaseClientMock,
+}))
 
 // `reset()` deliberately preserves `serverUrl`, so it is the one field a
 // `reset()` in `beforeEach` cannot restore. Capture the pristine default and
@@ -1432,7 +1444,25 @@ describe('useMultiplayerStore', () => {
       expect(close).not.toHaveBeenCalled()
     })
 
-    it('leaves non-join error codes (e.g. DICE_LIMIT) alone', () => {
+    it('fails the join for ANY error code arriving before room_state (#264)', () => {
+      // The server keeps the socket open after answering, so an unrecognized
+      // code that we swallow leaves the join surface loading forever. Hence the
+      // catch-all: we do NOT enumerate join codes.
+      //
+      // What the server can actually emit before `room_state` (server/src/
+      // ws_handler.rs): INVALID_MESSAGE (:117-123, any unparseable frame),
+      // ALREADY_JOINED (:134-140), INVALID_COLOR (:142-148), the auth codes
+      // AUTH_INVALID / AUTH_UNAVAILABLE (:159-165, coded in auth.rs:129-137),
+      // the join `RoomError` codes incl. ROOM_FULL and INVALID_NAME (:224-239),
+      // and NOT_JOINED — the catch-all arm at :511-517 answers *any* non-Join
+      // frame sent before joining.
+      //
+      // Per-action codes (e.g. DICE_LIMIT, reached via SpawnDice at :244) are
+      // all behind `if is_joined` guards, so those are unreachable pre-join by
+      // construction. Every other code is unreachable only because the UI never
+      // sends an action before the room is ready (MultiplayerRoom.tsx:524 holds
+      // the loader until `roomIsReady`) — that is a UI convention, not a
+      // protocol guarantee, which is exactly why this test pins the fallback.
       const close = vi.fn()
       useMultiplayerStore.setState({
         socket: { close } as unknown as WebSocket,
@@ -1442,13 +1472,33 @@ describe('useMultiplayerStore', () => {
 
       useMultiplayerStore.getState().handleServerMessage({
         type: 'error',
+        code: 'SOMETHING_UNEXPECTED',
+        message: 'Nobody has seen this one before',
+      })
+
+      const state = useMultiplayerStore.getState()
+      expect(state.connectionStatus).toBe('disconnected')
+      expect(state.connectionError).toBe('Nobody has seen this one before')
+      expect(state.connectionErrorCode).toBe('SOMETHING_UNEXPECTED')
+      expect(state.socket).toBeNull()
+      expect(close).toHaveBeenCalled()
+    })
+
+    it('never touches a live session: an error with no socket is not a join failure', () => {
+      useMultiplayerStore.setState({
+        socket: null,
+        connectionStatus: 'disconnected',
+        localPlayerId: null,
+      })
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'error',
         code: 'DICE_LIMIT',
         message: 'Table is full',
       })
 
-      const state = useMultiplayerStore.getState()
-      expect(state.connectionStatus).toBe('connected')
-      expect(close).not.toHaveBeenCalled()
+      expect(useMultiplayerStore.getState().connectionError).toBeNull()
+      expect(useMultiplayerStore.getState().connectionErrorCode).toBeNull()
     })
 
     it('clears only a rejected unauthorized resume so retry mints a new credential', () => {
@@ -1517,6 +1567,266 @@ describe('useMultiplayerStore', () => {
 
       expect(loadRoomSession('abc123')?.reconnectToken).toBe(token)
       expect(useMultiplayerStore.getState().reconnectToken).toBe(token)
+    })
+  })
+
+  describe('auth rejection during join (#264)', () => {
+    /** An open socket that has sent `join` and is waiting on `room_state`. */
+    function armJoiningSocket(send = vi.fn(), close = vi.fn()) {
+      const socket = { send, close, readyState: WebSocket.OPEN } as unknown as WebSocket
+      useMultiplayerStore.setState({
+        socket,
+        connectionStatus: 'connected',
+        roomId: 'abc123',
+        localPlayerId: null,
+        lastJoin: {
+          roomId: 'abc123',
+          displayName: 'Alice',
+          color: '#8B5CF6',
+          serverUrl: 'ws://example',
+          token: '12345678-1234-4234-9234-123456789abc',
+          transport: 'websocket',
+        },
+      })
+      return { send, close, socket }
+    }
+
+    /** A Supabase stand-in whose refresh yields `accessToken` (or nothing). */
+    function stubSupabase(accessToken: string | null) {
+      const refreshSession = vi.fn().mockResolvedValue({
+        data: { session: accessToken ? { access_token: accessToken } : null },
+      })
+      getSupabaseClientMock.mockReturnValue({ auth: { refreshSession } })
+      return refreshSession
+    }
+
+    const AUTH_INVALID: ServerMessage = {
+      type: 'error',
+      code: 'AUTH_INVALID',
+      message: 'Authentication token is invalid or expired: InvalidAlgorithm',
+    }
+
+    it('refreshes the session once and re-sends join on the same socket', async () => {
+      const refreshSession = stubSupabase('fresh.jwt.token')
+      const { send, close } = armJoiningSocket()
+
+      useMultiplayerStore.getState().handleServerMessage(AUTH_INVALID)
+
+      await vi.waitFor(() => expect(send).toHaveBeenCalled())
+      expect(refreshSession).toHaveBeenCalledTimes(1)
+      expect(JSON.parse(send.mock.calls[0][0] as string)).toMatchObject({
+        type: 'join',
+        roomId: 'abc123',
+        displayName: 'Alice',
+        authToken: 'fresh.jwt.token',
+      })
+      // Still joining, nothing shown to the player — the retry is silent.
+      expect(useMultiplayerStore.getState().connectionStatus).toBe('connected')
+      expect(useMultiplayerStore.getState().connectionError).toBeNull()
+      expect(close).not.toHaveBeenCalled()
+    })
+
+    it('fails terminally when the refreshed token is rejected too (one retry only)', async () => {
+      stubSupabase('fresh.jwt.token')
+      const { send, close } = armJoiningSocket()
+
+      useMultiplayerStore.getState().handleServerMessage(AUTH_INVALID)
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1))
+
+      useMultiplayerStore.getState().handleServerMessage(AUTH_INVALID)
+
+      const state = useMultiplayerStore.getState()
+      expect(state.connectionStatus).toBe('disconnected')
+      expect(state.connectionErrorCode).toBe('AUTH_INVALID')
+      expect(state.connectionError).toContain('no longer valid')
+      expect(state.socket).toBeNull()
+      expect(state.lastJoin).toBeNull()
+      expect(close).toHaveBeenCalled()
+      // No third join attempt.
+      expect(send).toHaveBeenCalledTimes(1)
+    })
+
+    it('fails terminally when the refresh yields no session', async () => {
+      stubSupabase(null)
+      const { send } = armJoiningSocket()
+
+      useMultiplayerStore.getState().handleServerMessage(AUTH_INVALID)
+
+      await vi.waitFor(() =>
+        expect(useMultiplayerStore.getState().connectionStatus).toBe('disconnected'),
+      )
+      expect(send).not.toHaveBeenCalled()
+      expect(useMultiplayerStore.getState().connectionErrorCode).toBe('AUTH_INVALID')
+    })
+
+    it('fails terminally when Supabase is not configured at all', async () => {
+      getSupabaseClientMock.mockReturnValue(null)
+      armJoiningSocket()
+
+      useMultiplayerStore.getState().handleServerMessage(AUTH_INVALID)
+
+      await vi.waitFor(() =>
+        expect(useMultiplayerStore.getState().connectionStatus).toBe('disconnected'),
+      )
+      expect(useMultiplayerStore.getState().connectionErrorCode).toBe('AUTH_INVALID')
+    })
+
+    it('fails terminally when the socket dies while the refresh is in flight', async () => {
+      const { send, close, socket } = armJoiningSocket()
+      const mutableSocket = socket as unknown as { readyState: number }
+      getSupabaseClientMock.mockReturnValue({
+        auth: {
+          refreshSession: vi.fn(async () => {
+            // The window a pre-await readyState check cannot cover: the socket
+            // goes away while we are off asking Supabase for a new token.
+            mutableSocket.readyState = WebSocket.CLOSED
+            return { data: { session: { access_token: 'fresh.jwt.token' } } }
+          }),
+        },
+      })
+
+      useMultiplayerStore.getState().handleServerMessage(AUTH_INVALID)
+
+      // Terminal, not hung: the player gets the error rather than the loader.
+      await vi.waitFor(() =>
+        expect(useMultiplayerStore.getState().connectionStatus).toBe('disconnected'),
+      )
+      expect(send).not.toHaveBeenCalled()
+      expect(useMultiplayerStore.getState().connectionErrorCode).toBe('AUTH_INVALID')
+      expect(useMultiplayerStore.getState().socket).toBeNull()
+      expect(close).toHaveBeenCalled()
+    })
+
+    it('fails terminally when the re-join send itself throws', async () => {
+      const throwingSend = vi.fn(() => {
+        throw new Error('InvalidStateError: socket is closing')
+      })
+      const { close } = armJoiningSocket(throwingSend)
+      stubSupabase('fresh.jwt.token')
+
+      useMultiplayerStore.getState().handleServerMessage(AUTH_INVALID)
+
+      await vi.waitFor(() =>
+        expect(useMultiplayerStore.getState().connectionStatus).toBe('disconnected'),
+      )
+      expect(useMultiplayerStore.getState().connectionErrorCode).toBe('AUTH_INVALID')
+      expect(useMultiplayerStore.getState().socket).toBeNull()
+      expect(close).toHaveBeenCalled()
+    })
+
+    it('does not retry AUTH_REQUIRED — there is no session to refresh into', () => {
+      const refreshSession = stubSupabase('fresh.jwt.token')
+      const { close } = armJoiningSocket()
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'error',
+        code: 'AUTH_REQUIRED',
+        message: 'Authentication required',
+      })
+
+      expect(refreshSession).not.toHaveBeenCalled()
+      expect(useMultiplayerStore.getState().connectionStatus).toBe('disconnected')
+      expect(useMultiplayerStore.getState().connectionErrorCode).toBe('AUTH_REQUIRED')
+      expect(close).toHaveBeenCalled()
+    })
+
+    it('leaves a mid-session auth error to the existing per-action handling', () => {
+      const { close } = armJoiningSocket()
+      useMultiplayerStore.setState({ localPlayerId: 'p1' })
+
+      useMultiplayerStore.getState().handleServerMessage(AUTH_INVALID)
+
+      expect(useMultiplayerStore.getState().connectionStatus).toBe('connected')
+      expect(useMultiplayerStore.getState().connectionError).toBeNull()
+      expect(close).not.toHaveBeenCalled()
+    })
+
+    it('classifies only the auth codes as a stale session', () => {
+      expect(isStaleSessionErrorCode('AUTH_INVALID')).toBe(true)
+      expect(isStaleSessionErrorCode('AUTH_REQUIRED')).toBe(true)
+      expect(isStaleSessionErrorCode('ROOM_FULL')).toBe(false)
+      expect(isStaleSessionErrorCode(null)).toBe(false)
+    })
+
+    it('gives each auth code its own remedy, and passes everything else through', () => {
+      // Two different problems: a credential the server refuses vs no
+      // credential at all. Same banner, different instruction to the player.
+      expect(joinFailureMessage('AUTH_INVALID', 'raw server detail')).toContain(
+        'no longer valid',
+      )
+      expect(joinFailureMessage('AUTH_REQUIRED', 'raw server detail')).toContain(
+        'signed in',
+      )
+      expect(joinFailureMessage('AUTH_INVALID', 'x')).not.toBe(
+        joinFailureMessage('AUTH_REQUIRED', 'x'),
+      )
+      expect(joinFailureMessage('ROOM_FULL', 'Room is full (8/8 players)')).toBe(
+        'Room is full (8/8 players)',
+      )
+    })
+
+    it('AUTH_REQUIRED surfaces the sign-in remedy, not the stale-session one', () => {
+      armJoiningSocket()
+
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'error',
+        code: 'AUTH_REQUIRED',
+        message: 'Authentication required',
+      })
+
+      expect(useMultiplayerStore.getState().connectionError).toContain('signed in')
+    })
+  })
+
+  describe('superseded socket isolation (#264)', () => {
+    /** A socket whose handlers `establishConnection` wires up, kept addressable. */
+    class CapturingSocket {
+      static instances: CapturingSocket[] = []
+      readyState = 0
+      onopen: ((e: unknown) => void) | null = null
+      onmessage: ((e: { data: string }) => void) | null = null
+      onerror: ((e: unknown) => void) | null = null
+      onclose: ((e: unknown) => void) | null = null
+      send = vi.fn()
+      close = vi.fn()
+      constructor() {
+        CapturingSocket.instances.push(this)
+      }
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      CapturingSocket.instances = []
+    })
+
+    it('ignores a message from a socket the store has already replaced', () => {
+      vi.stubGlobal('WebSocket', CapturingSocket)
+      const connect = useMultiplayerStore.getState().connect
+      connect('abc123', 'Alice', '#8B5CF6', 'ws://example')
+      const stale = CapturingSocket.instances[0]
+      // A second connect (e.g. `reconnectNow()` on visibilitychange) supersedes
+      // the first socket, which may still have frames queued.
+      connect('abc123', 'Alice', '#8B5CF6', 'ws://example')
+      const live = CapturingSocket.instances[1]
+      expect(useMultiplayerStore.getState().socket).toBe(live as unknown as WebSocket)
+
+      // Since #264 an `error` before `room_state` is terminal for the join, so a
+      // dying socket's rejection would otherwise kill its replacement's join.
+      stale.onmessage?.({
+        data: JSON.stringify({
+          type: 'error',
+          code: 'ROOM_FULL',
+          message: 'Room is full (8/8 players)',
+        }),
+      })
+
+      const state = useMultiplayerStore.getState()
+      expect(state.socket).toBe(live as unknown as WebSocket)
+      expect(state.connectionError).toBeNull()
+      expect(state.connectionErrorCode).toBeNull()
+      expect(state.roomActionError).toBeNull()
+      expect(state.connectionStatus).toBe('connecting')
+      expect(live.close).not.toHaveBeenCalled()
     })
   })
 

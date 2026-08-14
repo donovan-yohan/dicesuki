@@ -2,8 +2,8 @@
  * Dice set registry.
  *
  * Shipped/configured collectible sets are sourced from the same deterministic
- * JSON input that generates the server catalog. Local artist uploads remain a
- * deliberately separate, client-only set.
+ * JSON input that generates the server catalog. The legacy local set remains
+ * only so existing device-local dice records can continue to resolve safely.
  */
 
 import catalogSource from './collectibleCatalogSource.json'
@@ -24,7 +24,7 @@ export const CELESTIAL_GOLD_SET = requireConfiguredSet('celestial-gold')
 export const VOID_CRYSTAL_SET = requireConfiguredSet('void-crystal')
 export const INFERNAL_OBSIDIAN_SET = requireConfiguredSet('infernal-obsidian')
 
-/** Client-only artist uploads are not catalog items or entitlement evidence. */
+/** Legacy device-local dice are not catalog items or entitlement evidence. */
 export const CUSTOM_ARTIST_SET: DieSet = {
   id: 'custom-artist',
   name: 'Custom Artist Collection',

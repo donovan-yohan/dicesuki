@@ -2,6 +2,26 @@
 
 > Part of the [Harness documentation system](../../CLAUDE.md). Edit this file for recent updates and changes.
 
+## 2026-08-10: PWA stale-bundle fix — SW updates now actually reload (#256)
+- **The bug** — the #116 entry below claimed `autoUpdate` "reloads open clients". It
+  never did. With no app-side import of `virtual:pwa-register`, `injectRegister: 'auto'`
+  emitted only a bare `navigator.serviceWorker.register('/sw.js')`: the new worker
+  activated and claimed the tab, but the page kept executing the bundle it had already
+  parsed. Users saw stale content on revisit until a hard refresh.
+- **`src/lib/swUpdate.ts`** — registers through `virtual:pwa-register` with
+  `immediate: true`, re-checks for a new worker on registration, every 15 min, and on
+  `visibilitychange → visible` (long-lived tabs otherwise never re-check `sw.js`), and
+  supplies `onNeedReload` so the app — not the plugin — decides when to reload.
+- **Safe-reload policy** — reload is immediate only when nothing is in play. It is
+  deferred while dice are rolling / a saved-roll wave sequence is open, while a
+  multiplayer room is live (including mid-reconnect), and while a solo table has dice
+  on it (the wasm room is not resumable, so a reload discards the table). A deferred
+  reload lands at the first safe moment: the store subscription fires when the room is
+  left or the dice settle, and a hidden tab flushes immediately. A `sessionStorage`
+  timestamp caps reloads at one per minute per tab so a half-broken deploy can't loop.
+- **`injectRegister: null`** — stated explicitly rather than relying on `'auto'`
+  detecting the virtual-module import, so `dist/index.html` can never double-register.
+
 ## 2026-07-13: PWA offline support (#116)
 - **Installable + offline solo** — `vite-plugin-pwa` (Workbox `generateSW`) adds a
   web app manifest (`vite.config.ts`) and a service worker that precaches the app
@@ -17,6 +37,8 @@
   + `cleanupOutdatedCaches`: a new deploy's SW activates immediately and reloads open
   clients, deliberately avoiding the "stale bundle forever" trap. Precache is generated
   from real build output, so sibling bundle changes are picked up automatically.
+  **Correction (#256, 2026-08-10):** the "reloads open clients" half was never wired —
+  activation is not a reload. See the #256 entry at the top of this file.
 - **OG unfurl (#108) protected** — `navigateFallbackDenylist` excludes `/room/:id`,
   `/rooms`, and `/api/`, so the SW never shadows the Vercel `/room/:id → api/og.js`
   rewrite and those routes stay network-only (crawlers don't run SWs regardless).

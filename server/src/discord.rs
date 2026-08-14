@@ -55,7 +55,10 @@ use std::time::{Duration, Instant};
 use log::{debug, info, warn};
 use tokio::sync::{Mutex, RwLock};
 
-use crate::discord_api::{is_terminal_for_resource, DiscordApi, HttpDiscordApi};
+use crate::discord_api::{
+    is_terminal_for_resource, is_terminal_for_thread_creation, DiscordApi, DiscordApiError,
+    HttpDiscordApi,
+};
 use crate::discord_targets::{DiscordDirectory, IdentityLookup};
 use crate::messages::DiceType;
 use crate::room::{RecentRoll, RecentRollDie, Room};
@@ -108,6 +111,56 @@ const CRIT_REPEAT_LIMIT: usize = 3;
 /// `+N more`. Keeps the field inside Discord's 1024-character limit even for a
 /// full room of hostile display names.
 const ARCHIVE_PLAYER_LIST_MAX: usize = 12;
+
+/// Characters kept from the room's display name in a session thread's name
+/// (#255).
+///
+/// Discord caps a thread name at **100 characters**, and an over-long name is a
+/// 400 that permanently disables the thread — so the cap is enforced here rather
+/// than discovered in production. 40 is deliberately conservative: the cap is
+/// applied *before* markdown escaping, which can double every character, and the
+/// date suffix costs a further [`THREAD_NAME_DATE_LEN`]. Worst case is therefore
+/// `40 * 2 + 13 = 93`, asserted by
+/// `a_hostile_room_name_cannot_overflow_a_thread_name`.
+const THREAD_NAME_ROOM_MAX_LEN: usize = 40;
+
+/// Length of the ` \u{2014} YYYY-MM-DD` suffix a thread name carries.
+const THREAD_NAME_DATE_LEN: usize = 13;
+
+/// Discord's hard limit on a thread/channel name, in UTF-16 code units.
+const DISCORD_THREAD_NAME_LIMIT: usize = 100;
+
+/// Fail-closed drift guard for the thread-name budget: escaping can at most
+/// double every character kept from the room name, and the date suffix is fixed,
+/// so the worst case has to fit inside Discord's limit *by construction*.
+///
+/// A compile error here rather than a runtime 400 is the point — an over-long
+/// name is not a degraded thread, it is a thread that can never be created for
+/// that advert, discovered only in a third-party guild.
+const _: () = assert!(
+    THREAD_NAME_ROOM_MAX_LEN * 2 + THREAD_NAME_DATE_LEN <= DISCORD_THREAD_NAME_LIMIT,
+    "a fully-escaped room name plus the date suffix must fit Discord's 100-character thread-name limit"
+);
+
+/// Discord's hard limit on a message's `content`, in UTF-16 code units. The
+/// batched roll log and the closing summary are both plain message content, so
+/// both are capped to it — exceeding it rejects the whole message.
+const DISCORD_MESSAGE_CONTENT_LIMIT: usize = 2000;
+
+/// Appended when the roll log had to drop lines to fit
+/// [`DISCORD_MESSAGE_CONTENT_LIMIT`].
+const CONTENT_TRUNCATION_NOTICE: &str = "\u{2026} truncated";
+
+/// Prefixed to a roll-log message whose oldest new roll is not the one after the
+/// high-water mark — i.e. the room out-rolled `RECENT_ROLL_HISTORY` between two
+/// reconcile passes and the excess was evicted before the bot could observe it.
+const EARLIER_ROLLS_LOST_NOTICE: &str = "*\u{2026} earlier rolls not shown*";
+
+/// `auto_archive_duration` for a session thread, in minutes. 1440 (24h) is
+/// Discord's default and is available to every guild tier; the thread collapses
+/// itself a day after the last message, which is exactly the channel-hygiene
+/// outcome #255 wants — so the bot never issues an explicit archive PATCH.
+const THREAD_AUTO_ARCHIVE_MINUTES: u32 = 1440;
 
 /// How many distinct channels one room may be advertised to. A host picks one
 /// server/channel in v1; the small allowance covers a host posting to a second
@@ -234,9 +287,50 @@ pub struct DesiredAdvert {
     pub targets: Vec<AdvertTarget>,
 }
 
+/// Where a host-posted advert's session thread (#255) has got to.
+///
+/// Threads are strictly additive: whatever state this is in, the anchor embed
+/// keeps being created, edited, and archived exactly as #246 shipped it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ThreadState {
+    /// No thread yet. The anchor message exists, so one can be started on the
+    /// next pass (thread creation needs the message id, which does not exist
+    /// until the create succeeds).
+    Pending,
+    /// A live thread, plus the highest [`RecentRoll::sequence`] already posted
+    /// into it. The high-water mark is what makes the log append-only: each pass
+    /// posts strictly what is newer, so a missed or retried pass never
+    /// duplicates a line.
+    Live {
+        thread_id: String,
+        logged_through: u64,
+    },
+    /// No further thread work will be planned for this advert. Three ways in:
+    /// the guild refuses threads (no `CREATE_PUBLIC_THREADS` /
+    /// `SEND_MESSAGES_IN_THREADS`, the channel cannot host one, the thread was
+    /// deleted); this is a legacy billboard post, which #255 deliberately leaves
+    /// untouched; or the closing summary has already been posted, so a retried
+    /// archive must not post it twice. Nothing retries from here — the point is
+    /// to stop asking.
+    Disabled,
+}
+
+impl ThreadState {
+    /// The state a freshly-tracked post starts in. Only host-posted adverts are
+    /// session records worth threading; the billboard is a transient mirror that
+    /// gets deleted on close, so a thread there would outlive its own anchor.
+    #[must_use]
+    pub const fn initial(kind: AdvertKind) -> Self {
+        match kind {
+            AdvertKind::HostPosted => Self::Pending,
+            AdvertKind::Billboard => Self::Disabled,
+        }
+    }
+}
+
 /// A currently-posted embed: where it lives, the Discord message id, the advert
-/// state it was last rendered from, and when it was first posted (the origin for
-/// the archived session length).
+/// state it was last rendered from, when it was first posted (the origin for
+/// the archived session length), and its session thread (#255).
 #[derive(Debug, Clone)]
 pub struct TrackedPost {
     pub channel_id: String,
@@ -244,6 +338,7 @@ pub struct TrackedPost {
     pub kind: AdvertKind,
     pub advert: RoomAdvert,
     pub posted_at: Instant,
+    pub thread: ThreadState,
 }
 
 /// One reconciliation step for the sync loop to apply.
@@ -276,6 +371,56 @@ pub enum SyncAction {
         message_id: String,
         advert: RoomAdvert,
         duration: Duration,
+    },
+    /// Start the session thread off a host-posted anchor message (#255). Planned
+    /// at most once per advert: success moves it to [`ThreadState::Live`],
+    /// permanent refusal to [`ThreadState::Disabled`], and only a transient
+    /// failure leaves it plannable again.
+    CreateThread {
+        room_id: String,
+        channel_id: String,
+        message_id: String,
+        advert: RoomAdvert,
+    },
+    /// Post the rolls new since the thread's high-water mark (#255). At most one
+    /// per advert per pass, by construction: the planner emits a single action
+    /// covering every new roll rather than one per roll.
+    PostRollLog {
+        room_id: String,
+        channel_id: String,
+        thread_id: String,
+        rolls: Vec<RecentRoll>,
+        /// New high-water mark once this message lands.
+        through_sequence: u64,
+        /// The ring rotated past rolls that were never observed — see
+        /// [`EARLIER_ROLLS_LOST_NOTICE`].
+        earlier_lost: bool,
+    },
+    /// Post the closing summary into a session thread, immediately before the
+    /// anchor's [`SyncAction::Archive`] (#255). Discord then auto-archives the
+    /// idle thread on its own, so nothing explicitly archives it.
+    ///
+    /// **Best effort, and deliberately so.** The archive that follows runs
+    /// regardless, because a dead Join button left in a third-party channel is
+    /// the worse failure. A summary that fails transiently is retried only if
+    /// the archive failed too (the usual case — one outage fails both); if the
+    /// archive succeeded, its tracking entry is dropped and the summary is lost.
+    /// Losing a summary costs a closing message in a thread that still holds the
+    /// whole roll log; keeping the entry alive to retry it would pin a
+    /// [`MAX_ADVERTISED_ROOMS`] slot on a thread-scoped failure.
+    PostThreadSummary {
+        room_id: String,
+        channel_id: String,
+        thread_id: String,
+        advert: RoomAdvert,
+        duration: Duration,
+        /// Total rolls the bot observed this session — the highest sequence it
+        /// ever saw, which counts rolls the ring evicted as well as the ones it
+        /// still held.
+        roll_count: u64,
+        /// Rolls that had not made it into the log yet when the room closed.
+        trailing_rolls: Vec<RecentRoll>,
+        earlier_lost: bool,
     },
 }
 
@@ -648,6 +793,173 @@ pub fn build_message_payload(advert: &RoomAdvert, app_base_url: &str) -> serde_j
     })
 }
 
+// --- session threads (#255) ----------------------------------------------
+
+/// Today's date as `YYYY-MM-DD` in UTC, for a session thread's name.
+///
+/// UTC rather than a guild-local zone: the bot has no way to know a guild's
+/// timezone, and a wrong-but-consistent date is better than a plausible-looking
+/// wrong one. Only ever used as display text inside a thread name.
+#[must_use]
+fn today_utc() -> String {
+    let now = time::OffsetDateTime::now_utc();
+    format!(
+        "{:04}-{:02}-{:02}",
+        now.year(),
+        u8::from(now.month()),
+        now.day()
+    )
+}
+
+/// The name for a room's session thread: the room's display name, sanitized and
+/// capped, plus the date the thread was started.
+///
+/// Runs through [`render_embed_text`] — the same door every other client string
+/// in this module uses — rather than a second, thread-specific policy. Discord
+/// does not render markdown in a channel name, so the escaping is inert there;
+/// keeping one door means there is no surface where a reviewer has to reason
+/// about *which* Discord field renders links before deciding whether a room name
+/// is safe. The character cap is the part that carries real weight: an
+/// over-length name is a 400 that would disable the thread permanently.
+#[must_use]
+fn render_thread_name(advert: &RoomAdvert, date: &str) -> String {
+    let title = render_embed_text(
+        advert.name.as_deref().unwrap_or_default(),
+        THREAD_NAME_ROOM_MAX_LEN,
+        &format!("Room {}", advert.room_id),
+    );
+    format!("{title} \u{2014} {date}")
+}
+
+/// The **Start Thread from Message** body for a host-posted advert's anchor.
+#[must_use]
+pub fn build_thread_create_payload(advert: &RoomAdvert, date: &str) -> serde_json::Value {
+    serde_json::json!({
+        "name": render_thread_name(advert, date),
+        "auto_archive_duration": THREAD_AUTO_ARCHIVE_MINUTES,
+    })
+}
+
+/// Join `lines` into one message body within Discord's content limit, dropping
+/// whole trailing lines (and saying so) rather than letting the message be
+/// rejected outright.
+///
+/// Discord counts UTF-16 code units, so an emoji costs two — measured that way
+/// here rather than in `char`s or bytes.
+#[must_use]
+fn join_within_content_limit(lines: &[String]) -> String {
+    let notice_cost = CONTENT_TRUNCATION_NOTICE.encode_utf16().count() + 1;
+    let mut body = String::new();
+    let mut used = 0_usize;
+    for (index, line) in lines.iter().enumerate() {
+        let separator = usize::from(index > 0);
+        let cost = line.encode_utf16().count() + separator;
+        if used + cost > DISCORD_MESSAGE_CONTENT_LIMIT.saturating_sub(notice_cost) {
+            if index > 0 {
+                body.push('\n');
+            }
+            body.push_str(CONTENT_TRUNCATION_NOTICE);
+            return body;
+        }
+        if separator == 1 {
+            body.push('\n');
+        }
+        body.push_str(line);
+        used += cost;
+    }
+    body
+}
+
+/// Discord's `SUPPRESS_EMBEDS` message flag (`1 << 2`).
+const MESSAGE_FLAG_SUPPRESS_EMBEDS: u32 = 4;
+
+/// Discord message payload scaffolding shared by every thread message: the
+/// content, an empty mention allow-list, and suppressed embeds.
+///
+/// Both guards are load-bearing and both are **new to #255**, because #255 is
+/// the first time client text leaves an embed field and enters plain message
+/// `content`. Discord treats the two very differently:
+///
+/// * **Mentions.** An `@everyone` inside an embed field resolves to nothing; the
+///   same text in `content` notifies a whole third-party guild under the bot's
+///   identity. [`render_embed_text`] does not escape `@` — nothing in an embed
+///   ever needed it — so the empty `parse` allow-list is what closes this, and
+///   Discord enforces it regardless of what the text says.
+/// * **Link previews.** Discord does not unfurl URLs in embed field values, but
+///   it *does* auto-link and unfurl bare URLs in `content`. None of the
+///   characters in a plain `https://host/path` are in [`render_embed_text`]'s
+///   escape set, so a URL survives it intact — and a 21-character shortener link
+///   fits inside every cap here (`ROLL_NAME_MAX_LEN` is 24). Without
+///   `SUPPRESS_EMBEDS` any player who joins a host-posted room could make the
+///   bot render an arbitrary image or site preview inline, in a channel they may
+///   not be able to write to. That is strictly worse than the masked link #246
+///   defended against: a masked link needs a click, an unfurl does not.
+#[must_use]
+fn thread_message(content: String) -> serde_json::Value {
+    serde_json::json!({
+        "content": content,
+        "allowed_mentions": { "parse": [] },
+        "flags": MESSAGE_FLAG_SUPPRESS_EMBEDS,
+    })
+}
+
+/// The batched roll-log message for one reconcile pass: every roll new since the
+/// last thread post, oldest first (a log reads down, unlike the embed's
+/// newest-first teaser).
+///
+/// `earlier_lost` prefixes an explicit notice. The room's ring holds only
+/// `RECENT_ROLL_HISTORY` entries, so a table that out-rolls it between two
+/// passes leaves rolls the bot never observed; saying so is the honest rendering
+/// of a gap that cannot be recovered.
+#[must_use]
+pub fn build_roll_log_payload(rolls: &[RecentRoll], earlier_lost: bool) -> serde_json::Value {
+    let mut lines = Vec::with_capacity(rolls.len() + 1);
+    if earlier_lost {
+        lines.push(EARLIER_ROLLS_LOST_NOTICE.to_string());
+    }
+    lines.extend(rolls.iter().map(roll_line));
+    thread_message(join_within_content_limit(&lines))
+}
+
+/// The closing message posted into a session thread just before the anchor embed
+/// is archived (#255): who was at the table, how long it ran, and how many rolls
+/// the session recorded, followed by any rolls that had not been logged yet.
+///
+/// The summary comes first and the roll tail last on purpose — if the content
+/// limit forces a truncation, the part that gets dropped is the tail, never the
+/// summary.
+#[must_use]
+pub fn build_thread_summary_payload(
+    advert: &RoomAdvert,
+    duration: Duration,
+    roll_count: u64,
+    trailing_rolls: &[RecentRoll],
+    earlier_lost: bool,
+) -> serde_json::Value {
+    let mut lines = vec![
+        format!(
+            "\u{1F3B2} **Session ended** \u{2014} {}",
+            render_embed_text(
+                advert.name.as_deref().unwrap_or_default(),
+                THREAD_NAME_ROOM_MAX_LEN,
+                &format!("Room {}", advert.room_id),
+            )
+        ),
+        format!("Players: {}", render_player_roster(&advert.player_names)),
+        format!("Session length: {}", render_duration(duration)),
+        format!("Rolls this session: {roll_count}"),
+    ];
+    if !trailing_rolls.is_empty() {
+        lines.push(String::new());
+        lines.push("**Final rolls**".to_string());
+        if earlier_lost {
+            lines.push(EARLIER_ROLLS_LOST_NOTICE.to_string());
+        }
+        lines.extend(trailing_rolls.iter().map(roll_line));
+    }
+    thread_message(join_within_content_limit(&lines))
+}
+
 /// Build the final PATCH payload for a **closed** host-posted room (#246): the
 /// message becomes a session record. `"components": []` clears the action row,
 /// so the dead Join button is gone rather than left to disappoint a late reader,
@@ -688,6 +1000,41 @@ pub fn build_archive_payload(advert: &RoomAdvert, duration: Duration) -> serde_j
     })
 }
 
+/// The rolls in `ring` newer than `logged_through`, plus whether the ring shows
+/// evidence that rolls between the two were **evicted before the bot ever saw
+/// them** (#255).
+///
+/// The room retains only `RECENT_ROLL_HISTORY` (5) entries, so a table rolling
+/// faster than the reconcile interval can overflow it between two passes. The
+/// entries alone cannot distinguish that from an ordinary quiet period — which
+/// is exactly what [`RecentRoll::sequence`] exists for: if the oldest unseen
+/// entry is more than one past the high-water mark, the intervening rolls
+/// happened and are unrecoverable. The log says so rather than silently
+/// presenting a gapped history as complete.
+///
+/// A first post (`logged_through == 0`) against a room that has already rolled
+/// reports the same thing, and correctly: those earlier rolls really are not in
+/// the thread.
+#[must_use]
+fn rolls_since(ring: &[RecentRoll], logged_through: u64) -> (Vec<RecentRoll>, bool) {
+    let new: Vec<RecentRoll> = ring
+        .iter()
+        .filter(|roll| roll.sequence > logged_through)
+        .cloned()
+        .collect();
+    let earlier_lost = new
+        .first()
+        .is_some_and(|roll| roll.sequence > logged_through + 1);
+    (new, earlier_lost)
+}
+
+/// The highest roll sequence an advert's ring shows — the session's roll count,
+/// because sequences are 1-based and count evicted rolls too.
+#[must_use]
+fn observed_roll_count(ring: &[RecentRoll]) -> u64 {
+    ring.last().map_or(0, |roll| roll.sequence)
+}
+
 /// Pure reconciliation planner: diff the currently-tracked posts against the
 /// desired adverts and return the actions needed to converge. Deterministic and
 /// side-effect free, so the interesting logic is unit-testable without a network.
@@ -701,6 +1048,14 @@ pub fn build_archive_payload(advert: &RoomAdvert, duration: Duration) -> serde_j
 ///
 /// `now` only feeds the archived session length, keeping the planner a pure
 /// function of its inputs.
+///
+/// Session threads (#255) add three action kinds and no impurity: thread
+/// creation, the batched roll log, and the closing thread summary are all
+/// decided here from the tracked [`ThreadState`] and the advert's roll ring, and
+/// the rate-limit posture falls out of that — at most one `CreateThread` per
+/// advert lifetime, and at most one thread *message* per advert per pass
+/// (`PostRollLog` needs [`ThreadState::Live`], which `CreateThread` does not
+/// have, and `PostThreadSummary` only ever fires on the pass that also archives).
 #[must_use]
 pub fn plan_actions(
     tracked: &HashMap<String, Vec<TrackedPost>>,
@@ -737,6 +1092,42 @@ pub fn plan_actions(
                 }
                 Some(_) => {} // unchanged — skip
             }
+
+            // Thread work is planned off the *tracked* post (it needs the anchor
+            // message id) but reads the *desired* advert (it needs the rolls
+            // that just landed), so it sits outside the create/update match:
+            // a pass where the embed is unchanged can still owe the thread a
+            // roll-log post if the previous attempt failed transiently.
+            let Some(post) = existing else { continue };
+            if target.kind != AdvertKind::HostPosted {
+                continue;
+            }
+            match &post.thread {
+                ThreadState::Disabled => {}
+                ThreadState::Pending => actions.push(SyncAction::CreateThread {
+                    room_id: entry.advert.room_id.clone(),
+                    channel_id: post.channel_id.clone(),
+                    message_id: post.message_id.clone(),
+                    advert: entry.advert.clone(),
+                }),
+                ThreadState::Live {
+                    thread_id,
+                    logged_through,
+                } => {
+                    let (rolls, earlier_lost) =
+                        rolls_since(&entry.advert.recent_rolls, *logged_through);
+                    if let Some(through_sequence) = rolls.last().map(|roll| roll.sequence) {
+                        actions.push(SyncAction::PostRollLog {
+                            room_id: entry.advert.room_id.clone(),
+                            channel_id: post.channel_id.clone(),
+                            thread_id: thread_id.clone(),
+                            rolls,
+                            through_sequence,
+                            earlier_lost,
+                        });
+                    }
+                }
+            }
         }
     }
 
@@ -756,6 +1147,34 @@ pub fn plan_actions(
             if still_wanted {
                 continue;
             }
+            let duration = now.saturating_duration_since(post.posted_at);
+            // The thread's closing summary is planned BEFORE the anchor's
+            // archive so it lands while the session record is still live. It is
+            // best effort: the archive follows unconditionally, because a dead
+            // Join button left in a third-party channel is the worse failure.
+            if let (AdvertKind::HostPosted, ThreadState::Live { thread_id, logged_through }) =
+                (post.kind, &post.thread)
+            {
+                let (trailing_rolls, earlier_lost) =
+                    rolls_since(&post.advert.recent_rolls, *logged_through);
+                actions.push(SyncAction::PostThreadSummary {
+                    room_id: room_id.clone(),
+                    channel_id: post.channel_id.clone(),
+                    thread_id: thread_id.clone(),
+                    advert: post.advert.clone(),
+                    duration,
+                    // `post.advert` only advances when an embed edit succeeds,
+                    // while `logged_through` advances when a thread post
+                    // succeeds — and a pass can transiently fail the former and
+                    // succeed the latter. Taking the larger stops the summary
+                    // from claiming fewer rolls than the reader can count in the
+                    // thread directly above it.
+                    roll_count: observed_roll_count(&post.advert.recent_rolls)
+                        .max(*logged_through),
+                    trailing_rolls,
+                    earlier_lost,
+                });
+            }
             actions.push(match post.kind {
                 AdvertKind::Billboard => SyncAction::Delete {
                     room_id: room_id.clone(),
@@ -767,7 +1186,7 @@ pub fn plan_actions(
                     channel_id: post.channel_id.clone(),
                     message_id: post.message_id.clone(),
                     advert: post.advert.clone(),
-                    duration: now.saturating_duration_since(post.posted_at),
+                    duration,
                 },
             });
         }
@@ -1202,6 +1621,23 @@ fn remember(tracked: &mut HashMap<String, Vec<TrackedPost>>, post: TrackedPost) 
     posts.push(post);
 }
 
+/// Move a tracked post's session-thread state (#255). A no-op if the post is
+/// already gone, which is the correct outcome: a thread whose anchor stopped
+/// being tracked has nothing left to log to.
+fn set_thread_state(
+    tracked: &mut HashMap<String, Vec<TrackedPost>>,
+    room_id: &str,
+    channel_id: &str,
+    thread: ThreadState,
+) {
+    if let Some(post) = tracked
+        .get_mut(room_id)
+        .and_then(|posts| posts.iter_mut().find(|post| post.channel_id == channel_id))
+    {
+        post.thread = thread;
+    }
+}
+
 /// Stop tracking `(room_id, channel_id)`.
 fn forget(tracked: &mut HashMap<String, Vec<TrackedPost>>, room_id: &str, channel_id: &str) {
     if let Some(posts) = tracked.get_mut(room_id) {
@@ -1242,6 +1678,10 @@ pub async fn reconcile(
                                 kind,
                                 advert,
                                 posted_at: Instant::now(),
+                                // The thread is started on the next pass: it
+                                // hangs off this message, whose id only exists
+                                // now (#255).
+                                thread: ThreadState::initial(kind),
                             },
                         );
                     }
@@ -1269,10 +1709,18 @@ pub async fn reconcile(
                 advert,
             } => {
                 let payload = build_message_payload(&advert, &service.app_base_url);
-                let posted_at = tracked
+                let existing = tracked
                     .get(&advert.room_id)
-                    .and_then(|posts| posts.iter().find(|p| p.channel_id == channel_id))
-                    .map_or_else(Instant::now, |post| post.posted_at);
+                    .and_then(|posts| posts.iter().find(|p| p.channel_id == channel_id));
+                let posted_at = existing.map_or_else(Instant::now, |post| post.posted_at);
+                // An edit rewrites the tracking entry wholesale, so the session
+                // thread has to be carried across it or every pass would restart
+                // the thread and replay the log. A *lifecycle* change is the one
+                // exception: a billboard post a host has just claimed becomes a
+                // session record and earns a thread it never had.
+                let thread = existing
+                    .filter(|post| post.kind == kind)
+                    .map_or_else(|| ThreadState::initial(kind), |post| post.thread.clone());
                 match service
                     .api
                     .edit_message(&channel_id, &message_id, &payload)
@@ -1286,6 +1734,7 @@ pub async fn reconcile(
                             kind,
                             advert,
                             posted_at,
+                            thread,
                         },
                     ),
                     // The message was deleted, or the bot lost the channel. The
@@ -1364,6 +1813,177 @@ pub async fn reconcile(
                     ),
                 }
             }
+            SyncAction::CreateThread {
+                room_id,
+                channel_id,
+                message_id,
+                advert,
+            } => {
+                let payload = build_thread_create_payload(&advert, &today_utc());
+                match service
+                    .api
+                    .create_thread_from_message(&channel_id, &message_id, &payload)
+                    .await
+                {
+                    Ok(thread_id) => {
+                        debug!(
+                            "[{}] Started session thread {thread_id} for room {room_id}",
+                            *INSTANCE_ID
+                        );
+                        set_thread_state(
+                            tracked,
+                            &room_id,
+                            &channel_id,
+                            ThreadState::Live {
+                                thread_id,
+                                logged_through: 0,
+                            },
+                        );
+                    }
+                    // A 400 is ambiguous in one useful way: the commonest cause
+                    // is "this message already has a thread", which is exactly
+                    // what a *previous* attempt whose response was lost to a
+                    // timeout leaves behind. Discord makes a thread's id equal
+                    // its source message's id, so that thread is addressable
+                    // without another call — adopt it rather than going silent
+                    // for the whole session over a dropped packet.
+                    //
+                    // If the 400 meant something else (a channel type that
+                    // cannot host a thread), the id names no channel, the first
+                    // roll-log post 404s, and the handler below lands on
+                    // `Disabled` anyway. The cost of guessing wrong is one
+                    // request; the cost of not guessing is a session with no log.
+                    Err(DiscordApiError::Status(400)) => {
+                        warn!(
+                            "[{}] Discord rejected the thread create for room {room_id}; adopting the anchor's thread id",
+                            *INSTANCE_ID
+                        );
+                        set_thread_state(
+                            tracked,
+                            &room_id,
+                            &channel_id,
+                            ThreadState::Live {
+                                thread_id: message_id,
+                                logged_through: 0,
+                            },
+                        );
+                    }
+                    // The guild does not grant CREATE_PUBLIC_THREADS, or the
+                    // channel is gone. The advert itself is fine, so only the
+                    // thread is disabled — the embed keeps updating and
+                    // archiving exactly as it did before #255, and the
+                    // registration is NOT retired.
+                    Err(error) if is_terminal_for_thread_creation(error) => {
+                        warn!(
+                            "[{}] Discord refuses a session thread for room {room_id} ({error}); continuing embed-only",
+                            *INSTANCE_ID
+                        );
+                        set_thread_state(tracked, &room_id, &channel_id, ThreadState::Disabled);
+                    }
+                    Err(error) => warn!(
+                        "[{}] Discord thread create failed for room {room_id}: {error}",
+                        *INSTANCE_ID
+                    ),
+                }
+            }
+            SyncAction::PostRollLog {
+                room_id,
+                channel_id,
+                thread_id,
+                rolls,
+                through_sequence,
+                earlier_lost,
+            } => {
+                // An earlier action in this same pass can have dropped the
+                // anchor (a terminal edit failure retires the target), and a
+                // thread whose anchor is gone has nothing to log to. Checking
+                // here avoids one pointless request against a message Discord
+                // has already told us it cannot serve.
+                let still_tracked = tracked
+                    .get(&room_id)
+                    .is_some_and(|posts| posts.iter().any(|p| p.channel_id == channel_id));
+                if !still_tracked {
+                    continue;
+                }
+                let payload = build_roll_log_payload(&rolls, earlier_lost);
+                match service.api.create_message(&thread_id, &payload).await {
+                    Ok(_) => set_thread_state(
+                        tracked,
+                        &room_id,
+                        &channel_id,
+                        ThreadState::Live {
+                            thread_id,
+                            logged_through: through_sequence,
+                        },
+                    ),
+                    // The bot lacks SEND_MESSAGES_IN_THREADS, or the thread was
+                    // deleted. Same posture as a refused create: the thread goes
+                    // quiet, the advert lives on.
+                    Err(error) if is_terminal_for_resource(error) => {
+                        warn!(
+                            "[{}] Discord refuses thread posts for room {room_id} ({error}); continuing embed-only",
+                            *INSTANCE_ID
+                        );
+                        set_thread_state(tracked, &room_id, &channel_id, ThreadState::Disabled);
+                    }
+                    // The high-water mark is deliberately left where it was, so
+                    // the next pass re-plans these rolls. If the ring rotated in
+                    // the meantime the retry simply reports the loss.
+                    Err(error) => warn!(
+                        "[{}] Discord roll-log post failed for room {room_id}: {error}",
+                        *INSTANCE_ID
+                    ),
+                }
+            }
+            SyncAction::PostThreadSummary {
+                room_id,
+                channel_id,
+                thread_id,
+                advert,
+                duration,
+                roll_count,
+                trailing_rolls,
+                earlier_lost,
+            } => {
+                let payload = build_thread_summary_payload(
+                    &advert,
+                    duration,
+                    roll_count,
+                    &trailing_rolls,
+                    earlier_lost,
+                );
+                match service.api.create_message(&thread_id, &payload).await {
+                    // Done with this thread. The archive that follows may fail
+                    // transiently and be retried, and that retry must not post a
+                    // second summary. Discord auto-archives the idle thread
+                    // itself, so nothing here PATCHes it.
+                    Ok(_) => {
+                        debug!(
+                            "[{}] Posted the closing summary for room {room_id}",
+                            *INSTANCE_ID
+                        );
+                        set_thread_state(tracked, &room_id, &channel_id, ThreadState::Disabled);
+                    }
+                    // Permanently unpostable (thread deleted, permission lost):
+                    // there is nothing to retry for.
+                    Err(error) if is_terminal_for_resource(error) => {
+                        warn!(
+                            "[{}] Discord refused the closing summary for room {room_id} ({error}); skipping it",
+                            *INSTANCE_ID
+                        );
+                        set_thread_state(tracked, &room_id, &channel_id, ThreadState::Disabled);
+                    }
+                    // Transient — usually the *same* outage that is about to
+                    // fail the archive PATCH. Staying Live is what lets the
+                    // retried close post the summary it owes; if the archive
+                    // succeeded anyway the entry is dropped and there is no
+                    // retry to duplicate.
+                    Err(error) => warn!(
+                        "[{}] Discord thread summary failed for room {room_id}: {error}",
+                        *INSTANCE_ID
+                    ),
+                }
+            }
         }
     }
 }
@@ -1377,6 +1997,8 @@ mod tests {
     const BILLBOARD: &str = "800000000000000001";
     const HOST_CHANNEL: &str = "800000000000000002";
     const OTHER_CHANNEL: &str = "800000000000000003";
+    /// A session thread's id. Discord makes it equal the anchor message's id.
+    const THREAD: &str = "800000000000000004";
 
     fn advert(id: &str, players: usize) -> RoomAdvert {
         RoomAdvert {
@@ -1395,8 +2017,23 @@ mod tests {
     }
 
     fn roll(player_name: &str, dice: Vec<RecentRollDie>) -> RecentRoll {
+        sequenced_roll(1, player_name, dice)
+    }
+
+    /// A roll at an explicit position in the room's monotonic roll sequence
+    /// (#255) — what the thread log's high-water mark and overflow detection
+    /// are computed from.
+    fn sequenced_roll(sequence: u64, player_name: &str, dice: Vec<RecentRollDie>) -> RecentRoll {
+        RecentRoll {
+            sequence,
+            ..roll_unsequenced(player_name, dice)
+        }
+    }
+
+    fn roll_unsequenced(player_name: &str, dice: Vec<RecentRollDie>) -> RecentRoll {
         let total = dice.iter().map(|d| d.face_value).sum();
         RecentRoll {
+            sequence: 1,
             player_id: "p1".to_string(),
             player_name: player_name.to_string(),
             saved_roll_name: None,
@@ -1443,6 +2080,31 @@ mod tests {
             kind,
             advert,
             posted_at,
+            thread: ThreadState::initial(kind),
+        }
+    }
+
+    /// [`tracked_post`] whose session thread is already live, with `logged_through`
+    /// as its high-water mark.
+    fn threaded_post(
+        channel_id: &str,
+        message_id: &str,
+        advert: RoomAdvert,
+        posted_at: Instant,
+        logged_through: u64,
+    ) -> TrackedPost {
+        TrackedPost {
+            thread: ThreadState::Live {
+                thread_id: THREAD.to_string(),
+                logged_through,
+            },
+            ..tracked_post(
+                channel_id,
+                message_id,
+                AdvertKind::HostPosted,
+                advert,
+                posted_at,
+            )
         }
     }
 
@@ -1966,10 +2628,20 @@ mod tests {
             now,
         );
 
-        assert_eq!(actions.len(), 2, "one edit and one create, nothing else");
+        assert_eq!(
+            actions.len(),
+            3,
+            "one edit, one create, and the host-posted anchor's session thread"
+        );
         assert!(actions.iter().any(|a| matches!(
             a,
             SyncAction::Update { message_id, .. } if message_id == "m-host"
+        )));
+        // The billboard copy gets no thread (#255 leaves that path untouched);
+        // only the host-posted anchor that already has a message id does.
+        assert!(actions.iter().any(|a| matches!(
+            a,
+            SyncAction::CreateThread { message_id, .. } if message_id == "m-host"
         )));
         assert!(actions.iter().any(|a| matches!(
             a,
@@ -2024,13 +2696,23 @@ mod tests {
             &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
             now,
         );
+        // The surviving host-posted copy also picks up its session thread; the
+        // billboard copy is deleted and never threaded.
         assert_eq!(
             actions,
-            vec![SyncAction::Delete {
-                room_id: "a".to_string(),
-                channel_id: BILLBOARD.to_string(),
-                message_id: "m-bb".to_string(),
-            }]
+            vec![
+                SyncAction::CreateThread {
+                    room_id: "a".to_string(),
+                    channel_id: HOST_CHANNEL.to_string(),
+                    message_id: "m-host".to_string(),
+                    advert: advert("a", 1),
+                },
+                SyncAction::Delete {
+                    room_id: "a".to_string(),
+                    channel_id: BILLBOARD.to_string(),
+                    message_id: "m-bb".to_string(),
+                }
+            ]
         );
     }
 
@@ -2439,6 +3121,823 @@ mod tests {
         reconcile(&service, &mut tracked, &[]).await;
         assert!(tracked.is_empty());
         assert_eq!(api.edited.lock().unwrap().len(), 1);
+    }
+
+    // --- session threads: rendering (#255) ---------------------------------
+
+    fn content(payload: &serde_json::Value) -> String {
+        payload["content"].as_str().expect("a content string").to_string()
+    }
+
+    #[test]
+    fn thread_create_payload_names_the_room_and_the_day_and_auto_archives() {
+        let payload = build_thread_create_payload(&advert("abc123", 2), "2026-08-10");
+        assert_eq!(payload["name"], "Taverna \u{2014} 2026-08-10");
+        assert_eq!(payload["auto_archive_duration"], THREAD_AUTO_ARCHIVE_MINUTES);
+
+        // An unnamed room falls back to its id rather than an empty name, which
+        // Discord would reject with a 400 and permanently disable the thread.
+        let mut unnamed = advert("abc123", 0);
+        unnamed.name = None;
+        assert_eq!(
+            build_thread_create_payload(&unnamed, "2026-08-10")["name"],
+            "Room abc123 \u{2014} 2026-08-10"
+        );
+        let mut blank = advert("abc123", 0);
+        blank.name = Some("   ".to_string());
+        assert_eq!(
+            build_thread_create_payload(&blank, "2026-08-10")["name"],
+            "Room abc123 \u{2014} 2026-08-10"
+        );
+    }
+
+    /// A room name is host-chosen text reaching a third-party guild, so it goes
+    /// through the same door as every other client string here — and it also
+    /// must never exceed Discord's 100-character thread-name limit, because that
+    /// is a 400 the advert can never recover from.
+    #[test]
+    fn a_hostile_room_name_cannot_overflow_or_inject_into_a_thread_name() {
+        let mut hostile = advert("abc123", 1);
+        hostile.name = Some("[x](http://evil)".to_string());
+        let payload = build_thread_create_payload(&hostile, "2026-08-10");
+        assert!(
+            !payload.to_string().contains("[x](http://evil)"),
+            "an unescaped masked link reached the thread name: {payload}"
+        );
+        assert_eq!(
+            payload["name"],
+            "\\[x\\]\\(http://evil\\) \u{2014} 2026-08-10"
+        );
+
+        // Worst case for the cap: every character escapes to two. A control
+        // character must not smuggle a second line into the name either.
+        let mut long = advert("abc123", 1);
+        long.name = Some(format!("{}\n{}", "*".repeat(200), "_".repeat(200)));
+        let name = build_thread_create_payload(&long, "2026-08-10")["name"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(
+            name.encode_utf16().count() <= DISCORD_THREAD_NAME_LIMIT,
+            "thread name is {} UTF-16 units, over Discord's {DISCORD_THREAD_NAME_LIMIT}: {name}",
+            name.encode_utf16().count(),
+        );
+        assert!(!name.contains('\n'));
+        assert_eq!(THREAD_NAME_DATE_LEN, " \u{2014} 2026-08-10".chars().count());
+
+        // Multi-byte names truncate on codepoint boundaries, never mid-emoji.
+        let mut emoji = advert("abc123", 1);
+        emoji.name = Some("\u{1F3B2}".repeat(200));
+        let name = build_thread_create_payload(&emoji, "2026-08-10")["name"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(name.encode_utf16().count() <= DISCORD_THREAD_NAME_LIMIT);
+    }
+
+    #[test]
+    fn the_roll_log_reads_oldest_first_and_suppresses_every_mention() {
+        let payload = build_roll_log_payload(
+            &[
+                sequenced_roll(4, "Alex", vec![die(DiceType::D6, 5)]),
+                sequenced_roll(5, "Bo", vec![die(DiceType::D20, 20)]),
+            ],
+            false,
+        );
+        assert_eq!(
+            content(&payload),
+            "Alex \u{2014} 1d6 \u{2192} 5\nBo \u{2014} 1d20 \u{2192} 20 \u{1F4A5}",
+            "a log reads down, unlike the embed's newest-first teaser",
+        );
+        // These are plain `content` messages, not embeds: without an explicit
+        // empty allow-list a display name of `@everyone` would notify a whole
+        // third-party guild under the bot's identity.
+        assert_eq!(
+            payload["allowed_mentions"],
+            serde_json::json!({ "parse": [] })
+        );
+        assert_eq!(payload["flags"], MESSAGE_FLAG_SUPPRESS_EMBEDS);
+    }
+
+    /// A bare URL survives [`render_embed_text`] untouched — none of its escape
+    /// characters appear in `https://host/path` — and Discord unfurls URLs in
+    /// message `content` even though it never did in an embed field. A 21-char
+    /// shortener fits inside every cap here, so suppression is the only thing
+    /// stopping a joiner from rendering arbitrary media under the bot's name.
+    #[test]
+    fn a_url_in_client_text_cannot_unfurl_in_a_thread_message() {
+        const LINK: &str = "https://x.gd/aBcDeFgH";
+        assert!(LINK.len() <= ROLL_NAME_MAX_LEN, "the attack fits the cap");
+
+        let mut hostile = advert("abc123", 1);
+        hostile.name = Some(LINK.to_string());
+        hostile.player_names = vec![LINK.to_string()];
+        let rolls = vec![sequenced_roll(1, LINK, vec![die(DiceType::D6, 3)])];
+
+        for payload in [
+            build_roll_log_payload(&rolls, false),
+            build_thread_summary_payload(&hostile, Duration::from_secs(60), 1, &rolls, false),
+        ] {
+            // The URL is deliberately still readable — escaping it would only
+            // make the log unreadable. Discord is told not to render it.
+            assert!(content(&payload).contains(LINK));
+            assert_eq!(
+                payload["flags"], MESSAGE_FLAG_SUPPRESS_EMBEDS,
+                "every thread message must suppress link previews: {payload}",
+            );
+        }
+    }
+
+    /// The masked-link door applies to thread content exactly as it does to an
+    /// embed field — same renderer, same escapes, both client strings on a line.
+    #[test]
+    fn masked_link_payloads_render_inert_in_every_thread_message() {
+        const ATTACK: &str = "[x](http://evil)";
+        const INERT: &str = "\\[x\\]\\(http://evil\\)";
+
+        let hostile_roll = RecentRoll {
+            sequence: 7,
+            ..named_roll(ATTACK, ATTACK, vec![die(DiceType::D6, 3)])
+        };
+        let mut hostile = advert("abc123", 1);
+        hostile.name = Some(ATTACK.to_string());
+        hostile.player_names = vec![ATTACK.to_string()];
+        hostile.recent_rolls = vec![hostile_roll.clone()];
+
+        let log = build_roll_log_payload(std::slice::from_ref(&hostile_roll), true);
+        let summary = build_thread_summary_payload(
+            &hostile,
+            Duration::from_secs(60),
+            7,
+            std::slice::from_ref(&hostile_roll),
+            true,
+        );
+
+        for payload in [&log, &summary] {
+            assert!(
+                !payload.to_string().contains("[x](http://evil)"),
+                "an unescaped masked link reached a thread message: {payload}"
+            );
+            assert_eq!(
+                payload["allowed_mentions"],
+                serde_json::json!({ "parse": [] }),
+                "mention suppression must hold on every thread message"
+            );
+            assert_eq!(
+                payload["flags"], MESSAGE_FLAG_SUPPRESS_EMBEDS,
+                "embed suppression must hold on every thread message"
+            );
+        }
+
+        // Roll lines carry BOTH the display name and the saved-roll name.
+        assert_eq!(content(&log).matches(INERT).count(), 2);
+        // The summary escapes the room name, the roster, and the roll tail.
+        assert_eq!(content(&summary).matches(INERT).count(), 4);
+    }
+
+    #[test]
+    fn the_closing_summary_leads_with_the_session_facts_and_trails_the_last_rolls() {
+        let mut closed = advert("abc123", 3);
+        closed.player_names = vec!["Alex".to_string(), "Bo".to_string()];
+        let payload = build_thread_summary_payload(
+            &closed,
+            Duration::from_secs(4_500),
+            42,
+            &[sequenced_roll(42, "Bo", vec![die(DiceType::D20, 20)])],
+            false,
+        );
+        assert_eq!(
+            content(&payload),
+            "\u{1F3B2} **Session ended** \u{2014} Taverna\n\
+             Players: Alex, Bo\n\
+             Session length: 1h 15m\n\
+             Rolls this session: 42\n\
+             \n\
+             **Final rolls**\n\
+             Bo \u{2014} 1d20 \u{2192} 20 \u{1F4A5}"
+        );
+
+        // A session that closed with everything already logged carries no tail.
+        let quiet = build_thread_summary_payload(&closed, Duration::from_secs(30), 0, &[], false);
+        assert!(!content(&quiet).contains("Final rolls"));
+        assert!(content(&quiet).contains("Rolls this session: 0"));
+    }
+
+    /// Discord rejects a message whose content exceeds 2000 characters — and
+    /// rejects the *whole* message, so an over-long log would post nothing at
+    /// all. Lines are dropped from the tail with an explicit notice instead.
+    #[test]
+    fn thread_content_is_capped_at_discords_message_limit() {
+        let line = "n".repeat(100);
+        let lines: Vec<String> = std::iter::repeat_n(line.clone(), 100).collect();
+        let body = join_within_content_limit(&lines);
+
+        assert!(
+            body.encode_utf16().count() <= DISCORD_MESSAGE_CONTENT_LIMIT,
+            "content is {} UTF-16 units, over Discord's {DISCORD_MESSAGE_CONTENT_LIMIT}",
+            body.encode_utf16().count(),
+        );
+        assert!(body.ends_with(CONTENT_TRUNCATION_NOTICE));
+        // Whole lines are dropped: a half-rendered roll line would be worse than
+        // an honest "truncated".
+        assert!(body
+            .lines()
+            .all(|kept| kept == line || kept == CONTENT_TRUNCATION_NOTICE));
+        // Everything that fits is kept.
+        assert!(body.lines().count() > 15);
+
+        // Under the limit, nothing is added.
+        let short = join_within_content_limit(&["one".to_string(), "two".to_string()]);
+        assert_eq!(short, "one\ntwo");
+        assert!(join_within_content_limit(&[]).is_empty());
+    }
+
+    /// Emoji cost two UTF-16 units apiece, which is how Discord counts. A worst
+    /// case built from full escapes and crit-heavy lines must still fit.
+    #[test]
+    fn a_full_ring_of_hostile_roll_lines_fits_one_thread_message() {
+        let hostile_name = "*".repeat(ROLL_NAME_MAX_LEN * 4);
+        let hostile_saved = "_".repeat(SAVED_ROLL_LABEL_MAX_LEN * 4);
+        let dice: Vec<RecentRollDie> = DIE_RENDER_ORDER
+            .iter()
+            .flat_map(|die_type| {
+                let max_face = die_type.natural_faces().map_or(1, |(_, max)| max);
+                std::iter::repeat_n(die(*die_type, max_face), MAX_DICE)
+            })
+            .collect();
+        let rolls: Vec<RecentRoll> = (0..RECENT_ROLL_HISTORY as u64)
+            .map(|index| RecentRoll {
+                sequence: index + 1,
+                ..named_roll(&hostile_name, &hostile_saved, dice.clone())
+            })
+            .collect();
+
+        let body = content(&build_roll_log_payload(&rolls, true));
+        assert!(
+            body.encode_utf16().count() <= DISCORD_MESSAGE_CONTENT_LIMIT,
+            "roll log is {} UTF-16 units, over Discord's {DISCORD_MESSAGE_CONTENT_LIMIT}",
+            body.encode_utf16().count(),
+        );
+        assert!(
+            !body.contains(CONTENT_TRUNCATION_NOTICE),
+            "a full ring must fit without truncation, or the log silently loses rolls",
+        );
+    }
+
+    // --- session threads: ring overflow (#255) ------------------------------
+
+    #[test]
+    fn rolls_since_returns_only_what_is_new_and_flags_an_unobserved_gap() {
+        let ring: Vec<RecentRoll> = (3..=7)
+            .map(|sequence| sequenced_roll(sequence, "Alex", vec![die(DiceType::D6, 3)]))
+            .collect();
+
+        // High-water mark 6: rolls 7 only, contiguous, nothing lost.
+        let (new, lost) = rolls_since(&ring, 6);
+        assert_eq!(new.iter().map(|r| r.sequence).collect::<Vec<_>>(), vec![7]);
+        assert!(!lost);
+
+        // High-water mark 2: the ring starts exactly where we left off.
+        let (new, lost) = rolls_since(&ring, 2);
+        assert_eq!(new.len(), 5);
+        assert!(!lost);
+
+        // High-water mark 1: rolls 2 happened and the ring already evicted it.
+        // Five entries is all the ring can hold, so this is unrecoverable — and
+        // it must be *said*, not silently rendered as a complete history.
+        let (new, lost) = rolls_since(&ring, 1);
+        assert_eq!(new.len(), 5);
+        assert!(lost, "an evicted roll must be reported, never papered over");
+
+        // Nothing new at all.
+        let (new, lost) = rolls_since(&ring, 7);
+        assert!(new.is_empty());
+        assert!(!lost);
+        assert!(rolls_since(&[], 0).0.is_empty());
+
+        // A first post against a room that has already rolled says the same
+        // thing, and correctly: those rolls really are not in the thread.
+        assert!(rolls_since(&ring, 0).1);
+    }
+
+    #[test]
+    fn an_overflowed_log_says_so_in_the_message() {
+        let body = content(&build_roll_log_payload(
+            &[sequenced_roll(9, "Alex", vec![die(DiceType::D6, 3)])],
+            true,
+        ));
+        assert!(body.starts_with(EARLIER_ROLLS_LOST_NOTICE));
+        assert!(body.ends_with("Alex \u{2014} 1d6 \u{2192} 3"));
+
+        let clean = content(&build_roll_log_payload(
+            &[sequenced_roll(1, "Alex", vec![die(DiceType::D6, 3)])],
+            false,
+        ));
+        assert!(!clean.contains(EARLIER_ROLLS_LOST_NOTICE));
+    }
+
+    #[test]
+    fn the_session_roll_count_counts_rolls_the_ring_evicted() {
+        let ring: Vec<RecentRoll> = (38..=42)
+            .map(|sequence| sequenced_roll(sequence, "Alex", vec![die(DiceType::D6, 3)]))
+            .collect();
+        assert_eq!(
+            observed_roll_count(&ring),
+            42,
+            "the highest sequence is the session's roll count, not the ring length",
+        );
+        assert_eq!(observed_roll_count(&[]), 0);
+    }
+
+    // --- session threads: planner (#255) -----------------------------------
+
+    #[test]
+    fn a_host_posted_anchor_is_threaded_once_and_only_once() {
+        let now = Instant::now();
+        let map = tracked(vec![tracked_post(
+            HOST_CHANNEL,
+            "m-a",
+            AdvertKind::HostPosted,
+            advert("a", 1),
+            now,
+        )]);
+        let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+
+        match plan_actions(&map, std::slice::from_ref(&live), now).as_slice() {
+            [SyncAction::CreateThread { channel_id, message_id, .. }] => {
+                assert_eq!(channel_id, HOST_CHANNEL);
+                assert_eq!(message_id, "m-a");
+            }
+            other => panic!("expected a single CreateThread, got {other:?}"),
+        }
+
+        // Once live, nothing plans a second create — one thread per advert
+        // lifetime is the whole rate-limit posture.
+        let threaded = tracked(vec![threaded_post(HOST_CHANNEL, "m-a", advert("a", 1), now, 0)]);
+        assert!(plan_actions(&threaded, std::slice::from_ref(&live), now).is_empty());
+
+        // And a refusal is permanent: no retry every pass.
+        let disabled = tracked(vec![TrackedPost {
+            thread: ThreadState::Disabled,
+            ..tracked_post(HOST_CHANNEL, "m-a", AdvertKind::HostPosted, advert("a", 1), now)
+        }]);
+        assert!(plan_actions(&disabled, &[live], now).is_empty());
+    }
+
+    #[test]
+    fn the_billboard_is_never_threaded() {
+        let now = Instant::now();
+        let map = tracked(vec![tracked_post(
+            BILLBOARD,
+            "m-bb",
+            AdvertKind::Billboard,
+            advert("a", 1),
+            now,
+        )]);
+        assert_eq!(ThreadState::initial(AdvertKind::Billboard), ThreadState::Disabled);
+        assert!(plan_actions(
+            &map,
+            &[desired(advert("a", 1), &[(BILLBOARD, AdvertKind::Billboard)])],
+            now
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn one_pass_plans_at_most_one_thread_message_covering_every_new_roll() {
+        let now = Instant::now();
+        let posted = advert("a", 1);
+        let map = tracked(vec![threaded_post(HOST_CHANNEL, "m-a", posted, now, 2)]);
+
+        let mut rolled = advert("a", 1);
+        rolled.recent_rolls = (1..=5)
+            .map(|sequence| sequenced_roll(sequence, "Alex", vec![die(DiceType::D6, 3)]))
+            .collect();
+
+        let actions = plan_actions(
+            &map,
+            &[desired(rolled, &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            now,
+        );
+        // One embed edit (the ring changed) plus exactly one batched thread post
+        // — never one message per roll.
+        assert_eq!(actions.len(), 2);
+        match &actions[1] {
+            SyncAction::PostRollLog { thread_id, rolls, through_sequence, earlier_lost, .. } => {
+                assert_eq!(thread_id, THREAD);
+                assert_eq!(rolls.iter().map(|r| r.sequence).collect::<Vec<_>>(), vec![3, 4, 5]);
+                assert_eq!(*through_sequence, 5);
+                assert!(!earlier_lost);
+            }
+            other => panic!("expected a PostRollLog, got {other:?}"),
+        }
+    }
+
+    /// A pass where the embed itself did not change can still owe the thread a
+    /// post — a previous transient failure left the high-water mark behind.
+    #[test]
+    fn an_unchanged_embed_still_replans_a_missed_roll_log() {
+        let now = Instant::now();
+        let mut state = advert("a", 1);
+        state.recent_rolls = vec![sequenced_roll(1, "Alex", vec![die(DiceType::D6, 3)])];
+        let map = tracked(vec![threaded_post(HOST_CHANNEL, "m-a", state.clone(), now, 0)]);
+
+        match plan_actions(
+            &map,
+            &[desired(state, &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            now,
+        )
+        .as_slice()
+        {
+            [SyncAction::PostRollLog { through_sequence, .. }] => assert_eq!(*through_sequence, 1),
+            other => panic!("expected only a PostRollLog, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_closing_thread_is_summarised_before_the_anchor_is_archived() {
+        let start = Instant::now();
+        let mut final_state = advert("gone", 2);
+        final_state.recent_rolls = (10..=14)
+            .map(|sequence| sequenced_roll(sequence, "Alex", vec![die(DiceType::D6, 3)]))
+            .collect();
+        let map = tracked(vec![threaded_post(
+            HOST_CHANNEL,
+            "m-gone",
+            final_state,
+            start,
+            12,
+        )]);
+
+        let actions = plan_actions(&map, &[], start + Duration::from_secs(1_800));
+        match actions.as_slice() {
+            [SyncAction::PostThreadSummary {
+                thread_id,
+                duration,
+                roll_count,
+                trailing_rolls,
+                ..
+            }, SyncAction::Archive { message_id, .. }] => {
+                assert_eq!(thread_id, THREAD);
+                assert_eq!(*duration, Duration::from_secs(1_800));
+                assert_eq!(*roll_count, 14, "counts the rolls the ring evicted too");
+                assert_eq!(
+                    trailing_rolls.iter().map(|r| r.sequence).collect::<Vec<_>>(),
+                    vec![13, 14],
+                    "rolls that never made it into the log ride the summary",
+                );
+                assert_eq!(message_id, "m-gone");
+            }
+            other => panic!("expected a summary then an archive, got {other:?}"),
+        }
+
+        // A never-threaded advert closes exactly as #246 shipped it.
+        let unthreaded = tracked(vec![tracked_post(
+            HOST_CHANNEL,
+            "m-gone",
+            AdvertKind::HostPosted,
+            advert("gone", 2),
+            start,
+        )]);
+        assert!(matches!(
+            plan_actions(&unthreaded, &[], start).as_slice(),
+            [SyncAction::Archive { .. }]
+        ));
+    }
+
+    // --- session threads: reconciliation (#255) -----------------------------
+
+    /// The happy path end to end: post the anchor, thread it on the next pass,
+    /// batch the rolls, then summarise on close. Discord auto-archives the idle
+    /// thread itself, so the bot never PATCHes it.
+    #[tokio::test]
+    async fn a_session_thread_is_created_logged_and_summarised() {
+        let api = Arc::new(FakeDiscord::new("400000000000000001"));
+        let service = service_with(api.clone(), None);
+        let mut tracked = HashMap::new();
+
+        let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+        reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
+        assert!(api.threads_started.lock().unwrap().is_empty(), "no message id yet");
+
+        // Pass two starts the thread off the anchor message.
+        reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
+        let started = api.threads_started.lock().unwrap().clone();
+        assert_eq!(started.len(), 1);
+        assert_eq!(started[0].0, HOST_CHANNEL);
+        assert_eq!(started[0].2["auto_archive_duration"], THREAD_AUTO_ARCHIVE_MINUTES);
+        let thread_id = started[0].1.clone();
+
+        // Pass three logs the rolls that landed since.
+        let mut rolled = advert("a", 1);
+        rolled.recent_rolls = vec![
+            sequenced_roll(1, "Alex", vec![die(DiceType::D6, 3)]),
+            sequenced_roll(2, "Bo", vec![die(DiceType::D20, 20)]),
+        ];
+        let rolling = desired(rolled.clone(), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+        reconcile(&service, &mut tracked, std::slice::from_ref(&rolling)).await;
+        let logged = api.thread_messages();
+        assert_eq!(logged.len(), 1);
+        assert_eq!(logged[0].0, thread_id);
+        assert_eq!(
+            logged[0].1["content"],
+            "Alex \u{2014} 1d6 \u{2192} 3\nBo \u{2014} 1d20 \u{2192} 20 \u{1F4A5}"
+        );
+
+        // Pass four: nothing new, so nothing is posted (no empty heartbeat).
+        reconcile(&service, &mut tracked, &[rolling]).await;
+        assert_eq!(api.thread_messages().len(), 1);
+
+        // Close: summary into the thread, then the anchor archive PATCH.
+        reconcile(&service, &mut tracked, &[]).await;
+        let messages = api.thread_messages();
+        assert_eq!(messages.len(), 2);
+        let summary = messages[1].1["content"].as_str().unwrap();
+        assert!(summary.contains("Session ended"));
+        assert!(summary.contains("Rolls this session: 2"));
+        assert_eq!(
+            api.edited.lock().unwrap().len(),
+            2,
+            "one embed edit for the rolls, then the anchor archive PATCH",
+        );
+        assert!(api.deleted.lock().unwrap().is_empty(), "the thread is never deleted");
+        assert!(tracked.is_empty());
+    }
+
+    /// A create whose response was lost leaves a thread Discord will not create
+    /// twice, and the retry gets a 400. Going silent for the whole session over
+    /// a dropped packet is the wrong answer when the thread's id is knowable:
+    /// Discord makes it equal the anchor message's id.
+    #[tokio::test]
+    async fn a_thread_that_already_exists_is_adopted_rather_than_abandoned() {
+        let api = Arc::new({
+            let mut fake = FakeDiscord::new("400000000000000001");
+            fake.thread_failure = Some(crate::discord_api::DiscordApiError::Status(400));
+            fake
+        });
+        let service = service_with(api.clone(), None);
+        let mut tracked = HashMap::new();
+        let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+        reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
+        let anchor = tracked["a"][0].message_id.clone();
+        reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
+
+        assert_eq!(
+            tracked["a"][0].thread,
+            ThreadState::Live {
+                thread_id: anchor.clone(),
+                logged_through: 0
+            },
+            "the thread id equals the anchor message id, so it needs no lookup",
+        );
+
+        // ...and the log lands in it, once, without ever retrying the create.
+        let mut rolled = advert("a", 1);
+        rolled.recent_rolls = vec![sequenced_roll(1, "Alex", vec![die(DiceType::D6, 3)])];
+        reconcile(
+            &service,
+            &mut tracked,
+            &[desired(rolled, &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+        )
+        .await;
+        let posted = api.created.lock().unwrap().clone();
+        assert_eq!(posted.len(), 2, "the anchor, then the roll log");
+        assert_eq!(posted[1].0, anchor);
+        assert!(api.threads_started.lock().unwrap().is_empty());
+    }
+
+    /// The core degradation requirement: a guild that withholds thread
+    /// permissions keeps its adverts. The thread is dropped, the advert is not,
+    /// and nothing retries the refused call.
+    #[tokio::test]
+    async fn a_refused_thread_degrades_to_embed_only_without_retrying() {
+        for refusal in [
+            crate::discord_api::DiscordApiError::Status(403),
+            // A channel that is simply gone.
+            crate::discord_api::DiscordApiError::Status(404),
+        ] {
+            let api = Arc::new({
+                let mut fake = FakeDiscord::new("400000000000000001");
+                fake.thread_failure = Some(refusal);
+                fake
+            });
+            let service = service_with(api.clone(), None);
+            service.registry.register("a", HOST_CHANNEL).await.unwrap();
+            let mut tracked = HashMap::new();
+
+            let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+            for _ in 0..4 {
+                reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
+            }
+
+            assert_eq!(
+                api.threads_started.lock().unwrap().len(),
+                0,
+                "{refusal}: a refused thread must not be re-attempted every pass",
+            );
+            assert_eq!(
+                tracked["a"].len(),
+                1,
+                "{refusal}: a thread failure must not retire the advert",
+            );
+            assert_eq!(tracked["a"][0].thread, ThreadState::Disabled);
+            assert!(
+                !service.registry.snapshot().await.is_empty(),
+                "{refusal}: the host's registration survives a thread refusal",
+            );
+
+            // The embed lifecycle is untouched: it still archives on close.
+            reconcile(&service, &mut tracked, &[]).await;
+            assert_eq!(api.edited.lock().unwrap().len(), 1);
+            assert!(api.thread_messages().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn a_transient_thread_failure_is_retried_on_the_next_pass() {
+        let flaky = Arc::new({
+            let mut fake = FakeDiscord::new("400000000000000001");
+            fake.thread_failure = Some(crate::discord_api::DiscordApiError::Status(500));
+            fake
+        });
+        let broken = service_with(flaky.clone(), None);
+        let mut tracked = HashMap::new();
+        let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+        reconcile(&broken, &mut tracked, std::slice::from_ref(&live)).await;
+        reconcile(&broken, &mut tracked, std::slice::from_ref(&live)).await;
+        assert_eq!(tracked["a"][0].thread, ThreadState::Pending, "still plannable");
+
+        // Discord recovers.
+        let api = Arc::new(FakeDiscord::new("400000000000000001"));
+        let service = service_with(api.clone(), None);
+        reconcile(&service, &mut tracked, &[live]).await;
+        assert_eq!(api.threads_started.lock().unwrap().len(), 1);
+    }
+
+    /// A bot may hold CREATE_PUBLIC_THREADS but not SEND_MESSAGES_IN_THREADS —
+    /// Discord treats them as separate grants — so the thread exists and the
+    /// first post 403s. Same posture: stop logging, keep advertising.
+    #[tokio::test]
+    async fn a_thread_that_refuses_posts_stops_being_logged_to() {
+        let api = Arc::new({
+            let mut fake = FakeDiscord::new("400000000000000001");
+            fake.thread_message_failure = Some(crate::discord_api::DiscordApiError::Status(403));
+            fake
+        });
+        let service = service_with(api.clone(), None);
+        let mut tracked = HashMap::new();
+        let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+        reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
+        reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
+
+        let mut rolled = advert("a", 1);
+        rolled.recent_rolls = vec![sequenced_roll(1, "Alex", vec![die(DiceType::D6, 3)])];
+        let rolling = desired(rolled, &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+        for _ in 0..3 {
+            reconcile(&service, &mut tracked, std::slice::from_ref(&rolling)).await;
+        }
+
+        assert_eq!(tracked["a"][0].thread, ThreadState::Disabled);
+        assert!(api.thread_messages().is_empty());
+        reconcile(&service, &mut tracked, &[]).await;
+        assert!(tracked.is_empty(), "the advert still archives normally");
+    }
+
+    /// A transiently failed roll-log post must not advance the high-water mark,
+    /// or the rolls it covered would never appear.
+    #[tokio::test]
+    async fn a_transient_roll_log_failure_replays_the_same_rolls() {
+        let flaky = Arc::new({
+            let mut fake = FakeDiscord::new("400000000000000001");
+            fake.thread_message_failure = Some(crate::discord_api::DiscordApiError::Transport);
+            fake
+        });
+        let broken = service_with(flaky, None);
+        let mut tracked = HashMap::new();
+        let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+        reconcile(&broken, &mut tracked, std::slice::from_ref(&live)).await;
+        reconcile(&broken, &mut tracked, std::slice::from_ref(&live)).await;
+
+        let mut rolled = advert("a", 1);
+        rolled.recent_rolls = vec![sequenced_roll(1, "Alex", vec![die(DiceType::D6, 3)])];
+        let rolling = desired(rolled, &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+        reconcile(&broken, &mut tracked, std::slice::from_ref(&rolling)).await;
+        assert!(matches!(
+            tracked["a"][0].thread,
+            ThreadState::Live { logged_through: 0, .. }
+        ));
+
+        // Discord recovers and the same roll is posted, exactly once.
+        let api = Arc::new(FakeDiscord::new("400000000000000001"));
+        let service = service_with(api.clone(), None);
+        reconcile(&service, &mut tracked, std::slice::from_ref(&rolling)).await;
+        reconcile(&service, &mut tracked, &[rolling]).await;
+        assert_eq!(api.created.lock().unwrap().len(), 1);
+    }
+
+    /// The two ways a close can be retried, and the summary must land exactly
+    /// once across both: the summary already posted and only the anchor PATCH
+    /// failed (no duplicate), or the whole of Discord was unreachable (the retry
+    /// still owes the summary).
+    #[tokio::test]
+    async fn a_retried_archive_posts_the_closing_summary_exactly_once() {
+        async fn threaded_and_closed_with(
+            outage: Arc<FakeDiscord>,
+        ) -> (Arc<FakeDiscord>, HashMap<String, Vec<TrackedPost>>) {
+            let api = Arc::new(FakeDiscord::new("400000000000000001"));
+            let service = service_with(api.clone(), None);
+            let mut tracked = HashMap::new();
+            let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+            reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
+            reconcile(&service, &mut tracked, &[live]).await;
+
+            // The room closes mid-outage...
+            let broken = service_with(outage, None);
+            reconcile(&broken, &mut tracked, &[]).await;
+            assert!(tracked.contains_key("a"), "the archive is still owed");
+
+            // ...and the next pass runs against a healthy Discord.
+            reconcile(&service, &mut tracked, &[]).await;
+            (api, tracked)
+        }
+
+        // The summary posted; only the anchor PATCH failed. The retry must not
+        // post a second summary.
+        let mut patch_only = FakeDiscord::new("400000000000000001");
+        patch_only.edit_failure = Some(crate::discord_api::DiscordApiError::Transport);
+        let patch_only = Arc::new(patch_only);
+        let (api, tracked) = threaded_and_closed_with(patch_only.clone()).await;
+        assert!(tracked.is_empty());
+        // The outage fake never issued the thread id, so its posts are counted
+        // directly: the only message it received IS the closing summary.
+        let posted = patch_only.created.lock().unwrap().clone();
+        assert_eq!(posted.len(), 1, "the summary posted during the outage");
+        assert!(posted[0].1["content"].as_str().unwrap().contains("Session ended"));
+        assert!(
+            api.thread_messages().is_empty(),
+            "the retry must not duplicate a summary that already landed",
+        );
+
+        // Discord was wholly unreachable, so the summary never landed. The
+        // retry owes it.
+        let total = Arc::new({
+            let mut fake = FakeDiscord::new("400000000000000001");
+            fake.failure = Some(crate::discord_api::DiscordApiError::Transport);
+            fake
+        });
+        let (api, tracked) = threaded_and_closed_with(total).await;
+        assert!(tracked.is_empty());
+        assert_eq!(
+            api.thread_messages().len(),
+            1,
+            "a summary lost to an outage is posted by the retry",
+        );
+    }
+
+    /// An embed edit rewrites the tracking entry, so the live thread has to
+    /// survive it — otherwise every roll would restart the thread and replay the
+    /// whole log.
+    #[tokio::test]
+    async fn an_embed_edit_preserves_the_session_thread_and_its_high_water_mark() {
+        let api = Arc::new(FakeDiscord::new("400000000000000001"));
+        let service = service_with(api.clone(), None);
+        let mut tracked = HashMap::new();
+        let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
+        reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
+        reconcile(&service, &mut tracked, &[live]).await;
+
+        let mut rolled = advert("a", 2);
+        rolled.recent_rolls = vec![sequenced_roll(1, "Alex", vec![die(DiceType::D6, 3)])];
+        reconcile(
+            &service,
+            &mut tracked,
+            &[desired(rolled.clone(), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+        )
+        .await;
+
+        // A player joins: the embed is edited, the thread is not restarted.
+        rolled.player_count = 3;
+        reconcile(
+            &service,
+            &mut tracked,
+            &[desired(rolled, &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+        )
+        .await;
+
+        assert_eq!(api.threads_started.lock().unwrap().len(), 1);
+        assert_eq!(api.thread_messages().len(), 1, "the log is not replayed");
+        assert!(matches!(
+            tracked["a"][0].thread,
+            ThreadState::Live { logged_through: 1, .. }
+        ));
+    }
+
+    #[test]
+    fn the_utc_date_stamp_is_a_plain_iso_day() {
+        let today = today_utc();
+        assert_eq!(today.len(), 10);
+        assert_eq!(today.match_indices('-').count(), 2);
+        assert!(today.chars().all(|c| c.is_ascii_digit() || c == '-'));
     }
 
     #[test]

@@ -353,6 +353,19 @@ pub struct RecentRollDie {
 /// readable after that player leaves the room.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecentRoll {
+    /// Per-room, 1-based, strictly increasing roll number, assigned when the
+    /// roll completes and never reused (#255).
+    ///
+    /// The ring itself holds only [`RECENT_ROLL_HISTORY`] entries, so a reader
+    /// that samples it periodically (the Discord session-thread roll log) cannot
+    /// tell "nothing new" from "more rolls happened than the ring can hold"
+    /// using the entries alone. The sequence makes that observable: a reader
+    /// keeps a high-water mark and, if the oldest *unseen* entry's sequence is
+    /// more than one past it, knows exactly that rolls it never saw were
+    /// evicted. Room-scoped rather than global so it stays meaningful (and
+    /// small) per session, and it is a plain counter — nothing authoritative
+    /// keys on it.
+    pub sequence: u64,
     pub player_id: String,
     pub player_name: String,
     /// The saved roll this came from, already sanitized and length-capped by
@@ -481,6 +494,10 @@ pub struct Room {
     /// Oldest-first ring of the last [`RECENT_ROLL_HISTORY`] completed rolls.
     /// Private so the cap cannot be bypassed; read via [`Room::recent_rolls`].
     recent_rolls: Vec<RecentRoll>,
+    /// Monotonic counter behind [`RecentRoll::sequence`]. Counts every roll the
+    /// ring ever accepted, including the ones it has since evicted, which is
+    /// what makes ring overflow detectable by an out-of-band reader (#255).
+    next_roll_seq: u64,
 }
 
 impl Room {
@@ -503,6 +520,7 @@ impl Room {
             settings: RoomSettings::default(),
             next_join_seq: 0,
             recent_rolls: Vec::new(),
+            next_roll_seq: 0,
         }
     }
 
@@ -1756,7 +1774,9 @@ impl Room {
                 // A roll whose dice were all removed (#226) still completes, but
                 // has nothing to display — keep it out of the history tail.
                 if !results.is_empty() {
+                    self.next_roll_seq += 1;
                     self.recent_rolls.push(RecentRoll {
+                        sequence: self.next_roll_seq,
                         player_id: player_id.clone(),
                         player_name,
                         saved_roll_name: pending.saved_roll_name.clone(),
@@ -2682,6 +2702,53 @@ mod tests {
                 .map(|round| round % 6 + 1)
                 .collect::<Vec<_>>(),
             "the oldest roll is dropped, newest stays last"
+        );
+
+        // #255: the sequence counts every roll the room ever completed, not the
+        // entries the ring still holds — so the gap left by the evicted roll 1
+        // is visible to a reader holding a high-water mark.
+        assert_eq!(
+            history.iter().map(|roll| roll.sequence).collect::<Vec<_>>(),
+            (2..=(RECENT_ROLL_HISTORY as u64 + 1)).collect::<Vec<_>>(),
+            "sequences are 1-based, strictly increasing, and never renumbered"
+        );
+    }
+
+    /// A roll whose dice all vanished never enters the ring (#226), so it must
+    /// not burn a sequence number either — otherwise a reader would infer an
+    /// overflow that never happened.
+    #[test]
+    fn a_roll_with_no_surviving_dice_consumes_no_sequence_number() {
+        let mut room = Room::new("test".to_string(), ArenaBounds::default());
+        room.add_player(make_player("p1", "Gandalf")).unwrap();
+
+        // Roll 1: settles normally.
+        room.spawn_dice_with_physics("p1", vec![("d1".to_string(), DiceType::D6)]).unwrap();
+        room.roll_player_dice("p1", None).expect("roll accepted");
+        let die = room.dice.get_mut("d1").unwrap();
+        die.is_rolling = false;
+        die.face_value = Some(4);
+        assert_eq!(room.take_completed_rolls().len(), 1);
+        room.remove_dice("p1", &["d1".to_string()]);
+
+        // Roll 2: every die is removed before it settles.
+        room.spawn_dice_with_physics("p1", vec![("d2".to_string(), DiceType::D6)]).unwrap();
+        room.roll_player_dice("p1", None).expect("roll accepted");
+        room.remove_dice("p1", &["d2".to_string()]);
+        room.take_completed_rolls();
+
+        // Roll 3: settles normally again.
+        room.spawn_dice_with_physics("p1", vec![("d3".to_string(), DiceType::D6)]).unwrap();
+        room.roll_player_dice("p1", None).expect("roll accepted");
+        let die = room.dice.get_mut("d3").unwrap();
+        die.is_rolling = false;
+        die.face_value = Some(2);
+        assert_eq!(room.take_completed_rolls().len(), 1);
+
+        assert_eq!(
+            room.recent_rolls().iter().map(|roll| roll.sequence).collect::<Vec<_>>(),
+            vec![1, 2],
+            "only rolls that reach the ring take a sequence number"
         );
     }
 

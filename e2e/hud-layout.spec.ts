@@ -51,6 +51,45 @@ async function centerX(page: Page, name: string) {
   return box.x + box.width / 2
 }
 
+/**
+ * The empty-favorites hint puts a full-screen tap catcher over the HUD so that
+ * any tap dismisses it. jsdom cannot see stacking or hit tests, so the thing
+ * that would actually hurt — a catcher that outlives its hint and silently eats
+ * every tap — is only visible in a browser.
+ */
+test.describe('empty-favorites hint at 390x844', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('dismisses on a tap anywhere and hands the HUD back', async ({ page }) => {
+    test.setTimeout(120_000)
+    await openTable(page)
+
+    await page.getByRole('button', { name: 'Manage Dice' }).click()
+    const star = page.getByTestId('quick-slot-star-d20')
+    // Visible with a stock (favorite-free) inventory — that is the whole point.
+    await expect(star).toBeVisible({ timeout: 30_000 })
+
+    await star.click()
+    await expect(page.getByTestId('favorite-dice-empty-hint')).toBeVisible()
+
+    // A tap on unrelated screen furniture, not on a close button.
+    await page.mouse.click(195, 300)
+    await expect(page.getByTestId('favorite-dice-empty-hint')).toHaveCount(0)
+    await expect(page.getByTestId('favorite-dice-hint-backdrop')).toHaveCount(0)
+
+    // The catcher is gone from the hit test too: the rail takes taps again.
+    const slot = page.getByTestId('dice-quick-slot-d20')
+    const box = (await slot.boundingBox())!
+    // Reported as a testid rather than a boolean so a `null` hit (slot scrolled
+    // out, layout shifted) fails loudly instead of passing as "not the catcher".
+    const hitTestId = await page.evaluate(([x, y]) => {
+      const element = document.elementFromPoint(x, y)
+      return element?.closest('[data-testid]')?.getAttribute('data-testid') ?? null
+    }, [box.x + box.width / 2, box.y + box.height / 2])
+    expect(hitTestId).toBe('dice-quick-slot-d20')
+  })
+})
+
 for (const viewport of VIEWPORTS) {
   test.describe(`at ${viewport.label}`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } })
@@ -83,7 +122,9 @@ for (const viewport of VIEWPORTS) {
       expect(railBox.y).toBeGreaterThanOrEqual(gearBox.y + gearBox.height)
 
       // The rendered rail matches the lane model that hudLayout.test.ts asserts.
-      const lane = getDiceToolbarLane(viewport.height)
+      // The cluster below the rail collapses on desktop, so the lane depends on
+      // the form factor the app itself derives from the viewport width.
+      const lane = getDiceToolbarLane(viewport.height, viewport.width < 768)
       const scroll = await page.getByTestId('dice-toolbar-scroll').evaluate(element => ({
         scrollHeight: element.scrollHeight,
         clientHeight: element.clientHeight,

@@ -6,6 +6,7 @@
  */
 
 import { useTheme } from '../contexts/ThemeContext'
+import { useEconomyAccess } from '../hooks/useEconomyAccess'
 
 interface ThemeSelectorProps {
   isOpen: boolean
@@ -15,18 +16,33 @@ interface ThemeSelectorProps {
 export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
   const { currentTheme, setTheme, availableThemes, ownedThemes, purchaseTheme } = useTheme()
 
+  // Priced themes are a storefront, so they obey the same per-user monetization
+  // gate as everything under `ShopPanel` (`src/hooks/useEconomyAccess.ts`).
+  // Today `ThemeProvider` dev-grants every theme id, so `isOwned` is always true
+  // and none of this is reachable — which is exactly why it needs the gate now:
+  // the day theme ownership becomes real, dollar prices and a "click to
+  // purchase" affordance would otherwise appear in Settings for every player.
+  const economyAccess = useEconomyAccess()
+  const canPurchase = (theme: { id: string; price: number }) =>
+    economyAccess && !ownedThemes.includes(theme.id) && theme.price > 0
+
   const handleThemeSelect = async (themeId: string) => {
     // Check if user owns the theme
     if (ownedThemes.includes(themeId)) {
       setTheme(themeId)
       onClose()
-    } else {
-      // Need to purchase first
-      const success = await purchaseTheme(themeId)
-      if (success) {
-        setTheme(themeId)
-        onClose()
-      }
+      return
+    }
+    // Gate on PRICE, not on access. `purchaseTheme` doubles as the free-theme
+    // grant path (`ThemeProvider`: `price === 0` just marks it owned), and a
+    // free unowned theme is a designed state that belongs to the un-flagged
+    // experience. Only a real money purchase needs the flag.
+    const theme = availableThemes.find(candidate => candidate.id === themeId)
+    if (theme && theme.price > 0 && !economyAccess) return
+    const success = await purchaseTheme(themeId)
+    if (success) {
+      setTheme(themeId)
+      onClose()
     }
   }
 
@@ -67,7 +83,11 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
 
               {/* Theme List */}
               <div className="space-y-3">
-                {availableThemes.map((theme) => {
+                {availableThemes
+                  // An un-flagged player cannot acquire a priced theme, so
+                  // listing it is dead chrome that advertises the storefront.
+                  .filter((theme) => ownedThemes.includes(theme.id) || theme.price === 0 || economyAccess)
+                  .map((theme) => {
                   const isOwned = ownedThemes.includes(theme.id)
                   const isCurrent = currentTheme.id === theme.id
 
@@ -104,7 +124,7 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
                           )}
                         </div>
 
-                        {!isOwned && theme.price > 0 && (
+                        {canPurchase(theme) && (
                           <span
                             className="font-bold text-sm"
                             style={{ color: 'var(--color-accent)' }}
@@ -130,7 +150,7 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
                         {theme.description}
                       </p>
 
-                      {!isOwned && theme.price > 0 && (
+                      {canPurchase(theme) && (
                         <div
                           className="mt-2 text-xs"
                           style={{ color: 'var(--color-text-muted)' }}

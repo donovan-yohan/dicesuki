@@ -19,10 +19,6 @@ vi.mock('../ThemeSelector', () => ({
   ThemeSelector: () => null,
 }))
 
-vi.mock('./artist-tools/ArtistTestingPanel', () => ({
-  ArtistTestingPanel: () => null,
-}))
-
 describe('SettingsPanel', () => {
   const renderSettingsPanel = () => render(
     <MemoryRouter>
@@ -40,10 +36,11 @@ describe('SettingsPanel', () => {
     expect(screen.queryByTestId('room-theme-card-neon-cyber-city')).toBeNull()
   })
 
-  it('still exposes appearance and developer settings', () => {
+  it('exposes appearance settings without the retired artist upload entry point', () => {
     renderSettingsPanel()
 
     expect(screen.getByRole('button', { name: /change theme/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /artist testing platform/i })).toBeInTheDocument()
+    expect(screen.queryByText(/artist testing platform/i)).toBeNull()
+    expect(screen.queryByText(/upload and test custom dice models/i)).toBeNull()
   })
 })

@@ -5,6 +5,7 @@ import { UsageError } from './args.mjs'
 import {
   buildCancelSessionSql,
   buildDieGrantPlan,
+  buildEconomyAccessPlan,
   buildTicketGrantPlan,
   buildWalletGrantPlan,
   deriveIdempotencyKey,
@@ -13,6 +14,7 @@ import {
 import {
   fetchCatalogItem,
   fetchCopySummary,
+  fetchEconomyAccess,
   fetchOrders,
   findExistingGrant,
   fetchPullSessions,
@@ -58,11 +60,18 @@ export function sqlstateHint(code, rpc) {
             'the hold expires, then re-run this exact command — the derived key replays safely.'
         : null
     case '22023':
-      return (
-        'An argument was rejected, or this idempotency key was already used with different ' +
-        'arguments (0028_sku_fulfillment.sql:508-521). Re-run the identical command to replay, ' +
-        'or change --note (or pass --key) to make it a genuinely new grant.'
-      )
+      // Scoped, because the two meanings do not overlap: on the three grant
+      // RPCs 22023 is usually idempotency-key drift, but set_user_economy_access
+      // has no key at all, so pointing its caller at --key/--note replay advice
+      // would send them after a mechanism that does not exist.
+      return rpc === 'set_user_economy_access'
+        ? 'An argument was rejected: --operator must be 1-64 characters and --note 1-512, ' +
+            'both non-blank after trimming, and the on/off decision must not be null ' +
+            '(0034_economy_access_flag.sql:111-123). This RPC has no idempotency key, so this ' +
+            'is a plain validation failure and never a replay conflict.'
+        : 'An argument was rejected, or this idempotency key was already used with different ' +
+            'arguments (0028_sku_fulfillment.sql:508-521). Re-run the identical command to ' +
+            'replay, or change --note (or pass --key) to make it a genuinely new grant.'
     case '22003':
       return rpc === 'record_roll_ticket_ledger_entry'
         ? 'Ticket floor hit: a negative delta cannot take the balance below zero ' +
@@ -71,7 +80,11 @@ export function sqlstateHint(code, rpc) {
             'promotional Stars cannot dip below the amount reserved by a live pull hold ' +
             '(0028_sku_fulfillment.sql:536-566).'
     case '23503':
-      return 'A referenced row does not exist (unknown economy edition or unknown catalog item).'
+      return rpc === 'set_user_economy_access'
+        ? 'No such auth user — check the uuid. user_economy_access.user_id references ' +
+            'auth.users (0034_economy_access_flag.sql:124-126), and this CLI resolves identity ' +
+            'via the GoTrue admin API, so a stale uuid pasted from a ticket is the usual cause.'
+        : 'A referenced row does not exist (unknown economy edition or unknown catalog item).'
     case '42501':
       return (
         'Permission denied. These RPCs are granted to service_role only — the key in use is ' +
@@ -143,6 +156,44 @@ function identityBlock(candidate) {
     ['signed up', formatTimestamp(candidate.auth?.createdAt)],
     ['last sign-in', formatTimestamp(candidate.auth?.lastSignInAt)],
     ['banned until', candidate.auth?.bannedUntil ? formatTimestamp(candidate.auth.bannedUntil) : '-'],
+  ])
+}
+
+/**
+ * Render the economy access flag.
+ *
+ * The no-row case is spelled out rather than dashed: absence of a
+ * `user_economy_access` row IS "off" (the column defaults to false and no row
+ * exists until an operator decides — 0034_economy_access_flag.sql:39-49). A support
+ * agent reading `access: -` would reasonably conclude "unknown", and would then
+ * either escalate a non-problem or grant access a second time.
+ *
+ * `granted at` is labelled as what it actually is: the New Collector Passport's
+ * 12-week anchor, stamped by the first enable and never moved afterwards — so a
+ * disable does not reset it and a re-enable does not restart the clock.
+ */
+function economyAccessBlock(access) {
+  if (!access) {
+    return formatKeyValues([
+      ['access', 'off (no user_economy_access row — never granted)'],
+      ['granted at', '- (passport anchor never stamped)'],
+      ['updated', '-'],
+      ['last changed by', '-'],
+      ['note', '-'],
+    ])
+  }
+  return formatKeyValues([
+    ['access', access.economy_access ? 'on' : 'off'],
+    [
+      'granted at',
+      access.economy_access_granted_at
+        ? `${formatTimestamp(access.economy_access_granted_at)} ` +
+          '(passport anchor — set once, never moved)'
+        : '- (passport anchor never stamped)',
+    ],
+    ['updated', formatTimestamp(access.updated_at)],
+    ['last changed by', access.last_changed_by ?? '-'],
+    ['note', access.last_change_note ?? '-'],
   ])
 }
 
@@ -233,17 +284,25 @@ function renderActiveSession(activeSession, io) {
 async function commandUser(request, context) {
   const candidate = await resolveSingleUser(request, context)
   const { client, io } = context
-  const [balances, tickets, copies, walletTail, ticketTail, pulls] = await Promise.all([
-    fetchWalletBalances(client, candidate.id),
-    fetchTicketBalances(client, candidate.id),
-    fetchCopySummary(client, candidate.id),
-    fetchWalletLedger(client, candidate.id, request.limit),
-    fetchTicketLedger(client, candidate.id, request.limit),
-    fetchPullSessions(client, candidate.id),
-  ])
+  const [balances, tickets, copies, walletTail, ticketTail, pulls, economyAccess] =
+    await Promise.all([
+      fetchWalletBalances(client, candidate.id),
+      fetchTicketBalances(client, candidate.id),
+      fetchCopySummary(client, candidate.id),
+      fetchWalletLedger(client, candidate.id, request.limit),
+      fetchTicketLedger(client, candidate.id, request.limit),
+      fetchPullSessions(client, candidate.id),
+      fetchEconomyAccess(client, candidate.id),
+    ])
 
   io.say(heading('Identity'))
   io.say(identityBlock(candidate))
+
+  // Directly after identity: whether the player can see the economy at all
+  // decides how to read everything below it. A player with access off still
+  // accrues earned faucets server-side, so a balance here is not proof of access.
+  io.say(heading('Economy access'))
+  io.say(economyAccessBlock(economyAccess))
 
   io.say(heading('Wallet balances'))
   io.say(formatTable(walletRows(balances), WALLET_COLUMNS))
@@ -308,6 +367,7 @@ async function commandUser(request, context) {
     walletLedger: walletTail,
     ticketLedger: ticketTail,
     activePullSession: pulls.activeSession,
+    economyAccess,
   }
 }
 
@@ -380,6 +440,17 @@ async function commandOrders(request, context) {
   return { user: { id: candidate.id }, orders, events }
 }
 
+/** Read-only view of one player's economy access flag and passport anchor. */
+async function commandEconomyAccess(request, context) {
+  const candidate = await resolveSingleUser(request, context)
+  const access = await fetchEconomyAccess(context.client, candidate.id)
+
+  context.io.say(heading(`Economy access — ${candidate.id}`))
+  context.io.say(economyAccessBlock(access))
+
+  return { user: { id: candidate.id }, economyAccess: access }
+}
+
 /* ------------------------------------------------------------------------- */
 /* Mutating commands                                                          */
 /* ------------------------------------------------------------------------- */
@@ -431,12 +502,21 @@ async function executePlan(plan, request, context) {
   }
 
   // Only offered when a retry could actually behave differently. On a
-  // deterministic rejection (22023/22003/23503/42501) the same key is
+  // deterministic rejection (22023/22003/23503/42501) the same call is
   // guaranteed to fail the same way, and telling the operator to retry would
   // contradict the code-specific guidance printed right next to it.
+  //
+  // Not every plan has an idempotency key: `set_user_economy_access` writes a
+  // state row keyed on user_id and takes none, so the key-based wording has to
+  // be conditional — interpolating an absent key would print `undefined` at the
+  // operator during exactly the failure where they are least able to sanity-check
+  // what they are reading.
   const retryHint =
-    `Retry with --key '${plan.payload.p_idempotency_key}' (or re-run the identical command): ` +
-    'the key is stable, so a retry cannot double-grant.'
+    plan.payload.p_idempotency_key === undefined
+      ? 'This call is a state write with no idempotency key; re-running the identical command ' +
+        'is safe.'
+      : `Retry with --key '${plan.payload.p_idempotency_key}' (or re-run the identical command): ` +
+        'the key is stable, so a retry cannot double-grant.'
 
   let response
   try {
@@ -588,6 +668,68 @@ async function commandDieGrant(request, context) {
 }
 
 /**
+ * Flip the economy access flag.
+ *
+ * Prints the CURRENT state before the plan, for two reasons. A dry run is only
+ * informative if it shows what is being changed *from* — and the one
+ * irreversible part of this command is invisible in the plan itself: whether
+ * `economy_access_granted_at` is already stamped decides whether this enable
+ * starts the player's 12-week passport clock or merely re-opens a door.
+ *
+ * A no-op flip is reported and then still allowed through. The RPC is not a
+ * no-op even when the boolean does not move: it refreshes `updated_at`,
+ * `last_changed_by` and `last_change_note`, so a support agent re-affirming a
+ * decision with a fresh ticket note is doing something useful. Refusing it
+ * would silently discard that audit trail.
+ */
+async function commandSetEconomyAccess(request, context) {
+  const candidate = await resolveSingleUser(request, context)
+  const { io } = context
+  const current = await fetchEconomyAccess(context.client, candidate.id)
+
+  io.say(heading('Target'))
+  io.say(identityBlock(candidate))
+  io.say(heading('Economy access (current)'))
+  io.say(economyAccessBlock(current))
+
+  // No row means off, so this is the whole truth about the present state.
+  const currentlyEnabled = current?.economy_access === true
+  const noChange = currentlyEnabled === request.decision
+  if (noChange) {
+    io.say(
+      `\nNO CHANGE — economy access is already ${request.decision ? 'on' : 'off'}` +
+        (current?.economy_access_granted_at
+          ? ` (granted at ${formatTimestamp(current.economy_access_granted_at)})`
+          : '') +
+        '. Executing refreshes updated_at / last_changed_by / last_change_note only.',
+    )
+  }
+
+  const plan = buildEconomyAccessPlan({
+    command: request.command,
+    userId: candidate.id,
+    enabled: request.decision,
+    operator: request.operator,
+    note: request.note,
+  })
+  if (request.decision && !current?.economy_access_granted_at) {
+    io.warn(
+      `WARNING: this is the FIRST enable for ${candidate.id}, so it permanently stamps ` +
+        'economy_access_granted_at — the New Collector Passport 12-week anchor. It is set once ' +
+        'and never moved: disabling access later does not clear it and re-enabling does not ' +
+        'restart it. Confirm the user id before executing.',
+    )
+  }
+
+  return {
+    user: { id: candidate.id },
+    economyAccessBefore: current,
+    noChange,
+    ...(await executePlan(plan, request, context)),
+  }
+}
+
+/**
  * Inspect and (manually) cancel a live pull hold.
  *
  * There is no service-role execution path: `public.cancel_pull_session(uuid)` is
@@ -687,6 +829,8 @@ const HANDLERS = Object.freeze({
   user: commandUser,
   ledger: commandLedger,
   orders: commandOrders,
+  'economy-access': commandEconomyAccess,
+  'set-economy-access': commandSetEconomyAccess,
   'grant-stars': (request, context) => commandWalletGrant('stars', request, context),
   'grant-dust': (request, context) => commandWalletGrant('dust', request, context),
   'grant-tickets': commandTicketGrant,

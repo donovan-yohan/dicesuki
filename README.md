@@ -43,7 +43,7 @@ npm run build:wasm-room
 ## Tech Stack
 
 - **Frontend**: React 19 + TypeScript, Vite, Tailwind CSS
-- **3D rendering**: Three.js via `@react-three/fiber` v9 (+ drei, postprocessing)
+- **3D rendering**: Three.js via `@react-three/fiber` v9 (+ drei)
 - **Physics**: Rapier, run inside `dicesuki-core` (never client-side) — one engine for solo and multiplayer
 - **State**: Zustand
 - **Multiplayer server**: Rust + Axum + Tokio (`server/`)

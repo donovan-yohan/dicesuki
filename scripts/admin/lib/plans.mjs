@@ -26,6 +26,15 @@
 //     p_source_reference text, p_idempotency_key text)
 //     -> public.dice_copies                0020_dice_copy_inventory.sql:125-136
 //     granted to service_role only         0020_dice_copy_inventory.sql:385-390
+//   public.set_user_economy_access(
+//     p_user_id uuid, p_enabled boolean, p_operator text, p_note text)
+//     -> public.user_economy_access        0034_economy_access_flag.sql:95-101
+//     granted to service_role only         0034_economy_access_flag.sql:164-167
+//     Unlike the three above it takes NO idempotency key: the row is a STATE
+//     keyed on user_id, not an append, so an identical re-run is inherently
+//     safe (0034_economy_access_flag.sql:145-155). It raises 22023 for a null
+//     decision or a blank/over-long operator or note (:111-123) and 23503 for
+//     an unknown auth user (:124-126); 42501 comes from the grant at :164-167.
 
 import { createHash } from 'node:crypto'
 
@@ -93,6 +102,11 @@ export const SOURCE_REFERENCE_MAX_LENGTH = 512
  *   wallet_ledger_entries       unique (account_id, idempotency_key)      0009:107
  *   roll_ticket_ledger_entries  unique (user_id, idempotency_key)         0014:48
  *   dice_copies                 unique (user_id, grant_idempotency_key)   0020:21-22
+ *
+ * `set_user_economy_access` is deliberately ABSENT: it has no idempotency key
+ * and writes a state row rather than appending, so there is nothing to pre-flight
+ * and `findExistingGrant` correctly returns null for it — the "REPLAYED" report
+ * can never fire on an access flip.
  *
  * Lives here rather than in queries.mjs so the Supabase Postgres harness can
  * assert these column names against the real schema without importing the
@@ -479,6 +493,55 @@ export function buildDieGrantPlan({
     args,
     effect: 'grant',
     summary: `Grant 1 copy of ${args[1].value} (source_kind=reward) to ${args[0].value}`,
+  })
+}
+
+/**
+ * Economy access flip (`set_user_economy_access`).
+ *
+ * This is the one plan with no idempotency key, and the shape of the risk is
+ * inverted from the grants. The boolean is a STATE keyed on `user_id`, so
+ * flipping it is reversible and re-running the identical command is inherently
+ * safe (it only refreshes `updated_at`, `last_changed_by`, `last_change_note`).
+ *
+ * What is NOT reversible is the side effect of the FIRST enable: it stamps
+ * `economy_access_granted_at` once and never moves it again — the upsert's
+ * `coalesce(access.economy_access_granted_at, statement_timestamp())` keeps the
+ * original on every later enable and a disable does not touch it at all
+ * (0034_economy_access_flag.sql:145-155). That timestamp is the New Collector
+ * Passport's 12-week anchor: `private.passport_enrollment_anchor_period` reads
+ * it to decide which week the player's window starts (:178-205). Enabling the
+ * wrong user id therefore starts a stranger's passport clock permanently —
+ * there is no correcting write, only the flag itself can be turned back off.
+ * Hence `defaultDryRun: true` in COMMAND_SPECS and the current-state print in
+ * commandSetEconomyAccess.
+ */
+export function buildEconomyAccessPlan({
+  userId,
+  enabled,
+  operator,
+  note,
+  command = 'set-economy-access',
+}) {
+  if (typeof enabled !== 'boolean') {
+    throw new UsageError('Economy access decision must be exactly "on" or "off"')
+  }
+  const args = [
+    { name: 'p_user_id', value: assertUserId(userId), cast: 'uuid' },
+    { name: 'p_enabled', value: enabled, cast: 'boolean' },
+    { name: 'p_operator', value: assertOperator(operator), cast: 'text' },
+    { name: 'p_note', value: assertNote(note), cast: 'text' },
+  ]
+  return finalizePlan({
+    command,
+    rpc: 'set_user_economy_access',
+    args,
+    effect: enabled ? 'enable' : 'disable',
+    summary: enabled
+      ? `Enable economy access for ${args[0].value} — the first enable permanently stamps ` +
+        'economy_access_granted_at (the passport anchor)'
+      : `Disable economy access for ${args[0].value} — the passport anchor, once stamped, ` +
+        'is left untouched',
   })
 }
 

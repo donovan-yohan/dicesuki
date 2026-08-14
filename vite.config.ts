@@ -19,11 +19,21 @@ export default defineConfig({
     // unfurl (#108) and Supabase all stay network-only — see `workbox` below.
     VitePWA({
       // `autoUpdate`: a new deploy's service worker activates immediately
-      // (skipWaiting + clientsClaim) and reloads open clients, so users never
-      // get stuck on a stale bundle. This is the deliberate answer to the
-      // "stale-bundle-forever" trap called out in issue #116's acceptance.
+      // (skipWaiting + clientsClaim) instead of waiting for every tab to close.
+      // Activating is NOT reloading, though — the tab keeps running the bundle it
+      // already parsed. The reload is the app's job, and `src/lib/swUpdate.ts`
+      // does it: it registers through `virtual:pwa-register`, polls for new
+      // workers (interval + visibilitychange), and takes over the plugin's
+      // reload via `onNeedReload` so it never lands mid-roll or mid-room
+      // (issue #256 — the earlier claim that `autoUpdate` alone "reloads open
+      // clients" was the stale-bundle bug, not the fix).
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      // `null`, not `'auto'`: `src/main.tsx` imports the virtual register module,
+      // so the plugin must not also inject a bare
+      // `navigator.serviceWorker.register('/sw.js')` into index.html. `'auto'`
+      // happens to detect that import today; stating it removes the dependency
+      // on that detection and makes a double registration impossible.
+      injectRegister: null,
       // Extra static files to precache that Vite doesn't fingerprint.
       includeAssets: [
         'brand/dicesuki-icon.svg',

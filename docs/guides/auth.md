@@ -10,7 +10,8 @@ is not configured.
 |------|------|
 | `src/lib/supabaseClient.ts` | Client bootstrap + `isSupabaseConfigured()` feature-detect. Returns `null` when unconfigured. |
 | `src/lib/profile.ts` | `Profile` type, `deriveProfileSeed`, `fetchOrCreateProfile` (first-sign-in seeding). |
-| `src/store/useAuthStore.ts` | Auth domain store (Frontend-ADR-002): session/profile state, `initialize`, `signInWithDiscord`, `signOut`. Not persisted — supabase-js manages tokens. |
+| `src/store/useAuthStore.ts` | Auth domain store (Frontend-ADR-002): session/profile state, the `economyAccess` flag, `initialize`, `signInWithDiscord`, `signOut`. Not persisted — supabase-js manages tokens. |
+| `src/lib/economyAccess.ts` / `src/hooks/useEconomyAccess.ts` | Per-user monetization gate, fetched with the profile on sign-in. Off for guests and by default. See [Economy Contracts → Economy access flag](economy-contracts.md#economy-access-flag--utility-first-default). |
 | `src/components/panels/AccountSection.tsx` | Settings UI: Discord sign-in button / signed-in card. Renders `null` when unconfigured. |
 | `supabase/migrations/0001_profiles.sql` | `profiles` table + RLS. |
 | `src/App.tsx` | Calls `useAuthStore.getState().initialize()` once at startup. |
@@ -62,8 +63,9 @@ gated behind `isSupabaseConfigured()` + an authenticated session.
 - **Saved rolls** (`useSavedRollsStore`): `savedRolls` (the editing draft `currentlyEditing` is ephemeral, not synced).
 - **Settings** (`useSettingsStore`): `themeId` (selected theme).
 
-**Not synced** (device-local / ephemeral, by design): custom-dice binary models
-(IndexedDB blobs — metadata syncs, the model file stays device-local), haptic /
+**Not synced** (device-local / ephemeral, by design): retained legacy custom-dice
+binary models (IndexedDB blobs — metadata syncs, the model file stays device-local;
+customer uploads are retired), haptic /
 motion / UI-visibility prefs (`useUIStore`, device-ergonomic), owned themes
 (`dicesuki-owned-themes` — a dev grants-all placeholder), and live connection
 state.

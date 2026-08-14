@@ -1,8 +1,8 @@
 /**
  * Type definitions for custom dice assets
  *
- * This module defines the TypeScript interfaces for the artist testing platform,
- * including dice metadata, custom assets, and physics properties.
+ * This module defines the metadata and asset contracts shared by managed
+ * catalog dice and retained device-local legacy dice.
  */
 
 import { DiceShape } from '../lib/geometries'
@@ -210,120 +210,6 @@ export interface CustomDiceAsset {
   /** Optional: URL/path to thumbnail image */
   thumbnailUrl?: string
 
-  /** Optional: Blob URL for temporary preview (uploaded files) */
+  /** Optional: Blob URL used by retained device-local legacy dice. */
   previewBlobUrl?: string
 }
-
-/**
- * Validation result for uploaded files or metadata
- */
-export interface ValidationResult {
-  /** Whether the validation passed */
-  isValid: boolean
-
-  /** Error messages (if validation failed) */
-  errors: string[]
-
-  /** Warning messages (non-critical issues) */
-  warnings: string[]
-}
-
-/**
- * Upload state for the artist testing panel
- */
-export interface UploadState {
-  /** Currently uploaded GLB file */
-  file: File | null
-
-  /** Parsed or uploaded metadata */
-  metadata: DiceMetadata | null
-
-  /** Validation result for the file */
-  fileValidation: ValidationResult | null
-
-  /** Validation result for the metadata */
-  metadataValidation: ValidationResult | null
-
-  /** Loading state */
-  isLoading: boolean
-
-  /** Current step in the upload process */
-  step: 'idle' | 'uploading' | 'validating' | 'ready' | 'error'
-}
-
-/**
- * Expected face count for each dice type
- * Used for validation
- */
-export const EXPECTED_FACE_COUNTS: Record<DiceShape, number> = {
-  d4: 4,
-  d6: 6,
-  d8: 8,
-  d10: 10,
-  // Percentile tens die — the d10 solid, so the same face count. Listed for
-  // completeness only: `diceMetadataSchema` does NOT accept it as a custom-dice
-  // type (custom dice are inventory dice; d10tens is engine-only).
-  d10tens: 10,
-  d12: 12,
-  d20: 20,
-}
-
-/**
- * Default physics properties by dice type
- * Used when auto-generating metadata
- *
- * Note: Density is set to 0.3 to match the auto-calculated mass of standard dice.
- * Rapier calculates mass from density × collider volume.
- * Lower density = lighter dice = more spin/tumble when dragging.
- * Higher density = heavier dice = more stable, less reactive.
- */
-export const DEFAULT_PHYSICS: Record<DiceShape, PhysicsProperties> = {
-  d4: { density: 0.3, restitution: 0.3, friction: 0.6 },
-  d6: { density: 0.3, restitution: 0.3, friction: 0.6 },
-  d8: { density: 0.3, restitution: 0.3, friction: 0.6 },
-  d10: { density: 0.3, restitution: 0.3, friction: 0.6 },
-  d10tens: { density: 0.3, restitution: 0.3, friction: 0.6 },
-  d12: { density: 0.3, restitution: 0.3, friction: 0.6 },
-  d20: { density: 0.3, restitution: 0.3, friction: 0.6 },
-}
-
-/**
- * Default collider configurations by dice type
- */
-export const DEFAULT_COLLIDERS: Record<DiceShape, ColliderConfig> = {
-  d4: { type: 'hull', args: {} },
-  d6: {
-    type: 'roundCuboid',
-    args: {
-      halfExtents: [0.5, 0.5, 0.5],
-      borderRadius: 0.08,
-    },
-  },
-  d8: { type: 'hull', args: {} },
-  d10: { type: 'hull', args: {} },
-  d10tens: { type: 'hull', args: {} },
-  d12: { type: 'hull', args: {} },
-  d20: { type: 'hull', args: {} },
-}
-
-/**
- * File size limits
- */
-export const FILE_SIZE_LIMITS = {
-  /** Recommended maximum file size (10 MB) */
-  RECOMMENDED_MAX_SIZE: 10 * 1024 * 1024,
-
-  /** Hard limit maximum file size (20 MB) */
-  HARD_MAX_SIZE: 20 * 1024 * 1024,
-} as const
-
-/**
- * Polygon count limits
- */
-export const POLYGON_LIMITS = {
-  /** Recommended polygon count for optimal performance */
-  RECOMMENDED_MAX: 5000,
-
-  /** Hard limit for polygon count */
-  HARD_MAX: 10000,
-} as const
