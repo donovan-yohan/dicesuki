@@ -55,7 +55,8 @@
     "test:e2e:basic-dice": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18186} playwright test e2e/basic-dice.spec.ts",
     "test:e2e:roll-picker": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18187} playwright test e2e/roll-picker.spec.ts",
     "test:e2e:d100": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18188} playwright test e2e/d100-percentile.spec.ts",
-    "test:e2e:roll-history": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18189} playwright test e2e/roll-history.spec.ts"
+    "test:e2e:roll-history": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18189} playwright test e2e/roll-history.spec.ts",
+    "test:e2e:wallet-hud-layout": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18190} playwright test e2e/wallet-hud-layout.spec.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

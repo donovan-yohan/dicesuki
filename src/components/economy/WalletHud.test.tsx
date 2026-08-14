@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ThemeContext } from '../../contexts/ThemeContext'
@@ -28,19 +28,31 @@ function renderBalanceSummary(props: Partial<ComponentProps<typeof WalletBalance
 }
 
 describe('WalletBalanceSummary', () => {
-  it('renders Stars, Dust, standard tickets, and nonzero premium tickets for ShopPanel', () => {
-    renderBalanceSummary()
+  it('groups available balances in one labelled wallet region with currency glyphs', () => {
+    renderBalanceSummary({ stars: 19_840 })
 
-    expect(screen.getByTestId('wallet-stars')).toHaveTextContent('660')
-    expect(screen.getByTestId('wallet-dust')).toHaveTextContent('12')
-    expect(screen.getByTestId('wallet-standard-rolls')).toHaveTextContent('4')
-    expect(screen.getByTestId('wallet-premium-rolls')).toHaveTextContent('2')
+    const wallet = screen.getByRole('region', { name: 'Wallet balances' })
+    const balances = within(wallet).getByRole('list', { name: 'Available balances' })
+
+    expect(within(balances).getAllByRole('listitem')).toHaveLength(4)
+    expect(within(balances).getByTestId('wallet-stars')).toHaveTextContent((19_840).toLocaleString())
+    expect(within(balances).getByTestId('wallet-dust')).toHaveTextContent('12')
+    expect(within(balances).getByTestId('wallet-standard-rolls')).toHaveTextContent('4')
+    expect(within(balances).getByTestId('wallet-premium-rolls')).toHaveTextContent('2')
+    expect(
+      within(balances).getByRole('listitem', { name: 'Standard rolls: 4' }),
+    ).toHaveTextContent('Rolls')
+    expect(wallet.querySelector('[data-currency-kind="stars"]')).toBeInTheDocument()
+    expect(wallet.querySelector('[data-currency-kind="dust"]')).toBeInTheDocument()
+    expect(wallet.querySelectorAll('[data-currency-kind="roll"]')).toHaveLength(2)
   })
 
-  it('omits zero premium tickets and announces stale balances', () => {
+  it('keeps the three base balances when premium tickets are zero and announces stale data', () => {
     renderBalanceSummary({ premiumTickets: 0, stale: true })
 
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
     expect(screen.queryByTestId('wallet-premium-rolls')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
     expect(screen.getByRole('status')).toHaveTextContent(/balances may be stale/i)
   })
 })
