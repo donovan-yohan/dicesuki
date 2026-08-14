@@ -1,8 +1,8 @@
 /**
- * Type definitions for custom dice assets
+ * Type definitions for managed GLB dice assets
  *
  * This module defines the metadata and asset contracts shared by managed
- * catalog dice and retained device-local legacy dice.
+ * catalog dice.
  */
 
 import { DiceShape } from '../lib/geometries'
@@ -209,7 +209,4 @@ export interface CustomDiceAsset {
 
   /** Optional: URL/path to thumbnail image */
   thumbnailUrl?: string
-
-  /** Optional: Blob URL used by retained device-local legacy dice. */
-  previewBlobUrl?: string
 }

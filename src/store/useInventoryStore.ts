@@ -21,7 +21,6 @@ import { DiceShape } from '../lib/geometries'
 import { INVENTORY_DICE_SHAPES } from '../types/diceShape'
 import { getDieMax } from '../lib/diceHelpers'
 import { getDieSetById } from '../config/dieSets'
-import { createBlobUrlFromStorage, deleteCustomDiceModel } from '../lib/customDiceDB'
 import { pruneSavedRollsForRemovedDice } from '../lib/savedRollDieCleanup'
 import {
   mapInventoryDieToCatalogRef,
@@ -137,11 +136,9 @@ interface InventoryStore {
   reset: () => void
 
   // ============================================================================
-  // Custom Dice Persistence (IndexedDB)
+  // Internal test dice
   // ============================================================================
 
-  regenerateCustomDiceBlobUrls: () => Promise<void>
-  customDiceLoadErrors: string[]
   getDevDice: () => InventoryDie[]
   removeAllDevDice: () => Promise<void>
 
@@ -243,6 +240,16 @@ export interface VisibleInventoryState {
 }
 
 /**
+ * Customer-authored GLB records were removed from the product. Only immutable
+ * catalog assets may remain in local persistence; a missing storage marker is
+ * the old IndexedDB format and is deliberately treated as legacy too.
+ */
+function isRetiredLocalDice(die: InventoryDie): boolean {
+  if (die?.setId === 'custom-artist') return true
+  return Boolean(die?.customAsset && die.customAsset.storage !== 'bundled')
+}
+
+/**
  * Canonical local projection for sync, refresh, sign-out, and persistence.
  * Authenticated copy rows are ephemeral; every other visible row remains part
  * of the retained local-first inventory.
@@ -253,22 +260,20 @@ export function selectRetainedLocalInventory(
   dice: InventoryDie[]
   assignments: Record<string, string>
 } {
-  if (!state.serverCopiesActive) {
-    return {
-      dice: [...state.dice],
-      assignments: { ...state.assignments },
-    }
-  }
   const serverIds = new Set(
     state.dice
       .filter(die => Boolean(die.serverCopyMetadata))
       .map(die => die.id),
   )
+  const retainedDice = state.dice.filter(
+    die => !serverIds.has(die.id) && !isRetiredLocalDice(die),
+  )
+  const retainedIds = new Set(retainedDice.map(die => die.id))
   return {
-    dice: state.dice.filter(die => !die.serverCopyMetadata),
+    dice: retainedDice,
     assignments: Object.fromEntries(
       Object.entries(state.assignments).filter(
-        ([, dieId]) => !serverIds.has(dieId),
+        ([, dieId]) => retainedIds.has(dieId),
       ),
     ),
   }
@@ -367,7 +372,10 @@ function asAssignments(value: unknown): Record<string, string> {
 }
 
 /**
- * v4 -> v5 retires the seeded local starter inventory.
+ * v4 -> v5 retires the seeded local starter inventory. v5 -> v6 destructively
+ * removes every customer-authored die: the former `custom-artist` set and all
+ * non-bundled or missing custom-asset storage markers. Immutable catalog GLBs
+ * use `storage: 'bundled'` and remain intact.
  *
  * Every player used to get 23 `source: 'starter'` instances on first load
  * (adventurer-starter, devil d6s, materials-lab d20s). Basic dice
@@ -376,9 +384,9 @@ function asAssignments(value: unknown): Record<string, string> {
  * whole point of the bump: a returning player must not keep a private stash the
  * game no longer grants.
  *
- * Only `source: 'starter'` rows go. Purchased, pulled, rewarded, crafted and
- * custom-uploaded dice are untouched, and assignments naming a dropped die are
- * pruned so no roll slot points at a row that no longer exists.
+ * Starter rows and retired customer-authored rows go. Purchased, pulled,
+ * rewarded and crafted catalog dice remain, and assignments naming a dropped
+ * die are pruned so no roll slot points at a row that no longer exists.
  *
  * The server side is deliberately NOT touched: `ensure_starter_entitlements`
  * still owns the same 8-item allowlist and existing `dice_copies` rows stay
@@ -386,18 +394,20 @@ function asAssignments(value: unknown): Record<string, string> {
  * business). See `src/config/starterDice.test.ts` for the guard that keeps those
  * two halves honest.
  */
-function dropSeededStarterDice(state: Record<string, unknown>): {
+function dropRetiredLocalDice(state: Record<string, unknown>): {
   state: Record<string, unknown>
   removedDieIds: string[]
 } {
   const collect = (value: unknown): InventoryDie[] => (
     Array.isArray(value) ? value as InventoryDie[] : []
   )
-  const isSeededStarter = (die: InventoryDie) => die?.source === 'starter'
+  const shouldRemove = (die: InventoryDie) => (
+    die?.source === 'starter' || isRetiredLocalDice(die)
+  )
 
   const removedDieIds = Array.from(new Set(
     [...collect(state.dice), ...collect(state.localDice)]
-      .filter(isSeededStarter)
+      .filter(shouldRemove)
       .map(die => die.id)
       .filter((id): id is string => typeof id === 'string'),
   ))
@@ -410,7 +420,7 @@ function dropSeededStarterDice(state: Record<string, unknown>): {
   const pruneAssignments = (value: unknown) => Object.fromEntries(
     Object.entries(asAssignments(value)).filter(([, dieId]) => !removed.has(dieId)),
   )
-  const purge = (value: unknown) => collect(value).filter(die => !isSeededStarter(die))
+  const purge = (value: unknown) => collect(value).filter(die => !shouldRemove(die))
 
   return {
     state: {
@@ -431,13 +441,14 @@ function dropSeededStarterDice(state: Record<string, unknown>): {
 /**
  * v2 -> v3 adds best-effort catalog definition refs without replacing any
  * client-local instance. It also marks the one known production GLTF as a
- * bundled asset so legacy sessions never try to load it from IndexedDB. IDs,
- * order, assignments, stats and duplicate copies are otherwise preserved.
+ * bundled asset so it follows the managed catalog delivery path. IDs, order,
+ * assignments, stats and duplicate copies are otherwise preserved.
  *
  * v3 -> v4 establishes a separate persisted guest/local inventory. The live
  * server-copy view is deliberately ephemeral and is rebuilt after sign-in.
  *
- * v4 -> v5 removes the seeded starter dice — see {@link dropSeededStarterDice}.
+ * v4 -> v5 removes starter dice and v5 -> v6 removes retired customer dice —
+ * see {@link dropRetiredLocalDice}.
  *
  * Returns the dropped die ids alongside the state so the caller can repair
  * saved rolls that pinned one of them; the migration itself stays pure.
@@ -445,19 +456,19 @@ function dropSeededStarterDice(state: Record<string, unknown>): {
 export function migratePersistedInventory(
   persistedState: unknown,
   version: number,
-): { state: unknown; removedStarterDieIds: string[] } {
+): { state: unknown; removedDieIds: string[] } {
   if (!persistedState || typeof persistedState !== 'object') {
-    return { state: emptyPersistedInventory(), removedStarterDieIds: [] }
+    return { state: emptyPersistedInventory(), removedDieIds: [] }
   }
   const state = persistedState as Record<string, unknown>
   if (!Array.isArray(state.dice)) {
     // A payload with no `dice` array is malformed as far as the v1-v3 catalog
     // pass is concerned, but it may still carry `localDice` — and those starter
     // rows become the visible inventory on the next sign-out. Returning early
-    // without purging is what let a starter die survive the migration entirely,
-    // so the v5 step still runs on whatever IS there.
-    const purged = dropSeededStarterDice(state)
-    return { state: purged.state, removedStarterDieIds: purged.removedDieIds }
+    // without purging is what let retired dice survive the migration entirely,
+    // so the destructive cleanup still runs on whatever IS there.
+    const purged = dropRetiredLocalDice(state)
+    return { state: purged.state, removedDieIds: purged.removedDieIds }
   }
   const dice = (version >= 3 ? state.dice : state.dice.map(value => {
     if (!value || typeof value !== 'object') return value
@@ -477,8 +488,8 @@ export function migratePersistedInventory(
     serverCopiesActive: false,
   }
 
-  const { state: withoutStarters, removedDieIds } = dropSeededStarterDice(throughV4)
-  return { state: withoutStarters, removedStarterDieIds: removedDieIds }
+  const { state: withoutRetiredDice, removedDieIds } = dropRetiredLocalDice(throughV4)
+  return { state: withoutRetiredDice, removedDieIds }
 }
 
 /** Pure state-only view of {@link migratePersistedInventory}. */
@@ -511,7 +522,6 @@ export const useInventoryStore = create<InventoryStore>()(
         premiumTokens: 0
       },
       assignments: {},
-      customDiceLoadErrors: [],
 
       // ========================================================================
       // Dice Management
@@ -982,68 +992,6 @@ export const useInventoryStore = create<InventoryStore>()(
         })
       },
 
-      // ======================================================================
-      // Custom Dice Persistence
-      // ======================================================================
-
-      /**
-       * Regenerate blob URLs for custom dice from IndexedDB
-       * Call this on app initialization to restore custom dice after page reload
-       */
-      regenerateCustomDiceBlobUrls: async () => {
-        set({ customDiceLoadErrors: [] })
-
-        const state = get()
-        const customDice = state.dice.filter(
-          die => die.customAsset && die.customAsset.storage !== 'bundled',
-        )
-
-        console.log(`[InventoryStore] Regenerating blob URLs for ${customDice.length} custom dice`)
-
-        const failedDiceIds: string[] = []
-
-        for (const die of customDice) {
-          if (!die.customAsset) continue
-
-          try {
-            // Use assetId if available (new format), otherwise fall back to modelUrl (old format)
-            const assetId = die.customAsset.assetId || die.customAsset.modelUrl
-            console.log(`[InventoryStore] Loading asset for die "${die.name}" from IndexedDB key: ${assetId}`)
-
-            // Create new blob URL from IndexedDB storage
-            const newBlobUrl = await createBlobUrlFromStorage(assetId)
-
-            if (newBlobUrl) {
-              // Update die with fresh blob URL
-              set(state => ({
-                dice: state.dice.map(d =>
-                  d.id === die.id
-                    ? {
-                        ...d,
-                        customAsset: {
-                          ...d.customAsset!,
-                          modelUrl: newBlobUrl
-                        }
-                      }
-                    : d
-                )
-              }))
-              console.log(`[InventoryStore] Regenerated blob URL for die: ${die.id}`)
-            } else {
-              console.warn(`[InventoryStore] No stored model found for die: ${die.id}`)
-              failedDiceIds.push(die.id)
-            }
-          } catch (error) {
-            console.error(`[InventoryStore] Failed to regenerate blob URL for die ${die.id}:`, error)
-            failedDiceIds.push(die.id)
-          }
-        }
-
-        if (failedDiceIds.length > 0) {
-          set({ customDiceLoadErrors: failedDiceIds })
-        }
-      },
-
       /**
        * Get all dev/test dice
        */
@@ -1052,26 +1000,13 @@ export const useInventoryStore = create<InventoryStore>()(
       },
 
       /**
-       * Remove all dev/test dice from inventory
-       * Also cleans up IndexedDB storage for custom dice
+       * Remove all internal dev/test dice from inventory.
        */
       removeAllDevDice: async () => {
         const state = get()
         const devDice = state.dice.filter(die => die.isDev === true)
 
         console.log(`[InventoryStore] Removing ${devDice.length} dev dice`)
-
-        // Delete custom models from IndexedDB
-        for (const die of devDice) {
-          if (die.customAsset) {
-            try {
-              await deleteCustomDiceModel(die.id)
-              console.log(`[InventoryStore] Deleted custom model for dev die: ${die.id}`)
-            } catch (error) {
-              console.error(`[InventoryStore] Failed to delete custom model for die ${die.id}:`, error)
-            }
-          }
-        }
 
         // Remove from state
         set(state => ({
@@ -1136,21 +1071,21 @@ export const useInventoryStore = create<InventoryStore>()(
       storage: createJSONStorage(() => localStorage),
 
       // SCHEMA VERSION
-      // Increment this when starter dice or inventory structure changes
+      // Increment this when retained inventory policy or structure changes.
       // This will trigger the migrate function below
-      version: 5,
+      version: 6,
 
       // Migration function - runs when stored version doesn't match current version
       migrate: (persistedState, version) => {
         // Keep migration logs in production - they're useful for debugging user issues
-        console.log(`[InventoryStore] Migrating from version ${version} to 5`)
-        const { state, removedStarterDieIds } = migratePersistedInventory(persistedState, version)
-        if (removedStarterDieIds.length > 0) {
-          console.log(`[InventoryStore] Removed ${removedStarterDieIds.length} seeded starter dice`)
+        console.log(`[InventoryStore] Migrating from version ${version} to 6`)
+        const { state, removedDieIds } = migratePersistedInventory(persistedState, version)
+        if (removedDieIds.length > 0) {
+          console.log(`[InventoryStore] Removed ${removedDieIds.length} retired local dice`)
           // Saved rolls that pinned one of those dice would otherwise keep a
           // dangling id forever; rewrite them to plain (basic) dice here, while
           // the exact removed ids are still known.
-          pruneSavedRollsForRemovedDice(removedStarterDieIds)
+          pruneSavedRollsForRemovedDice(removedDieIds)
         }
         return state as InventoryStore
       },

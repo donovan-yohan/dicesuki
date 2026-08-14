@@ -33,10 +33,10 @@ only client-callable grant function is the no-argument,
 count, user id, or provenance.
 
 Existing and future authenticated users may receive the fixed 8-item starter
-ownership set. The 23 starter tray dice remain independent local instances
-backed by those 8 catalog items. The backfill never reads `inventory.data`.
-Custom/dev dice and any valuable-looking legacy local row remain playable local
-content but do not mint an entitlement.
+ownership set. Inventory v5 retired the former 23-row local starter tray; basic
+dice remain the always-available floor. The backfill never reads
+`inventory.data`. Inventory v6 also retires customer-authored model rows without
+minting entitlements; managed bundled catalog assets remain playable.
 
 The local inventory remains the runtime source for guest/offline play,
 customization, tray instances, multi-die loadouts, saved-roll assignment, and

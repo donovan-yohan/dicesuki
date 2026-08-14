@@ -34,9 +34,9 @@
  *   A guest signing in on a SECOND device (where a remote row already exists)
  *   is handled by the saved-rolls merge, not by this path.
  *
- * Not synced (device-local / ephemeral, by design): custom-dice binary models
- * (IndexedDB blobs), haptic/motion prefs and UI visibility (`useUIStore`), owned
- * themes (dev placeholder), and any live connection state.
+ * Not synced (device-local / ephemeral, by design): haptic/motion prefs and UI
+ * visibility (`useUIStore`), owned themes (dev placeholder), and any live
+ * connection state.
  */
 
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient'
@@ -137,11 +137,11 @@ function readRemoteSavedRolls(data: unknown): SavedRollsSyncState {
 
 /** Build the real sync targets bound to the live Zustand stores. */
 export function createRealTargets(): SyncTarget[] {
-  // Starter rows dropped while applying the inventory blob. Held until every
+  // Retired rows dropped while applying the inventory blob. Held until every
   // target has hydrated: the saved-rolls target applies its own remote snapshot
   // wholesale a moment later, so repairing saved rolls from inside the inventory
   // target's `applyPayload` would simply be overwritten.
-  let pendingStarterRemovals: string[] = []
+  let pendingRemovedDiceIds: string[] = []
 
   return [
     {
@@ -153,7 +153,7 @@ export function createRealTargets(): SyncTarget[] {
           // Tracks the inventory store's persist version: a blob written here is
           // read back through the SAME migration chain, so a stale stamp would
           // re-run migrations that have already been applied.
-          v: 5,
+          v: 6,
           dice: retained.dice,
           currency: s.currency,
           assignments: retained.assignments,
@@ -162,12 +162,12 @@ export function createRealTargets(): SyncTarget[] {
       applyPayload: (data) => {
         const d = asRecord(data)
         const version = typeof d.v === 'number' ? d.v : 2
-        // A blob written by another device can predate the v5 starter cleanup,
-        // so it gets the same treatment as a local rehydrate: the seeded starter
-        // rows are dropped AND the saved rolls that pinned them are repaired.
+        // A blob written by another device can predate the v6 inventory purge,
+        // so it gets the same treatment as a local rehydrate: retired rows are
+        // dropped AND the saved rolls that pinned them are repaired.
         // Skipping the second half would let a dangling reference ride back in
         // from a device that has not synced yet.
-        const { state, removedStarterDieIds } = migratePersistedInventory(d, version)
+        const { state, removedDieIds } = migratePersistedInventory(d, version)
         const migrated = asRecord(state)
         useInventoryStore.setState({
           dice: Array.isArray(migrated.dice) ? (migrated.dice as never[]) : [],
@@ -176,7 +176,7 @@ export function createRealTargets(): SyncTarget[] {
         })
         // Deferred, NOT applied here: `saved_rolls` hydrates after this target
         // and would overwrite the repair with the un-repaired remote blob.
-        pendingStarterRemovals = removedStarterDieIds
+        pendingRemovedDiceIds = removedDieIds
       },
       finalizeHydration: () => {
         // Runs once every domain has applied its remote snapshot, so this is the
@@ -184,15 +184,15 @@ export function createRealTargets(): SyncTarget[] {
         // dropped — deriving "which dice are gone?" from the current inventory
         // instead would wipe references to authenticated server copies, which
         // are never persisted and are absent until the copy read lands.
-        pruneSavedRollsForRemovedDice(pendingStarterRemovals)
-        pendingStarterRemovals = []
+        pruneSavedRollsForRemovedDice(pendingRemovedDiceIds)
+        pendingRemovedDiceIds = []
       },
       resetLocal: () => {
-        // Guest/custom dice, currency and assignments all survive sign-out, so
+        // Guest-local dice, currency and assignments all survive sign-out, so
         // without this a brand-new account inherits the previous player's
         // collection AND publishes it as its own first-sign-in migration.
         useInventoryStore.getState().reset()
-        pendingStarterRemovals = []
+        pendingRemovedDiceIds = []
       },
       subscribe: (listener) => useInventoryStore.subscribe(listener),
     },

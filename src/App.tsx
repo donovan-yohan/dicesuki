@@ -4,7 +4,6 @@ import { SoloRoom } from './components/SoloRoom'
 import { checkDeviceCompatibility } from './lib/deviceDetection'
 import { DeviceMotionProvider } from './contexts/DeviceMotionProvider'
 import { ThemeProvider } from './contexts/ThemeProvider'
-import { useInventoryStore } from './store/useInventoryStore'
 import { useAuthStore } from './store/useAuthStore'
 import { initDataSync } from './lib/dataSync'
 import DiceFaceTestHarness from './components/test/DiceFaceTestHarness'
@@ -13,6 +12,7 @@ import { RoomBrowser } from './components/multiplayer/RoomBrowser'
 import { StartupSplash } from './components/brand/StartupSplash'
 import { isPaymentsEnabled } from './lib/paymentsConfig'
 import { useEconomyAccess } from './hooks/useEconomyAccess'
+import { purgeLegacyCustomDiceDatabase } from './lib/legacyCustomDiceCleanup'
 
 // Payments (Xsolla sandbox checkout, issue #153) is flag-gated OFF by default.
 // Lazy so the checkout code — and, deeper, the Pay Station SDK — is NEVER part
@@ -26,7 +26,6 @@ const PrivacyPage = lazy(() => import('./components/legal/PrivacyPage'))
 function MainApp() {
   const [isCompatible, setIsCompatible] = useState<boolean | null>(null)
   const [errorMessage, setErrorMessage] = useState<string>('')
-  const regenerateCustomDiceBlobUrls = useInventoryStore(state => state.regenerateCustomDiceBlobUrls)
 
   useEffect(() => {
     const checkDevice = async () => {
@@ -39,11 +38,6 @@ function MainApp() {
 
     checkDevice()
   }, [])
-
-  // Regenerate blob URLs for custom dice on app load
-  useEffect(() => {
-    regenerateCustomDiceBlobUrls()
-  }, [regenerateCustomDiceBlobUrls])
 
   // Loading state
   if (isCompatible === null) {
@@ -169,6 +163,11 @@ function App() {
   // Bootstrap auth once at startup. When Supabase is unconfigured this resolves
   // straight to guest mode with no network calls and no console noise (#81).
   useEffect(() => {
+    // Inventory v6 has already removed every reference to customer-authored
+    // models. Reclaim their retired IndexedDB bytes once per browser profile.
+    void purgeLegacyCustomDiceDatabase().catch(error => {
+      console.warn('[LegacyDice] IndexedDB cleanup will retry next startup', error)
+    })
     // Wire per-account data sync to auth state first (no-op / guest-safe when
     // Supabase is unconfigured), then bootstrap auth (#82, #81).
     initDataSync()

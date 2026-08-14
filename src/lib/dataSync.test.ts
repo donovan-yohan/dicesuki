@@ -311,7 +311,7 @@ describe('dataSync', () => {
       const targets = createRealTargets()
       const inv = targets.find((t) => t.table === 'inventory')!
 
-      expect(inv.getPayload().v).toBe(5)
+      expect(inv.getPayload().v).toBe(6)
     })
 
     it('repairs saved rolls across the FULL target sequence, not just the inventory step', async () => {
@@ -711,7 +711,7 @@ describe('dataSync', () => {
     })
 
     it('does not publish a previous account\'s inventory or theme into a brand-new account', async () => {
-      // Guest/custom dice, currency and the selected theme all survive sign-out
+      // Guest-local dice, currency and the selected theme all survive sign-out
       // too, so saved rolls were only one of three doors onto the same leak.
       const guestDie = {
         id: 'guest-die', type: 'd20', rarity: 'rare', setId: 's', stats: {}, assignedToRolls: [],
