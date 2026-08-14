@@ -12,7 +12,7 @@ class InterfaceRouter:
     
     Benefits over keyword-based filtering:
     - Deterministic: Same input always produces same output
-    - Complete: Can route interfaces with non-obvious names (DiceProps, CustomDiceAsset)
+    - Complete: Can route interfaces with non-obvious names (DiceProps, GltfDiceAsset)
     - Maintainable: Clear single source of truth for routing rules
     - Extensible: Easy to add new agents or interface mappings
     """
@@ -57,7 +57,7 @@ class InterfaceRouter:
                 'InventoryDie',
                 'DiceInstance',
                 'SavedRoll',
-                'CustomDiceAsset',
+                'GltfDiceAsset',
             ],
             
             # Testing Agent: Test utilities, mocks

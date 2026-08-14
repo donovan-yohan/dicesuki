@@ -9,7 +9,7 @@
 | [debugging.md](debugging.md) | Common issues, debug tools, dice physics troubleshooting |
 | [patterns.md](patterns.md) | Code conventions, R3F optimizations, naming, imports |
 | [haptic-feedback.md](haptic-feedback.md) | Vibration system, collision detection, thresholds |
-| [custom-dice.md](custom-dice.md) | Managed catalog GLB assets and retired customer-dice cleanup |
+| [managed-gltf-dice.md](managed-gltf-dice.md) | Managed catalog GLB assets and retired customer-dice cleanup |
 | [collectible-catalog.md](collectible-catalog.md) | Canonical catalog, entitlement trust boundary, starter backfill, RLS verification |
 | [imagegen-uv-dice.md](imagegen-uv-dice.md) | Deterministic ImageGen/Blender UV authoring kit and canonical validation |
 | [runtime-dice-assets.md](runtime-dice-assets.md) | Reproducible GLB optimization, hard budgets, lazy delivery, and catalog versioning |

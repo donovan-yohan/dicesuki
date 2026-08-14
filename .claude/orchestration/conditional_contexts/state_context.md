@@ -18,7 +18,7 @@ interface DiceInstance {
   diceType: DiceType                // d4, d6, d8, d10, d12, d20
   inventoryDieId: string            // Links to inventory
   position: [number, number, number]
-  customAsset?: CustomDiceAsset     // For custom dice
+  customAsset?: GltfDiceAsset       // Persisted field for managed GLB dice
 }
 ```
 
@@ -44,7 +44,7 @@ interface InventoryDie {
   diceType: DiceType
   quantity: number                  // How many owned
   isLocked: boolean                 // Prevent deletion
-  customAsset?: CustomDiceAsset     // For custom dice
+  customAsset?: GltfDiceAsset       // Persisted field for managed GLB dice
 }
 ```
 

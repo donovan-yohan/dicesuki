@@ -372,7 +372,7 @@ This task is the real test — applying the skill to the dicesuki project's 1,08
 - Create: `docs/guides/debugging.md`
 - Create: `docs/guides/patterns.md`
 - Create: `docs/guides/haptic-feedback.md`
-- Create: `docs/guides/custom-dice.md`
+- Create: `docs/guides/managed-gltf-dice.md`
 - Create: `docs/guides/saved-rolls.md`
 - Create: `docs/guides/changelog.md`
 - Create: `docs/guides/tech-stack.md`
@@ -398,7 +398,7 @@ Read the full 1,080-line CLAUDE.md. Identify sections and their line ranges:
 | Server Gotchas | ~681-720 | `docs/guides/server.md` |
 | File Organization + Naming | ~721-810 | `docs/guides/patterns.md` (append) |
 | Saved Rolls Bonus System | ~811-890 | `docs/guides/saved-rolls.md` |
-| Custom Dice Persistence | ~891-990 | `docs/guides/custom-dice.md` |
+| Managed GLB Assets | ~891-990 | `docs/guides/managed-gltf-dice.md` |
 | Recent Updates | ~991-1080 | `docs/guides/changelog.md` |
 
 These are approximate — read the actual file and adjust line ranges.
@@ -437,7 +437,7 @@ Repeat for all guide files. Preserve original markdown formatting, code blocks, 
 | [debugging.md](debugging.md) | Common issues, debug tools, dice physics troubleshooting |
 | [patterns.md](patterns.md) | Code conventions, R3F optimizations, naming, imports |
 | [haptic-feedback.md](haptic-feedback.md) | Vibration system, collision detection, thresholds |
-| [custom-dice.md](custom-dice.md) | GLB persistence, IndexedDB, blob URL lifecycle |
+| [managed-gltf-dice.md](managed-gltf-dice.md) | Managed GLB delivery and retired local-data cleanup |
 | [saved-rolls.md](saved-rolls.md) | Bonus system, formula display, state lifecycle |
 | [server.md](server.md) | Rust/Axum gotchas, axum version, server architecture |
 | [tech-stack.md](tech-stack.md) | Dependencies, React 19, R3F versions |

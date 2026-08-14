@@ -6,9 +6,8 @@ pipeline, and released as immutable catalog assets through the
 [Collectible Catalog](collectible-catalog.md) workflow.
 
 Runtime GLB paths are versioned bundled catalog delivery paths, never
-customer-supplied URLs. `useCustomDiceLoader()` and `CustomDiceAsset` are
-legacy names for the shared renderer contract; they render managed catalog
-assets only.
+customer-supplied URLs. `useGltfDiceLoader()` and `GltfDiceAsset` are the shared
+renderer contract for these managed catalog assets.
 
 Inventory persistence is version 6. Its migration removes every former
 `custom-artist` row and every custom asset without `storage: 'bundled'`, then

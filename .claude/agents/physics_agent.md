@@ -53,21 +53,11 @@ interface PhysicsChange {
 ## Core Responsibilities
 
 ### 1. Rigid Body Dynamics
-```typescript
-// Dice physics setup
-<RigidBody
-  ref={rigidBodyRef}
-  mass={DICE_MASS}                    // 0.015 kg
-  restitution={DICE_RESTITUTION}      // 0.3 (bounciness)
-  friction={DICE_FRICTION}            // 0.4
-  linearDamping={0.5}
-  angularDamping={0.5}
-  colliders={false}                   // Manual collider
->
-  <mesh>...</mesh>
-  <CuboidCollider args={[size/2, size/2, size/2]} />
-</RigidBody>
-```
+
+Server physics is authoritative. Start at
+`server/core/src/dice.rs::create_dice_body_with_material`, which dispatches
+collider shape from `DiceType` and material properties through
+`material_physics()` before inserting the body into `PhysicsWorld`.
 
 ### 2. Collision Detection
 ```typescript
@@ -220,42 +210,30 @@ useEffect(() => {
 **Diagnosis**: Check mass, restitution, friction values
 **Fix**: Adjust constants to realistic values
 
-## Collider Types
+## Collider Contract
 
-### Auto-Detection for Custom Dice
-```typescript
-function detectColliderType(geometry: BufferGeometry): ColliderType {
-  const vertices = geometry.attributes.position.array
-  const vertexCount = vertices.length / 3
+Managed GLB files are visual catalog assets; runtime code must not infer a
+collider from model vertex counts. Dice physics remains authoritative in
+`server/core/src/dice.rs`, keyed by dice shape and material. Catalog metadata
+is operator-authored and validated before release.
 
-  // Simple heuristic
-  if (vertexCount < 50) return 'cuboid'     // Simple shapes
-  if (vertexCount < 200) return 'ball'      // Round shapes
-  return 'convexHull'                       // Complex shapes
-}
-```
-
-### Collider Components
-```typescript
-// Box collider (d4, d6, d8, d10, d12)
-<CuboidCollider args={[halfWidth, halfHeight, halfDepth]} />
-
-// Sphere collider (d20)
-<BallCollider args={[radius]} />
-
-// Convex hull (custom dice)
-<ConvexHullCollider args={[vertices]} />
-```
+Implementation changes belong in `server/core/src/dice.rs`: update the
+collider branch in `create_dice_body_with_material()` and, when needed, the
+`material_physics()` dispatch. Keep `src/lib/diceShapeScale.ts` synchronized
+with collider circumradius changes.
 
 ## Integration Points
 
 ### With Frontend
-- **Dice.tsx**: Uses RigidBody + colliders
-- **CustomDice.tsx**: Auto-detects collider type
-- **Scene.tsx**: Manages physics world
+- **server/core/src/dice.rs**: Authoritative rigid bodies and colliders
+- **MultiplayerDie.tsx**: Renders interpolated server state and managed GLBs
+- **Scene.tsx**: Hosts the rendered arena
 
 ### With State
-- **Roll triggers**: `applyImpulse()` called from store action
+- **Roll triggers**: `Scene.tsx` calls `DiceBackendState.roll()`;
+  `useMultiplayerDiceBackend` delegates to `useMultiplayerStore.roll()`, which
+  sends `ClientMessage::Roll` over the room WebSocket. `server/src/ws_handler.rs`
+  dispatches it to `Room::roll_player_dice()` and starts server simulation.
 - **Face values**: Stored in dice manager when detected
 - **Rest state**: Triggers result display in UI
 

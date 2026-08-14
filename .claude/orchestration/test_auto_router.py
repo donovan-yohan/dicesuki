@@ -113,15 +113,15 @@ class TestLearningFromUsage:
         """Test that router learns when mark_complete is called."""
         router = AutoInterfaceRouter()
         
-        # Simulate usage: frontend uses CustomDiceAsset
-        router.learn_from_usage('frontend', 'CustomDiceAsset')
-        router.learn_from_usage('frontend', 'CustomDiceAsset')
-        router.learn_from_usage('state', 'CustomDiceAsset')
+        # Simulate usage: frontend uses GltfDiceAsset
+        router.learn_from_usage('frontend', 'GltfDiceAsset')
+        router.learn_from_usage('frontend', 'GltfDiceAsset')
+        router.learn_from_usage('state', 'GltfDiceAsset')
         
         # Check learned mappings
-        assert 'CustomDiceAsset' in router.learned_mappings
-        assert router.learned_mappings['CustomDiceAsset']['frontend'] == 2
-        assert router.learned_mappings['CustomDiceAsset']['state'] == 1
+        assert 'GltfDiceAsset' in router.learned_mappings
+        assert router.learned_mappings['GltfDiceAsset']['frontend'] == 2
+        assert router.learned_mappings['GltfDiceAsset']['state'] == 1
     
     def test_learns_from_agent_outputs(self):
         """Test learning from complete agent output structure."""

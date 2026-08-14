@@ -6,7 +6,7 @@ import {
   ensureStarterEntitlements,
   fetchCatalogSnapshot,
   fetchMyEntitlements,
-  getBundledCustomDiceAsset,
+  getBundledGltfDiceAsset,
   getCatalogAssetVersion,
   getCatalogItemByKey,
   isCatalogItemRefValid,
@@ -170,7 +170,7 @@ describe('collectible catalog', () => {
   })
 
   it('resolves ImageGen runtime delivery metadata without fetching the GLB', () => {
-    const asset = getBundledCustomDiceAsset('cozy-forest-imagegen-set/hearthwood-d6')
+    const asset = getBundledGltfDiceAsset('cozy-forest-imagegen-set/hearthwood-d6')
 
     expect(asset).toMatchObject({
       id: 'cozy-forest-imagegen-set/hearthwood-d6',
@@ -183,7 +183,7 @@ describe('collectible catalog', () => {
         physics: { density: 0.38 },
       },
     })
-    expect(getBundledCustomDiceAsset(
+    expect(getBundledGltfDiceAsset(
       'cyberpunk-imagegen-set/neon-grid-d6',
       'cyberpunk-imagegen-set/neon-grid-d6@1/asset@1',
       'd6',
@@ -198,18 +198,18 @@ describe('collectible catalog', () => {
         physics: { density: 0.52 },
       },
     })
-    expect(getBundledCustomDiceAsset('not-a-real/catalog-key')).toBeNull()
-    expect(getBundledCustomDiceAsset(
+    expect(getBundledGltfDiceAsset('not-a-real/catalog-key')).toBeNull()
+    expect(getBundledGltfDiceAsset(
       'cozy-forest-imagegen-set/hearthwood-d6',
       'cozy-forest-imagegen-set/hearthwood-d6@1/asset@1',
       'd6',
     )).toMatchObject({ metadata: { diceType: 'd6' } })
-    expect(getBundledCustomDiceAsset(
+    expect(getBundledGltfDiceAsset(
       'cozy-forest-imagegen-set/hearthwood-d6',
       'missing-asset-version',
       'd6',
     )).toBeNull()
-    expect(getBundledCustomDiceAsset(
+    expect(getBundledGltfDiceAsset(
       'cozy-forest-imagegen-set/hearthwood-d6',
       'cozy-forest-imagegen-set/hearthwood-d6@1/asset@1',
       'd20',

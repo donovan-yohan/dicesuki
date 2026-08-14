@@ -13,9 +13,9 @@
   - Props: `diceType`, `inventoryDieId`, `position`, `customAsset`
   - Uses `useFaceDetection` hook for result tracking
   - Integrates haptic feedback via `useHapticFeedback`
-- `CustomDice.tsx`: Custom GLB model support
-  - Loads models via `useCustomDiceLoader` hook
-  - Auto-detects collider type (cuboid/ball/convex)
+- `MultiplayerDie.tsx` and `HeroDieInspector.tsx`: Managed catalog GLB rendering
+  - Load models via the shared `useGltfDiceLoader` hook
+  - Fall back to procedural meshes when a managed asset cannot load
 
 ### Layout Components
 - `Scene.tsx`: Main 3D scene with Rapier physics

@@ -190,14 +190,14 @@ function HapticToggle({ enabled, onChange }) {
 ### Example 3: State Task
 ```json
 {
-  "taskId": "custom-dice-db-003",
+  "taskId": "managed-gltf-catalog-003",
   "fromAgent": "orchestrator",
   "toAgent": "state",
-  "taskName": "Create IndexedDB custom dice storage",
-  "taskDescription": "Implement IndexedDB persistence for custom dice GLB files with save/load operations and blob URL regeneration",
+  "taskName": "Define the managed GLB catalog contract",
+  "taskDescription": "Connect immutable bundled GLB URLs and metadata to catalog-backed inventory dice",
 
   "interfaces": {
-    "CustomDiceAsset": "interface CustomDiceAsset { modelUrl: string; metadata: DiceMetadata }",
+    "GltfDiceAsset": "interface GltfDiceAsset { modelUrl: string; metadata: DiceMetadata }",
     "DiceMetadata": "interface DiceMetadata { name: string; colliderType: 'cuboid' | 'ball' | 'convexHull'; scale: number; mass: number }"
   },
 
@@ -207,14 +207,14 @@ function HapticToggle({ enabled, onChange }) {
   ],
 
   "criticalNotes": [
-    "Convert Blob to ArrayBuffer BEFORE opening IndexedDB transaction",
-    "Regenerate blob URLs on app initialization from stored ArrayBuffers",
-    "DB schema: key=diceId (string), value=ArrayBuffer (GLB file)"
+    "Preserve the persisted customAsset field and customAsset* protocol metadata",
+    "Resolve only immutable bundled catalog assets",
+    "Do not accept customer-supplied model URLs"
   ],
 
   "testRequirements": [
-    "Test save GLB file and retrieve ArrayBuffer",
-    "Test blob URL regeneration on app reload"
+    "Test catalog GLB metadata resolution",
+    "Test invalid catalog and asset-version identifiers"
   ],
 
   "tokenBudget": 1800,

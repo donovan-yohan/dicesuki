@@ -10,9 +10,9 @@ import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { type RenderDeviceTier, resolveDiceRenderLod } from '../../lib/renderLod'
 import type { DicePresentationMetadata } from '../../lib/multiplayerMessages'
-import { getBundledCustomDiceAsset } from '../../lib/collectibleCatalog'
-import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
-import type { CustomDiceAsset } from '../../types/customDice'
+import { getBundledGltfDiceAsset } from '../../lib/collectibleCatalog'
+import { useGltfDiceLoader } from '../../hooks/useGltfDiceLoader'
+import type { GltfDiceAsset } from '../../types/gltfDice'
 import { SceneAssetErrorBoundary } from '../SceneAssetErrorBoundary'
 
 /**
@@ -98,7 +98,7 @@ export function MultiplayerDie({
   const bundledAsset = useMemo(
     () => {
       if (!presentation?.customAssetId || presentation.unsupportedReason) return null
-      const asset = getBundledCustomDiceAsset(
+      const asset = getBundledGltfDiceAsset(
         presentation.customAssetId,
         presentation.customAssetVersionId,
         diceType,
@@ -251,11 +251,11 @@ function BundledDieVisual({
   castShadow,
   receiveShadow,
 }: {
-  asset: CustomDiceAsset
+  asset: GltfDiceAsset
   castShadow: boolean
   receiveShadow: boolean
 }) {
-  const { scene, metadata } = useCustomDiceLoader(asset, {
+  const { scene, metadata } = useGltfDiceLoader(asset, {
     useDraco: false,
     castShadow,
     receiveShadow,

@@ -1,4 +1,4 @@
-import type { DiceMetadata } from './customDice'
+import type { DiceMetadata } from './gltfDice'
 import type { DiceShape } from './diceShape'
 import type {
   DieAppearance,

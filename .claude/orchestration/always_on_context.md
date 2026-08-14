@@ -36,7 +36,7 @@ src/
 ├── components/   # UI (dice, panels, layout, icons)
 ├── hooks/        # Custom React hooks
 ├── store/        # Zustand stores (3 stores)
-├── lib/          # Utilities (geometries, haptics, customDiceDB)
+├── lib/          # Utilities (geometries, haptics, collectible catalog)
 ├── config/       # Physics constants, starter dice
 └── themes/       # Theme system (tokens, registry)
 ```
@@ -50,7 +50,7 @@ src/
 
 ## Key Features
 - Multiple dice types (d4, d6, d8, d10, d12, d20)
-- Custom dice upload (GLB models via IndexedDB)
+- Managed catalog dice (immutable bundled GLB models)
 - Haptic feedback on collisions (Web Vibration API)
 - Saved rolls with bonuses (flat + per-die)
 - Theme system (5 themes: Neon Noir, Synthwave, etc.)
