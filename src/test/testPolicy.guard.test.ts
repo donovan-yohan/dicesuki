@@ -73,4 +73,30 @@ describe('test policy', () => {
       )
     }
   })
+
+  it('keeps the pull request evidence contract discoverable', () => {
+    const template = readFileSync(join(root, '.github/pull_request_template.md'), 'utf8')
+
+    for (const marker of [
+      '## Outcome and impact',
+      '## Intent and scope',
+      'Context and architecture seams/invariants:',
+      '## Verification evidence',
+      'Exact tested head SHA:',
+      '| Exact testing/harness command | Result |',
+      'Runtime/device evidence (when applicable):',
+      'Screenshots or recording (when UI changes):',
+      '## Risk and delivery',
+      'Migration/deploy notes (N/A allowed):',
+      'new append-only migration',
+      'rollout target/order, and live proof',
+      'never rewrite a merged migration',
+      '## Review closure',
+      'Exact reviewed head SHA:',
+      'Reviewer and evidence (review URL, comment, or artifact):',
+      'Remaining caveats or follow-ups:',
+    ]) {
+      expect(template, `PR template must include ${marker}`).toContain(marker)
+    }
+  })
 })
