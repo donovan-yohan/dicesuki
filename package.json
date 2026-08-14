@@ -4,12 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n vite,dice -c blue,yellow \"vite\" \"node scripts/watch-dice-manifest.js\"",
+    "dev": "vite",
     "dev:server": "cd server && PORT=8080 ~/.cargo/bin/cargo run",
     "dev:vite": "vite",
     "build:wasm-room": "bash scripts/build-wasm-room.sh",
     "generate:brand-icons": "node scripts/generate-brand-icons.mjs",
-    "build": "node scripts/generate-collectible-catalog.js --check && node scripts/generate-economy-disclosures.js --check && node scripts/economy-simulator.js --check && node scripts/validate-production-economy.js && node scripts/runtime-dice-assets/validate.mjs && node scripts/generate-dice-manifest.js --check && tsc && vite build",
+    "build": "node scripts/generate-collectible-catalog.js --check && node scripts/generate-economy-disclosures.js --check && node scripts/economy-simulator.js --check && node scripts/validate-production-economy.js && node scripts/runtime-dice-assets/validate.mjs && tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0 && npm run lint:admin",
     "lint:admin": "eslint scripts/admin --ext mjs,ts --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
@@ -50,8 +50,6 @@
     "build:runtime-dice-assets": "node scripts/runtime-dice-assets/optimize.mjs",
     "check:runtime-dice-assets": "node scripts/runtime-dice-assets/validate.mjs",
     "test:runtime-dice-assets": "node --test scripts/runtime-dice-assets/runtime-dice-assets.node-test.mjs",
-    "generate-dice-manifest": "node scripts/generate-dice-manifest.js --write",
-    "check:dice-manifest": "node scripts/generate-dice-manifest.js --check",
     "test:e2e:basic-dice": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18186} playwright test e2e/basic-dice.spec.ts",
     "test:e2e:roll-picker": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18187} playwright test e2e/roll-picker.spec.ts",
     "test:e2e:d100": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18188} playwright test e2e/d100-percentile.spec.ts",
@@ -88,7 +86,6 @@
     "@vitest/coverage-v8": "4.0.8",
     "@vitest/ui": "^4.0.8",
     "autoprefixer": "^10.4.17",
-    "concurrently": "^9.2.1",
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
@@ -102,7 +99,6 @@
     "vitest": "^4.0.8"
   },
   "overrides": {
-    "shell-quote": "^1.8.4",
     "ws": "^8.21.1",
     "js-yaml": "^4.3.0",
     "flatted": "^3.4.2"

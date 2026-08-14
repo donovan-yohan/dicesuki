@@ -55,16 +55,17 @@ to redirect the workshop root (handy for smoke runs).
       <themeId>-<shape>-imagegen-atlas.png       # generated (step 3)
       <themeId>-<shape>-normal.png               # generated (step 4)
     proofs/<diceId>-all-faces.png     # generated (step 6); review only, not released
-    source-root/                      # generated (steps 5-6); shaped like a repo
+    source-root/                      # generated (steps 5-6); release-archive staging only
       public/dice/<setId>/{set.json,<diceId>/{model.glb,metadata.json}}
       public/artist-resources/imagegen-uv/screenshots/theme-workshop/*.png
 ```
 
 `source-root/` is deliberately laid out like a repository checkout so it can be
-handed straight to `scripts/runtime-dice-assets/optimize.mjs --source`. It is
-the *promotion payload* only — the release archive in step 7 wraps it together
-with the authoring inputs (raw atlases, prompts, template kit), because
-`source-root/` alone cannot re-bake the set.
+handed straight to `scripts/runtime-dice-assets/optimize.mjs --source` after
+extracting the release archive. It is archive staging only: it must never be
+copied into this checkout's deployed `public/` tree. The release archive in step
+7 wraps it together with the authoring inputs (raw atlases, prompts, template
+kit), because `source-root/` alone cannot re-bake the set.
 
 Set definitions (names, prompts, materials, physics) live in one place:
 [`scripts/imagegen-uv/theme-workshop-data.mjs`](../../scripts/imagegen-uv/theme-workshop-data.mjs).
@@ -247,6 +248,8 @@ iterating on framing only.
 
 Runtime promotion consumes a **checksum-locked release archive**, not a local
 directory, so that `public/dice/**` is reproducible from an immutable source.
+The archive's `public/artist-resources/**` paths are archive-internal source-lock
+paths, not paths that may exist in this repository's deployed public directory.
 
 The archive must carry **two** things: the promotion payload from `source-root/`,
 **and** the authoring inputs — above all the six `*-imagegen-atlas-raw.png`
@@ -339,8 +342,7 @@ Finally register the dice as collectibles:
 
 ```bash
 npm run prepare:collectible-edition -- <migration-number> <slug>
-npm run generate-dice-manifest        # public/dice/manifest.json follows the new set
-npm run build   # runs catalog, economy, runtime-asset, and manifest checks
+npm run build   # runs catalog, economy, and runtime-asset checks
 ```
 
 ### Promotion and the catalog edition are one unit

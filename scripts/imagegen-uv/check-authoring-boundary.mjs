@@ -31,10 +31,6 @@ const AUTHORING_PAYLOAD_EXTENSIONS = new Set([
  */
 const REVIEWED_BINARY_FILE_LIMITS = new Map([
   ['bun.lockb', 512 * 1024],
-  ['public/artist-resources/uv-spike/assets/attempt-01-d6-cranberry.png', 4 * 1024 * 1024],
-  ['public/artist-resources/uv-spike/assets/attempt-02-d20-teal.png', 4 * 1024 * 1024],
-  ['public/artist-resources/uv-spike/assets/attempt-03-combined-amethyst.png', 4 * 1024 * 1024],
-  ['public/artist-resources/uv-spike/evidence/wrapped-evidence-browser.png', 1024 * 1024],
   ['public/dice/devil-set/devil-d6/model.glb', 20 * 1024 * 1024],
   ['public/icons/apple-touch-icon.png', 128 * 1024],
   ['public/icons/pwa-192x192.png', 128 * 1024],
@@ -80,6 +76,10 @@ export function checkAuthoringBoundary(repoRoot = process.cwd()) {
   for (const file of files) {
     const normalized = file.split(path.sep).join('/')
     const absolutePath = path.join(repoRoot, file)
+    if (normalized.startsWith('public/artist-resources/')) {
+      errors.push(`${normalized} belongs in a checksum-locked external authoring archive, not public/`)
+      continue
+    }
     const size = statSync(absolutePath).size
     const extension = path.extname(normalized).toLowerCase()
     const reviewedBinary = reviewedBinaryLimits.get(normalized)
