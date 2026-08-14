@@ -11,16 +11,15 @@ import {
   validateRuntimeAssetManifest,
 } from './runtime-asset-contract.mjs'
 import { RUNTIME_ASSET_PROFILES } from './runtime-asset-profiles.mjs'
-import {
-  buildDiceManifest,
-  checkDiceManifest,
-  renderDiceManifest,
-  writeDiceManifest,
-} from '../generate-dice-manifest.js'
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..')
 const MANIFEST_PATHS = runtimeAssetManifestPaths(REPO_ROOT)
 const COZY_SET_ROOT = path.join(REPO_ROOT, 'public', 'dice', 'cozy-forest-imagegen-set')
+
+test('the deployable public input excludes retired authoring and dice-index snapshots', () => {
+  assert.equal(fs.existsSync(path.join(REPO_ROOT, 'public', 'artist-resources')), false)
+  assert.equal(fs.existsSync(path.join(REPO_ROOT, 'public', 'dice', 'manifest.json')), false)
+})
 
 test('every runtime set is complete, hashed, WebP-backed, and within budgets', async () => {
   assert.deepEqual(
@@ -120,7 +119,7 @@ test('runtime set metadata applies only explicit profile appearance overrides', 
   }
 })
 
-test('runtime profiles and manifests anchor complete source locks', () => {
+test('runtime profiles and manifests anchor complete external source locks', () => {
   for (const [profileId, profile] of Object.entries(RUNTIME_ASSET_PROFILES)) {
     const sourceLockFiles = [profile.sourceLockFile, ...profile.sourceLockSupplementFiles]
     const sourceLocks = sourceLockFiles.map(sourceLockFile => JSON.parse(
@@ -165,6 +164,8 @@ test('runtime profiles and manifests anchor complete source locks', () => {
         true,
         profileId,
       )
+      // Source-lock paths name entries in the immutable release archive, never
+      // deployable files in this checkout's public/ tree.
       assert.equal(
         lockedPaths.has(
           `public/artist-resources/imagegen-uv/screenshots/theme-workshop/` +
@@ -175,36 +176,6 @@ test('runtime profiles and manifests anchor complete source locks', () => {
       )
     }
     for (const file of allLockedFiles) assert.match(file.sha256, /^[0-9a-f]{64}$/)
-  }
-})
-
-test('dice manifest is deterministic and has no wall-clock field', () => {
-  const first = renderDiceManifest(buildDiceManifest(path.join(REPO_ROOT, 'public', 'dice')))
-  const second = renderDiceManifest(buildDiceManifest(path.join(REPO_ROOT, 'public', 'dice')))
-  assert.equal(first, second)
-  assert.equal(Object.hasOwn(JSON.parse(first), 'generatedAt'), false)
-})
-
-test('dice manifest check detects stale snapshots', () => {
-  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dicesuki-dice-manifest-'))
-  try {
-    const diceDir = path.join(temporaryRoot, 'dice')
-    const dieDir = path.join(diceDir, 'z-set', 'z-d6')
-    fs.mkdirSync(dieDir, { recursive: true })
-    fs.writeFileSync(path.join(diceDir, 'z-set', 'set.json'), '{}')
-    fs.writeFileSync(path.join(dieDir, 'model.glb'), 'model')
-    fs.writeFileSync(path.join(dieDir, 'metadata.json'), '{}')
-    const manifestPath = path.join(diceDir, 'manifest.json')
-
-    writeDiceManifest({ diceDir, manifestPath })
-    assert.doesNotThrow(() => checkDiceManifest({ diceDir, manifestPath }))
-    fs.writeFileSync(manifestPath, '{}\n')
-    assert.throws(
-      () => checkDiceManifest({ diceDir, manifestPath }),
-      /manifest\.json is stale/,
-    )
-  } finally {
-    fs.rmSync(temporaryRoot, { recursive: true, force: true })
   }
 })
 

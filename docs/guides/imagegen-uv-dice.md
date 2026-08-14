@@ -129,9 +129,10 @@ one material slot per canonical material index, writes `dice_face_value` and
 `dice_material_index` face attributes, and assigns per-loop UVs. Manifests use
 top-left atlas coordinates, so the importer flips V for Blender.
 
-The older `public/artist-resources/templates/generate_dice_templates.py` is a
-visual starter, not the canonical UV/face contract. In particular, its D10 is
-an approximation and must not be used for production mapping proof.
+The retired public artist template was only a visual starter, not the canonical
+UV/face contract. Its D10 was an approximation and must not be used for
+production mapping proof. Use the generated kit and archive authoring inputs
+outside this checkout instead.
 
 ## Issue #146 promotion status
 

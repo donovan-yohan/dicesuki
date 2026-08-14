@@ -9,9 +9,9 @@ through an append-only catalog edition, and delivered from immutable versioned
 GLB paths. Do not add an unreviewed model directly to this directory or replace
 bytes at a published path.
 
-`manifest.json` is generated from the approved runtime sets. Verify changes
-with `npm run check:runtime-dice-assets`, `npm run check:collectible-catalog`,
-and the catalog-edition workflow before release.
+Verify changes with `npm run check:runtime-dice-assets`,
+`npm run check:collectible-catalog`, and the catalog-edition workflow before
+release.
 
 Legacy device-local dice use IndexedDB compatibility code elsewhere in the app;
 they are not production assets and must not be copied into this directory.

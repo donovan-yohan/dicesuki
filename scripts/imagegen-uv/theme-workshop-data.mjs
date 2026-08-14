@@ -290,8 +290,9 @@ export function getEnvironmentTexturePaths(themeId, root = THEME_WORKSHOP_ROOT) 
  *
  * The layout deliberately mirrors a repository checkout so the directory can be
  * handed straight to `node scripts/runtime-dice-assets/optimize.mjs --source`
- * (which reads `<root>/public/dice/<setId>/…` and
- * `<root>/public/artist-resources/imagegen-uv/screenshots/theme-workshop/…`).
+ * (which reads `<root>/public/dice/<setId>/…` and the proof captures under
+ * `<root>/public/artist-resources/...`). This is an external archive layout,
+ * never this checkout's deployed `public/` tree.
  */
 export function getThemeSourceRoot(themeId, root = THEME_WORKSHOP_ROOT) {
   const theme = getThemeWorkshopEntry(themeId)

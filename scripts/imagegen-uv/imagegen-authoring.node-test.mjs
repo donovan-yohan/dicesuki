@@ -182,6 +182,25 @@ test('tracked authoring boundary excludes generated and themed payloads', () => 
   assert.equal(result.valid, true, result.errors.join('; '))
 })
 
+test('authoring boundary rejects retired public artist resources even when they are text', async () => {
+  const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-retired-artist-resources-'))
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repository })
+    const retiredPath = path.join(repository, 'public/artist-resources/README.md')
+    await mkdir(path.dirname(retiredPath), { recursive: true })
+    await writeFile(retiredPath, 'authoring belongs in the release archive\n')
+
+    const result = checkAuthoringBoundary(repository)
+    assert.equal(result.valid, false)
+    assert.match(
+      result.errors.join('; '),
+      /public\/artist-resources\/README\.md belongs in a checksum-locked external authoring archive/,
+    )
+  } finally {
+    await rm(repository, { recursive: true, force: true })
+  }
+})
+
 test('authoring boundary rejects binary and large payloads after arbitrary renames', async () => {
   const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-imagegen-boundary-'))
   try {

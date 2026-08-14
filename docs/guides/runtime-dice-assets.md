@@ -3,9 +3,10 @@
 Issue #146 promotes complete D4/D6/D8/D10/D12/D20 sets from preserved ImageGen
 authoring output into bounded, deployable assets. Cozy Forest, Cyberpunk, and
 Dark Dungeon use the same profile-driven pipeline.
-Raw authoring files remain outside the application bundle. Reproducibility locks
-live in `scripts/runtime-dice-assets/sources/`; each profile's primary lock records
-the source commit and release archive URL and SHA-256. Primary locks and optional
+Raw authoring files exist only in checksum-locked external release archives, never
+under this checkout's `public/` tree. Reproducibility locks live in
+`scripts/runtime-dice-assets/sources/`; each profile's primary lock records the
+source commit and release archive URL and SHA-256. Primary locks and optional
 append-only supplements together cover every set, metadata, model, and proof input
 hash consumed by the profile. Published locks are immutable; add a new supplement
 when historical coverage needs to grow.
@@ -92,7 +93,6 @@ hosted Supabase migration.
 ```bash
 npm run test:runtime-dice-assets
 npm run check:runtime-dice-assets
-npm run check:dice-manifest
 npm run check:collectible-catalog
 npm run test:imagegen-uv
 npm test -- --run

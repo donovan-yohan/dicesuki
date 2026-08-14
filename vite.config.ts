@@ -81,8 +81,6 @@ export default defineConfig({
         // cost of a one-time install download. Keep `public/textures/env/` to
         // maps the app actually renders — everything there ships to every user.
         globPatterns: ['**/*.{js,css,html,wasm,svg,woff,woff2,hdr}'],
-        // Artist/UV tooling assets aren't part of the runtime app shell.
-        globIgnores: ['**/artist-resources/**'],
         // The wasm binary exceeds Workbox's 2 MiB default precache ceiling.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // SPA navigation fallback — serve the cached shell for app routes.
