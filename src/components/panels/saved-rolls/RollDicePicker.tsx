@@ -117,7 +117,7 @@ export function RollDicePicker({
   )
   const hiddenCount = candidates.length - visibleDice.length
 
-  // Thumbnailed custom assets render as images, so only the procedural dice
+  // Thumbnailed managed assets render as images, so only the procedural dice
   // need a 3D slot — mirroring `InventoryPanel`. Scoped to the VISIBLE batch:
   // the shared canvas builds a geometry+material entry per die it is handed,
   // so feeding it the whole collection would pay the cost the batching exists

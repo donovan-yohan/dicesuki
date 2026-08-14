@@ -1,7 +1,7 @@
 import { Environment } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import { Suspense, useEffect, useMemo, useState } from 'react'
-import { useCustomDiceLoader } from '../../hooks/useCustomDiceLoader'
+import { useGltfDiceLoader } from '../../hooks/useGltfDiceLoader'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useNestedDialog } from '../../hooks/useNestedDialog'
 import { getFaceRendererForShape } from '../../lib/faceRenderers'
@@ -291,7 +291,7 @@ function HeroDieStage({
             fallback={<StandardHeroDie die={die} theme={theme} heroLod={heroLod} />}
           >
             <Suspense fallback={null}>
-              <CustomHeroDie die={die} />
+              <GltfHeroDie die={die} />
             </Suspense>
           </SceneAssetErrorBoundary>
         ) : (
@@ -355,9 +355,9 @@ function StandardHeroDie({
 }
 
 /**
- * Static custom-model preview: the loaded GLB scene as a positioned mesh.
+ * Static managed-GLB preview: the loaded scene as a positioned mesh.
  */
-function CustomHeroDie({ die }: { die: InventoryDie }) {
+function GltfHeroDie({ die }: { die: InventoryDie }) {
   const asset = useMemo(
     () => ({
       id: die.customAsset?.assetId ?? die.id,
@@ -367,7 +367,7 @@ function CustomHeroDie({ die }: { die: InventoryDie }) {
     [die],
   )
 
-  const { scene, metadata } = useCustomDiceLoader(asset)
+  const { scene, metadata } = useGltfDiceLoader(asset)
   const scale = metadata?.scale ?? 1.0
 
   if (!scene) return null

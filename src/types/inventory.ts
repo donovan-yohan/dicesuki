@@ -6,7 +6,7 @@
  */
 
 import { DiceShape } from '../lib/geometries'
-import type { DiceMetadata } from './customDice'
+import type { DiceMetadata } from './gltfDice'
 import type { CatalogItemRef } from './catalog'
 
 // ============================================================================

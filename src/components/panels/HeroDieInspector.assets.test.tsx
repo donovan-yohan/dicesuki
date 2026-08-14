@@ -27,8 +27,8 @@ vi.mock('@react-three/drei', () => ({
   },
 }))
 
-vi.mock('../../hooks/useCustomDiceLoader', () => ({
-  useCustomDiceLoader: () => {
+vi.mock('../../hooks/useGltfDiceLoader', () => ({
+  useGltfDiceLoader: () => {
     throw new Error('Could not load model.glb: Failed to fetch')
   },
 }))
@@ -70,7 +70,7 @@ describe('HeroDieInspector preview stage assets', () => {
     }
   })
 
-  it('falls back to the procedural die when the custom GLB rejects', () => {
+  it('falls back to the procedural die when the managed GLB rejects', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
       const die = useInventoryStore.getState().addDie(

@@ -7,7 +7,7 @@ import { defaultTheme } from '../../themes/tokens'
 import type { NewInventoryDie } from '../../types/inventory'
 import { HeroDieInspector } from './HeroDieInspector'
 
-// Canvas is mocked so the static preview meshes (StandardHeroDie / CustomHeroDie)
+// Canvas is mocked so the static preview meshes (StandardHeroDie / GltfHeroDie)
 // never mount in jsdom; this keeps the test focused on the inspector's form logic.
 vi.mock('@react-three/fiber', () => ({
   Canvas: () => <div data-testid="mock-canvas" />,

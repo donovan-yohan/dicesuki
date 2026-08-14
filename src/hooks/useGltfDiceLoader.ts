@@ -1,14 +1,14 @@
 /**
- * Custom Dice Loader Hook
+ * Managed GLB Dice Loader Hook
  *
- * This hook handles loading custom dice from GLB files with metadata.
+ * This hook loads managed catalog dice from GLB files with metadata.
  * It integrates with Three.js GLTFLoader and React Three Fiber's useGLTF hook.
  */
 
 import { useMemo } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
-import { CustomDiceAsset, FaceNormal } from '../types/customDice'
+import { GltfDiceAsset, FaceNormal } from '../types/gltfDice'
 import { DiceFace } from '../lib/geometries'
 
 /**
@@ -24,22 +24,22 @@ function convertFaceNormals(metadataFaceNormals: FaceNormal[]): DiceFace[] {
 }
 
 /**
- * Hook to load custom dice from GLB files
+ * Hook to load managed catalog dice from GLB files
  *
- * @param asset - Custom dice asset with model URL and metadata
+ * @param asset - Managed GLB asset with model URL and metadata
  * @returns Loaded GLTF scene, materials, and converted face normals
  *
  * @example
- * const asset: CustomDiceAsset = {
- *   id: 'custom-d6',
+ * const asset: GltfDiceAsset = {
+ *   id: 'catalog-set/d6',
  *   metadata: { ... },
- *   modelUrl: '/models/custom-d6.glb'
+ *   modelUrl: '/dice/catalog-set/d6/model.glb'
  * }
  *
- * const { scene, faceNormals, isLoading } = useCustomDiceLoader(asset)
+ * const { scene, faceNormals, isLoading } = useGltfDiceLoader(asset)
  */
-export function useCustomDiceLoader(
-  asset: CustomDiceAsset | null,
+export function useGltfDiceLoader(
+  asset: GltfDiceAsset | null,
   {
     useDraco = true,
     castShadow = true,
@@ -70,7 +70,7 @@ export function useCustomDiceLoader(
   const scene = gltf.scene
 
   // Clone the scene to allow multiple instances
-  // Note: Scale is applied in CustomDice component, not here
+  // Scale is applied by the rendering component, not here.
   const clonedScene = useMemo(() => {
     if (!scene) return null
     const cloned = scene.clone(true)

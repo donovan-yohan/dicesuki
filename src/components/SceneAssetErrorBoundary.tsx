@@ -23,7 +23,7 @@ interface SceneAssetErrorBoundaryState {
  * - `MultiplayerDie` — bundled dice GLBs fall back to the procedural mesh.
  * - `Scene`'s `ThemedEnvironmentMap` — the HDR map falls back to the scene's
  *   own lights.
- * - `HeroDieInspector` — the preview's custom GLB falls back to the procedural
+ * - `HeroDieInspector` — the managed GLB preview falls back to the procedural
  *   die, and its HDR map to the stage's own lights.
  *
  * Adding a new in-Canvas loader without this pair reopens issue #210.

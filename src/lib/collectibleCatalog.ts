@@ -10,7 +10,7 @@ import type {
   GltfCatalogAssetVersion,
 } from '../types/catalog'
 import type { AcquisitionSource, InventoryDie, NewInventoryDie } from '../types/inventory'
-import type { CustomDiceAsset } from '../types/customDice'
+import type { GltfDiceAsset } from '../types/gltfDice'
 import type { DiceShape } from '../types/diceShape'
 
 export const COLLECTIBLE_CATALOG = generatedCatalog as unknown as CollectibleCatalog
@@ -60,11 +60,11 @@ export function getCatalogAssetVersion(assetVersionId: string): CatalogAssetVers
 }
 
 /** Resolve an immutable bundled GLB by its catalog key for lazy table rendering. */
-export function getBundledCustomDiceAsset(
+export function getBundledGltfDiceAsset(
   catalogKey: string,
   assetVersionId?: string,
   expectedDiceType?: DiceShape,
-): CustomDiceAsset | null {
+): GltfDiceAsset | null {
   const selectedAsset = assetVersionId
     ? getCatalogAssetVersion(assetVersionId)
     : undefined

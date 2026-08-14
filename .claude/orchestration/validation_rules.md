@@ -151,7 +151,7 @@ import { DiceType } from '../types/dice'
 **Example Violation**:
 ```typescript
 // State Agent creates new hook
-function useCustomDiceLoader(modelUrl: string) {
+function useGltfDiceLoader(modelUrl: string) {
   // ... implementation ...
 }
 

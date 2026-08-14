@@ -19,7 +19,7 @@ export interface FaceNormal {
 }
 
 /**
- * Physics properties for custom dice
+ * Physics properties for managed GLB dice
  * Controls how the dice behaves in the physics simulation
  */
 export interface PhysicsProperties {
@@ -64,7 +64,7 @@ export interface ColliderConfig {
 export type AnimationLoopMode = 'once' | 'repeat' | 'pingpong'
 
 /**
- * Animation configuration for custom dice
+ * Animation configuration for managed GLB dice
  * Defines how embedded GLTF animations should be played
  */
 export interface AnimationConfig {
@@ -104,8 +104,8 @@ export type DiceRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' |
 /**
  * Complete dice metadata specification
  *
- * This is the primary configuration format for custom dice.
- * Can be provided as a sidecar JSON file or auto-generated.
+ * This is the primary configuration format for managed GLB dice.
+ * It is produced by the operator-controlled asset pipeline.
  */
 export interface DiceMetadata {
   /** Schema version for future compatibility */
@@ -194,10 +194,10 @@ export interface DiceSetMetadata {
 }
 
 /**
- * Custom dice asset
- * Combines metadata with the actual model file reference
+ * Managed GLB dice asset.
+ * Combines catalog metadata with its immutable model reference.
  */
-export interface CustomDiceAsset {
+export interface GltfDiceAsset {
   /** Unique identifier for this asset */
   id: string
 

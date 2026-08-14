@@ -6,7 +6,7 @@
 - Zustand store patterns and best practices
 - State normalization and relationships
 - localStorage persistence
-- IndexedDB for binary data (custom dice GLB files)
+- Immutable catalog references and inventory persistence
 - State flow design and data architecture
 
 ## Context Budget
@@ -147,7 +147,7 @@ interface InventoryState {
 **Key Patterns**:
 - Calculates availability: `owned - in use`
 - Prevents deletion of locked dice (starter dice)
-- Manages custom dice with IndexedDB persistence
+- Preserves immutable managed-GLB catalog references in inventory
 
 ### 3. useUIStore
 **Purpose**: UI preferences
@@ -211,76 +211,16 @@ interface UIState {
    - Show breakdown: "19 + 4" if flatBonus !== 0
 ```
 
-## IndexedDB for Custom Dice
+## Managed Catalog GLB Contract
 
-### Database Structure
-```typescript
-DB_NAME = 'DaisuCustomDiceDB'
-STORE_NAME = 'customDiceModels'
-
-// Key-value pairs
-key: diceId (string)
-value: ArrayBuffer (GLB file data)
-```
-
-### Operations
-```typescript
-// Save GLB file
-async function saveCustomDiceModel(diceId: string, file: Blob | ArrayBuffer) {
-  // CRITICAL: Convert Blob to ArrayBuffer BEFORE opening DB
-  const arrayBuffer = file instanceof Blob
-    ? await file.arrayBuffer()  // Do this FIRST
-    : file
-
-  // THEN open database and transaction
-  const db = await openDatabase()
-  const transaction = db.transaction(STORE_NAME, 'readwrite')
-  const store = transaction.objectStore(STORE_NAME)
-
-  return new Promise((resolve, reject) => {
-    const request = store.put(arrayBuffer, diceId)
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
-  })
-}
-
-// Load GLB file
-async function loadCustomDiceModel(diceId: string): Promise<ArrayBuffer | null> {
-  const db = await openDatabase()
-  const transaction = db.transaction(STORE_NAME, 'readonly')
-  const store = transaction.objectStore(STORE_NAME)
-
-  return new Promise((resolve, reject) => {
-    const request = store.get(diceId)
-    request.onsuccess = () => resolve(request.result || null)
-    request.onerror = () => reject(request.error)
-  })
-}
-```
-
-### Blob URL Regeneration
-```typescript
-// On app initialization
-async function regenerateCustomDiceBlobUrls() {
-  const customDice = inventoryDice.filter(die => die.customAsset)
-
-  for (const die of customDice) {
-    const arrayBuffer = await loadCustomDiceModel(die.id)
-    if (arrayBuffer) {
-      const blob = new Blob([arrayBuffer], { type: 'model/gltf-binary' })
-      const blobUrl = URL.createObjectURL(blob)
-
-      // Update inventory with fresh blob URL
-      updateDie(die.id, {
-        customAsset: {
-          ...die.customAsset,
-          modelUrl: blobUrl
-        }
-      })
-    }
-  }
-}
-```
+- Inventory may persist the existing `customAsset` field for compatibility,
+  but new values must use `storage: 'bundled'` and a versioned catalog URL.
+- Keep immutable catalog identity in `catalogRef`; never accept user-provided
+  model bytes, blob URLs, or arbitrary remote URLs.
+- Resolve catalog assets through `src/lib/collectibleCatalog.ts`. Shared GLB
+  metadata lives in `src/types/gltfDice.ts`.
+- Legacy non-bundled records are destructive cleanup inputs, not a supported
+  restoration path.
 
 ## Common State Patterns
 
@@ -306,7 +246,7 @@ function getAvailableCount(diceType: DiceType): number {
 const addItem = (item: Item) => {
   set((state) => ({ items: [...state.items, item] }))
 
-  // Then sync to server/IndexedDB
+  // Then sync to the authoritative backend
   saveToBackend(item).catch(err => {
     // Rollback on error
     set((state) => ({
@@ -373,20 +313,10 @@ describe('useDiceManagerStore', () => {
 })
 ```
 
-### IndexedDB Tests
-```typescript
-describe('customDiceDB', () => {
-  it('should save and load GLB file', async () => {
-    const diceId = 'custom-001'
-    const mockGLB = new ArrayBuffer(1024)
+### Managed Catalog Tests
 
-    await saveCustomDiceModel(diceId, mockGLB)
-    const loaded = await loadCustomDiceModel(diceId)
-
-    expect(loaded).toEqual(mockGLB)
-  })
-})
-```
+Cover immutable catalog-reference resolution, bundled URL enforcement, and
+destructive removal of legacy non-bundled inventory records.
 
 ## Boundaries
 
@@ -397,7 +327,8 @@ describe('customDiceDB', () => {
 
 ### DOES Modify
 - Zustand stores (`src/store/*.ts`)
-- IndexedDB utilities (`src/lib/customDiceDB.ts`)
+- Catalog-backed inventory persistence (`src/store/useInventoryStore.ts`)
+- Catalog reference helpers (`src/lib/collectibleCatalog.ts`)
 - State interfaces (`src/types/`)
 - Persistence logic
 
@@ -409,7 +340,7 @@ describe('customDiceDB', () => {
 ## Success Criteria
 - Store shape interfaces clearly defined
 - Actions follow immutable update patterns
-- Persistence working (localStorage or IndexedDB)
+- Persistence keeps only supported bundled catalog asset references
 - State flow documented and logical
 - Tests verify state transitions
 - No circular dependencies between stores
