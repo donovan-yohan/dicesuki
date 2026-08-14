@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { formatSavedRoll } from './diceHelpers'
-import { rollDiceEntry } from './rollEngine'
 import {
   collapseRollSources,
   createAnonymousRollSource,
@@ -144,7 +143,7 @@ describe('rollSources', () => {
     ])
   })
 
-  it('keeps roll-source metadata on rolled dice', () => {
+  it('keeps roll-source metadata when expanding physical dice', () => {
     const entry: DiceEntry = withRollSources(
       {
         id: 'owned-entry',
@@ -155,13 +154,12 @@ describe('rollSources', () => {
       [createSpecificDieRollSource('die_lucky_d20')]
     )
 
-    const result = rollDiceEntry(entry)
+    const result = expandDiceEntrySources(entry)
 
-    expect(result.rolls).toHaveLength(1)
-    expect(result.rolls[0].source).toMatchObject({
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
       kind: 'specific',
       dieId: 'die_lucky_d20',
-      slotIndex: 0,
     })
   })
 })

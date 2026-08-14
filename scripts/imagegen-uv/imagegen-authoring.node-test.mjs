@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -196,6 +196,40 @@ test('authoring boundary rejects retired public artist resources even when they 
       result.errors.join('; '),
       /public\/artist-resources\/README\.md belongs in a checksum-locked external authoring archive/,
     )
+  } finally {
+    await rm(repository, { recursive: true, force: true })
+  }
+})
+
+test('authoring boundary ignores tracked files deleted from the working tree', async () => {
+  const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-imagegen-deleted-file-'))
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repository })
+    const deletedPath = path.join(repository, 'scripts', 'obsolete.mjs')
+    await mkdir(path.dirname(deletedPath), { recursive: true })
+    await writeFile(deletedPath, 'export const obsolete = true\n')
+    execFileSync('git', ['add', 'scripts/obsolete.mjs'], { cwd: repository })
+    await rm(deletedPath)
+
+    assert.doesNotThrow(() => checkAuthoringBoundary(repository))
+    assert.equal(checkAuthoringBoundary(repository).valid, true)
+  } finally {
+    await rm(repository, { recursive: true, force: true })
+  }
+})
+
+test('authoring boundary rejects a tracked broken symbolic link', async () => {
+  const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-imagegen-broken-link-'))
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repository })
+    const linkPath = path.join(repository, 'scripts', 'broken.mjs')
+    await mkdir(path.dirname(linkPath), { recursive: true })
+    await symlink('missing-target.mjs', linkPath)
+    execFileSync('git', ['add', 'scripts/broken.mjs'], { cwd: repository })
+
+    const result = checkAuthoringBoundary(repository)
+    assert.equal(result.valid, false)
+    assert.match(result.errors.join('; '), /scripts\/broken\.mjs is a broken symbolic link/)
   } finally {
     await rm(repository, { recursive: true, force: true })
   }

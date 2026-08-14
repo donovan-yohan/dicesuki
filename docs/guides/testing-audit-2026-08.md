@@ -102,10 +102,9 @@ mechanism, not just an assertion. Keep ratchets even when slack.
 
 ### 2. Behavioral regression — ~107 files, keep
 
-The bulk and the point of the suite. `src/lib/savedRollPlan.test.ts` (61),
-`src/components/panels/saved-rolls/DiceEntryCard.test.tsx` (47),
-`src/lib/rollEngine.test.ts` (17: keep/drop, reroll, explode, clamp, success
-counting) are representative: every title names a rule a player can observe.
+The bulk and the point of the suite. `src/lib/savedRollPlan.test.ts` (61) and
+`src/components/panels/saved-rolls/DiceEntryCard.test.tsx` (47) are
+representative: every title names a rule a player can observe.
 
 Tests named for the bug they close are the strongest form and should be imitated:
 `src/store/useMultiplayerStore.test.ts:378` (`'room discovery (#79)'`),
@@ -523,8 +522,5 @@ follow-up, not a gate this PR claims. *(Cleared afterwards by issue #224: the
 suite is now shuffle-clean and CI asserts it at a pinned seed. See the Resolved
 note in that section.)*
 
-Note: `npm run lint` routed through the RTK proxy reports 11 phantom `no-undef`
-errors in `scripts/generate-pwa-icons.js` — a `.js` file that `--ext ts,tsx`
-excludes. The same 11 appear on a pristine checkout. `./node_modules/.bin/eslint
-. --ext ts,tsx --report-unused-disable-directives --max-warnings 0` exits 0.
-Verify lint with the direct binary.
+The obsolete PWA icon generator that caused the historical lint discrepancy has
+been removed; `npm run lint` is the supported lint gate.

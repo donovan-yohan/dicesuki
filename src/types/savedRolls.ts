@@ -15,8 +15,6 @@ export type CompareMode = 'equals' | 'lessThan' | 'lessOrEqual' | 'greaterThan' 
  * Anonymous sources preserve legacy expressions such as "8d6"; specific
  * sources point at stable InventoryDie ids such as "my lucky d20".
  */
-export type RollSourceKind = 'anonymous' | 'specific'
-
 export interface AnonymousRollSource {
   kind: 'anonymous'
   quantity: number
@@ -30,13 +28,6 @@ export interface SpecificDieRollSource {
 }
 
 export type RollSource = AnonymousRollSource | SpecificDieRollSource
-
-export interface RollSourceMetadata {
-  kind: RollSourceKind
-  slotIndex: number
-  dieId?: string
-  skinId?: string
-}
 
 /**
  * Exploding dice configuration
@@ -54,8 +45,8 @@ export interface ExplodingConfig {
 export interface RerollConfig {
   condition: CompareMode
   value: number
-  maxRerolls?: number   // Default: 1 (reroll once per die)
-  recursive?: boolean   // Default: false (if true, keep rerolling until condition not met)
+  maxRerolls?: number   // Legacy persisted field; physical execution always rerolls once
+  recursive?: boolean   // Legacy persisted field; ignored by the physical executor
 }
 
 /**
@@ -149,40 +140,3 @@ export interface SavedRoll {
  * Quick preset configurations for common mechanics
  */
 export type QuickPreset = 'advantage' | 'disadvantage' | 'gwf' | 'luck' | 'elvenAccuracy'
-
-/**
- * Result of rolling a single die (before keep/drop)
- */
-export interface SingleDieRoll {
-  value: number
-  originalValue?: number  // If rerolled, what was the original?
-  wasRerolled?: boolean
-  explosions?: number[]   // Array of explosion values
-  wasKept: boolean        // Was this die kept in the final result?
-  source?: RollSourceMetadata
-}
-
-/**
- * Result of rolling all dice for one DiceEntry
- */
-export interface DiceEntryResult {
-  entryId: string
-  diceType: DiceShape
-  rolls: SingleDieRoll[]
-  subtotal: number        // Sum of kept dice (after bonuses)
-  successCount?: number   // If using success counting
-  perDieBonus: number
-}
-
-/**
- * Complete result of executing a SavedRoll
- */
-export interface SavedRollResult {
-  rollId: string
-  rollName: string
-  diceResults: DiceEntryResult[]
-  flatBonus: number
-  total: number           // Final total (sum or success count)
-  isSuccessCounting: boolean
-  timestamp: number
-}

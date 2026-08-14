@@ -68,52 +68,6 @@ export function isSuccessCountingRoll(roll: SavedRoll): boolean {
 }
 
 /**
- * Validate a dice entry for logical consistency
- */
-export function validateDiceEntry(entry: DiceEntry): void {
-  // Basic validation
-  if (entry.quantity < 1) {
-    throw new Error('Quantity must be at least 1')
-  }
-
-  // rollCount validation
-  if (entry.rollCount !== undefined) {
-    if (entry.rollCount < entry.quantity) {
-      throw new Error('Cannot keep more dice than you roll')
-    }
-    if (entry.rollCount > entry.quantity && !entry.keepMode) {
-      throw new Error('keepMode required when rollCount > quantity')
-    }
-  }
-
-  // Exploding validation
-  if (entry.exploding) {
-    const maxValue = getEntryMax(entry)
-    if (
-      typeof entry.exploding.on === 'number' &&
-      (entry.exploding.on < 1 || entry.exploding.on > maxValue)
-    ) {
-      throw new Error(`Exploding value must be between 1 and ${maxValue}`)
-    }
-  }
-
-  // Success counting validation
-  if (entry.countSuccesses) {
-    const maxValue = getEntryMax(entry)
-    if (entry.countSuccesses.targetNumber > maxValue + entry.perDieBonus) {
-      throw new Error('Target number cannot exceed die maximum + bonus')
-    }
-  }
-
-  // Min/max validation
-  if (entry.minimum !== undefined && entry.maximum !== undefined) {
-    if (entry.minimum > entry.maximum) {
-      throw new Error('Minimum cannot be greater than maximum')
-    }
-  }
-}
-
-/**
  * Apply a quick preset to a dice entry
  */
 export function applyQuickPreset(entry: DiceEntry, preset: QuickPreset): DiceEntry {
@@ -164,18 +118,6 @@ export function applyQuickPreset(entry: DiceEntry, preset: QuickPreset): DiceEnt
 
     default:
       return entry
-  }
-}
-
-/**
- * Create a default dice entry
- */
-export function createDefaultDiceEntry(type: DiceShape): DiceEntry {
-  return {
-    id: `dice-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-    type,
-    quantity: 1,
-    perDieBonus: 0,
   }
 }
 
@@ -322,20 +264,11 @@ export function formatSavedRoll(roll: SavedRoll): string {
 /**
  * Which dice a keep/drop entry keeps when the entry does not say.
  *
- * NOTE: this INVERTS the previous behaviour of `rollEngine.rollDiceEntry`,
- * which kept the lowest when `keepMode` was absent, while the plan kept the
- * highest and `formatDiceEntry` rendered `kl`. Real blast radius is zero —
- * `validateDiceEntry` has no call sites, no UI has ever produced a keep/drop
- * entry without a `keepMode`, and `rollEngine` has no production consumers —
- * so the three were made to agree rather than preserving a default that only
- * one of them implemented.
- *
- * `keepMode` is optional on `DiceEntry` and nothing validates it at runtime
- * (`validateDiceEntry` has no call sites), so a legacy or hand-edited roll can
- * reach scoring without one. Defaulting here — rather than at each read site —
- * keeps the formula, the badges and the total from disagreeing about what a
- * `2d20` keep-1 entry actually does. Highest matches the builder's own default
- * and the far more common case, advantage.
+ * `keepMode` is optional on `DiceEntry`, so a hand-edited roll can reach
+ * scoring without one. Defaulting here — rather than at each read site — keeps
+ * the formula, the badges and the total from disagreeing about what a `2d20`
+ * keep-1 entry actually does. Highest matches the builder's own default and
+ * the far more common case, advantage.
  */
 export const KEEP_MODE_DEFAULT: KeepMode = 'highest'
 
@@ -411,7 +344,7 @@ export function calculateDiceEntryRange(entry: DiceEntry): DiceRange {
  * Calculate expected value range for a complete saved roll
  *
  * The flat bonus is skipped when any entry counts successes, matching
- * `SavedRoll.flatBonus` and `rollEngine.executeSavedRoll`.
+ * `SavedRoll.flatBonus` and `aggregateSavedRollPlan`.
  */
 export function calculateSavedRollRange(roll: SavedRoll): DiceRange {
   const includeFlatBonus = !isSuccessCountingRoll(roll)

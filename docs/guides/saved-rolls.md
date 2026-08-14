@@ -57,7 +57,7 @@ The one thing that does cross the wire is the roll's **name**: the base wave sen
 2. **Reroll** — dice matching the condition are `remove_dice`d and respawned. A spawned die falls from `SPAWN_HEIGHT` and settles on its own, so **for follow-up waves the spawn IS the roll**. Once only: the replacement's face is final. Owned dice are respawned as themselves (removal is awaited first, or `addDie` refuses the duplicate).
 3. **Explosions** — each die showing the trigger face spawns one more die whose face **adds** to it. Repeats while dice keep exploding, bounded by `MAX_EXPLOSION_WAVES` (3) and by free room capacity.
 
-> **Known divergence.** `ExplodingConfig.limit` is honoured verbatim by the virtual `rollEngine.ts` (`limit ?? Infinity`), but the physical path uses `min(limit ?? 3, 3)` — every explosion costs a real room slot. An entry with `limit: 10` therefore chains up to 10 times virtually and at most 3 times on the table. `rollEngine.ts` has no production consumers, so this only matters if it ever gains one; the builder never offers a limit above the cap.
+`ExplodingConfig.limit` is capped at `min(limit ?? 3, 3)` in the physical path: every explosion costs a real room slot. The builder never offers a limit above that cap.
 
 The panel closes as soon as the base wave starts rolling, which splits error handling in two:
 - **Before** that point → the promise rejects and `SavedRollsPanel` renders its inline alert.
@@ -116,9 +116,9 @@ Both are pinned by `src/lib/savedRollExecution.test.ts`: the fake room's spawn r
 `getRollDiceCount` counts `rollCount` (not `quantity`) toward the 30-die cap, so keep/drop is pre-validated in the builder and re-checked at execution. **Exploding is deliberately not pre-counted** — its worst case is unbounded. Each explosion wave is budgeted against whatever is actually free at that moment; anything that does not fit is skipped and reported through `rollNotice`.
 
 ### Scoring (`savedRollPlan.ts`)
-A plan groups room dice into **chains** whose faces sum into one logical die result (an explosion joins its parent's chain; a reroll replaces the chain's member). Order of operations matches `rollEngine.ts`: clamp the chain total → add the per-die bonus → keep/drop on those values → sum, or count successes. A roll with any success-counting entry ignores the flat bonus. Dice that have not settled are ignored rather than counted as zero, so a partially settled table shows a running total.
+A plan groups room dice into **chains** whose faces sum into one logical die result (an explosion joins its parent's chain; a reroll replaces the chain's member). It clamps the chain total → adds the per-die bonus → applies keep/drop to those values → sums, or counts successes. A roll with any success-counting entry ignores the flat bonus. Dice that have not settled are ignored rather than counted as zero, so a partially settled table shows a running total.
 
-`keepMode` is optional on `DiceEntry` and nothing validates it at runtime, so it defaults to `KEEP_MODE_DEFAULT` (`'highest'`) in one place — `diceHelpers.ts` — and the notation, badges, `rollEngine` and the plan all read that same default.
+`keepMode` is optional on `DiceEntry`, so it defaults to `KEEP_MODE_DEFAULT` (`'highest'`) in one place — `diceHelpers.ts` — and the notation, badges and plan all read that same default.
 
 ### Notation
 `formatDiceEntry` appends in a fixed order: exploding binds to the die (`4d6!`, `4d6!5`), then ` kh2`/` kl2`, ` r≤2`, ` ≥5`, ` [2 specific]`. Min/max clamps are a badge, not notation. `calculateDiceEntryRange` returns `{ min, max, open? }`; `open` marks an exploding entry, rendered as `Range: 4 - 12+`.

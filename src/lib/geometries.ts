@@ -259,16 +259,6 @@ export function createDiceMaterial(
 }
 
 /**
- * Create a single solid color material for D6 dice
- * @deprecated Use createDiceMaterial instead
- */
-export function createD6Material(
-  color: string = 'orange'
-): THREE.MeshStandardMaterial {
-  return createDiceMaterial(color)
-}
-
-/**
  * Creates a D6 (cube) geometry with appropriate size
  * @param size - The size of the cube (default: 1)
  * @returns BoxGeometry for the D6

@@ -4,10 +4,9 @@
  * The bridge between a saved roll's advanced mechanics and the *physical* dice
  * the room actually spawns.
  *
- * `rollEngine.ts` rolls a saved roll virtually with `Math.random()`. Nothing in
- * production uses it: real rolls are server-authoritative, so every mechanic has
- * to be expressed as "which physical dice do we spawn" plus "how do we read the
- * faces the room reports back". This module owns both halves:
+ * Real rolls are server-authoritative, so every mechanic has to be expressed as
+ * "which physical dice do we spawn" plus "how do we read the faces the room
+ * reports back". This module owns both halves:
  *
  * - a **plan** records which room dice belong to which entry, grouped into
  *   chains whose faces sum into one logical die result;
@@ -388,11 +387,9 @@ function countSuccesses(config: SuccessCountingConfig, values: number[]): number
 /**
  * Score a plan against the faces the room reported.
  *
- * Mirrors `rollEngine.rollDiceEntry` so the virtual and physical engines agree:
- * clamp the die total, add the per-die bonus, keep/drop on the resulting
- * values, then either sum or count successes. As in `executeSavedRoll`, a roll
- * with any success-counting entry ignores the flat bonus (see
- * `SavedRoll.flatBonus`).
+ * Clamp the die total, add the per-die bonus, keep/drop on the resulting values,
+ * then either sum or count successes. A roll with any success-counting entry
+ * ignores the flat bonus (see `SavedRoll.flatBonus`).
  */
 export function aggregateSavedRollPlan(
   plan: SavedRollPlan,
@@ -437,9 +434,10 @@ export function aggregateSavedRollPlan(
 /**
  * Groups that must be physically rerolled.
  *
- * Reroll is once per group in this slice: `maxRerolls` and `recursive` are
- * honoured by the virtual engine but a physical reroll costs a spawn, so the
- * builder only offers "once" and this selector never revisits a spent group.
+ * Reroll is once per group. `maxRerolls` and `recursive` remain on persisted
+ * legacy entries but are not honoured by the physical executor: a reroll costs
+ * a spawn, the builder only offers "once", and this selector never revisits a
+ * spent group.
  */
 export function selectRerollTargets(plan: SavedRollPlan, faces: Map<string, number>): WaveTarget[] {
   const targets: WaveTarget[] = []
