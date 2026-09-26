@@ -167,6 +167,11 @@ interface MultiplayerState {
 
   // Parse error tracking
   parseErrorCount: number
+  /** Sent local rolls still awaiting ordered roll_started acknowledgements. */
+  pendingLocalRolls: number[]
+  localRollRequestSequence: number
+  /** Spawn echoes are ordered barriers for silent empty-table roll no-ops. */
+  pendingSpawnRollBarriers: Map<string, number>
   rollStartedSequence: number
   lastRollStartedDiceIds: string[]
 
@@ -279,6 +284,9 @@ const createInitialState = () => ({
   snapshotInterval: 1000 / 60, // ~16.67ms — must match server SNAPSHOT_DIVISOR=1 (60Hz)
   selectedPlayerId: null as string | null,
   parseErrorCount: 0,
+  pendingLocalRolls: [] as number[],
+  localRollRequestSequence: 0,
+  pendingSpawnRollBarriers: new Map<string, number>(),
   rollStartedSequence: 0,
   lastRollStartedDiceIds: [] as string[],
 })
@@ -713,6 +721,9 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   handleServerMessage: (msg: ServerMessage) => {
     switch (msg.type) {
       case 'room_state': {
+        // A new transport cannot acknowledge requests from its predecessor.
+        useDiceStore.getState().cancelSavedRollExecution()
+        set({ pendingLocalRolls: [], pendingSpawnRollBarriers: new Map() })
         const players = new Map<string, PlayerInfo>()
         for (const p of msg.players) {
           players.set(p.id, p)
@@ -835,7 +846,21 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           msg.dice,
           get().localPlayerId,
         )
-        set({ dice: newDice, pendingInventoryDieIds })
+        const barriers = new Map(get().pendingSpawnRollBarriers)
+        let barrier = -1
+        for (const die of msg.dice) {
+          if (die.ownerId !== get().localPlayerId) continue
+          barrier = Math.max(barrier, barriers.get(die.id) ?? -1)
+          barriers.delete(die.id)
+        }
+        // The room has processed every command before this spawn. Any earlier
+        // roll without a launch echo was an empty-table no-op. Preserve rolls
+        // sent AFTER the spawn, even across an intervening empty removal echo.
+        set((state) => ({
+          dice: newDice, pendingInventoryDieIds,
+          pendingSpawnRollBarriers: barriers,
+          pendingLocalRolls: state.pendingLocalRolls.filter((request) => request > barrier),
+        }))
         break
       }
 
@@ -889,9 +914,15 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
         }
         set((state) => ({
           dice: newDice,
+          pendingLocalRolls: msg.playerId === localPlayerId
+            ? state.pendingLocalRolls.slice(1) : state.pendingLocalRolls,
           rollStartedSequence: state.rollStartedSequence + 1,
           lastRollStartedDiceIds: [...msg.diceIds],
         }))
+
+        if (msg.playerId === localPlayerId && useDiceStore.getState().savedRollWavesPending) {
+          useDiceStore.getState().beginSavedRollWaves(msg.diceIds)
+        }
 
         // Also mark in the unified dice store — but only OUR roll opens or
         // extends the roll cycle (issue #221). Every player's `roll_started`
@@ -967,13 +998,18 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
           const newDice = new Map(dice)
           newDice.set(msg.diceId, { ...die, isRolling: true, faceValue: null })
           set({ dice: newDice })
+          // Motion invalidates the old face without opening a new roll cycle.
+          useDiceStore.getState().markDiceRolling([msg.diceId], { ownRoll: false })
         }
         triggerCollisionFeedback(msg.impactSpeed)
         break
       }
 
       case 'roll_complete': {
-        const { players, localPlayerId } = get()
+        const { players, localPlayerId, pendingLocalRolls } = get()
+        // Ordered transport: a completion before the last requested launch is
+        // stale, for ordinary rolls as well as saved rolls.
+        if (msg.playerId === localPlayerId && pendingLocalRolls.length > 0) break
         const player = players.get(msg.playerId)
         if (player) {
           const diceState = useDiceStore.getState()
@@ -1123,6 +1159,9 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     }
 
     const id = createDiceSpawnId(inventoryDieId ?? diceType)
+    set((state) => ({
+      pendingSpawnRollBarriers: new Map(state.pendingSpawnRollBarriers).set(id, state.localRollRequestSequence),
+    }))
     try {
       socket.send(JSON.stringify({
         type: 'spawn_dice',
@@ -1130,6 +1169,9 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       }))
       return id
     } catch (error) {
+      const barriers = new Map(get().pendingSpawnRollBarriers)
+      barriers.delete(id)
+      set({ pendingSpawnRollBarriers: barriers })
       if (inventoryDieId) {
         const nextPending = new Set(get().pendingInventoryDieIds)
         nextPending.delete(inventoryDieId)
@@ -1170,6 +1212,12 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
       set({ pendingInventoryDieIds: next })
     }
 
+    set((state) => ({
+      pendingSpawnRollBarriers: new Map([
+        ...state.pendingSpawnRollBarriers,
+        ...entries.map((entry): [string, number] => [entry.id, state.localRollRequestSequence]),
+      ]),
+    }))
     socket.send(JSON.stringify({ type: 'spawn_dice', dice: entries }))
   },
 
@@ -1185,7 +1233,22 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
     // undeserializable server-side — a silently broken Roll button — so
     // anything that is not a real string is dropped here.
     const name = typeof savedRollName === 'string' ? savedRollName.trim() : ''
+    // Count every call path (named base waves and anonymous HUD rolls) before
+    // starting the observer or sending: worker transports may answer inline.
+    const request = get().localRollRequestSequence + 1
+    set((state) => ({
+      localRollRequestSequence: request,
+      pendingLocalRolls: [...state.pendingLocalRolls, request],
+      roomActionError: null,
+    }))
+    // A HUD roll replaces the saved sequence, even before its next room ack.
+    if (!name && !useDiceStore.getState().restartSavedRollExecution?.()) {
+      useDiceStore.getState().cancelSavedRollExecution()
+    }
     get().sendMessage(name.length > 0 ? { type: 'roll', savedRollName: name } : { type: 'roll' })
+    if (get().roomActionError) {
+      set((state) => ({ pendingLocalRolls: state.pendingLocalRolls.filter((id) => id !== request) }))
+    }
   },
 
   clearRoomActionError: () => {
@@ -1300,6 +1363,7 @@ export const useMultiplayerStore = create<MultiplayerState>((set, get) => ({
   },
 
   reset: () => {
+    useDiceStore.getState().cancelSavedRollExecution()
     clearReconnectTimer()
     lastMotionFieldSentAt = Number.NEGATIVE_INFINITY
     lastMotionFieldWasZero = false

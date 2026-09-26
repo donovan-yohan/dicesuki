@@ -202,6 +202,86 @@ test.describe('percentile entries at 390x844', () => {
   })
 })
 
+for (const saved of [false, true]) {
+  test(`HUD spam Roll stays reentrant during ${saved ? 'saved-roll waves' : 'ordinary rolling'}`, async ({ page }) => {
+    test.setTimeout(120_000)
+    if (saved) {
+      await openBuilder(page)
+      await page.getByLabel('Roll name').fill('Reentrant saved roll')
+      await addEntryWithAdvancedOpen(page, 'D6')
+      await page.getByLabel('Reroll low D6 dice').check()
+      await page.getByRole('button', { name: /Save Roll/i }).click()
+      await expect(page.getByRole('button', { name: 'Roll Reentrant saved roll' })).toBeVisible()
+    } else {
+      await page.goto('/')
+      await expect(page.getByTestId('solo-room')).toHaveAttribute('data-table-revealed', 'true', { timeout: 60_000 })
+    }
+
+    // Inspect the real worker-backed stores, without injecting faces or state.
+    // Click in one browser task so every tap precedes a possible settle.
+    const start = await page.evaluate(async (saved) => {
+      const mpPath = '/src/store/useMultiplayerStore.ts'
+      const dicePath = '/src/store/useDiceStore.ts'
+      const { useMultiplayerStore: mp } = await import(mpPath)
+      const { useDiceStore: dice } = await import(dicePath)
+      const sequence = mp.getState().rollStartedSequence
+      const started = new Promise<void>((resolve) => {
+        const unsubscribe = dice.subscribe(() => {
+          if (mp.getState().rollStartedSequence <= sequence || dice.getState().rollingDice.size === 0) return
+          unsubscribe()
+          // Let React close the saved-roll sheet before sampling the live HUD.
+          requestAnimationFrame(() => resolve())
+        })
+      })
+      document.querySelector<HTMLButtonElement>(
+        `button[aria-label="${saved ? 'Roll Reentrant saved roll' : 'Roll dice'}"]`,
+      )!.click()
+      await started
+      // AnimatePresence may keep the outgoing sheet mounted for another frame.
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (document.querySelector('button[data-nav-item="ROLL"]')) {
+            observer.disconnect()
+            resolve()
+          }
+        }
+        const observer = new MutationObserver(check)
+        observer.observe(document.body, { childList: true, subtree: true })
+        check()
+      })
+      const button = document.querySelector<HTMLButtonElement>('button[data-nav-item="ROLL"]')!
+      const before = {
+        sequence: mp.getState().rollStartedSequence,
+        pending: dice.getState().savedRollWavesPending,
+        rolling: dice.getState().rollingDice.size,
+        disabled: button.disabled,
+      }
+      for (let i = 0; i < 5; i++) button.click()
+      return before
+    }, saved)
+    expect(start).toMatchObject({ pending: saved, disabled: false })
+    expect(start.rolling).toBeGreaterThan(0)
+    await expect.poll(() => page.evaluate(async () => {
+      const path = '/src/store/useMultiplayerStore.ts'
+      return (await import(path)).useMultiplayerStore.getState().rollStartedSequence
+    })).toBe(start.sequence + 5)
+
+    await expect.poll(() => page.evaluate(async () => {
+      const path = '/src/store/useDiceStore.ts'
+      const mpPath = '/src/store/useMultiplayerStore.ts'
+      const state = (await import(path)).useDiceStore.getState()
+      const requests = (await import(mpPath)).useMultiplayerStore.getState().pendingLocalRolls.length
+      return { pending: state.savedRollWavesPending, rolling: state.rollingDice.size, rows: state.rollHistory.length, requests }
+    }), { timeout: 60_000 }).toEqual({ pending: false, rolling: 0, rows: 1, requests: 0 })
+    if (saved) {
+      await expect.poll(() => page.evaluate(async () => {
+        const path = '/src/store/useDiceStore.ts'
+        return (await import(path)).useDiceStore.getState().activeSavedRoll?.name
+      })).toBe('Reentrant saved roll')
+    }
+  })
+}
+
 test.describe('physical execution at 390x844', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 

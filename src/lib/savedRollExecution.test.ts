@@ -49,7 +49,7 @@ function roomDie(id: string, type: DiceShape = 'd6', ownerId = OWNER): Multiplay
  * Faces are handed out from `faceQueue` in spawn order and are sticky per die,
  * so re-rolling the base wave reproduces the same faces the queue promised.
  */
-function createFakeRoom(faceQueue: number[]) {
+function createFakeRoom(faceQueue: number[], autoSettle = true) {
   const token = Symbol('fake-room')
   activeRoomToken = token
   const faceById = new Map<string, number>()
@@ -190,7 +190,7 @@ function createFakeRoom(faceQueue: number[]) {
       }),
     }))
     // A spawned die drops and comes to rest on its own — the spawn IS the roll.
-    setTimeout(() => settle(id), 0)
+    if (autoSettle) setTimeout(() => settle(id), 0)
     return id
   }
 
@@ -208,11 +208,6 @@ function createFakeRoom(faceQueue: number[]) {
         const survivors = pendingRollIds.filter((tracked) => tracked !== id)
         pendingRollIds = survivors.length > 0 ? survivors : null
       }
-      useMultiplayerStore.setState((state) => {
-        const dice = new Map(state.dice)
-        dice.delete(id)
-        return { dice }
-      })
       // The real removal reaches the stores as a `dice_removed` broadcast, not
       // as a direct store call — that handler is where the roll cycle and the
       // suppression claim are kept in step with the room.
@@ -248,14 +243,13 @@ function createFakeRoom(faceQueue: number[]) {
       const mine = Array.from(useMultiplayerStore.getState().dice.values())
         .filter((die) => die.ownerId === OWNER)
         .map((die) => die.id)
-      useMultiplayerStore.setState((state) => ({
-        rollStartedSequence: state.rollStartedSequence + 1,
-        lastRollStartedDiceIds: mine,
-      }))
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'roll_started', playerId: OWNER, diceIds: mine,
+      })
       // `roll_started` wipes the faces of every die it launches.
       useDiceStore.getState().markDiceRolling(mine)
       pendingRollIds = [...mine]
-      for (const id of mine) {
+      for (const id of autoSettle ? mine : []) {
         setTimeout(() => {
           settle(id)
           // The room announces the roll complete once every die it is STILL
@@ -293,6 +287,8 @@ function createFakeRoom(faceQueue: number[]) {
   return {
     backend,
     spawnLog,
+    settle,
+    announceIfRollFinished,
     removed,
     quiesce,
     failSpawnWith: (message: string) => { failNextSpawn = message },
@@ -351,6 +347,294 @@ describe('executePhysicalSavedRoll', () => {
     // The determinism cases spy on `Math.random`; leaving one installed would
     // silently fix the RNG for every test that runs after them in this file.
     vi.restoreAllMocks()
+  })
+
+  it('a manual roll supersedes pending saved-roll waves without stale spawns or scoring', async () => {
+    const room = createFakeRoom([6, 3])
+    const send = vi.spyOn(useMultiplayerStore.getState(), 'sendMessage')
+      .mockClear()
+      .mockImplementation(() => { room.backend.roll(); return true })
+    await executePhysicalSavedRoll(makeRoll({ exploding: { on: 6 } }), {
+      backend: room.backend,
+      ownerId: OWNER,
+      onBaseWaveStarted: () => {
+        useMultiplayerStore.getState().roll()
+        useMultiplayerStore.getState().roll()
+      },
+    })
+    await room.quiesce()
+    expect(send).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(useDiceStore.getState().savedRollWavesPending).toBe(false))
+    expect(room.spawnLog).toHaveLength(2)
+    expect(useDiceStore.getState().activeSavedRoll?.name).toBe('Advanced roll')
+    expect(activeTotal()).toBe(9)
+    expect(useDiceStore.getState().rollNotice).toBeNull()
+    expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+  })
+
+  it('waits for the final separately acknowledged HUD request before consuming saved mechanics', async () => {
+    const room = createFakeRoom([6, 3], false)
+    vi.spyOn(useMultiplayerStore.getState(), 'sendMessage').mockImplementation(() => {})
+    const execution = run(makeRoll({ exploding: { on: 6 } }), room.backend)
+    await waitFor(() => expect(room.backend.roll).toHaveBeenCalledOnce())
+    useMultiplayerStore.getState().roll()
+    useMultiplayerStore.getState().roll()
+    await execution
+    const acknowledge = () => useMultiplayerStore.getState().handleServerMessage({
+      type: 'roll_started', playerId: OWNER, diceIds: ['die-1'],
+    })
+    const complete = () => useMultiplayerStore.getState().handleServerMessage({
+      type: 'roll_complete', playerId: OWNER,
+      results: [{ diceId: 'die-1', diceType: 'd6', faceValue: 6 }], total: 6,
+    })
+    acknowledge()
+    room.settle('die-1')
+    complete()
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    expect(room.spawnLog).toHaveLength(1)
+    expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+    expect(useDiceStore.getState().savedRollWavesPending).toBe(true)
+    acknowledge()
+    room.settle('die-1')
+    complete()
+    await waitFor(() => expect(room.spawnLog).toHaveLength(2))
+    room.settle('die-2')
+    await waitFor(() => expect(useDiceStore.getState().savedRollWavesPending).toBe(false))
+    expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    expect(useDiceStore.getState().rollHistory[0].sum).toBe(9)
+  })
+
+  it('keeps the local completion claim when a remote acknowledgement follows the final local ack', async () => {
+    const room = createFakeRoom([2], false)
+    vi.spyOn(useMultiplayerStore.getState(), 'sendMessage').mockImplementation(() => {})
+    const execution = run(makeRoll({ exploding: { on: 6 } }), room.backend)
+    await waitFor(() => expect(room.backend.roll).toHaveBeenCalledOnce())
+    useMultiplayerStore.getState().roll()
+    await execution
+    useMultiplayerStore.getState().handleServerMessage({
+      type: 'roll_started', playerId: OWNER, diceIds: ['die-1'],
+    })
+    useMultiplayerStore.getState().handleServerMessage({
+      type: 'roll_started', playerId: 'remote-player', diceIds: ['remote-die'],
+    })
+    room.settle('die-1')
+    await waitFor(() => expect(useDiceStore.getState().savedRollWavesPending).toBe(false))
+    useMultiplayerStore.getState().handleServerMessage({
+      type: 'roll_complete', playerId: OWNER,
+      results: [{ diceId: 'die-1', diceType: 'd6', faceValue: 2 }], total: 2,
+    })
+    expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+  })
+
+  it('does not record an intermediate settle when the final HUD acknowledgement times out', async () => {
+    vi.useFakeTimers()
+    try {
+      const room = createFakeRoom([2], false)
+      vi.spyOn(useMultiplayerStore.getState(), 'sendMessage').mockImplementation(() => {})
+      const execution = run(makeRoll({ exploding: { on: 6 } }), room.backend)
+      await vi.advanceTimersByTimeAsync(0)
+      useMultiplayerStore.getState().roll()
+      useMultiplayerStore.getState().roll()
+      await execution
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'roll_started', playerId: OWNER, diceIds: ['die-1'],
+      })
+      room.settle('die-1')
+      await vi.advanceTimersByTimeAsync(5_001)
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+      expect(useDiceStore.getState().rollNotice).toContain('Timed out')
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+    } finally {
+      useMultiplayerStore.getState().reset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('waits for a knocked base die to settle again before completing its explosion', async () => {
+    const room = createFakeRoom([6, 3], false)
+    const execution = run(makeRoll({ exploding: { on: 6 } }), room.backend)
+    await waitFor(() => expect(room.backend.roll).toHaveBeenCalledOnce())
+    room.settle('die-1')
+    await waitFor(() => expect(room.spawnLog).toHaveLength(2))
+    useMultiplayerStore.getState().handleServerMessage({
+      type: 'dice_knocked', diceId: 'die-1', impactSpeed: 1, position: [0, 0, 0],
+    })
+    room.settle('die-2')
+    // Drain the executor's promise continuations, not an arbitrary wall-clock delay.
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+    expect(useDiceStore.getState().savedRollWavesPending).toBe(true)
+    room.settle('die-1')
+    await execution
+    room.announceIfRollFinished()
+    await room.quiesce()
+    expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    expect(useDiceStore.getState().rollHistory[0].sum).toBe(9)
+  })
+
+  it('does not turn continued motion into a partial completed saved roll after 20 seconds', async () => {
+    vi.useFakeTimers()
+    try {
+      const room = createFakeRoom([2, 3], false)
+      const execution = run(makeRoll({ quantity: 2, exploding: { on: 6 } }), room.backend)
+      await vi.advanceTimersByTimeAsync(0)
+      room.settle('die-1')
+      await vi.advanceTimersByTimeAsync(21_000)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(true)
+      expect(useDiceStore.getState().rollNotice).toBeNull()
+      room.settle('die-2')
+      await execution
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    } finally {
+      useDiceStore.getState().reset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('supersedes a pending reroll removal without spawning its stale replacement', async () => {
+    vi.useFakeTimers()
+    try {
+      const room = createFakeRoom([1, 3], false)
+      const remove = vi.mocked(room.backend.removeDie).getMockImplementation()!
+      const removals: string[] = []
+      vi.mocked(room.backend.removeDie).mockImplementation((id) => { removals.push(id) })
+      vi.spyOn(useMultiplayerStore.getState(), 'sendMessage').mockImplementation(() => {
+        for (const id of removals) remove(id)
+        room.backend.roll()
+        return true
+      })
+      const execution = run(makeRoll({ quantity: 2, reroll: { condition: 'equals', value: 1 } }), room.backend)
+      await vi.advanceTimersByTimeAsync(0)
+      room.settle('die-1')
+      room.settle('die-2')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(removals).toEqual(['die-1'])
+      useMultiplayerStore.getState().roll()
+      await execution
+      await vi.advanceTimersByTimeAsync(0)
+      room.settle('die-2')
+      await vi.advanceTimersByTimeAsync(5_001)
+      expect(room.spawnLog).toHaveLength(2)
+      expect(useDiceStore.getState().rollNotice).toBeNull()
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      expect(useDiceStore.getState().rollHistory[0].sum).toBe(3)
+    } finally {
+      useDiceStore.getState().reset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('claims the acknowledged table when a HUD roll overtakes an explosion spawn acknowledgement', async () => {
+    vi.useFakeTimers()
+    try {
+      const room = createFakeRoom([6, 3], false)
+      const spawn = vi.mocked(room.backend.addGenericDie).getMockImplementation()!
+      let pendingDie: MultiplayerDie | undefined
+      vi.mocked(room.backend.addGenericDie).mockImplementation((type, presentation) => {
+        const id = spawn(type, presentation)!
+        const dice = new Map(useMultiplayerStore.getState().dice)
+        pendingDie = dice.get(id)
+        dice.delete(id)
+        useMultiplayerStore.setState({ dice })
+        return id
+      })
+      vi.spyOn(useMultiplayerStore.getState(), 'sendMessage').mockImplementation(() => {
+        useMultiplayerStore.setState((state) => ({ dice: new Map(state.dice).set(pendingDie!.id, pendingDie!) }))
+        room.backend.roll()
+        return true
+      })
+      const execution = run(makeRoll({ exploding: { on: 6 } }), room.backend)
+      await vi.advanceTimersByTimeAsync(0)
+      room.settle('die-1')
+      await vi.advanceTimersByTimeAsync(0)
+      expect(room.spawnLog).toHaveLength(2)
+      useMultiplayerStore.getState().roll()
+      await execution
+      await vi.advanceTimersByTimeAsync(0)
+      room.settle('die-1')
+      room.settle('die-2')
+      room.announceIfRollFinished()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(useDiceStore.getState().rollNotice).toBeNull()
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      expect(useDiceStore.getState().rollHistory[0].sum).toBe(9)
+    } finally {
+      useDiceStore.getState().reset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('releases a saved-roll observer when the player clears its unsettled dice', async () => {
+    const room = createFakeRoom([6], false)
+    const execution = run(makeRoll({ exploding: { on: 6 } }), room.backend)
+    await waitFor(() => expect(room.backend.roll).toHaveBeenCalledOnce())
+    useMultiplayerStore.getState().handleServerMessage({ type: 'dice_removed', diceIds: ['die-1'] })
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+    await execution
+    expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+  })
+
+  it('rechecks a settle that was interrupted before its async continuation ran', async () => {
+    const room = createFakeRoom([2], false)
+    const execution = run(makeRoll({ exploding: { on: 6 } }), room.backend)
+    await waitFor(() => expect(room.backend.roll).toHaveBeenCalledOnce())
+    room.settle('die-1')
+    useMultiplayerStore.getState().handleServerMessage({
+      type: 'dice_knocked', diceId: 'die-1', impactSpeed: 1, position: [0, 0, 0],
+    })
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(useDiceStore.getState().savedRollWavesPending).toBe(true)
+    expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+    room.settle('die-1')
+    await execution
+    expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+  })
+
+  it('keeps the old completion claim until the new roll acknowledgement replaces it', async () => {
+    vi.useFakeTimers()
+    try {
+      const room = createFakeRoom([6, 3], false)
+      vi.spyOn(useMultiplayerStore.getState(), 'sendMessage').mockImplementation(() => true)
+      const execution = run(makeRoll({ exploding: { on: 6 } }), room.backend)
+      await vi.advanceTimersByTimeAsync(0)
+      room.settle('die-1')
+      await vi.advanceTimersByTimeAsync(0)
+      room.settle('die-2')
+      await execution
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      useMultiplayerStore.getState().roll()
+      // Ordered transport: the old base completion can land after the click,
+      // but before the room acknowledges the new roll of the expanded table.
+      useMultiplayerStore.getState().handleServerMessage({
+        type: 'roll_complete', playerId: OWNER,
+        results: [{ diceId: 'die-1', diceType: 'd6', faceValue: 6 }], total: 6,
+      })
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+      room.backend.roll()
+      await vi.advanceTimersByTimeAsync(0)
+      room.settle('die-1')
+      room.settle('die-2')
+      room.announceIfRollFinished()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(2)
+    } finally {
+      useDiceStore.getState().reset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('retires an indefinite settle observer when its room is reset', async () => {
+    const room = createFakeRoom([6], false)
+    const execution = run(makeRoll({ exploding: { on: 6 } }), room.backend)
+    await waitFor(() => expect(room.backend.roll).toHaveBeenCalledOnce())
+    useMultiplayerStore.getState().reset()
+    expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+    await execution
+    expect(useDiceStore.getState().rollHistory).toHaveLength(0)
   })
 
   describe('saved-roll name (#244)', () => {

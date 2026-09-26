@@ -135,6 +135,11 @@ interface DiceStore {
    * not snapshot at the end of the first wave — see `savedRollExecution.ts`.
    */
   savedRollWavesPending: boolean
+  /** Ephemeral observer ownership, never persisted; reset aborts all waits. */
+  savedRollExecution: AbortController | null
+  /** Re-observe the current physical plan after a HUD roll, if one exists. */
+  restartSavedRollExecution: (() => boolean) | null
+  cancelSavedRollExecution: () => void
   /**
    * The dice of the ONE explicit roll whose `roll_complete` row a wave sequence
    * stands in for — a ticket naming the roll, not a "suppress the next one" flag.
@@ -372,13 +377,15 @@ function completionCoversRow(row: RollSnapshot, completion: Omit<RollSnapshot, '
 
 export const useDiceStore = create<DiceStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       settledDice: new Map(),
       rollingDice: new Set(),
       currentRollCycleDice: new Set(),
       rollHistory: [],
       activeSavedRoll: null,
       savedRollWavesPending: false,
+      savedRollExecution: null,
+      restartSavedRollExecution: null,
       suppressedRollDiceIds: null,
       orphanedCycle: null,
       provisionalRollRowId: null,
@@ -693,6 +700,24 @@ export const useDiceStore = create<DiceStore>()(
         set({ activeSavedRoll: null })
       },
 
+      // Invalidate the executor BEFORE resetting its bookkeeping. Aborting its
+      // waits releases subscriptions/timers; its async continuations may never
+      // publish a plan, spawn another wave, or finish a newer roll.
+      cancelSavedRollExecution: () => {
+        get().savedRollExecution?.abort()
+        set({
+          savedRollExecution: null,
+          restartSavedRollExecution: null,
+          savedRollWavesPending: false,
+          suppressedRollDiceIds: null,
+          activeSavedRoll: null,
+          rollNotice: null,
+          currentRollCycleDice: new Set<string>(),
+          orphanedCycle: null,
+          provisionalRollRowId: null,
+        })
+      },
+
       beginSavedRollWaves: (rollDiceIds?: readonly string[]) => {
         set({
           savedRollWavesPending: true,
@@ -785,6 +810,7 @@ export const useDiceStore = create<DiceStore>()(
       },
 
       reset: () => {
+        get().cancelSavedRollExecution()
         set({
           settledDice: new Map(),
           rollingDice: new Set(),

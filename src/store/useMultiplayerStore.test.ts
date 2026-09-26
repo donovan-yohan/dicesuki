@@ -1211,6 +1211,103 @@ describe('useMultiplayerStore', () => {
     })
   })
 
+  describe('local roll acknowledgement accounting', () => {
+    const spawned = () => useMultiplayerStore.getState().handleServerMessage({
+      type: 'dice_spawned', ownerId: 'p1',
+      dice: [{ id: 'local-die', ownerId: 'p1', diceType: 'd6', position: [0, 0, 0], rotation: [0, 0, 0, 1] }],
+    })
+    beforeEach(() => {
+      useDiceStore.getState().reset()
+      useMultiplayerStore.setState({
+        localPlayerId: 'p1', connectionStatus: 'connected',
+        socket: { send: vi.fn() } as unknown as WebSocket,
+        players: new Map([['p1', { id: 'p1', displayName: 'Solo', color: '#fff' }]]),
+      })
+      spawned()
+    })
+
+    it('counts named and normal rolls, ignores remote acks, and drops intermediate completions', () => {
+      const room = useMultiplayerStore.getState()
+      room.roll('Saved')
+      room.roll()
+      room.handleServerMessage({ type: 'roll_started', playerId: 'p2', diceIds: ['remote-die'] })
+      expect(useMultiplayerStore.getState().pendingLocalRolls).toHaveLength(2)
+      room.handleServerMessage({ type: 'roll_started', playerId: 'p1', diceIds: ['local-die'] })
+      const completion = {
+        type: 'roll_complete' as const, playerId: 'p1',
+        results: [{ diceId: 'local-die', diceType: 'd6' as const, faceValue: 3 }], total: 3,
+      }
+      room.handleServerMessage(completion)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+      room.handleServerMessage({ type: 'roll_started', playerId: 'p1', diceIds: ['local-die'] })
+      room.handleServerMessage(completion)
+      expect(useMultiplayerStore.getState().pendingLocalRolls).toHaveLength(0)
+      expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    })
+
+    it('rolls back only the failed send and resets all debt on room reset', () => {
+      const room = useMultiplayerStore.getState()
+      room.roll()
+      useMultiplayerStore.setState({ socket: { send: () => { throw new Error('closed') } } as unknown as WebSocket })
+      room.roll()
+      expect(useMultiplayerStore.getState().pendingLocalRolls).toHaveLength(1)
+      room.reset()
+      expect(useMultiplayerStore.getState().pendingLocalRolls).toHaveLength(0)
+    })
+
+    it('retires old acknowledgement debt and observers when a rejoin supplies room_state', () => {
+      const room = useMultiplayerStore.getState()
+      room.roll()
+      const observer = new AbortController()
+      useDiceStore.setState({ savedRollExecution: observer, savedRollWavesPending: true })
+      room.handleServerMessage({
+        type: 'room_state', roomId: 'same-room', localPlayerId: 'p1', hostId: 'p1',
+        players: [{ id: 'p1', displayName: 'Solo', color: '#fff' }],
+        dice: [{ id: 'local-die', ownerId: 'p1', diceType: 'd6', position: [0, 0, 0], rotation: [0, 0, 0, 1] }],
+        settings: { version: 1 },
+      })
+      expect(observer.signal.aborted).toBe(true)
+      expect(useMultiplayerStore.getState().pendingLocalRolls).toHaveLength(0)
+      expect(useDiceStore.getState().savedRollWavesPending).toBe(false)
+    })
+
+    it('preserves requests sent after a replacement spawn across the empty removal acknowledgement', () => {
+      const room = useMultiplayerStore.getState()
+      room.removeDice(['local-die'])
+      const id = room.spawnDice('d6')!
+      room.roll()
+      room.roll()
+      room.handleServerMessage({ type: 'dice_removed', diceIds: ['local-die'] })
+      room.handleServerMessage({
+        type: 'dice_spawned', ownerId: 'p1',
+        dice: [{ id, ownerId: 'p1', diceType: 'd6', position: [0, 0, 0], rotation: [0, 0, 0, 1] }],
+      })
+      room.handleServerMessage({ type: 'roll_started', playerId: 'p1', diceIds: [id] })
+      room.handleServerMessage({
+        type: 'roll_complete', playerId: 'p1',
+        results: [{ diceId: id, diceType: 'd6', faceValue: 3 }], total: 3,
+      })
+      expect(useDiceStore.getState().rollHistory).toHaveLength(0)
+      expect(useMultiplayerStore.getState().pendingLocalRolls).toHaveLength(1)
+    })
+
+    it('does not carry unacknowledgeable empty-table rolls into the next table', () => {
+      const room = useMultiplayerStore.getState()
+      room.roll()
+      room.handleServerMessage({ type: 'dice_removed', diceIds: ['local-die'] })
+      // Core silently ignores rolls of an empty table (there is no ack).
+      room.roll()
+      const id = room.spawnDice('d6')!
+      room.handleServerMessage({
+        type: 'dice_spawned', ownerId: 'p1',
+        dice: [{ id, ownerId: 'p1', diceType: 'd6', position: [0, 0, 0], rotation: [0, 0, 0, 1] }],
+      })
+      room.roll()
+      room.handleServerMessage({ type: 'roll_started', playerId: 'p1', diceIds: [id] })
+      expect(useMultiplayerStore.getState().pendingLocalRolls).toHaveLength(0)
+    })
+  })
+
   describe('sendMessage', () => {
     it('should not throw when disconnected', () => {
       // Should not throw even without a connected socket
