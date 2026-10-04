@@ -63,16 +63,43 @@ The panel closes as soon as the base wave starts rolling, which splits error han
 - **Before** that point → the promise rejects and `SavedRollsPanel` renders its inline alert.
 - **After** → `useDiceStore.rollNotice`, rendered by the result HUD (the panel is gone).
 
-Either way `executingRef` is held for the whole sequence, so a second roll can never interleave with a half-finished plan.
+The panel's `executingRef` prevents overlapping recipe construction. It does not
+own HUD input: **Roll remains available while dice are moving or saved-roll
+waves are pending**, and motion input is never gated by the saved-roll executor.
+
+A HUD tap re-rolls the dice currently on the table, not a freshly reconstructed
+recipe. It aborts the previous observer (including outstanding ack/settle waits)
+and resumes a clone of the physical plan after the last outstanding local `roll_started`, not merely the next one.
+The store tracks every named base-wave and anonymous HUD request in transport
+order; another player's acknowledgement cannot release that wait. Intermediate
+completions are ignored while newer local launches remain outstanding. Failed
+sends remove only their own request, and reset/rejoin retires old requests.
+Because core silently ignores empty-table rolls, an acknowledged spawn also
+retires missing launches sent *before* that spawn; requests sent after it survive
+an intervening empty-table removal. An acknowledgement timeout releases the
+observer without recording an older request's settled faces.
+Bonuses, keep/drop, percentile grouping, and advanced settings survive. Already
+consumed once-only rerolls and explosion depth stay consumed; existing explosion
+dice stay in their chains. Pending removals are not resurrected, and pending
+spawns are reconciled against the room's acknowledged table. Selecting the recipe
+again is the way to reconstruct its original dice and reset those budgets.
+
+Cancellation records nothing and cannot publish a stale plan, notice, history
+row, or follow-up spawn. Only the current observer can finish the sequence.
+Settle waits have no elapsed-time deadline: keeping the dice moving is not a
+partial completed roll. `dice_knocked` invalidates the remembered face, every
+remaining plan member must settle together, and a resolved wait is rechecked
+before continuing. Removed dice stop participating in that wait. Room
+acknowledgements still have their bounded failure timeout.
 
 **Releasing `savedRollWavesPending` is the sequence's hard obligation.** `beginSavedRollWaves(baseIds)` is claimed *before* `roll` is sent (so the settle handler already knows to hold the history row open), which means every path from that point on has to close it:
 - the follow-up waves run inside `try/finally`, so they release it however they end;
 - the base roll's `publishPlan` → `roll()` → ack window is wrapped in its own `try/catch` that releases it and rethrows.
 
-That second guard is not theoretical: an ack timeout, a socket drop (`SEND_FAILED`), a room rejection, or a spawn-id mismatch all abort between "claimed" and "waves running". A flag left set there is a session-wide lockout — every saved roll and the HUD's Roll button stay disabled and `recordDieSettled` never closes a cycle, until the page is reloaded.
+That second guard is not theoretical: an ack timeout, a socket drop (`SEND_FAILED`), a room rejection, or a spawn-id mismatch all abort between "claimed" and "waves running". A flag left set there strands saved-roll selection and keeps `recordDieSettled` from closing its cycle. The HUD is no longer disabled by that flag.
 
 While `savedRollWavesPending` is true:
-- the HUD's Roll button is disabled (`roll` impulses **every** die the player owns, so it would re-roll dice that already landed and invalidate the plan);
+- the HUD's Roll button remains enabled while the player has dice; another tap supersedes the pending observer and re-rolls the table;
 - reopening the saved-rolls panel shows "Still rolling — waiting for the follow-up dice to land" and its roll buttons are disabled, because the execution latch would silently reject them;
 ### One history row per roll (issue #211)
 

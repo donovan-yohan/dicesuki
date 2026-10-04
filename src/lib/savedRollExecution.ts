@@ -23,8 +23,9 @@
  * The panel closes as soon as the base wave starts rolling, so failures split
  * in two: anything before that throws and renders as the panel's inline error;
  * anything after sets `useDiceStore.rollNotice`, which the result HUD shows.
- * Either way the caller's reentrancy latch is held until the whole sequence
- * ends, so a second roll can never interleave with a half-finished plan.
+ * The HUD may roll again at any time. Each attempt owns an abortable observer:
+ * a new tap retires the old observer and resumes the current physical plan,
+ * rather than letting stale async waves mutate the next attempt.
  */
 
 import { nanoid } from 'nanoid'
@@ -70,13 +71,6 @@ import {
 /** Protocol acknowledgements (clear, spawn, roll start) are near-instant. */
 const ROOM_ACK_TIMEOUT_MS = 5_000
 
-/**
- * Dice have to physically come to rest, which the room only declares after
- * `REST_DURATION_MS` of stillness. Generous enough for a full table of dice
- * that ricochet before settling, short enough that a wedged wave gives up.
- */
-const SETTLE_TIMEOUT_MS = 20_000
-
 type MultiplayerState = ReturnType<typeof useMultiplayerStore.getState>
 type DiceState = ReturnType<typeof useDiceStore.getState>
 
@@ -110,7 +104,8 @@ function waitForStore<S>(
   },
   description: string,
   predicate: (state: S) => boolean,
-  timeoutMs: number,
+  timeoutMs: number | undefined,
+  signal: AbortSignal,
 ): Promise<void> {
   // Any room error present during a wait aborts it. Scoping is done by the
   // CALLER clearing `roomActionError` before each wave (see `beginWave`), not
@@ -130,9 +125,11 @@ function waitForStore<S>(
       settled = true
       clearTimeout(timeout)
       unsubscribe()
+      signal.removeEventListener('abort', onAbort)
       if (error) reject(error)
       else resolve()
     }
+    const onAbort = () => finish(new Error('Saved roll superseded.'))
     const check = (state: S) => {
       try {
         if (evaluate(state)) finish()
@@ -140,48 +137,68 @@ function waitForStore<S>(
         finish(error instanceof Error ? error : new Error(String(error)))
       }
     }
-    const timeout = setTimeout(
+    const timeout = timeoutMs === undefined ? undefined : setTimeout(
       () => finish(new Error(`Timed out waiting for the room to ${description}.`)),
       timeoutMs,
     )
     unsubscribe = store.subscribe(check)
-    check(store.getState())
+    signal.addEventListener('abort', onAbort, { once: true })
+    if (signal.aborted) onAbort()
+    else check(store.getState())
   })
 }
 
 function waitForRoom(
   description: string,
   predicate: (state: MultiplayerState) => boolean,
+  signal: AbortSignal,
   timeoutMs = ROOM_ACK_TIMEOUT_MS,
 ): Promise<void> {
-  return waitForStore(useMultiplayerStore, description, predicate, timeoutMs)
+  return waitForStore(useMultiplayerStore, description, predicate, timeoutMs, signal)
 }
 
-function waitForSpawns(ids: string[], ownerId: string): Promise<void> {
+function waitForSpawns(ids: string[], ownerId: string, signal: AbortSignal): Promise<void> {
   return waitForRoom('spawn every saved-roll die', (state) => ids.every((id) => {
     const die = state.dice.get(id)
     return die !== undefined && die.ownerId === ownerId
-  }))
+  }), signal)
 }
 
-function waitForRemovals(ids: string[]): Promise<void> {
-  return waitForRoom('clear the rerolled dice', (state) => ids.every((id) => !state.dice.has(id)))
+function waitForRemovals(ids: string[], signal: AbortSignal): Promise<void> {
+  return waitForRoom('clear the rerolled dice', (state) => ids.every((id) => !state.dice.has(id)), signal)
 }
 
 /**
  * Wait for a wave's dice to come to rest.
  *
- * `settledDice` is the right signal rather than the room's `isRolling`: a die
- * knocked back into motion by a later collision keeps its recorded face, and a
- * wave must not hang because an unrelated die nudged it.
+ * `dice_knocked` invalidates the recorded face. Every plan member must be
+ * settled together; a remembered face from before resumed motion is not a
+ * completed result.
  */
-function waitForSettle(ids: string[]): Promise<void> {
-  return waitForStore(
-    useDiceStore,
-    'settle the dice',
-    (state: DiceState) => ids.every((id) => state.settledDice.has(id)),
-    SETTLE_TIMEOUT_MS,
-  )
+async function waitForSettle(ids: string[], signal: AbortSignal): Promise<void> {
+  const settled = (state: DiceState) => ids.every((id) => (
+    state.settledDice.has(id) || !useMultiplayerStore.getState().dice.has(id)
+  ))
+  do {
+    await waitForStore(
+      {
+        getState: useDiceStore.getState,
+        subscribe: (listener) => {
+          const unsubscribeDice = useDiceStore.subscribe(listener)
+          const unsubscribeRoom = useMultiplayerStore.subscribe(() => listener(useDiceStore.getState()))
+          return () => { unsubscribeDice(); unsubscribeRoom() }
+        },
+      },
+      'settle the dice',
+      settled,
+      // Continued motion is not a failure or a partially completed roll.
+      undefined,
+      signal,
+    )
+    signal.throwIfAborted()
+    // A resolved wait is only an observation: a knock can invalidate it before
+    // this continuation runs. Re-arm instead of scoring the stale observation.
+  } while (!settled(useDiceStore.getState()))
 }
 
 /** Free room slots, counting every player's dice — the cap is room-wide. */
@@ -450,6 +467,7 @@ async function runRerollWave(
   plan: SavedRollPlan,
   roll: SavedRoll,
   { backend, ownerId }: SavedRollExecutionOptions,
+  signal: AbortSignal,
 ): Promise<boolean> {
   const targets = selectRerollTargets(plan, currentFaces())
   if (targets.length === 0) return false
@@ -465,7 +483,8 @@ async function runRerollWave(
   ))
 
   for (const id of doomedIds) backend.removeDie(id)
-  await waitForRemovals(doomedIds)
+  await waitForRemovals(doomedIds, signal)
+  signal.throwIfAborted()
 
   const spawnedIds: string[] = []
   // Dice that were owned before the reroll but came back basic — the die left
@@ -505,14 +524,16 @@ async function runRerollWave(
   // `addDie`/`addGenericDie`, which clear `activeSavedRoll` (and with it the
   // plan). Nothing may observe a settle while the plan is missing.
   publishPlan(plan, roll)
-  await waitForSpawns(spawnedIds, ownerId)
+  await waitForSpawns(spawnedIds, ownerId, signal)
+  signal.throwIfAborted()
 
   // The room has echoed the replacements, so a substitution is now visible.
   const substituted = countBasicSpawns(rerolledNamedIds)
   if (substituted > 0) appendRollNotice(describeMissingNamedDice(substituted))
 
   useDiceStore.getState().markDiceRolling(spawnedIds)
-  await waitForSettle(spawnedIds)
+  await waitForSettle(getPlanDiceIds(plan), signal)
+  signal.throwIfAborted()
   return true
 }
 
@@ -527,6 +548,7 @@ async function runExplosionWaves(
   plan: SavedRollPlan,
   roll: SavedRoll,
   { backend, ownerId }: SavedRollExecutionOptions,
+  signal: AbortSignal,
 ): Promise<number> {
   let skipped = 0
 
@@ -556,9 +578,11 @@ async function runExplosionWaves(
     // Republished before anything can observe a settle: the spawns above
     // cleared `activeSavedRoll` via the backend's own side effect.
     publishPlan(plan, roll)
-    await waitForSpawns(spawnedIds, ownerId)
+    await waitForSpawns(spawnedIds, ownerId, signal)
+    signal.throwIfAborted()
     useDiceStore.getState().markDiceRolling(spawnedIds)
-    await waitForSettle(spawnedIds)
+    await waitForSettle(getPlanDiceIds(plan), signal)
+    signal.throwIfAborted()
 
     if (affordable.length < targets.length) break
   }
@@ -584,10 +608,28 @@ export async function executePhysicalSavedRoll(
   roll: SavedRoll,
   options: SavedRollExecutionOptions,
 ): Promise<void> {
+  assertCapacity(roll, options.ownerId)
+  useDiceStore.getState().cancelSavedRollExecution()
+  const controller = new AbortController()
+  useDiceStore.setState({ savedRollExecution: controller })
+  try {
+    await executeSavedRoll(roll, options, controller.signal)
+  } catch (error) {
+    if (!controller.signal.aborted) throw error
+  } finally {
+    if (useDiceStore.getState().savedRollExecution === controller) {
+      useDiceStore.setState({ savedRollExecution: null })
+    }
+  }
+}
+
+async function executeSavedRoll(
+  roll: SavedRoll,
+  options: SavedRollExecutionOptions,
+  signal: AbortSignal,
+): Promise<void> {
   const { backend, ownerId, onBaseWaveStarted } = options
   const diceStore = useDiceStore.getState()
-
-  assertCapacity(roll, ownerId)
 
   const room = useMultiplayerStore.getState()
   const existingOwnedIds = Array.from(room.dice.values())
@@ -599,7 +641,8 @@ export async function executePhysicalSavedRoll(
   backend.clearAll()
   await waitForRoom('clear the current table', (state) => (
     existingOwnedIds.every((id) => !state.dice.has(id))
-  ))
+  ), signal)
+  signal.throwIfAborted()
 
   // ── Base wave ───────────────────────────────────────────────────────────
   const plan = createSavedRollPlan(roll)
@@ -628,7 +671,8 @@ export async function executePhysicalSavedRoll(
     throw new Error('This saved roll has no dice to roll.')
   }
 
-  await waitForSpawns(baseIds, ownerId)
+  await waitForSpawns(baseIds, ownerId, signal)
+  signal.throwIfAborted()
 
   // Only now, with the room's echo in the store, is it known which dice actually
   // landed as basics. Published as a notice rather than an error: the roll is
@@ -653,6 +697,70 @@ export async function executePhysicalSavedRoll(
 
   try {
     publishPlan(plan, roll)
+    useDiceStore.setState({
+      restartSavedRollExecution: () => {
+        const active = useDiceStore.getState().activeSavedRoll
+        if (!active?.plan) return false
+        const resumedPlan = cloneSavedRollPlan(active.plan)
+        useDiceStore.getState().savedRollExecution?.abort()
+        const controller = new AbortController()
+        const sequence = useMultiplayerStore.getState().rollStartedSequence
+        const ids = Array.from(useMultiplayerStore.getState().dice.values())
+          .filter((die) => die.ownerId === ownerId).map((die) => die.id)
+        useDiceStore.setState({ savedRollExecution: controller, rollNotice: null })
+        // Preserve the previous completion claim until the ordered room ack:
+        // its late roll_complete may still arrive before the new roll starts.
+        useDiceStore.getState().beginSavedRollWaves()
+        // Clear old faces immediately: a click can arrive between settle and
+        // the executor's next microtask, before the room echoes roll_started.
+        useDiceStore.getState().markDiceRolling(ids)
+        void (async () => {
+          try {
+            await waitForRoom('restart the saved roll', (state) => (
+              state.rollStartedSequence > sequence
+              && state.pendingLocalRolls.length === 0
+              && state.lastRollStartedDiceIds.every((id) => state.dice.get(id)?.ownerId === ownerId)
+            ), controller.signal)
+            controller.signal.throwIfAborted()
+            // roll_started claims its actual dice synchronously in the room
+            // handler. Do not reread the global last-ack slot here: another
+            // player's ack may have arrived before this continuation runs.
+            // A reroll may interrupt a removal acknowledgement. Only dice
+            // still on the table belong to this attempt; never respawn a
+            // removed member on behalf of the superseded executor.
+            const table = useMultiplayerStore.getState().dice
+            for (const entry of resumedPlan.entries) {
+              for (const group of entry.groups) {
+                group.memberIds = group.memberIds.filter((id) => table.has(id))
+              }
+              entry.groups = entry.groups.filter((group) => group.memberIds.length > 0)
+            }
+            publishPlan(resumedPlan, roll)
+            await observeSavedRoll(resumedPlan, roll, options, controller.signal)
+          } catch (error) {
+            if (!controller.signal.aborted) {
+              useDiceStore.getState().setRollNotice(
+                error instanceof Error ? error.message : 'Could not restart the saved roll.',
+              )
+              // No acknowledgement means no final result, even if an older
+              // request settled while we waited. Release without snapshotting.
+              useDiceStore.setState({
+                savedRollWavesPending: false,
+                currentRollCycleDice: new Set<string>(),
+                suppressedRollDiceIds: null,
+                orphanedCycle: null,
+                provisionalRollRowId: null,
+              })
+            }
+          } finally {
+            if (useDiceStore.getState().savedRollExecution === controller) {
+              useDiceStore.setState({ savedRollExecution: null })
+            }
+          }
+        })()
+        return true
+      },
+    })
 
     const rollSequence = useMultiplayerStore.getState().rollStartedSequence
     // The one place a roll is named (#244). Only the BASE wave sends `roll` at
@@ -662,8 +770,10 @@ export async function executePhysicalSavedRoll(
     backend.roll(roll.name)
     await waitForRoom('start the saved roll', (state) => (
       state.rollStartedSequence > rollSequence
+      && state.pendingLocalRolls.length === 0
       && sameIdSet(state.lastRollStartedDiceIds, baseIds)
-    ))
+    ), signal)
+    signal.throwIfAborted()
   } catch (error) {
     // The base roll never started, so the wave sequence opened above will never
     // run and nothing else would ever close it. Leaving the flag set is a
@@ -671,11 +781,13 @@ export async function executePhysicalSavedRoll(
     // disabled, `recordDieSettled` never closes a cycle, and `roll_complete`
     // stays suppressed until the page is reloaded. Reachable from an ack
     // timeout, a socket drop, a room rejection, or a spawn-id mismatch.
+    signal.throwIfAborted()
     useDiceStore.getState().finishSavedRollWaves()
     throw error
   }
 
   onBaseWaveStarted?.()
+  signal.throwIfAborted()
 
   if (spawnNotice.length > 0) {
     useDiceStore.getState().setRollNotice(spawnNotice)
@@ -683,14 +795,26 @@ export async function executePhysicalSavedRoll(
 
   if (!hasWaves) return
 
-  // ── Follow-up waves ─────────────────────────────────────────────────────
+  await observeSavedRoll(plan, roll, options, signal)
+}
+
+async function observeSavedRoll(
+  plan: SavedRollPlan,
+  roll: SavedRoll,
+  options: SavedRollExecutionOptions,
+  signal: AbortSignal,
+): Promise<void> {
   // Past this point the panel is gone, so nothing here may throw at the caller.
   try {
-    await waitForSettle(baseIds)
-    await runRerollWave(plan, roll, options)
-    const skipped = await runExplosionWaves(plan, roll, options)
+    await waitForSettle(getPlanDiceIds(plan), signal)
+    signal.throwIfAborted()
+    await runRerollWave(plan, roll, options, signal)
+    signal.throwIfAborted()
+    const skipped = await runExplosionWaves(plan, roll, options, signal)
+    signal.throwIfAborted()
     if (skipped > 0) appendRollNotice(describeSkippedExplosions(skipped))
   } catch (error) {
+    signal.throwIfAborted()
     useDiceStore.getState().setRollNotice(
       error instanceof Error
         ? `Follow-up dice stopped early: ${error.message}`
@@ -700,6 +824,6 @@ export async function executePhysicalSavedRoll(
     // Always closes the history row and releases the wave latch, so a failed
     // sequence cannot suppress the next roll's history entry. The attribution
     // mirrors the `roll_complete` row this path suppresses.
-    useDiceStore.getState().finishSavedRollWaves(localRollingPlayer())
+    if (!signal.aborted) useDiceStore.getState().finishSavedRollWaves(localRollingPlayer())
   }
 }
