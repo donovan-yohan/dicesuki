@@ -37,6 +37,16 @@ const REVIEWED_BINARY_FILE_LIMITS = new Map([
   ['public/icons/pwa-512x512.png', 128 * 1024],
   ['src/generated/wasm-room/dicesuki_wasm_bg.wasm', 2 * 1024 * 1024],
 
+  // Required ORC notice, retrieved and reviewed for the monster-manual catalog.
+  // Approval covers this exact third-party PDF, never the directory/extension.
+  [
+    'public/licenses/monster-manual/ORC_License_FINAL.pdf',
+    {
+      maxBytes: 256 * 1024,
+      sha256: 'e03afd5ccdef506660b29291351035bb92fbf8c26bdc027bd06c9de0c30f1dcc',
+    },
+  ],
+
   // Runtime HDR environment maps (issue #222). Third-party redistributions, so
   // the digest is the reviewed property: these are byte-for-byte the files drei
   // used to fetch from `raw.githack.com/pmndrs/drei-assets@456060a/hdri/`,

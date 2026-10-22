@@ -329,6 +329,50 @@ test('reviewed HDR environment maps are approved by digest, not by directory', a
   }
 })
 
+test('reviewed ORC license accepts only exact bytes at its exact path within its ceiling', async () => {
+  const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-imagegen-orc-license-'))
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repository })
+    const relativePath = 'public/licenses/monster-manual/ORC_License_FINAL.pdf'
+    const licensePath = path.join(repository, relativePath)
+    await mkdir(path.dirname(licensePath), { recursive: true })
+    const approvedBytes = await readFile(path.join(REPO_ROOT, relativePath))
+    assert.equal(
+      createHash('sha256').update(approvedBytes).digest('hex'),
+      'e03afd5ccdef506660b29291351035bb92fbf8c26bdc027bd06c9de0c30f1dcc',
+    )
+    await writeFile(licensePath, approvedBytes)
+    const approved = checkAuthoringBoundary(repository)
+    assert.equal(approved.valid, true, approved.errors.join('; '))
+
+    const tampered = Buffer.from(approvedBytes)
+    tampered[tampered.length - 1] ^= 0xff
+    await writeFile(licensePath, tampered)
+    const modified = checkAuthoringBoundary(repository)
+    assert.equal(modified.valid, false)
+    assert.match(modified.errors.join('; '), /ORC_License_FINAL\.pdf has sha256/)
+
+    await writeFile(licensePath, Buffer.alloc(256 * 1024 + 1, 0))
+    const oversized = checkAuthoringBoundary(repository)
+    assert.equal(oversized.valid, false)
+    assert.match(
+      oversized.errors.join('; '),
+      /ORC_License_FINAL\.pdf is 262145 bytes; approved maximum is 262144/,
+    )
+
+    await writeFile(licensePath, approvedBytes)
+    await writeFile(path.join(path.dirname(licensePath), 'unreviewed.pdf'), approvedBytes)
+    const unrelated = checkAuthoringBoundary(repository)
+    assert.equal(unrelated.valid, false)
+    assert.match(
+      unrelated.errors.join('; '),
+      /unreviewed\.pdf is an unapproved binary\/authoring payload/,
+    )
+  } finally {
+    await rm(repository, { recursive: true, force: true })
+  }
+})
+
 test('authoring boundary discovers every runtime manifest without a set allowlist', async () => {
   const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-imagegen-runtime-sets-'))
   try {

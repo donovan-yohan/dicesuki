@@ -74,4 +74,22 @@ docs/          → guides and ADRs
 
 ## License
 
-MIT
+Application code: MIT. Monster Manual data has separate licenses: the 5e SRD 5.1 (2014) mechanics are CC BY 4.0; the adapted PF2e Remaster mechanics are ORC Licensed Material. Attribution, unchanged upstream notice, publication supplement and ORC license copy are bundled under [public/licenses/monster-manual](public/licenses/monster-manual/).
+
+## Monster Manual
+
+Open **My Dice Rolls → Monster Manual**. Search the eight supported imported creatures: two NPCs and two monsters each from 5e SRD 5.1 (2014) and PF2e Remaster. **Refresh** retrieves each provider's four real allowlisted records and verifies their reviewed SHA-256 revisions. This is a bounded imported catalog with online verification, not whole-database federated search. Failure, changed-source and offline states retain the reviewed import.
+
+Actions immediately roll physical room dice and replace only your dice. Attacks, typed damage components and own saves roll separately; target DCs are information. 5e supports advantage/disadvantage; PF2e strikes support explicit first/second/third attack MAP. Critical damage, multiattack sequences, reactions, conditions and resource-dependent spell automation must be resolved manually. Pure constant damage has no dice control. Solo uses the same Rust room engine through the wasm worker.
+
+Reproduce the reviewed import with `node scripts/monster-manual/import.mjs --online`. It fails closed if upstream bytes changed; review a new revision before updating the registry. Provider retrieval and rules math live in separate modules under `src/lib/monsterManual`. Do not execute upstream formulas/macros or import artwork/lore.
+
+Use Node 22 for checks: `npm run test -- --run --maxWorkers=2`, `npm run lint`, `npm run build`. Real Chrome/wasm smoke: `PLAYWRIGHT_TEST_PORT=18191 npx playwright test --config playwright.monster.config.ts`. Chrome must be installed; this configuration uses the installed browser, not mocked dice.
+
+### Roll library
+
+My Dice Rolls has Personal rolls and Monster Manual tabs. Add creature saves a complete, independent snapshot of supported attack/damage/own-save recipes; Roll executes through the native room backend and replaces your table dice. Saved kit variants retain 5e advantage/disadvantage and PF2e attack-ordinal MAP. Source refresh never rewrites saved kits. Unsupported rules remain manual.
+
+Groups and creature roster are device-local, partitioned between guest and each account (`dicesuki-roll-library:v1:*`). They do not sync or migrate from guest on sign-in; existing personal roll sync/merge/tombstones remain unchanged. Removing a group moves its rolls to Ungrouped. Limits: 50 groups, 50 creature instances, 128 cards per kit, 80-character names, 1000 memberships and 2MiB per scope. Invalid entries are isolated; failed storage writes preserve prior library state and report failure. Auth loading hides/locks library; scope-generation tokens reject stale callbacks, including returning to the same account.
+
+`npm run test:e2e:monster-manual` now exercises the integrated roster and personal organization, native signed totals/MAP/keep rules, reload, source refresh and responsive keyboard flows. Physical hardware and actual browser-toolbar 200% zoom remain distinct from automated viewport/CSS zoom checks.

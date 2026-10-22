@@ -1,0 +1,541 @@
+{
+  "version": 1,
+  "name": "Priest",
+  "provenance": {
+    "id": "5e:srd-5.1-2014:dnd5eapi:36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1:priest",
+    "key": "5e:srd-5.1-2014:dnd5eapi:priest",
+    "system": "5e",
+    "edition": "SRD 5.1 (2014)",
+    "provider": "dnd5eapi",
+    "source": {
+      "sourceId": "priest",
+      "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+      "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+      "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+      "importedAt": "2026-10-05T04:54:26.993724+00:00",
+      "publication": "System Reference Document 5.1",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "noticeUrl": "/licenses/monster-manual/5e-attribution.txt"
+    }
+  },
+  "cards": [
+    {
+      "id": "attack:action-0",
+      "label": "Mace",
+      "role": "attack",
+      "variants": [
+        {
+          "id": "normal",
+          "label": "normal",
+          "roll": {
+            "id": "monster-roll_7471c98d-d59c-437c-98f3-c3277049154a",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Mace attack",
+            "createdAt": 1792654528691,
+            "flatBonus": 2,
+            "dice": [
+              {
+                "id": "monster-dice_1f5b4eb0-8ac2-49d0-8d92-4f79f8b7a2de",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 1
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "advantage",
+          "label": "advantage",
+          "roll": {
+            "id": "monster-roll_00d337a9-7007-47a3-be83-00c27a426bb6",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Mace attack",
+            "createdAt": 1792654528691,
+            "flatBonus": 2,
+            "dice": [
+              {
+                "id": "monster-dice_698d3a17-8b7d-4458-a04a-22ba0bcd2a5a",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "highest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "disadvantage",
+          "label": "disadvantage",
+          "roll": {
+            "id": "monster-roll_61f9434e-33a9-4b31-b5f8-9e28f68d07ad",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Mace attack",
+            "createdAt": 1792654528691,
+            "flatBonus": 2,
+            "dice": [
+              {
+                "id": "monster-dice_c446e68c-3042-484d-a8e2-97b172f99106",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "lowest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "damage:action-0:0-0",
+      "label": "Mace · bludgeoning · immediate",
+      "role": "damage",
+      "variants": [
+        {
+          "id": "normal",
+          "label": "Normal",
+          "roll": {
+            "id": "monster-roll_3e542167-1ed7-4e57-a2ec-bcfeca229982",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Mace immediate bludgeoning",
+            "createdAt": 1792654528691,
+            "flatBonus": 0,
+            "dice": [
+              {
+                "id": "monster-dice_c57e39b1-57e5-4827-be3b-21529435f2d3",
+                "type": "d6",
+                "quantity": 1,
+                "perDieBonus": 0
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+            "damageType": "bludgeoning"
+          }
+        }
+      ]
+    },
+    {
+      "id": "save:str",
+      "label": "Strength save",
+      "role": "own-save",
+      "variants": [
+        {
+          "id": "normal",
+          "label": "normal",
+          "roll": {
+            "id": "monster-roll_4ee4ee30-600e-4034-8de6-d435b48c2f18",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Strength save",
+            "createdAt": 1792654528691,
+            "flatBonus": 0,
+            "dice": [
+              {
+                "id": "monster-dice_429c51c5-5a45-4465-98bd-69fd2e0d84e5",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 1
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "advantage",
+          "label": "advantage",
+          "roll": {
+            "id": "monster-roll_35d053c7-66cc-4014-85d6-d67bba213ea7",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Strength save",
+            "createdAt": 1792654528691,
+            "flatBonus": 0,
+            "dice": [
+              {
+                "id": "monster-dice_2cb20678-f05f-445b-93fa-ad20aeb72f76",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "highest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "disadvantage",
+          "label": "disadvantage",
+          "roll": {
+            "id": "monster-roll_5d3fd27a-049f-484d-9013-516df004d75b",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Strength save",
+            "createdAt": 1792654528691,
+            "flatBonus": 0,
+            "dice": [
+              {
+                "id": "monster-dice_e0338523-ebe8-45e3-b305-eda630075922",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "lowest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "save:dex",
+      "label": "Dexterity save",
+      "role": "own-save",
+      "variants": [
+        {
+          "id": "normal",
+          "label": "normal",
+          "roll": {
+            "id": "monster-roll_f25eb541-6309-41e3-95bf-9e360061015d",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Dexterity save",
+            "createdAt": 1792654528691,
+            "flatBonus": 0,
+            "dice": [
+              {
+                "id": "monster-dice_c9a79b46-091b-4a7a-82ec-f78ba7162f0c",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 1
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "advantage",
+          "label": "advantage",
+          "roll": {
+            "id": "monster-roll_824158d4-d245-45ff-9837-2f7751faa91b",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Dexterity save",
+            "createdAt": 1792654528691,
+            "flatBonus": 0,
+            "dice": [
+              {
+                "id": "monster-dice_80cd038d-447b-40ee-a2f0-262372d35468",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "highest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "disadvantage",
+          "label": "disadvantage",
+          "roll": {
+            "id": "monster-roll_9b9a2d9b-9835-416f-a5a8-6f7af76f310b",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Dexterity save",
+            "createdAt": 1792654528691,
+            "flatBonus": 0,
+            "dice": [
+              {
+                "id": "monster-dice_5c566210-1b85-48f8-8314-d08d9c661935",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "lowest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "save:con",
+      "label": "Constitution save",
+      "role": "own-save",
+      "variants": [
+        {
+          "id": "normal",
+          "label": "normal",
+          "roll": {
+            "id": "monster-roll_c5bc24f3-4102-4bd8-93ef-d5ca3a720c6a",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Constitution save",
+            "createdAt": 1792654528691,
+            "flatBonus": 1,
+            "dice": [
+              {
+                "id": "monster-dice_ab409824-2191-46e6-850f-0cf34b2f1733",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 1
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "advantage",
+          "label": "advantage",
+          "roll": {
+            "id": "monster-roll_23ef4ccb-473a-4d3b-b0ba-6bd26cdd34ae",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Constitution save",
+            "createdAt": 1792654528691,
+            "flatBonus": 1,
+            "dice": [
+              {
+                "id": "monster-dice_6356486f-9614-4fdf-ae28-36046f420ff2",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "highest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "disadvantage",
+          "label": "disadvantage",
+          "roll": {
+            "id": "monster-roll_438861fa-4420-4848-acf2-c4eff2830ac9",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Constitution save",
+            "createdAt": 1792654528691,
+            "flatBonus": 1,
+            "dice": [
+              {
+                "id": "monster-dice_d2a73984-a422-43d7-879e-919ff714552a",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "lowest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "save:int",
+      "label": "Intelligence save",
+      "role": "own-save",
+      "variants": [
+        {
+          "id": "normal",
+          "label": "normal",
+          "roll": {
+            "id": "monster-roll_d66add56-d0d0-4c21-a041-d46e0ad7525a",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Intelligence save",
+            "createdAt": 1792654528691,
+            "flatBonus": 1,
+            "dice": [
+              {
+                "id": "monster-dice_f3765c9c-05d0-4abc-b2da-44f7a45f5fec",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 1
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "advantage",
+          "label": "advantage",
+          "roll": {
+            "id": "monster-roll_6a532558-573b-4766-8ef9-0a9cbd3337a9",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Intelligence save",
+            "createdAt": 1792654528691,
+            "flatBonus": 1,
+            "dice": [
+              {
+                "id": "monster-dice_2589fcdd-e195-4ef7-b38f-6a0bac96e400",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "highest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "disadvantage",
+          "label": "disadvantage",
+          "roll": {
+            "id": "monster-roll_4172915d-e8ec-4e71-94a8-83d2af2ae6e5",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Intelligence save",
+            "createdAt": 1792654528691,
+            "flatBonus": 1,
+            "dice": [
+              {
+                "id": "monster-dice_190deed6-d292-434a-93d4-322d03f9f973",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "lowest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "save:wis",
+      "label": "Wisdom save",
+      "role": "own-save",
+      "variants": [
+        {
+          "id": "normal",
+          "label": "normal",
+          "roll": {
+            "id": "monster-roll_7cbbaa9e-2806-44b3-926a-ebd5318fcdca",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Wisdom save",
+            "createdAt": 1792654528691,
+            "flatBonus": 3,
+            "dice": [
+              {
+                "id": "monster-dice_d42ba75b-6d2e-4cc5-a022-090fc09521d1",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 1
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "advantage",
+          "label": "advantage",
+          "roll": {
+            "id": "monster-roll_16ace7aa-069e-4905-ac41-5eeca9df778e",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Wisdom save",
+            "createdAt": 1792654528691,
+            "flatBonus": 3,
+            "dice": [
+              {
+                "id": "monster-dice_d2b2d664-b077-46aa-8b2f-c9eab7fcb459",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "highest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "disadvantage",
+          "label": "disadvantage",
+          "roll": {
+            "id": "monster-roll_b958df1e-248f-4432-98e6-aeaba14d1875",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Wisdom save",
+            "createdAt": 1792654528691,
+            "flatBonus": 3,
+            "dice": [
+              {
+                "id": "monster-dice_23e7fc5d-b192-44ff-915c-1f7ac9f46821",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "lowest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "save:cha",
+      "label": "Charisma save",
+      "role": "own-save",
+      "variants": [
+        {
+          "id": "normal",
+          "label": "normal",
+          "roll": {
+            "id": "monster-roll_0f976459-c608-45f3-87fd-d02a16b0e901",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Charisma save",
+            "createdAt": 1792654528691,
+            "flatBonus": 1,
+            "dice": [
+              {
+                "id": "monster-dice_57bd5bcd-5bc5-4879-a80f-df777d914695",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 1
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "advantage",
+          "label": "advantage",
+          "roll": {
+            "id": "monster-roll_16242b60-1267-4433-91b5-4a04bf31e6b8",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Charisma save",
+            "createdAt": 1792654528691,
+            "flatBonus": 1,
+            "dice": [
+              {
+                "id": "monster-dice_a1540209-615d-4e29-95b9-56091a16970b",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "highest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        },
+        {
+          "id": "disadvantage",
+          "label": "disadvantage",
+          "roll": {
+            "id": "monster-roll_9ec7f539-9d85-4253-bf04-ff36506814a0",
+            "name": "Priest · 5e · SRD 5.1 (2014) · Charisma save",
+            "createdAt": 1792654528691,
+            "flatBonus": 1,
+            "dice": [
+              {
+                "id": "monster-dice_425ebb0a-84df-4bdd-b6c0-22e756ed0381",
+                "type": "d20",
+                "quantity": 1,
+                "perDieBonus": 0,
+                "rollCount": 2,
+                "keepMode": "lowest"
+              }
+            ],
+            "description": "https://www.dnd5eapi.co/api/2014/monsters/priest · 36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1"
+          }
+        }
+      ]
+    }
+  ],
+  "constants": [],
+  "notes": [
+    "Normal damage only; critical damage must be resolved manually.",
+    "Mace: Melee Weapon Attack: +2 to hit, reach 5 ft., one target. Hit: 3 (1d6) bludgeoning damage.",
+    "Divine Eminence: As a bonus action, the priest can expend a spell slot to cause its melee weapon attacks to magically deal an extra 10 (3d6) radiant damage to a target on a hit. This benefit lasts until the end of the turn. If the priest expends a spell slot of 2nd level or higher, the extra damage increases by 1d6 for each level above 1st. Informational only; resource-dependent spells/abilities are not automated.",
+    "Spellcasting: The priest is a 5th-level spellcaster. Its spellcasting ability is Wisdom (spell save DC 13, +5 to hit with spell attacks). The priest has the following cleric spells prepared:\n\n- Cantrips (at will): light, sacred flame, thaumaturgy\n- 1st level (4 slots): cure wounds, guiding bolt, sanctuary\n- 2nd level (3 slots): lesser restoration, spiritual weapon\n- 3rd level (2 slots): dispel magic, spirit guardians Informational only; resource-dependent spells/abilities are not automated."
+  ]
+}

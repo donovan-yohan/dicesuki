@@ -510,4 +510,17 @@ describe('SavedRollsPanel room execution', () => {
     // executor's; see `useMultiplayerDiceBackend.test.tsx`.)
     expect(spawned[0].presentation).toBeUndefined()
   })
+  it('keeps prior signed context when a personal roll cannot fit beside foreign dice', async()=>{
+    const dice=new Map<string,MultiplayerDie>(Array.from({length:29},(_,i)=>[`foreign-${i}`,roomDie(`foreign-${i}`,'player-2')] as const))
+    dice.set('old-die',{...roomDie('old-die'),diceType:'d20',faceValue:10})
+    useMultiplayerStore.setState({dice})
+    const previous={name:'Previous result',flatBonus:3,perDieBonuses:new Map([['old-die',0]])}
+    useDiceStore.setState({activeSavedRoll:previous,settledDice:new Map([['old-die',{diceId:'old-die',type:'d20',value:10,settledAt:1}]])})
+    const clearAll=vi.fn();const roll=vi.fn();renderPanel({clearAll,roll})
+    fireEvent.click(screen.getByRole('button',{name:'Roll Room fireball'}))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Only 1')
+    expect(clearAll).not.toHaveBeenCalled();expect(roll).not.toHaveBeenCalled();expect(useMultiplayerStore.getState().dice).toBe(dice)
+    expect(useDiceStore.getState().activeSavedRoll).toBe(previous);expect(10+useDiceStore.getState().activeSavedRoll!.flatBonus).toBe(13)
+  })
+
 })
