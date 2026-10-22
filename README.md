@@ -78,7 +78,7 @@ Application code: MIT. Monster Manual data has separate licenses: the 5e SRD 5.1
 
 ## Monster Manual
 
-Open **My Dice Rolls → Monster Manual**. Search the eight supported imported creatures: two NPCs and two monsters each from 5e SRD 5.1 (2014) and PF2e Remaster. **Refresh** retrieves each provider's four real allowlisted records and verifies their reviewed SHA-256 revisions. This is a bounded imported catalog with online verification, not whole-database federated search. Failure, changed-source and offline states retain the reviewed import.
+Open **My Dice Rolls → Monster Manual**. Search nine supported imported creatures: the original two NPCs and two monsters each from 5e SRD 5.1 (2014) and PF2e Remaster, plus Kobold Cavern Mage. **Refresh** retrieves the four 5e creature records and ten Priest spells, or the five PF2e actor records, and verifies their reviewed SHA-256 revisions. This is a bounded imported catalog with online verification, not whole-database federated search. Failure, changed-source and offline states retain the reviewed import.
 
 Actions immediately roll physical room dice and replace only your dice. Attacks, typed damage components and own saves roll separately; target DCs are information. 5e supports advantage/disadvantage; PF2e strikes support explicit first/second/third attack MAP. Critical damage, multiattack sequences, reactions, conditions and resource-dependent spell automation must be resolved manually. Pure constant damage has no dice control. Solo uses the same Rust room engine through the wasm worker.
 
@@ -93,3 +93,11 @@ My Dice Rolls has Personal rolls and Monster Manual tabs. Add creature saves a c
 Groups and creature roster are device-local, partitioned between guest and each account (`dicesuki-roll-library:v1:*`). They do not sync or migrate from guest on sign-in; existing personal roll sync/merge/tombstones remain unchanged. Removing a group moves its rolls to Ungrouped. Limits: 50 groups, 50 creature instances, 128 cards per kit, 80-character names, 1000 memberships and 2MiB per scope. Invalid entries are isolated; failed storage writes preserve prior library state and report failure. Auth loading hides/locks library; scope-generation tokens reject stale callbacks, including returning to the same account.
 
 `npm run test:e2e:monster-manual` now exercises the integrated roster and personal organization, native signed totals/MAP/keep rules, reload, source refresh and responsive keyboard flows. Physical hardware and actual browser-toolbar 200% zoom remain distinct from automated viewport/CSS zoom checks.
+
+### Saved spellbooks and abilities
+
+New creature kits include source-backed spells, healing, checks and recharge rolls. The original eight creatures remain, with Kobold Cavern Mage as a ninth PF2e Remaster caster. The Priest uses its own level/slots, spell attack +5, Wisdom modifier +3 and DC 13; the PF caster uses rank 1, spell attack +10 and DC 18. Selectors describe source choices without tracking resource use. Information-only spells have mechanics and no Roll button.
+
+Existing v1 kits continue to load and execute stored recipes without fetching creature or spell sources. Choose **Update spells & abilities** in a saved creature’s options to replace only that kit with the reviewed current definition, retaining its alias, position and other library data. Source Refresh does not update saved kits. New v2 snapshots retain compiled bounded recipes and source/license provenance; target save DCs remain separate from caster rolls.
+
+Reproduce the reviewed import using `node scripts/monster-manual/import.mjs --evidence <creature-source-directory> --feature-evidence <spell-source-directory>`, or `--online` to retrieve the pinned registry URLs. Hash or pointer mismatches reject import. The normalized catalog contains mechanics only; full attribution remains bundled under `public/licenses/monster-manual/`.

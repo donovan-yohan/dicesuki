@@ -4,6 +4,8 @@ import { useAuthStore } from './useAuthStore'
 import { useRollLibraryStore as library } from './useRollLibraryStore'
 import { useSavedRollsStore } from './useSavedRollsStore'
 import { catalog } from '../lib/monsterManual/catalog'
+import legacy from '../test/fixtures/legacyPriestKit.json'
+import { buildCreatureKitV2, kitFingerprint, validateStoredKit } from '../lib/monsterManual/features'
 import { buildCreatureKit } from '../lib/rollLibrary'
 const user = (id: string) => ({ id } as User)
 const token = () => library.getState().token!
@@ -68,4 +70,32 @@ describe('transactional device-local library', () => {
   expect(useSavedRollsStore.getState().deletedRolls.remote).toBe(8)
  })
 
+})
+
+describe('explicit feature snapshot update',()=>{
+ it('replaces only the requested kit and keeps alias, collapse, order, time, duplicate and groups',()=>{
+  const l=library.getState(),t=token(),priest=catalog.find(c=>c.name==='Priest')!
+  const first=l.addCreature(t,validateStoredKit(legacy)),second=l.addCreature(t,validateStoredKit(legacy));l.editInstance(t,first,{displayName:'Sister Mira',collapsed:true});const group=l.addGroup(t,'Combat');l.moveRoll(t,'personal',group)
+  const before=library.getState().data,old=before.instances[0],next=buildCreatureKitV2(priest)
+  library.getState().updateInstanceKit(t,first,kitFingerprint(old.kit),next)
+  expect(library.getState().data).toEqual({...before,instances:[{...old,kit:next},before.instances[1]]})
+  expect(library.getState().data.instances[1].id).toBe(second)
+  useAuthStore.setState({status:'loading'});useAuthStore.setState({status:'guest'})
+  expect(library.getState().data.instances.map(i=>i.kit.version)).toEqual([2,1])
+ })
+ it('rejects stale fingerprints/tokens, removed instances and quota failure without replacing data',()=>{
+  const t=token(),id=library.getState().addCreature(t,validateStoredKit(legacy)),old=library.getState().data.instances[0],next=buildCreatureKitV2(catalog.find(c=>c.name==='Priest')!)
+  const before=library.getState().data
+  expect(()=>library.getState().updateInstanceKit(t,id,'stale',next)).toThrow();expect(library.getState().data).toBe(before)
+  const storage=vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw new Error('quota')})
+  expect(()=>library.getState().updateInstanceKit(t,id,kitFingerprint(old.kit),next)).toThrow();expect(library.getState().data).toBe(before);storage.mockRestore()
+  library.getState().removeInstance(t,id);expect(()=>library.getState().updateInstanceKit(t,id,kitFingerprint(old.kit),next)).toThrow()
+  useAuthStore.setState({status:'loading'});useAuthStore.setState({status:'guest'});expect(()=>library.getState().updateInstanceKit(t,id,kitFingerprint(old.kit),next)).toThrow()
+ })
+ it('isolates malformed nested v2 while retaining valid v1/v2 and groups on reload',()=>{
+  const t=token();library.getState().addGroup(t,'Kept');library.getState().addCreature(t,validateStoredKit(legacy));library.getState().addCreature(t,buildCreatureKitV2(catalog.find(c=>c.name==='Priest')!))
+  const scope=library.getState().scope!,raw=JSON.parse(localStorage.getItem(scope)!);const corrupt=structuredClone(raw.instances[1]);corrupt.id='corrupt-feature';corrupt.kit.features[0].sources[0].url='javascript:bad';raw.instances.push(corrupt);localStorage.setItem(scope,JSON.stringify(raw))
+  useAuthStore.setState({status:'loading'});useAuthStore.setState({status:'guest'})
+  expect(library.getState().data.instances).toHaveLength(2);expect(library.getState().data.groups[0].name).toBe('Kept');expect(library.getState().notice).toMatch(/invalid/)
+ })
 })

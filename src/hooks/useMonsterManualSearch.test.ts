@@ -24,7 +24,7 @@ describe('independent source receipts and request identity', () => {
     expect(result.current.receipts.dnd5eapi.status).toBe('unavailable')
     expect(result.current.receipts['foundry-pf2e'].status).toBe('changed')
     expect(result.current.receipts.dnd5eapi.records).toHaveLength(4)
-    expect(result.current.receipts['foundry-pf2e'].records).toHaveLength(4)
+    expect(result.current.receipts['foundry-pf2e'].records).toHaveLength(5)
   })
   it('cancels panel-owned retrieval on close and observes offline events', async () => {
     const signals: AbortSignal[] = []

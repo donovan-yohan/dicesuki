@@ -1019,5 +1019,142 @@
     ],
     "notes": [],
     "overrides": []
+  },
+  {
+    "id": "pf2e:remaster:foundry-pf2e:4cbdaa37d6c33e9519561bae2c59a23e0288cbce:JFmFuoOzCwc3hA1H",
+    "key": "pf2e:remaster:foundry-pf2e:JFmFuoOzCwc3hA1H",
+    "name": "Kobold Cavern Mage",
+    "system": "pf2e",
+    "edition": "Remaster",
+    "provider": "foundry-pf2e",
+    "kind": "monster",
+    "source": {
+      "sourceId": "JFmFuoOzCwc3hA1H",
+      "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+      "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+      "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+      "importedAt": "2026-10-22T07:35:04.213961+00:00",
+      "publication": "Pathfinder Monster Core",
+      "license": "ORC",
+      "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+      "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt"
+    },
+    "actions": [
+      {
+        "id": "8LYUZymM9ZN8WDw9",
+        "name": "Claw",
+        "traits": [
+          "agile",
+          "finesse",
+          "unarmed"
+        ],
+        "damage": [
+          {
+            "id": "htq8qguyjhots13g6ppy",
+            "type": "slashing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 2
+            },
+            "pointer": "/items/11/system/damageRolls/htq8qguyjhots13g6ppy"
+          }
+        ],
+        "pointer": "/items/11",
+        "note": "Strike · agile, finesse, unarmed.",
+        "attackBonus": 6
+      },
+      {
+        "id": "u6omxxhGcgdgLj6L",
+        "name": "Light Hammer",
+        "traits": [
+          "agile"
+        ],
+        "damage": [
+          {
+            "id": "SklCyHPvMj76YuDm",
+            "type": "bludgeoning",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 2
+            },
+            "pointer": "/items/12/system/damageRolls/SklCyHPvMj76YuDm"
+          }
+        ],
+        "pointer": "/items/12",
+        "note": "Strike · agile.",
+        "attackBonus": 6
+      },
+      {
+        "id": "PlhmgyPACVjDwLpA",
+        "name": "Light Hammer",
+        "traits": [
+          "agile",
+          "thrown-20"
+        ],
+        "damage": [
+          {
+            "id": "V2ZE3usdTrb1N2bY",
+            "type": "bludgeoning",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 2
+            },
+            "pointer": "/items/13/system/damageRolls/V2ZE3usdTrb1N2bY"
+          }
+        ],
+        "pointer": "/items/13",
+        "note": "Strike · agile, thrown-20.",
+        "attackBonus": 6
+      },
+      {
+        "id": "JojW4TyiF3cPdVBJ",
+        "name": "Inspiring Display",
+        "traits": [
+          "auditory",
+          "emotion",
+          "linguistic",
+          "mental"
+        ],
+        "damage": [],
+        "pointer": "/items/14",
+        "note": ""
+      },
+      {
+        "id": "lkJGworLlLUoPpox",
+        "name": "Scamper",
+        "traits": [],
+        "damage": [],
+        "pointer": "/items/15",
+        "note": ""
+      }
+    ],
+    "saves": [
+      {
+        "id": "fortitude",
+        "name": "Fortitude",
+        "bonus": 5,
+        "pointer": "/system/saves/fortitude/value"
+      },
+      {
+        "id": "reflex",
+        "name": "Reflex",
+        "bonus": 6,
+        "pointer": "/system/saves/reflex/value"
+      },
+      {
+        "id": "will",
+        "name": "Will",
+        "bonus": 7,
+        "pointer": "/system/saves/will/value"
+      }
+    ],
+    "notes": [],
+    "overrides": []
   }
 ]

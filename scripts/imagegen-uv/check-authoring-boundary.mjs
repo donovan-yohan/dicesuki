@@ -47,6 +47,10 @@ const REVIEWED_BINARY_FILE_LIMITS = new Map([
     },
   ],
 
+  // Sanitized compiled-browser guest-fixture captures, reviewed as exact bytes.
+  ['docs/pr-evidence/monster-manual/priest-spellbook-phone.png', { maxBytes: 256 * 1024, sha256: '991006d0092eb7336129e2377410cb456e0914a36a604de1380041bfdca59152' }],
+  ['docs/pr-evidence/monster-manual/pf-spellbook-desktop.png', { maxBytes: 256 * 1024, sha256: '7811bc8d30cab77c54f37254f90cf05eae5a6bf72dd58017be32848f27494e30' }],
+
   // Runtime HDR environment maps (issue #222). Third-party redistributions, so
   // the digest is the reviewed property: these are byte-for-byte the files drei
   // used to fetch from `raw.githack.com/pmndrs/drei-assets@456060a/hdri/`,

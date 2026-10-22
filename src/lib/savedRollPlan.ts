@@ -67,10 +67,17 @@ export interface PlannedDieGroup {
   explosionDepth?: number
 }
 
+/** Explicit rule-adapter reading; omitted preserves legacy raw d10 faces. */
+export interface SavedRollScoring {
+  d10ZeroIsTen?: true
+}
+
 /** A saved-roll entry projected onto the physical dice that represent it. */
 export interface PlannedEntry {
   entryId: string
   type: DiceShape
+  /** Standalone source d10 reads physical zero as ten, never a percentile half. */
+  d10ZeroIsTen?: true
   perDieBonus: number
   /** How many groups to keep; `undefined` keeps them all. */
   keep?: number
@@ -162,7 +169,7 @@ export function getExplodeFace(type: DiceShape, exploding: ExplodingConfig): num
  * Start a plan for a saved roll. Groups are empty until the executor spawns
  * dice and calls {@link addGroup}.
  */
-export function createSavedRollPlan(roll: SavedRoll): SavedRollPlan {
+export function createSavedRollPlan(roll: SavedRoll, scoring: SavedRollScoring = {}): SavedRollPlan {
   return {
     name: roll.name,
     flatBonus: roll.flatBonus,
@@ -177,6 +184,7 @@ export function createSavedRollPlan(roll: SavedRoll): SavedRollPlan {
       return {
         entryId: entry.id,
         type: entry.type,
+        ...(scoring.d10ZeroIsTen && entry.type === 'd10' && !isPercentileEntry(entry) ? { d10ZeroIsTen: true as const } : {}),
         perDieBonus: entry.perDieBonus,
         keep: hasKeepDrop(entry) ? entry.quantity : undefined,
         // Resolved once, here, so nothing downstream has to guess.
@@ -324,6 +332,10 @@ interface ResolvedGroup {
  * out entirely rather than counted as zero, so a partially settled table shows
  * a running total instead of a wrong one.
  */
+function scoringFace(entry: PlannedEntry, face: number): number {
+  return entry.d10ZeroIsTen && entry.type === 'd10' && face === 0 ? 10 : face
+}
+
 function resolveGroups(entry: PlannedEntry, faces: Map<string, number>): ResolvedGroup[] {
   const resolved: ResolvedGroup[] = []
 
@@ -349,7 +361,7 @@ function resolveGroups(entry: PlannedEntry, faces: Map<string, number>): Resolve
     for (const memberId of group.memberIds) {
       const face = faces.get(memberId)
       if (face === undefined) continue
-      sum += face
+      sum += scoringFace(entry, face)
       settledMembers += 1
     }
     if (settledMembers === 0) return
@@ -453,7 +465,7 @@ export function selectRerollTargets(plan: SavedRollPlan, faces: Map<string, numb
       if (group.rerolled) return
       const face = faces.get(group.memberIds[0])
       if (face === undefined) return
-      if (!compare(face, entry.reroll!.condition, entry.reroll!.value)) return
+      if (!compare(scoringFace(entry, face), entry.reroll!.condition, entry.reroll!.value)) return
 
       targets.push({
         entryId: entry.entryId,
@@ -481,14 +493,15 @@ export function selectExplosionTargets(
 
   for (const entry of plan.entries) {
     if (!entry.exploding) continue
-    const explodeFace = getExplodeFace(entry.type, entry.exploding)
+    const explodeFace = entry.d10ZeroIsTen && entry.exploding.on === 'max' ? 10 : getExplodeFace(entry.type, entry.exploding)
     const depthLimit = Math.min(entry.exploding.limit ?? MAX_EXPLOSION_WAVES, MAX_EXPLOSION_WAVES)
 
     entry.groups.forEach((group, groupIndex) => {
       if (group.percentile) return
       if ((group.explosionDepth ?? 0) >= depthLimit) return
       const newest = group.memberIds[group.memberIds.length - 1]
-      if (faces.get(newest) !== explodeFace) return
+      const face = faces.get(newest)
+      if (face === undefined || scoringFace(entry, face) !== explodeFace) return
 
       targets.push({ entryId: entry.entryId, groupIndex, type: entry.type, memberIds: [] })
     })

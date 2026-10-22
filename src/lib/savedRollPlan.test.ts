@@ -1083,3 +1083,37 @@ describe('percentile pairs', () => {
     expect(aggregate.total).toBe(1)
   })
 })
+
+
+describe('opt-in source d10 scoring', () => {
+  it('reads zero as ten per die, with per-die and flat bonuses once', () => {
+    const roll = makeRoll([makeEntry({ type: 'd10', quantity: 2, perDieBonus: 2 })], -3)
+    const plan = createSavedRollPlan(roll, { d10ZeroIsTen: true })
+    addGroup(plan, 'entry-1', 'zero'); addGroup(plan, 'entry-1', 'three')
+    expect(aggregateSavedRollPlan(plan, faces({ zero: 0, three: 3 })).total).toBe(14)
+    expect(aggregateSavedRollPlan(cloneSavedRollPlan(plan), faces({ zero: 0, three: 3 })).total).toBe(14)
+    expect(roll.dice[0]).not.toHaveProperty('d10ZeroIsTen')
+  })
+  it('keeps legacy raw d10 and percentile pairs unchanged', () => {
+    const roll = makeRoll([makeEntry({ type: 'd10' })])
+    const legacy = createSavedRollPlan(roll); addGroup(legacy, 'entry-1', 'zero')
+    expect(aggregateSavedRollPlan(legacy, faces({ zero: 0 })).total).toBe(0)
+    const pair = createSavedRollPlan(makeRoll([makeEntry({ type: 'd10', percentile: true })]), { d10ZeroIsTen: true })
+    addPercentileGroup(pair, 'entry-1', 'tens', 'ones')
+    expect(aggregateSavedRollPlan(pair, faces({ tens: 0, ones: 0 })).total).toBe(100)
+    expect(aggregateSavedRollPlan(pair, faces({ tens: 70, ones: 0 })).total).toBe(70)
+  })
+  it('orders logical zero-as-ten values before keep and clamp mechanics', () => {
+    const plan = createSavedRollPlan(makeRoll([makeEntry({ type: 'd10', rollCount: 2, keepMode: 'highest', maximum: 8 })]), { d10ZeroIsTen: true })
+    addGroup(plan, 'entry-1', 'zero'); addGroup(plan, 'entry-1', 'three')
+    const result = aggregateSavedRollPlan(plan, faces({ zero: 0, three: 3 }))
+    expect(result.total).toBe(8); expect(result.dice.get('zero')?.kept).toBe(true)
+  })
+  it('uses the same opt-in face interpretation for follow-up comparisons', () => {
+    const plan = createSavedRollPlan(makeRoll([makeEntry({ type: 'd10', exploding: { on: 'max' }, reroll: { condition: 'equals', value: 10 } })]), { d10ZeroIsTen: true })
+    addGroup(plan, 'entry-1', 'zero')
+    expect(selectExplosionTargets(plan, faces({ zero: 0 }))).toHaveLength(1)
+    expect(selectRerollTargets(plan, faces({ zero: 0 }))).toHaveLength(1)
+    expect(selectExplosionTargets(plan, faces({ zero: 9 }))).toHaveLength(0)
+  })
+})

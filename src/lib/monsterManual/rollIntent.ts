@@ -57,8 +57,13 @@ export function compileIntent(creature: Creature, intent: Intent): SavedRoll {
       label = `${action.name} ${component.timing} ${component.type}${component.choice ? ` (${component.choice})` : ''}`
     }
   }
+  return compileRecipe(creature, recipe, label, damageType, intent.role !== 'damage' && creature.system === '5e' ? intent.mode ?? 'normal' : undefined)
+}
+
+/** Shared physical recipe emission for base actions and reviewed features. */
+export function compileRecipe(creature: Creature, recipe: Recipe, label: string, damageType?: string, mode?: string): SavedRoll {
   if (!Number.isInteger(recipe.bonus) || Math.abs(recipe.bonus) > 100 || !Number.isInteger(recipe.count) || recipe.count < 1 || recipe.count > 30 || ![4, 6, 8, 10, 12, 20].includes(recipe.sides)) throw new Error('Invalid reviewed recipe')
-  const d20 = intent.role !== 'damage' && creature.system === '5e' ? fiveED20(intent.mode) : {}
+  const d20 = mode === undefined ? {} : fiveED20(mode)
   return {
     id: createClientId('monster-roll'), createdAt: Date.now(),
     name: `${creature.name} · ${systemLabels[creature.system]} · ${label}`,

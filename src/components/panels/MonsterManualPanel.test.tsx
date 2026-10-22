@@ -62,7 +62,7 @@ describe('native catalog panel', () => {
 
 it('shows Priest mechanics before a compact legal footer in the source browser',()=>{
  renderPanel();fireEvent.click(screen.getByRole('button',{name:/^Priest · NPC/}))
- expect(screen.getByText(/extra 10 \(3d6\) radiant damage/)).toBeInTheDocument()
+ expect(screen.getAllByText(/extra 10 \(3d6\) radiant damage/).length).toBeGreaterThan(0)
  expect(screen.getByText(/spell save DC 13, \+5 to hit with spell attacks/)).toBeInTheDocument()
  const manual=screen.getByTestId('monster-manual')
  expect(manual.textContent).not.toMatch(/Informational only|not automated|Revision:|SHA-256|Rules\/support|Mechanical data normalized|Roll now replaces/i)

@@ -6,7 +6,7 @@ describe('complete saved creature snapshots', () => {
   it('derives every supported card and variants for all eight sources', () => {
     const totals = { '5e': [9, 8, 10, 12], pf2e: [9, 9, 8, 7] }
     for (const system of ['5e', 'pf2e'] as const) {
-      const creatures = catalog.filter(c => c.system === system)
+      const creatures = catalog.filter(c => c.system === system && c.source.sourceId !== 'JFmFuoOzCwc3hA1H')
       expect(creatures.map(c => buildCreatureKit(c).cards.length)).toEqual(totals[system])
       for (const c of creatures) {
         const kit = buildCreatureKit(c)

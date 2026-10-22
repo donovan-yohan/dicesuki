@@ -373,6 +373,40 @@ test('reviewed ORC license accepts only exact bytes at its exact path within its
   }
 })
 
+test('reviewed monster-manual captures reject swaps, mutations, oversized and unrelated images', async () => {
+  const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-reviewed-captures-'))
+  const paths = [
+    'docs/pr-evidence/monster-manual/priest-spellbook-phone.png',
+    'docs/pr-evidence/monster-manual/pf-spellbook-desktop.png',
+  ]
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repository })
+    const bytes = await Promise.all(paths.map(file => readFile(path.join(REPO_ROOT, file))))
+    assert.notDeepEqual(bytes[0], bytes[1])
+    for (let i = 0; i < paths.length; i++) {
+      await mkdir(path.dirname(path.join(repository, paths[i])), { recursive: true })
+      await writeFile(path.join(repository, paths[i]), bytes[i])
+    }
+    assert.equal(checkAuthoringBoundary(repository).valid, true)
+    for (let i = 0; i < paths.length; i++) {
+      const file = path.join(repository, paths[i])
+      await writeFile(file, bytes[1 - i])
+      assert.match(checkAuthoringBoundary(repository).errors.join('; '), /has sha256/)
+      const modified = Buffer.from(bytes[i])
+      modified[modified.length - 1] ^= 0xff
+      await writeFile(file, modified)
+      assert.match(checkAuthoringBoundary(repository).errors.join('; '), /has sha256/)
+      await writeFile(file, Buffer.alloc(256 * 1024 + 1, 0))
+      assert.match(checkAuthoringBoundary(repository).errors.join('; '), /is 262145 bytes; approved maximum is 262144/)
+      await writeFile(file, bytes[i])
+    }
+    await writeFile(path.join(repository, path.dirname(paths[0]), 'unreviewed.png'), bytes[0])
+    assert.match(checkAuthoringBoundary(repository).errors.join('; '), /unreviewed\.png is an unapproved binary/)
+  } finally {
+    await rm(repository, { recursive: true, force: true })
+  }
+})
+
 test('authoring boundary discovers every runtime manifest without a set allowlist', async () => {
   const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-imagegen-runtime-sets-'))
   try {

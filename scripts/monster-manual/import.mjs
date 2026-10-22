@@ -4,6 +4,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
+import { importFeatures } from './features.mjs'
 
 const registry = JSON.parse(await readFile(new URL('./registry.json', import.meta.url), 'utf8'))
 const evidenceIndex = process.argv.indexOf('--evidence')
@@ -19,17 +20,24 @@ function recipe(value) {
   return { count, sides: Number(match[2]), bonus }
 }
 const abilities = [['str','Strength','strength'],['dex','Dexterity','dexterity'],['con','Constitution','constitution'],['int','Intelligence','intelligence'],['wis','Wisdom','wisdom'],['cha','Charisma','charisma']]
+const featureIndex = process.argv.indexOf('--feature-evidence')
+async function readSource(row) {
+  let bytes
+  if(evidenceIndex >= 0) {
+    try { bytes = await readFile(resolve(process.argv[evidenceIndex+1], row.evidenceFile ?? row.file)) }
+    catch(error) { if(error.code !== 'ENOENT' || featureIndex < 0) throw error; bytes=await readFile(resolve(process.argv[featureIndex+1], row.evidenceFile ?? row.file)) }
+  } else {
+    const response=await fetch(row.url);if(!response.ok)throw new Error(`HTTP ${response.status}: ${row.url}`);bytes=Buffer.from(await response.arrayBuffer())
+  }
+  if(bytes.length>262144 || createHash('sha256').update(bytes).digest('hex')!==row.sha256)throw new Error(`Unreviewed source revision: ${row.name ?? row.file}`)
+  return bytes
+}
+const rawActors = new Map()
 const records = []
 for (const row of registry) {
-  const bytes = evidenceIndex >= 0
-    ? await readFile(resolve(process.argv[evidenceIndex + 1], row.evidenceFile))
-    : Buffer.from(await (async () => {
-      const response = await fetch(row.url)
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${row.url}`)
-      return response.arrayBuffer()
-    })())
-  if (bytes.length > 262144 || createHash('sha256').update(bytes).digest('hex') !== row.sha256) throw new Error(`Unreviewed source revision: ${row.name}`)
+  const bytes = await readSource(row)
   const raw = JSON.parse(bytes.toString('utf8'))
+  rawActors.set(row.sourceId, raw)
   const is5e = row.system === '5e'
   if ((is5e ? raw.index : raw._id) !== row.sourceId || raw.name !== row.name) throw new Error('Source identity mismatch')
   if (!is5e && (raw.system.details.publication.license !== 'ORC' || raw.system.details.publication.remaster !== true)) throw new Error('Wrong PF edition/license')
@@ -116,7 +124,8 @@ for (const row of registry) {
   records.push(c)
   console.log(`${row.name} ${row.system}: reviewed hash/identity PASS`)
 }
-if (records.length !== 8 || new Set(records.map(c => c.id)).size !== 8) throw new Error('Roster identity failed')
-for (const system of ['5e', 'pf2e']) for (const kind of ['npc', 'monster']) if (records.filter(c => c.system === system && c.kind === kind).length !== 2) throw new Error('Roster count failed')
+if (records.length !== 9 || new Set(records.map(c => c.id)).size !== 9) throw new Error('Roster identity failed')
+for (const system of ['5e', 'pf2e']) for (const kind of ['npc', 'monster']) if (records.filter(c => c.system === system && c.kind === kind && c.source.sourceId !== 'JFmFuoOzCwc3hA1H').length !== 2) throw new Error('Roster count failed')
 await writeFile('src/generated/monsterManual.json', JSON.stringify(records, null, 2) + '\n')
-console.log('Eight-entry import PASS')
+await writeFile('src/generated/monsterFeatures.json', JSON.stringify(await importFeatures(records, rawActors, readSource, recipe), null, 2) + '\n')
+console.log('Original eight plus approved ninth actor/features import PASS')

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { webcrypto } from 'node:crypto'
-import { refreshProvider, verifySource } from './providers'
+import { refreshProvider, verifySource, verifySpellSource } from './providers'
 import { catalog } from './catalog'
 import { validateFiveESource } from './providers/dnd5eapi'
 import { validatePfSource } from './providers/foundryPf2e'
@@ -52,4 +52,13 @@ describe('bounded online providers', () => {
     controller.abort()
     await expect(refreshProvider('dnd5eapi', controller.signal, vi.fn())).rejects.toThrow()
   })
+})
+
+it('checks the ten pinned spell sources with the creature provider and rejects forged spell bytes',async()=>{
+ vi.stubGlobal('crypto',webcrypto)
+ const requests=vi.fn().mockRejectedValue(new Error('offline network'))
+ await refreshProvider('dnd5eapi',new AbortController().signal,requests,true)
+ expect(requests.mock.calls.map(([url])=>url).filter((url:string)=>url.includes('/spells/'))).toHaveLength(10)
+ await expect(verifySpellSource('https://evil.example/spells/light','{}')).rejects.toThrow()
+ await expect(verifySpellSource('https://www.dnd5eapi.co/api/2014/spells/light',JSON.stringify({index:'light',url:'/api/2014/spells/light',desc:['forged']}))).rejects.toThrow(/Source changed/)
 })

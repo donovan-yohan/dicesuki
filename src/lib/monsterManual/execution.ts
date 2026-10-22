@@ -1,5 +1,6 @@
 import type { Creature, Intent } from './types'
 import type { SavedRoll } from '../../types/savedRolls'
+import type { SavedRollScoring } from '../savedRollPlan'
 import type { SavedRollBackend } from '../savedRollExecution'
 import { executePhysicalSavedRoll } from '../savedRollExecution'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
@@ -20,7 +21,7 @@ export function quickActionState(): 'ready' | 'rolling' | 'disconnected' {
 export async function executeMonsterIntent(c: Creature, intent: Intent, backend: SavedRollBackend, onBase: () => void): Promise<void> {
   return executeAdmittedRoll(compileIntent(c, intent), backend, onBase)
 }
-export async function executeAdmittedRoll(roll: SavedRoll, backend: SavedRollBackend, onBase: () => void): Promise<void> {
+export async function executeAdmittedRoll(roll: SavedRoll, backend: SavedRollBackend, onBase: () => void, scoring?: SavedRollScoring): Promise<void> {
   const state = quickActionState()
   if (state !== 'ready') throw new Error(state === 'disconnected' ? 'Room not connected. Reconnect to roll.' : 'Your dice are still rolling.')
   starting = true
@@ -35,7 +36,7 @@ export async function executeAdmittedRoll(roll: SavedRoll, backend: SavedRollBac
     },
   }
   try {
-    await executePhysicalSavedRoll(roll, { backend: admittedBackend, ownerId: useMultiplayerStore.getState().localPlayerId!, onBaseWaveStarted: onBase })
+    await executePhysicalSavedRoll(roll, { backend: admittedBackend, ownerId: useMultiplayerStore.getState().localPlayerId!, scoring, onBaseWaveStarted: onBase })
   } catch (error) {
     if (tableReplacementStarted) useDiceStore.getState().clearActiveSavedRoll()
     throw error

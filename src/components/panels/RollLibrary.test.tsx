@@ -4,6 +4,8 @@ import { SavedRollsPanel } from './SavedRollsPanel'
 import { useAuthStore } from '../../store/useAuthStore'
 import { useRollLibraryStore } from '../../store/useRollLibraryStore'
 import { useSavedRollsStore } from '../../store/useSavedRollsStore'
+import { buildCreatureKitV2 } from '../../lib/monsterManual/features'
+import { catalog } from '../../lib/monsterManual/catalog'
 import legacyPriest from '../../test/fixtures/legacyPriestKit.json'
 import { executeAdmittedRoll } from '../../lib/monsterManual/execution'
 vi.mock('./BottomSheet',()=>({BottomSheet:({children,isOpen}:{children:React.ReactNode;isOpen:boolean})=>isOpen?<div>{children}</div>:null}))
@@ -92,4 +94,61 @@ it('renders the actual legacy v1 Priest quietly without rewriting alias, group, 
  expect(useRollLibraryStore.getState().data).toEqual(data)
  expect(JSON.parse(localStorage.getItem(scope)!)).toEqual(data)
  expect(executeAdmittedRoll).not.toHaveBeenCalled()
+})
+
+it('updates an existing alias only on explicit request and rolls actor-bound healing through shared admission',async()=>{
+ const scope=useRollLibraryStore.getState().scope!
+ const saved={version:1,groups:[],memberships:{},ungroupedCollapsed:false,instances:[{id:'legacy-feature',displayName:'Sister Mira',collapsed:false,createdAt:1,kit:legacyPriest}]}
+ localStorage.setItem(scope,JSON.stringify(saved));act(()=>{useAuthStore.setState({status:'loading'});useAuthStore.setState({status:'guest'})})
+ render(<SavedRollsPanel isOpen onClose={()=>{}}/>);fireEvent.click(screen.getByRole('tab',{name:'Monster Manual'}))
+ const instance=screen.getByRole('region',{name:'Sister Mira saved creature'})
+ expect(useRollLibraryStore.getState().data.instances[0].kit.version).toBe(1)
+ fireEvent.click(within(instance).getByLabelText('Creature options for Sister Mira'));fireEvent.click(within(instance).getByRole('button',{name:'Update spells & abilities'}))
+ expect(useRollLibraryStore.getState().data.instances[0]).toMatchObject({id:'legacy-feature',displayName:'Sister Mira',createdAt:1,kit:{version:2}})
+ expect(executeAdmittedRoll).not.toHaveBeenCalled()
+ const spellbook=within(instance).getByRole('region',{name:'Spellbook'})
+ fireEvent.click(within(spellbook).getByText('Light',{selector:'summary'}));const light=within(spellbook).getByText('Light',{selector:'summary'}).closest('details')!
+ expect(within(light).queryByRole('button',{name:/Roll/})).not.toBeInTheDocument()
+ fireEvent.click(within(spellbook).getByText('Cure Wounds',{selector:'summary'}))
+ fireEvent.change(within(spellbook).getByLabelText('Cure Wounds Healing Spell slot'),{target:{value:'3'}})
+ expect(executeAdmittedRoll).not.toHaveBeenCalled()
+ fireEvent.click(within(spellbook).getByRole('button',{name:'Roll Cure Wounds · Healing · 3d8 + 3'}))
+ await waitFor(()=>expect(executeAdmittedRoll).toHaveBeenCalledTimes(1))
+ expect(vi.mocked(executeAdmittedRoll).mock.calls[0][0]).toMatchObject({name:expect.stringContaining('Sister Mira'),flatBonus:3,dice:[expect.objectContaining({type:'d8',quantity:3,perDieBonus:0})]})
+})
+
+it('retains selected slot and open spell across sheet close/reopen',async()=>{
+ const lib=useRollLibraryStore.getState();lib.addCreature(lib.token!,buildCreatureKitV2(catalog.find(c=>c.name==='Priest')!))
+ const props={onClose:()=>{}};const view=render(<SavedRollsPanel isOpen {...props}/>);fireEvent.click(screen.getByRole('tab',{name:'Monster Manual'}));fireEvent.click(screen.getByText('Cure Wounds',{selector:'summary'}));fireEvent.change(screen.getByLabelText('Cure Wounds Healing Spell slot'),{target:{value:'3'}})
+ await waitFor(()=>expect(screen.getByLabelText('Cure Wounds Healing Spell slot')).toHaveValue('3'))
+ view.rerender(<SavedRollsPanel isOpen={false} {...props}/>);view.rerender(<SavedRollsPanel isOpen {...props}/>)
+ expect(screen.getByLabelText('Cure Wounds Healing Spell slot')).toHaveValue('3')
+ expect(screen.getByText('Cure Wounds',{selector:'summary'}).closest('details')).toHaveAttribute('open')
+})
+
+it('updating one creature clears only its feature choices even with prefix-shaped legacy IDs',async()=>{
+ const kit=buildCreatureKitV2(catalog.find(c=>c.name==='Priest')!),scope=useRollLibraryStore.getState().scope!
+ localStorage.setItem(scope,JSON.stringify({version:1,groups:[],memberships:{},ungroupedCollapsed:false,instances:[{id:'a',displayName:'Priest A',collapsed:false,createdAt:1,kit},{id:'a:b',displayName:'Priest B',collapsed:false,createdAt:2,kit}]}))
+ act(()=>{useAuthStore.setState({status:'loading'});useAuthStore.setState({status:'guest'})})
+ render(<SavedRollsPanel isOpen onClose={()=>{}}/>);fireEvent.click(screen.getByRole('tab',{name:'Monster Manual'}))
+ const a=screen.getByRole('region',{name:'Priest A saved creature'}),b=screen.getByRole('region',{name:'Priest B saved creature'})
+ for(const [region,value]of [[a,'3'],[b,'2']] as const){fireEvent.click(within(region).getByText('Cure Wounds',{selector:'summary'}));fireEvent.change(within(region).getByLabelText('Cure Wounds Healing Spell slot'),{target:{value}})}
+ fireEvent.click(within(a).getByLabelText('Creature options for Priest A'));fireEvent.click(within(a).getByRole('button',{name:'Update spells & abilities'}))
+ await waitFor(()=>expect(within(a).getByLabelText('Cure Wounds Healing Spell slot')).toHaveValue('1'))
+ expect(within(b).getByLabelText('Cure Wounds Healing Spell slot')).toHaveValue('2')
+ expect(within(b).getByText('Cure Wounds',{selector:'summary'}).closest('details')).toHaveAttribute('open')
+ expect(executeAdmittedRoll).not.toHaveBeenCalled()
+})
+
+
+it('opts restored v2 venom into source d10 scoring without rewriting the kit', async()=>{
+ const lib=useRollLibraryStore.getState();lib.addCreature(lib.token!,buildCreatureKitV2(catalog.find(c=>c.name==='Giant Scorpion')!))
+ const original=JSON.stringify(useRollLibraryStore.getState().data)
+ render(<SavedRollsPanel isOpen onClose={()=>{}}/>);fireEvent.click(screen.getByRole('tab',{name:'Monster Manual'}))
+ fireEvent.click(screen.getByText('Giant Scorpion Venom',{selector:'summary'}));fireEvent.change(screen.getByLabelText('Giant Scorpion Venom Poison damage Venom stage'),{target:{value:'3'}})
+ fireEvent.click(screen.getByRole('button',{name:'Roll Giant Scorpion Venom · Poison damage · 2d10'}))
+ await waitFor(()=>expect(executeAdmittedRoll).toHaveBeenCalledTimes(1))
+ expect(vi.mocked(executeAdmittedRoll).mock.calls[0][3]).toEqual({d10ZeroIsTen:true})
+ expect(vi.mocked(executeAdmittedRoll).mock.calls[0][0]).toMatchObject({dice:[expect.objectContaining({type:'d10',quantity:2})]})
+ expect(JSON.stringify(useRollLibraryStore.getState().data)).toBe(original)
 })

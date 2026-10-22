@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { BottomSheet } from './BottomSheet'
 import { SavedRollCard } from './saved-rolls/SavedRollCard'
 import { RollBuilder } from './saved-rolls/RollBuilder'
+import { CreatureFeatures, type FeatureUiState } from './CreatureFeatures'
+import { buildCreatureKitV2, freshFeatureRoll, kitFingerprint, resolveFeatureVariant, validateStoredKit, type Selection } from '../../lib/monsterManual/features'
+import { catalog } from '../../lib/monsterManual/catalog'
 import { CreatureSourceFooter } from './CreatureSourceFooter'
 import { creatureNotes, creatureText } from '../../lib/monsterManual/creatureCopy'
 import { MonsterManualPanel } from './MonsterManualPanel'
@@ -13,8 +16,9 @@ import { useRollLibraryStore, currentLibraryScope } from '../../store/useRollLib
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useDiceStore } from '../../store/useDiceStore'
 import { createClientId } from '../../lib/clientId'
-import { buildCreatureKit, validateKit, type KitCard } from '../../lib/rollLibrary'
+import { type KitCard } from '../../lib/rollLibrary'
 import { systemLabels } from '../../lib/monsterManual/catalog'
+import type { SavedRollScoring } from '../../lib/savedRollPlan'
 import { executeAdmittedRoll, quickActionState } from '../../lib/monsterManual/execution'
 import { formatSavedRoll } from '../../lib/diceHelpers'
 
@@ -28,12 +32,12 @@ interface Props { isOpen: boolean; onClose: () => void; tableDice?: TableDieSumm
 export function SavedRollsPanel({ isOpen, onClose, tableDice=[] }: Props) {
   const token=useRollLibraryStore(s=>s.token)
   const [tab,setTab]=useState<'personal'|'creatures'>('personal')
-  const session=useMemo(()=>({token,query:'',creatureQuery:'',tag:'',choices:{} as Record<string,string>,scroll:{personal:0,creatures:0}}),[token])
+  const session=useMemo(()=>({token,query:'',creatureQuery:'',tag:'',choices:{} as Record<string,string>,featureUi:{choices:{},queries:{},expanded:{}} as FeatureUiState,scroll:{personal:0,creatures:0}}),[token])
   return <BottomSheet isOpen={isOpen} onClose={onClose} title="My Dice Rolls" desktopClassName="lg:mx-auto lg:max-w-5xl" height="85dvh" handleOnlyDrag constrainToViewport returnFocus={()=>document.querySelector<HTMLButtonElement>('button[aria-label="My Dice Rolls"]')}>
     <LibraryView key={token ?? 'loading'} isOpen={isOpen} onClose={onClose} tableDice={tableDice} tab={tab} setTab={setTab} session={session} />
   </BottomSheet>
 }
-interface ViewProps extends Omit<Props,'onOpenMonsterManual'> { tab:'personal'|'creatures'; setTab:(tab:'personal'|'creatures')=>void; session:{token:string|null;query:string;creatureQuery:string;tag:string;choices:Record<string,string>;scroll:{personal:number;creatures:number}} }
+interface ViewProps extends Omit<Props,'onOpenMonsterManual'> { tab:'personal'|'creatures'; setTab:(tab:'personal'|'creatures')=>void; session:{token:string|null;query:string;creatureQuery:string;tag:string;choices:Record<string,string>;featureUi:FeatureUiState;scroll:{personal:number;creatures:number}} }
 function LibraryView({isOpen,onClose,tableDice=[],tab,setTab,session}:ViewProps) {
   const lib=useRollLibraryStore()
   const personal=useSavedRollsStore()
@@ -50,6 +54,7 @@ function LibraryView({isOpen,onClose,tableDice=[],tab,setTab,session}:ViewProps)
   const [starting,setStarting]=useState(false)
   const [form,setForm]=useState<{kind:'group'|'instance'|'move';id?:string;name:string}|null>(null)
   const [variantChoices,setVariantChoices]=useState<Record<string,string>>(session.choices)
+  const [featureUi,setFeatureUi]=useState(session.featureUi)
   const importLatch=useRef(false)
   const executeLatch=useRef(false)
   const root=useRef<HTMLDivElement>(null)
@@ -66,7 +71,7 @@ function LibraryView({isOpen,onClose,tableDice=[],tab,setTab,session}:ViewProps)
   const wavesPending=useDiceStore(s=>s.savedRollWavesPending)
   const state=quickActionState()
   const disabled=!ready||starting||state!=='ready'
-  useEffect(()=>{session.query=query;session.creatureQuery=creatureQuery;session.tag=tag;session.choices=variantChoices},[session,query,creatureQuery,tag,variantChoices])
+  useEffect(()=>{session.query=query;session.creatureQuery=creatureQuery;session.tag=tag;session.choices=variantChoices;session.featureUi=featureUi},[session,query,creatureQuery,tag,variantChoices,featureUi])
   useEffect(()=>{const scroller=root.current?.closest('[data-sheet-content]');if(!scroller)return;const save=()=>{session.scroll[tab]=scroller.scrollTop};scroller.scrollTop=session.scroll[tab];scroller.addEventListener('scroll',save);return()=>scroller.removeEventListener('scroll',save)},[session,tab])
   useEffect(()=>{if(form)(formInput.current??root.current?.querySelector<HTMLSelectElement>('select[aria-label="Destination group"]'))?.focus()},[form])
   useEffect(()=>{if(chooser)document.getElementById('catalog-back')?.focus()},[chooser])
@@ -81,19 +86,40 @@ function LibraryView({isOpen,onClose,tableDice=[],tab,setTab,session}:ViewProps)
   }
   function openForm(value:NonNullable<typeof form>){backFocus.current=document.activeElement as HTMLElement;setForm(value)}
   function closeForm(){setForm(null);scheduleFocus(()=>backFocus.current?.focus())}
-  async function execute(roll:SavedRoll,personalId?:string) {
+  async function execute(roll:SavedRoll,personalId?:string,scoring?:SavedRollScoring) {
     if(executeLatch.current||!ready||!token||useRollLibraryStore.getState().token!==token)return
     executeLatch.current=true;setStarting(true);setError(null)
-    try {await executeAdmittedRoll(roll,backend,()=>{if(useRollLibraryStore.getState().token!==token||currentLibraryScope()!==lib.scope)return;if(personalId)personal.markRollAsUsed(personalId);onClose()})}
+    try {await executeAdmittedRoll(roll,backend,()=>{if(useRollLibraryStore.getState().token!==token||currentLibraryScope()!==lib.scope)return;if(personalId)personal.markRollAsUsed(personalId);onClose()},scoring)}
     catch(e){setError(e instanceof Error?e.message:'Could not start roll.')}
     finally{executeLatch.current=false;setStarting(false)}
   }
   function kitExecute(instanceId:string,card:KitCard,variantId:string){attempt(()=>{
     const live=useRollLibraryStore.getState();if(live.token!==token)throw new Error('Library account changed.')
     const instance=live.data.instances.find(i=>i.id===instanceId);if(!instance)throw new Error('Creature no longer saved')
-    const checked=validateKit(instance.kit);const variant=checked.cards.find(c=>c.id===card.id)?.variants.find(v=>v.id===variantId)
+    const checked=validateStoredKit(instance.kit);const variant=checked.cards.find(c=>c.id===card.id)?.variants.find(v=>v.id===variantId)
     if(!variant)throw new Error('Saved recipe is invalid')
     void execute({...variant.roll,id:createClientId('kit-roll'),createdAt:Date.now(),name:`${instance.displayName} · ${systemLabels[checked.provenance.system]} · ${card.label}`,dice:variant.roll.dice.map(d=>({...d,id:createClientId('kit-die')}))})
+  })}
+  function featureExecute(instanceId:string,featureId:string,rollId:string,selection:Selection){attempt(()=>{
+    const instance=useRollLibraryStore.getState().data.instances.find(i=>i.id===instanceId)
+    if(!instance)throw new Error('Creature no longer saved')
+    const kit=validateStoredKit(instance.kit)
+    const feature=kit.version===2?kit.features.find(f=>f.id===featureId):undefined
+    const roll=feature?.rolls.find(r=>r.id===rollId)
+    if(!roll)throw new Error('Creature feature no longer available')
+    const next=freshFeatureRoll(resolveFeatureVariant(roll,selection).roll)
+    next.name=`${instance.displayName} · ${systemLabels[kit.provenance.system]} · ${feature!.name} · ${roll.label}`
+    void execute(next,undefined,{d10ZeroIsTen:true})
+  })}
+  function updateKit(instanceId:string){attempt(()=>{
+    const instance=lib.data.instances.find(i=>i.id===instanceId)
+    if(!instance)throw new Error('Creature no longer saved')
+    const creature=catalog.find(c=>c.key===instance.kit.provenance.key)
+    if(!creature)throw new Error('Creature source is unavailable for update')
+    lib.updateInstanceKit(token!,instanceId,kitFingerprint(instance.kit),buildCreatureKitV2(creature))
+    setVariantChoices(previous=>Object.fromEntries(Object.entries(previous).filter(([key])=>!key.startsWith(`${JSON.stringify(instanceId)}:`))))
+    setFeatureUi(previous=>({choices:Object.fromEntries(Object.entries(previous.choices).filter(([key])=>!key.startsWith(`${JSON.stringify(instanceId)}:`))),expanded:Object.fromEntries(Object.entries(previous.expanded).filter(([key])=>!key.startsWith(`${JSON.stringify(instanceId)}:`))),queries:Object.fromEntries(Object.entries(previous.queries).filter(([key])=>!key.startsWith(`${JSON.stringify(instanceId)}:`)))}))
+    setMessage('Spells & abilities updated');focus(`instance-${instanceId}`)
   })}
   function saveForm(){if(!form||!token)return;attempt(()=>{
     if(form.kind==='group') {if(form.id){lib.editGroup(token,form.id,{name:form.name});focus(`group-${form.id}`)}else {const id=lib.addGroup(token,form.name);focus(`group-${id}`)}}
@@ -135,7 +161,7 @@ function LibraryView({isOpen,onClose,tableDice=[],tab,setTab,session}:ViewProps)
         <button id="catalog-back" className={button} onClick={()=>{setChooser(false);focus('add-creature')}}>Back to roster</button>
         <MonsterManualPanel embedded isOpen={isOpen} onClose={()=>setChooser(false)} onAdd={c=>{
           if(importLatch.current)return;importLatch.current=true
-          try{const kit=buildCreatureKit(c);const id=lib.addCreature(token!,kit);setChooser(false);setMessage(`${c.name} added · ${kit.cards.length} rolls`);focus(`instance-${id}`)}finally{queueMicrotask(()=>{importLatch.current=false})}
+          try{const kit=buildCreatureKitV2(c);const id=lib.addCreature(token!,kit);setChooser(false);setMessage(`${c.name} added · ${kit.cards.length} rolls`);focus(`instance-${id}`)}finally{queueMicrotask(()=>{importLatch.current=false})}
         }}/>
       </>:<div role="tabpanel" id={`library-panel-${tab}`} aria-labelledby={`library-tab-${tab}`} className="space-y-4">
         {tab==='personal'?<>
@@ -151,11 +177,11 @@ function LibraryView({isOpen,onClose,tableDice=[],tab,setTab,session}:ViewProps)
           {!!lib.data.instances.length&&!lib.data.instances.some(i=>`${i.displayName} ${i.kit.name} ${systemLabels[i.kit.provenance.system]}`.toLowerCase().includes(creatureQuery.toLowerCase()))&&<p>No saved creatures match.</p>}
           {lib.data.instances.filter(i=>`${i.displayName} ${i.kit.name} ${systemLabels[i.kit.provenance.system]}`.toLowerCase().includes(creatureQuery.toLowerCase())).map(instance=><section key={instance.id} className="space-y-3" aria-label={`${instance.displayName} saved creature`}>
             <div className="flex gap-1 items-start"><button id={`instance-${instance.id}`} className={`${button} flex-1 text-left break-words`} aria-expanded={!instance.collapsed} aria-controls={`instance-content-${instance.id}`} onClick={()=>attempt(()=>lib.editInstance(token!,instance.id,{collapsed:!instance.collapsed}))}><span className="block">{instance.collapsed?'▸':'▾'} {instance.displayName} · {instance.kit.cards.length} rolls</span><span className="block text-xs font-normal text-theme-text-secondary">{instance.kit.name} · {systemLabels[instance.kit.provenance.system]}</span></button>
-              <details><summary className={`${button} cursor-pointer`} aria-label={`Creature options for ${instance.displayName}`}>⋯</summary><div className="flex flex-col gap-1"><button className={button} onClick={()=>openForm({kind:'instance',id:instance.id,name:instance.displayName})}>Rename instance</button><button className={button} onClick={()=>attempt(()=>{lib.editInstance(token!,instance.id,{collapsed:false});scheduleFocus(()=>{const details=document.getElementById(`source-${instance.id}`) as HTMLDetailsElement|null;if(details){details.open=true;details.querySelector('summary')?.focus()}})})}>View details</button><button className={button} onClick={()=>{if(confirm(`Remove "${instance.displayName}"? Removes this saved kit only.`))attempt(()=>{lib.removeInstance(token!,instance.id);focus('add-creature')})}}>Remove instance</button></div></details>
+              <details><summary className={`${button} cursor-pointer`} aria-label={`Creature options for ${instance.displayName}`}>⋯</summary><div className="flex flex-col gap-1"><button className={button} onClick={()=>updateKit(instance.id)}>Update spells &amp; abilities</button><button className={button} onClick={()=>openForm({kind:'instance',id:instance.id,name:instance.displayName})}>Rename instance</button><button className={button} onClick={()=>attempt(()=>{lib.editInstance(token!,instance.id,{collapsed:false});scheduleFocus(()=>{const details=document.getElementById(`source-${instance.id}`) as HTMLDetailsElement|null;if(details){details.open=true;details.querySelector('summary')?.focus()}})})}>View details</button><button className={button} onClick={()=>{if(confirm(`Remove "${instance.displayName}"? Removes this saved kit only.`))attempt(()=>{lib.removeInstance(token!,instance.id);focus('add-creature')})}}>Remove instance</button></div></details>
             </div>
             {!instance.collapsed&&<div id={`instance-content-${instance.id}`} className="space-y-3">
               {(['attack','damage','own-save'] as const).map(role=><div key={role} className="space-y-2"><h3 className="text-sm font-semibold">{role==='attack'?'Attacks':role==='damage'?'Damage':'Own saves'}</h3><div className={recipeGrid}>{instance.kit.cards.filter(c=>c.role===role).map(card=>{
-                const key=`${instance.id}:${card.id}`;const choice=variantChoices[key]??card.variants[0].id;const variant=card.variants.find(v=>v.id===choice)??card.variants[0]
+                const key=`${JSON.stringify(instance.id)}:${card.id}`;const choice=variantChoices[key]??card.variants[0].id;const variant=card.variants.find(v=>v.id===choice)??card.variants[0]
                 return <article key={card.id} className="min-w-0 rounded-xl border border-theme-border bg-theme-surface p-2 space-y-2 [overflow-wrap:anywhere]">
                   <button className="field-focus-ring min-h-[88px] w-full rounded-lg bg-theme-bg p-3 text-left active:translate-y-px motion-reduce:transform-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={disabled} onClick={()=>kitExecute(instance.id,card,variant.id)} aria-label={`Roll ${instance.displayName} · ${systemLabels[instance.kit.provenance.system]} · ${card.label} · ${formatSavedRoll(variant.roll)}`}><span className="block text-xs text-theme-text-secondary">Roll</span><span className="block text-sm font-semibold">{card.label}</span><span className="block text-sm font-mono text-theme-accent">{formatSavedRoll(variant.roll)}</span></button>
                   {card.target&&<p className="text-xs text-theme-text-secondary">{creatureText(card.target)}</p>}
@@ -166,6 +192,7 @@ function LibraryView({isOpen,onClose,tableDice=[],tab,setTab,session}:ViewProps)
               <details id={`source-${instance.id}`} className="text-sm space-y-2 break-words"><summary className="field-focus-ring min-h-11 py-3 cursor-pointer">Abilities &amp; details</summary>
                 {creatureNotes(instance.kit.notes).map((n,i)=><p key={i} className="whitespace-pre-line">{n}</p>)}
               </details>
+              {instance.kit.version===2&&<CreatureFeatures state={featureUi} onStateChange={setFeatureUi} prefix={`${JSON.stringify(instance.id)}:`} features={instance.kit.features} sourceUrl={instance.kit.provenance.source.url} disabled={disabled} onRoll={(f,r,s)=>featureExecute(instance.id,f,r,s)}/>}
               <CreatureSourceFooter source={instance.kit.provenance.source}/>
             </div>}
           </section>)}

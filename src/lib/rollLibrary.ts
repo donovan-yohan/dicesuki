@@ -44,26 +44,26 @@ export function buildCreatureKit(c: Creature): CreatureKit {
       return details.length ? details.map(note => `${a.name}: ${note}`) : a.attackBonus === undefined && !a.damage.length ? [a.name] : []
     })]) })
 }
-function record(value: unknown): Record<string, unknown> {
+export function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid saved kit object')
   return value as Record<string, unknown>
 }
-function exact(v: Record<string, unknown>, keys: string[]) {
+export function exact(v: Record<string, unknown>, keys: string[]) {
   if (Object.keys(v).some(k => !keys.includes(k))) throw new Error('Unsupported saved kit field')
 }
 export function text(v: unknown, max = 500): string {
   if (typeof v !== 'string' || !v.trim() || v.length > max || Array.from(v).some(c => c.charCodeAt(0) < 32 && ![9, 10, 13].includes(c.charCodeAt(0)))) throw new Error('Invalid saved library text')
   return v
 }
-function integer(v: unknown, min: number, max: number): number {
+export function integer(v: unknown, min: number, max: number): number {
   if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < min || v > max) throw new Error('Saved kit number outside bounds')
   return v
 }
-function array(v: unknown, max: number): unknown[] {
+export function array(v: unknown, max: number): unknown[] {
   if (!Array.isArray(v) || v.length > max) throw new Error('Saved kit array outside bounds')
   return v
 }
-function url(v: unknown, local = false): string {
+export function url(v: unknown, local = false): string {
   const s = text(v, 1000)
   if (local && /^\/licenses\/monster-manual\/[a-zA-Z0-9_.-]+$/.test(s)) return s
   const u = new URL(s)

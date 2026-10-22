@@ -349,6 +349,24 @@ describe('executePhysicalSavedRoll', () => {
     vi.restoreAllMocks()
   })
 
+  it.each([
+    { source: true, percentile: false, values: [0, 3], quantity: 2, expected: 13 },
+    { source: false, percentile: false, values: [0, 3], quantity: 2, expected: 3 },
+    { source: true, percentile: true, values: [0, 0], quantity: 1, expected: 100 },
+    { source: true, percentile: true, values: [70, 0], quantity: 1, expected: 70 },
+  ])('keeps source d10 reading scoped through HUD and single history row: $source/$percentile/$values', async ({source,percentile,values,quantity,expected}) => {
+    const room = createFakeRoom(values)
+    const roll = makeRoll({ type: 'd10', quantity, ...(percentile ? { percentile: true as const } : {}) })
+    const original = JSON.stringify(roll)
+    await executePhysicalSavedRoll(roll, { backend: room.backend, ownerId: OWNER, ...(source ? { scoring: { d10ZeroIsTen: true as const } } : {}) })
+    await room.quiesce()
+    expect(activeTotal()).toBe(expected)
+    expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    expect(useDiceStore.getState().rollHistory[0].sum).toBe(expected)
+    expect(JSON.stringify(roll)).toBe(original)
+    expect(room.spawnLog.map(d=>d.type)).toEqual(percentile ? ['d10tens','d10'] : ['d10','d10'])
+  })
+
   it('a manual roll supersedes pending saved-roll waves without stale spawns or scoring', async () => {
     const room = createFakeRoom([6, 3])
     const send = vi.spyOn(useMultiplayerStore.getState(), 'sendMessage')

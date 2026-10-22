@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { useAuthStore } from './useAuthStore'
 import { createClientId } from '../lib/clientId'
-import { LIBRARY_LIMITS, text, validateKit, type CreatureKit } from '../lib/rollLibrary'
+import { LIBRARY_LIMITS, text } from '../lib/rollLibrary'
+import { kitFingerprint, validateStoredKit, type StoredKit } from '../lib/monsterManual/features'
 
 interface Group { id: string; name: string; collapsed: boolean }
-interface Instance { id: string; displayName: string; collapsed: boolean; createdAt: number; kit: CreatureKit }
+interface Instance { id: string; displayName: string; collapsed: boolean; createdAt: number; kit: StoredKit }
 export interface LibraryData { version: 1; groups: Group[]; memberships: Record<string, string>; instances: Instance[]; ungroupedCollapsed: boolean }
 const empty = (): LibraryData => ({ version: 1, groups: [], memberships: {}, instances: [], ungroupedCollapsed: false })
 const name = (v: unknown) => text(v, LIBRARY_LIMITS.name).trim()
@@ -22,7 +23,7 @@ function validateData(value: unknown): { data: LibraryData; dropped: boolean } {
     try {
       const i=object(raw); const createdAt=i.createdAt
       if (typeof createdAt !== 'number' || !Number.isSafeInteger(createdAt) || createdAt < 0) throw new Error('Invalid instance time')
-      const instance={id:id(i.id),displayName:name(i.displayName),collapsed:bool(i.collapsed),createdAt,kit:validateKit(i.kit)}
+      const instance={id:id(i.id),displayName:name(i.displayName),collapsed:bool(i.collapsed),createdAt,kit:validateStoredKit(i.kit)}
       if(data.instances.some(i=>i.id===instance.id)) throw new Error('Duplicate instance'); data.instances.push(instance)
     } catch { dropped=true }
   }
@@ -48,7 +49,8 @@ interface Store {
   removeGroup: (token: string, id: string) => void
   moveRoll: (token: string, roll: string, group: string | null) => void
   collapseUngrouped: (token: string, collapsed: boolean) => void
-  addCreature: (token: string, kit: CreatureKit) => string
+  addCreature: (token: string, kit: StoredKit) => string
+  updateInstanceKit: (token: string, instanceId: string, expectedKitFingerprint: string, nextKit: StoredKit) => void
   editInstance: (token: string, id: string, delta: Partial<Pick<Instance,'displayName'|'collapsed'>>) => void
   removeInstance: (token: string, id: string) => void
   resetCurrentScope: (token: string) => void
@@ -74,13 +76,21 @@ export const useRollLibraryStore=create<Store>((set,get)=> {
     moveRoll:(token,roll,group)=>commit(token,d=>{id(roll);if(group!==null&&!d.groups.some(g=>g.id===group))throw new Error('Group no longer exists');const memberships={...d.memberships};delete memberships[roll];if(group)memberships[roll]=group;if(Object.keys(memberships).length>1000)throw new Error('Maximum 1000 memberships');return {...d,memberships,groups:d.groups.map(g=>g.id===group?{...g,collapsed:false}:g),ungroupedCollapsed:group?d.ungroupedCollapsed:false}}),
     collapseUngrouped:(token,collapsed)=>commit(token,d=>({...d,ungroupedCollapsed:bool(collapsed)})),
     addCreature:(token,value)=>{
-      const kit=validateKit(value);const instanceId=createClientId('creature')
+      const kit=validateStoredKit(value);const instanceId=createClientId('creature')
       commit(token,d=>{
         if(d.instances.length>=50)throw new Error('Maximum 50 creature kits')
         let displayName=kit.name;for(let n=2;d.instances.some(i=>i.displayName===displayName);n++)displayName=`${kit.name.slice(0,70)} ${n}`
         return {...d,instances:[...d.instances,{id:instanceId,displayName,collapsed:false,createdAt:Date.now(),kit}]}
       });return instanceId
     },
+    updateInstanceKit:(token,instanceId,expected,nextKit)=>commit(token,d=>{
+      const index=d.instances.findIndex(i=>i.id===instanceId)
+      if(index<0)throw new Error('Creature no longer saved')
+      if(typeof expected!=='string'||expected.length>LIBRARY_LIMITS.bytes||kitFingerprint(d.instances[index].kit)!==expected)throw new Error('Creature kit changed. Try again.')
+      const kit=validateStoredKit(nextKit)
+      if(kit.provenance.key!==d.instances[index].kit.provenance.key)throw new Error('Creature update source mismatch')
+      return {...d,instances:d.instances.map((i,n)=>n===index?{...i,kit}:i)}
+    }),
     editInstance:(token,id,delta)=>commit(token,d=>({...d,instances:d.instances.map(i=>i.id===id?{...i,...(delta.displayName===undefined?{}:{displayName:name(delta.displayName)}),...(delta.collapsed===undefined?{}:{collapsed:bool(delta.collapsed)})}:i)})),
     removeInstance:(token,id)=>commit(token,d=>({...d,instances:d.instances.filter(i=>i.id!==id)})),
     resetCurrentScope:token=>{commit(token,empty);set({token:`${++epoch}:${get().scope}`})},

@@ -6,11 +6,11 @@ import registry from '../../../scripts/monster-manual/registry.json'
 const creature = (system: string, name: string) => catalog.find(c => c.system === system && c.name === name)!
 
 describe('source-backed monster intents', () => {
-  it('imports exactly two NPCs and two monsters per system with unique revisions', () => {
-    expect(catalog).toHaveLength(8)
-    expect(new Set(catalog.map(c => c.id)).size).toBe(8)
+  it('retains the original eight and adds one pinned PF caster with unique identities', () => {
+    expect(catalog).toHaveLength(9)
+    expect(new Set(catalog.map(c => c.id)).size).toBe(9)
     for (const system of ['5e', 'pf2e']) {
-      for (const kind of ['npc', 'monster']) expect(catalog.filter(c => c.system === system && c.kind === kind)).toHaveLength(2)
+      for (const kind of ['npc', 'monster']) expect(catalog.filter(c => c.system === system && c.kind === kind && c.source.sourceId !== 'JFmFuoOzCwc3hA1H')).toHaveLength(2)
     }
     for (const c of catalog) {
       expect(c.source.sha256).toMatch(/^[a-f0-9]{64}$/)

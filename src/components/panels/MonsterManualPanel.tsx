@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { CreatureSourceFooter } from './CreatureSourceFooter'
 import { creatureNotes, creatureText } from '../../lib/monsterManual/creatureCopy'
-import { buildCreatureKit } from '../../lib/rollLibrary'
+import { buildCreatureKitV2 } from '../../lib/monsterManual/features'
+import { CreatureFeatures } from './CreatureFeatures'
 import { BottomSheet } from './BottomSheet'
 import { useDiceBackend } from '../../contexts/DiceBackendContext'
 import { useDiceStore } from '../../store/useDiceStore'
@@ -22,6 +23,7 @@ export function MonsterManualPanel({ isOpen, onClose, embedded = false, onAdd }:
   const [system, setSystem] = useState<SystemId | 'all'>('all')
   const [kind, setKind] = useState<'all' | 'npc' | 'monster'>('all')
   const [selected, setSelected] = useState<Creature | null>(null)
+  const previewKit=useMemo(()=>selected?buildCreatureKitV2(selected):null,[selected])
   const [detailVisible, setDetailVisible] = useState(false)
   const [choices, setChoices] = useState<Record<string, Choices>>({})
   const [error, setError] = useState<string | null>(null)
@@ -188,8 +190,9 @@ export function MonsterManualPanel({ isOpen, onClose, embedded = false, onAdd }:
               <div className="flex flex-wrap gap-2">{selected.saves.map(s => <div key={s.id}>{rollButton(selected, { role: 'own-save', saveId: s.id, ...(selected.system === '5e' ? { mode: choice(`${selected.id}:saves`).mode ?? 'normal' } : {}) }, `Roll ${s.name} save`)}</div>)}</div>
             </section>
             </>}
-            {onAdd && <div className="space-y-3"><p>{buildCreatureKit(selected).cards.length} rolls · attacks, damage and own saves</p><button className={button} disabled={starting} onClick={() => { if (latch.current) return; latch.current = true; setStarting(true); try { onAdd(selected) } catch (e) { setError(e instanceof Error ? e.message : 'Could not add kit'); latch.current = false; setStarting(false) } }}>Add creature kit</button>{error && <p role="alert">{error}</p>}<ul className="text-sm space-y-1">{buildCreatureKit(selected).cards.map(card => <li key={card.id}>{card.label}</li>)}</ul></div>}
-            <section className="space-y-2 text-sm text-theme-text-secondary" aria-label="Creature details">{creatureNotes(onAdd ? buildCreatureKit(selected).notes : selected.notes).map((n,i) => <p key={i} className="whitespace-pre-line">{n}</p>)}</section>
+            {onAdd && <div className="space-y-3"><p>{previewKit!.cards.length} rolls · attacks, damage and own saves</p><button className={button} disabled={starting} onClick={() => { if (latch.current) return; latch.current = true; setStarting(true); try { onAdd(selected) } catch (e) { setError(e instanceof Error ? e.message : 'Could not add kit'); latch.current = false; setStarting(false) } }}>Add creature kit</button>{error && <p role="alert">{error}</p>}<ul className="text-sm space-y-1">{previewKit!.cards.map(card => <li key={card.id}>{card.label}</li>)}</ul></div>}
+            <section className="space-y-2 text-sm text-theme-text-secondary" aria-label="Creature details">{creatureNotes(onAdd ? previewKit!.notes : selected.notes).map((n,i) => <p key={i} className="whitespace-pre-line">{n}</p>)}</section>
+            {previewKit&&<CreatureFeatures features={previewKit.features} sourceUrl={selected.source.url}/>}
             <CreatureSourceFooter source={selected.source}/>
           </>}
         </div>

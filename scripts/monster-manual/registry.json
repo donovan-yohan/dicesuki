@@ -110,5 +110,19 @@
     "evidenceFile": "5e-young-red-dragon.json",
     "sha256": "b3adca272b4949548711f88060167c3352348195e62ae7bd89f39afbc1800614",
     "importedAt": "2026-10-05T04:54:27.328951+00:00"
+  },
+  {
+    "id": "pf2e:remaster:foundry-pf2e:4cbdaa37d6c33e9519561bae2c59a23e0288cbce:JFmFuoOzCwc3hA1H",
+    "system": "pf2e",
+    "edition": "remaster",
+    "provider": "foundry-pf2e",
+    "version": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+    "sourceId": "JFmFuoOzCwc3hA1H",
+    "name": "Kobold Cavern Mage",
+    "kind": "monster",
+    "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+    "evidenceFile": "pf2e-kobold-cavern-mage.json",
+    "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+    "importedAt": "2026-10-22T07:35:04.213961+00:00"
   }
 ]
