@@ -15,7 +15,7 @@ const DEFAULT_MAX_FILE_BYTES = 1024 * 1024
 const ALLOWED_TOOLING_EXTENSIONS = new Set(['.mjs', '.json', '.py'])
 const AUTHORING_PAYLOAD_EXTENSIONS = new Set([
   '.7z', '.blend', '.blend1', '.exr', '.fbx', '.glb', '.gltf', '.hdr', '.jpeg', '.jpg',
-  '.obj', '.png', '.psd', '.stl', '.tif', '.tiff', '.webp', '.zip',
+  '.obj', '.pdf', '.png', '.psd', '.stl', '.tif', '.tiff', '.webp', '.zip',
 ])
 /**
  * Binaries that have been reviewed and are allowed to exist in the tree.

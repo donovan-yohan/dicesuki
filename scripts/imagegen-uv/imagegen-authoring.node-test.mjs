@@ -329,6 +329,24 @@ test('reviewed HDR environment maps are approved by digest, not by directory', a
   }
 })
 
+test('authoring boundary rejects unreviewed ASCII-only NUL-free PDF payloads', async () => {
+  const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-ascii-pdf-'))
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repository })
+    const relativePath = 'public/licenses/monster-manual/unreviewed.pdf'
+    const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n', 'ascii')
+    assert.equal(pdf.includes(0), false)
+    assert.equal(pdf.every(byte => byte < 128), true)
+    await mkdir(path.dirname(path.join(repository, relativePath)), { recursive: true })
+    await writeFile(path.join(repository, relativePath), pdf)
+    const result = checkAuthoringBoundary(repository)
+    assert.equal(result.valid, false)
+    assert.match(result.errors.join('; '), /unreviewed\.pdf is an unapproved binary\/authoring payload/)
+  } finally {
+    await rm(repository, { recursive: true, force: true })
+  }
+})
+
 test('reviewed ORC license accepts only exact bytes at its exact path within its ceiling', async () => {
   const repository = await mkdtemp(path.join(os.tmpdir(), 'dicesuki-imagegen-orc-license-'))
   try {

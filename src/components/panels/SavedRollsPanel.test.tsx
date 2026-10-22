@@ -10,6 +10,10 @@ import { useSavedRollsStore } from '../../store/useSavedRollsStore'
 import type { SavedRoll } from '../../types/savedRolls'
 import type { PercentilePresentationFields } from '../../lib/percentileRolls'
 import { SavedRollsPanel } from './SavedRollsPanel'
+import { useAuthStore } from '../../store/useAuthStore'
+import { useRollLibraryStore as library } from '../../store/useRollLibraryStore'
+import { buildCreatureKit, LIBRARY_LIMITS } from '../../lib/rollLibrary'
+import { catalog } from '../../lib/monsterManual/catalog'
 
 vi.mock('./BottomSheet', () => ({
   BottomSheet: ({ isOpen, children, title }: { isOpen: boolean; children: ReactNode; title: string }) => (
@@ -103,6 +107,7 @@ function renderPanel(backendOverrides: Partial<DiceBackendState> = {}) {
 describe('SavedRollsPanel room execution', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    useAuthStore.setState({status:'loading',user:null});useAuthStore.setState({status:'guest'})
     useDiceStore.getState().reset()
     useMultiplayerStore.getState().reset()
     useMultiplayerStore.setState({
@@ -112,6 +117,50 @@ describe('SavedRollsPanel room execution', () => {
       dice: new Map([['old-die', roomDie('old-die')]]),
     })
     useSavedRollsStore.setState({ savedRolls: [savedRoll], currentlyEditing: null })
+  })
+
+  it.each([
+    ['invalid JSON','{broken'],
+    ['future version','{"version":2}'],
+    ['oversized bytes',' '.repeat(LIBRARY_LIMITS.bytes+1)],
+  ])('shows %s recovery without hiding personal rolls behind Loading',(_label,raw)=>{
+    const scope=library.getState().scope!,old=library.getState().token!
+    localStorage.setItem(scope,raw)
+    useAuthStore.setState({status:'loading'});useAuthStore.setState({status:'guest'})
+    const confirm=vi.spyOn(window,'confirm').mockReturnValue(false)
+    try{
+      renderPanel()
+      expect(screen.queryByText('Loading library…')).not.toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent(/could not be read/i)
+      expect(screen.getByRole('button',{name:'Roll Room fireball'})).toBeEnabled()
+      const reset=screen.getByRole('button',{name:'Reset this library'})
+      fireEvent.click(reset);expect(localStorage.getItem(scope)).toBe(raw)
+      confirm.mockReturnValue(true);fireEvent.click(reset)
+      expect(confirm).toHaveBeenLastCalledWith(expect.stringMatching(/groups.*creatures.*personal rolls/i))
+      expect(screen.queryByRole('button',{name:'Reset this library'})).not.toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(library.getState().token).not.toBe(old)
+      expect(library.getState().canWrite).toBe(true)
+      expect(useSavedRollsStore.getState().savedRolls).toEqual([savedRoll])
+    }finally{confirm.mockRestore()}
+  })
+
+  it('keeps valid recovered creature recipes executable through native room admission without rewriting rejected bytes',async()=>{
+    const scope=library.getState().scope!,kit=buildCreatureKit(catalog[0])
+    const raw=JSON.stringify({version:1,groups:[],memberships:{},ungroupedCollapsed:false,instances:[{id:'kept',displayName:'Recovered',createdAt:1,collapsed:false,kit},{id:'bad',kit:{}}]})
+    localStorage.setItem(scope,raw);useAuthStore.setState({status:'loading'});useAuthStore.setState({status:'guest'})
+    const roll=vi.fn(()=>useMultiplayerStore.setState(s=>({rollStartedSequence:s.rollStartedSequence+1,lastRollStartedDiceIds:['recovered-die']})))
+    const {onClose}=renderPanel({
+      clearAll:vi.fn(()=>useMultiplayerStore.setState({dice:new Map()})),
+      addDie:vi.fn(()=>{useMultiplayerStore.setState({dice:new Map([['recovered-die',{...roomDie('recovered-die'),diceType:'d20'}]])});return 'recovered-die'}),roll,
+    })
+    expect(screen.queryByText('Loading library…')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(/read.only/i)
+    fireEvent.click(screen.getByRole('tab',{name:'Monster Manual'}))
+    fireEvent.click(screen.getAllByRole('button',{name:/^Roll Recovered .*1d20/})[0])
+    await waitFor(()=>expect(onClose).toHaveBeenCalledOnce())
+    expect(roll).toHaveBeenCalledOnce();expect(useDiceStore.getState().activeSavedRoll?.name).toContain('Recovered')
+    expect(localStorage.getItem(scope)).toBe(raw)
   })
 
   it('clears, reconciles out-of-order spawn acknowledgements, then rolls with exact bonuses', async () => {

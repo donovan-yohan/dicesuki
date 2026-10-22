@@ -22,7 +22,8 @@ export async function verifySource(c: Creature, text: string): Promise<void> {
 export async function verifySpellSource(url: string, text: string): Promise<void> {
   const source=spellSources.find(s=>s.system==='5e'&&s.url===url)
   if(!source||text.length>MAX_BYTES)throw new Error('Source changed or unreviewed spell URL')
-  const raw=JSON.parse(text)
+  let raw
+  try { raw=JSON.parse(text) } catch { throw new Error('Source changed or invalid JSON') }
   if(raw?.index!==source.file.slice(3,-5)||raw?.url!==new URL(source.url).pathname||!Array.isArray(raw.desc)||raw.desc.some((d:unknown)=>typeof d!=='string'))throw new Error('Source changed or invalid spell identity')
   await verifyHash(text,source.sha256)
 }

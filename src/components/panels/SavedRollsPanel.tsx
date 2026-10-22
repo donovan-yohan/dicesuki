@@ -152,6 +152,7 @@ function LibraryView({isOpen,onClose,tableDice=[],tab,setTab,session}:ViewProps)
     {!ready?<p role="status">Loading library…</p>:<>
       {!builder&&<details className="text-xs text-theme-text-muted"><summary className="field-focus-ring min-h-11 py-3 cursor-pointer">Saved on this device</summary><p>Groups and creature roster are device-local, separate for guests and each account. Personal roll sync is unchanged. Sign-in does not copy guest groups or creatures.</p></details>}
       {(error||lib.notice)&&<p role="alert" className="rounded-lg bg-theme-bg p-3 text-sm">{error||lib.notice}</p>}
+      {!lib.canWrite&&<button className={button} onClick={()=>{if(confirm('Reset groups and creatures for this library on this device? Personal rolls will not be deleted.'))attempt(()=>lib.resetCurrentScope(token!))}}>Reset this library</button>}
       {message&&<p role="status" className="text-sm">{message}</p>}
       {form&&<form className="p-3 rounded-lg border border-theme-border space-y-2" onSubmit={e=>{e.preventDefault();saveForm()}}>
         {form.kind==='move'?<label>Move roll to group<select aria-label="Destination group" className={field} value={form.name} onChange={e=>setForm({...form,name:e.target.value})}><option value="">Ungrouped</option>{lib.data.groups.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select></label>:<label>{form.kind==='instance'?'Instance name':'Group name'}<input ref={formInput} className={field} maxLength={80} value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label>}

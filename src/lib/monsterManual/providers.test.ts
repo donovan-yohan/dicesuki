@@ -8,6 +8,19 @@ import { validatePfSource } from './providers/foundryPf2e'
 afterEach(() => vi.unstubAllGlobals())
 
 describe('bounded online providers', () => {
+  it('normalizes malformed spell JSON as a changed source',async()=>{
+    await expect(verifySpellSource('https://www.dnd5eapi.co/api/2014/spells/light','{broken')).rejects.toThrow('Source changed or invalid JSON')
+  })
+  it('classifies HTTP 200 malformed spell refreshes as changed rather than unavailable',async()=>{
+    const fetcher=vi.fn(async(url:RequestInfo|URL)=>{
+      if(String(url).includes('/spells/'))return new Response('{broken',{status:200})
+      throw new Error('network unavailable')
+    })
+    const receipt=await refreshProvider('dnd5eapi',new AbortController().signal,fetcher,true)
+    expect(receipt.status).toBe('changed')
+    expect(receipt.records).toEqual(catalog.filter(c=>c.provider==='dnd5eapi'))
+    expect(fetcher.mock.calls).toHaveLength(14)
+  })
   it('validates source/provider edition identity independently of rules math', () => {
     const five = catalog.find(c => c.provider === 'dnd5eapi')!
     const raw = { index: five.source.sourceId, name: five.name, url: `/api/2014/monsters/${five.source.sourceId}`, actions: [] }
