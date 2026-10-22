@@ -15,7 +15,7 @@ const DEFAULT_MAX_FILE_BYTES = 1024 * 1024
 const ALLOWED_TOOLING_EXTENSIONS = new Set(['.mjs', '.json', '.py'])
 const AUTHORING_PAYLOAD_EXTENSIONS = new Set([
   '.7z', '.blend', '.blend1', '.exr', '.fbx', '.glb', '.gltf', '.hdr', '.jpeg', '.jpg',
-  '.obj', '.png', '.psd', '.stl', '.tif', '.tiff', '.webp', '.zip',
+  '.obj', '.pdf', '.png', '.psd', '.stl', '.tif', '.tiff', '.webp', '.zip',
 ])
 /**
  * Binaries that have been reviewed and are allowed to exist in the tree.
@@ -36,6 +36,20 @@ const REVIEWED_BINARY_FILE_LIMITS = new Map([
   ['public/icons/pwa-512x512-maskable.png', 128 * 1024],
   ['public/icons/pwa-512x512.png', 128 * 1024],
   ['src/generated/wasm-room/dicesuki_wasm_bg.wasm', 2 * 1024 * 1024],
+
+  // Required ORC notice, retrieved and reviewed for the monster-manual catalog.
+  // Approval covers this exact third-party PDF, never the directory/extension.
+  [
+    'public/licenses/monster-manual/ORC_License_FINAL.pdf',
+    {
+      maxBytes: 256 * 1024,
+      sha256: 'e03afd5ccdef506660b29291351035bb92fbf8c26bdc027bd06c9de0c30f1dcc',
+    },
+  ],
+
+  // Sanitized compiled-browser guest-fixture captures, reviewed as exact bytes.
+  ['docs/pr-evidence/monster-manual/priest-spellbook-phone.png', { maxBytes: 256 * 1024, sha256: '991006d0092eb7336129e2377410cb456e0914a36a604de1380041bfdca59152' }],
+  ['docs/pr-evidence/monster-manual/pf-spellbook-desktop.png', { maxBytes: 256 * 1024, sha256: '7811bc8d30cab77c54f37254f90cf05eae5a6bf72dd58017be32848f27494e30' }],
 
   // Runtime HDR environment maps (issue #222). Third-party redistributions, so
   // the digest is the reviewed property: these are byte-for-byte the files drei

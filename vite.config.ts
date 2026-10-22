@@ -41,6 +41,10 @@ export default defineConfig({
         'brand/dicesuki-lockup.svg',
         'icons/favicon.svg',
         'icons/apple-touch-icon.png',
+        'licenses/monster-manual/5e-attribution.txt',
+        'licenses/monster-manual/pf2e-attribution.txt',
+        'licenses/monster-manual/upstream-ORCLicense.md',
+        'licenses/monster-manual/ORC_License_FINAL.pdf',
       ],
       manifest: {
         name: 'Dicesuki — 3D Dice Simulator',

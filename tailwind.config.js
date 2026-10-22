@@ -16,6 +16,7 @@ export default {
         'theme-on-accent': 'var(--color-on-accent)',
         'theme-bg': 'var(--color-background)',
         'theme-surface': 'var(--color-surface)',
+        'theme-border': 'var(--color-border)',
         'theme-text': 'var(--color-text-primary)',
         'theme-text-secondary': 'var(--color-text-secondary)',
         'theme-text-muted': 'var(--color-text-muted)',

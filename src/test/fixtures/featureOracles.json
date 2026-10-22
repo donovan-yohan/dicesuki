@@ -1,0 +1,645 @@
+{
+  "cases": [
+    {
+      "id": "priest:cure-wounds",
+      "system": "5e",
+      "kind": "healing",
+      "selection": {
+        "slot": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 8,
+        "flatBonus": 3
+      },
+      "pointer": "/heal_at_slot_level/1"
+    },
+    {
+      "id": "priest:guiding-bolt:damage",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "slot": 1
+      },
+      "expected": {
+        "count": 4,
+        "sides": 6,
+        "flatBonus": 0
+      },
+      "pointer": "/damage/0/damage_at_slot_level/1",
+      "damageType": "radiant"
+    },
+    {
+      "id": "priest:divine-eminence",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "slot": 1
+      },
+      "expected": {
+        "count": 3,
+        "sides": 6,
+        "flatBonus": 0
+      },
+      "pointer": "/special_abilities/0/desc",
+      "damageType": "radiant",
+      "condition": "Melee weapon hit; bonus action and selected slot; until end of turn"
+    },
+    {
+      "id": "priest:cure-wounds",
+      "system": "5e",
+      "kind": "healing",
+      "selection": {
+        "slot": 2
+      },
+      "expected": {
+        "count": 2,
+        "sides": 8,
+        "flatBonus": 3
+      },
+      "pointer": "/heal_at_slot_level/2"
+    },
+    {
+      "id": "priest:guiding-bolt:damage",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "slot": 2
+      },
+      "expected": {
+        "count": 5,
+        "sides": 6,
+        "flatBonus": 0
+      },
+      "pointer": "/damage/0/damage_at_slot_level/2",
+      "damageType": "radiant"
+    },
+    {
+      "id": "priest:divine-eminence",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "slot": 2
+      },
+      "expected": {
+        "count": 4,
+        "sides": 6,
+        "flatBonus": 0
+      },
+      "pointer": "/special_abilities/0/desc",
+      "damageType": "radiant",
+      "condition": "Melee weapon hit; bonus action and selected slot; until end of turn"
+    },
+    {
+      "id": "priest:cure-wounds",
+      "system": "5e",
+      "kind": "healing",
+      "selection": {
+        "slot": 3
+      },
+      "expected": {
+        "count": 3,
+        "sides": 8,
+        "flatBonus": 3
+      },
+      "pointer": "/heal_at_slot_level/3"
+    },
+    {
+      "id": "priest:guiding-bolt:damage",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "slot": 3
+      },
+      "expected": {
+        "count": 6,
+        "sides": 6,
+        "flatBonus": 0
+      },
+      "pointer": "/damage/0/damage_at_slot_level/3",
+      "damageType": "radiant"
+    },
+    {
+      "id": "priest:divine-eminence",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "slot": 3
+      },
+      "expected": {
+        "count": 5,
+        "sides": 6,
+        "flatBonus": 0
+      },
+      "pointer": "/special_abilities/0/desc",
+      "damageType": "radiant",
+      "condition": "Melee weapon hit; bonus action and selected slot; until end of turn"
+    },
+    {
+      "id": "priest:guiding-bolt:attack",
+      "system": "5e",
+      "kind": "spell-attack",
+      "selection": {},
+      "expected": {
+        "count": 1,
+        "sides": 20,
+        "flatBonus": 5
+      },
+      "pointer": "/special_abilities/1/spellcasting/modifier"
+    },
+    {
+      "id": "priest:sacred-flame",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "casterLevel": 5
+      },
+      "expected": {
+        "count": 2,
+        "sides": 8,
+        "flatBonus": 0
+      },
+      "pointer": "/damage/0/damage_at_character_level/5",
+      "targetSave": {
+        "statistic": "dex",
+        "dc": 13,
+        "success": "none"
+      },
+      "damageType": "radiant"
+    },
+    {
+      "id": "priest:spiritual-weapon:damage",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "slot": 2
+      },
+      "expected": {
+        "count": 1,
+        "sides": 8,
+        "flatBonus": 3
+      },
+      "pointer": "/damage/0/damage_at_slot_level/2",
+      "damageType": "force"
+    },
+    {
+      "id": "priest:spiritual-weapon:damage",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "slot": 3
+      },
+      "expected": {
+        "count": 1,
+        "sides": 8,
+        "flatBonus": 3
+      },
+      "pointer": "/damage/0/damage_at_slot_level/3",
+      "damageType": "force"
+    },
+    {
+      "id": "priest:spiritual-weapon:attack",
+      "system": "5e",
+      "kind": "spell-attack",
+      "selection": {},
+      "expected": {
+        "count": 1,
+        "sides": 20,
+        "flatBonus": 5
+      },
+      "pointer": "/special_abilities/1/spellcasting/modifier"
+    },
+    {
+      "id": "priest:spirit-guardians",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "slot": 3,
+        "damageType": "radiant"
+      },
+      "expected": {
+        "count": 3,
+        "sides": 8,
+        "flatBonus": 0
+      },
+      "pointer": "/desc/1",
+      "targetSave": {
+        "statistic": "wis",
+        "dc": 13,
+        "success": "half"
+      }
+    },
+    {
+      "id": "priest:spirit-guardians",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {
+        "slot": 3,
+        "damageType": "necrotic"
+      },
+      "expected": {
+        "count": 3,
+        "sides": 8,
+        "flatBonus": 0
+      },
+      "pointer": "/desc/1",
+      "targetSave": {
+        "statistic": "wis",
+        "dc": 13,
+        "success": "half"
+      }
+    },
+    {
+      "id": "priest:dispel-magic:check",
+      "system": "5e",
+      "kind": "check",
+      "selection": {},
+      "expected": {
+        "count": 1,
+        "sides": 20,
+        "flatBonus": 3
+      },
+      "pointer": "/desc/0",
+      "condition": "Target spell level4+; DC10+target spell level"
+    },
+    {
+      "id": "dragon:fire-breath",
+      "system": "5e",
+      "kind": "damage",
+      "selection": {},
+      "expected": {
+        "count": 16,
+        "sides": 6,
+        "flatBonus": 0
+      },
+      "pointer": "/actions/3/damage/0/damage_dice",
+      "targetSave": {
+        "statistic": "dex",
+        "dc": 17,
+        "success": "half"
+      }
+    },
+    {
+      "id": "dragon:recharge",
+      "system": "5e",
+      "kind": "recharge",
+      "selection": {},
+      "expected": {
+        "count": 1,
+        "sides": 6,
+        "flatBonus": 0
+      },
+      "pointer": "/actions/3/usage",
+      "successFaces": [
+        5,
+        6
+      ]
+    },
+    {
+      "id": "spider:recharge",
+      "system": "5e",
+      "kind": "recharge",
+      "selection": {},
+      "expected": {
+        "count": 1,
+        "sides": 6,
+        "flatBonus": 0
+      },
+      "pointer": "/actions/1/usage",
+      "successFaces": [
+        5,
+        6
+      ]
+    },
+    {
+      "id": "scorpion:constrict",
+      "system": "pf2e",
+      "kind": "damage",
+      "selection": {},
+      "expected": {
+        "count": 1,
+        "sides": 6,
+        "flatBonus": 4
+      },
+      "pointer": "/items/4/system/description/value",
+      "targetSave": {
+        "statistic": "fortitude",
+        "dc": 20,
+        "basic": true
+      }
+    },
+    {
+      "id": "scorpion:venom",
+      "system": "pf2e",
+      "kind": "damage",
+      "selection": {
+        "stage": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 10,
+        "flatBonus": 0
+      },
+      "pointer": "/items/5/system/description/value",
+      "targetSave": {
+        "statistic": "fortitude",
+        "dc": 18
+      },
+      "damageType": "poison",
+      "condition": "Enfeebled 1; 1 round; maximum6 rounds"
+    },
+    {
+      "id": "scorpion:venom",
+      "system": "pf2e",
+      "kind": "damage",
+      "selection": {
+        "stage": 2
+      },
+      "expected": {
+        "count": 2,
+        "sides": 10,
+        "flatBonus": 0
+      },
+      "pointer": "/items/5/system/description/value",
+      "targetSave": {
+        "statistic": "fortitude",
+        "dc": 18
+      },
+      "damageType": "poison",
+      "condition": "Enfeebled 1; 1 round; maximum6 rounds"
+    },
+    {
+      "id": "scorpion:venom",
+      "system": "pf2e",
+      "kind": "damage",
+      "selection": {
+        "stage": 3
+      },
+      "expected": {
+        "count": 2,
+        "sides": 10,
+        "flatBonus": 0
+      },
+      "pointer": "/items/5/system/description/value",
+      "targetSave": {
+        "statistic": "fortitude",
+        "dc": 18
+      },
+      "damageType": "poison",
+      "condition": "Enfeebled 2; 1 round; maximum6 rounds"
+    },
+    {
+      "id": "kobold:tangle-vine",
+      "system": "pf2e",
+      "kind": "spell-attack",
+      "selection": {
+        "ordinal": 1,
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 20,
+        "flatBonus": 10
+      },
+      "pointer": "/items/0/system/spelldc/value",
+      "targetEscapeDC": 18
+    },
+    {
+      "id": "kobold:tangle-vine",
+      "system": "pf2e",
+      "kind": "spell-attack",
+      "selection": {
+        "ordinal": 2,
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 20,
+        "flatBonus": 5
+      },
+      "pointer": "/items/0/system/spelldc/value",
+      "targetEscapeDC": 18
+    },
+    {
+      "id": "kobold:tangle-vine",
+      "system": "pf2e",
+      "kind": "spell-attack",
+      "selection": {
+        "ordinal": 3,
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 20,
+        "flatBonus": 0
+      },
+      "pointer": "/items/0/system/spelldc/value",
+      "targetEscapeDC": 18
+    },
+    {
+      "id": "kobold:heal:living",
+      "system": "pf2e",
+      "kind": "healing",
+      "selection": {
+        "actions": 1,
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 8,
+        "flatBonus": 0
+      },
+      "pointer": "/items/5/system/description/value"
+    },
+    {
+      "id": "kobold:heal:living",
+      "system": "pf2e",
+      "kind": "healing",
+      "selection": {
+        "actions": 2,
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 8,
+        "flatBonus": 8
+      },
+      "pointer": "/items/5/system/description/value"
+    },
+    {
+      "id": "kobold:heal:living",
+      "system": "pf2e",
+      "kind": "healing",
+      "selection": {
+        "actions": 3,
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 8,
+        "flatBonus": 0
+      },
+      "pointer": "/items/5/system/description/value"
+    },
+    {
+      "id": "kobold:heal:undead",
+      "system": "pf2e",
+      "kind": "damage",
+      "selection": {
+        "actions": 1,
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 8,
+        "flatBonus": 0
+      },
+      "pointer": "/items/5/system/description/value",
+      "damageType": "vitality",
+      "targetSave": {
+        "statistic": "fortitude",
+        "dc": 18,
+        "basic": true
+      }
+    },
+    {
+      "id": "kobold:heal:undead",
+      "system": "pf2e",
+      "kind": "damage",
+      "selection": {
+        "actions": 2,
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 8,
+        "flatBonus": 0
+      },
+      "pointer": "/items/5/system/description/value",
+      "damageType": "vitality",
+      "targetSave": {
+        "statistic": "fortitude",
+        "dc": 18,
+        "basic": true
+      }
+    },
+    {
+      "id": "kobold:heal:undead",
+      "system": "pf2e",
+      "kind": "damage",
+      "selection": {
+        "actions": 3,
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 8,
+        "flatBonus": 0
+      },
+      "pointer": "/items/5/system/description/value",
+      "damageType": "vitality",
+      "targetSave": {
+        "statistic": "fortitude",
+        "dc": 18,
+        "basic": true
+      }
+    },
+    {
+      "id": "kobold:caustic-blast",
+      "system": "pf2e",
+      "kind": "damage",
+      "selection": {
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 8,
+        "flatBonus": 0
+      },
+      "pointer": "/items/1/system/damage/yI4fzrhnbFxup4Ep/formula",
+      "damageType": "acid",
+      "targetSave": {
+        "statistic": "reflex",
+        "dc": 18,
+        "basic": true
+      },
+      "criticalFailurePersistentConstant": 1
+    },
+    {
+      "id": "kobold:pummeling-rubble",
+      "system": "pf2e",
+      "kind": "damage",
+      "selection": {
+        "rank": 1
+      },
+      "expected": {
+        "count": 2,
+        "sides": 4,
+        "flatBonus": 0
+      },
+      "pointer": "/items/7/system/damage/0/formula",
+      "damageType": "bludgeoning",
+      "targetSave": {
+        "statistic": "reflex",
+        "dc": 18,
+        "basic": false
+      }
+    },
+    {
+      "id": "kobold:figment:diversion",
+      "system": "pf2e",
+      "kind": "check",
+      "selection": {
+        "rank": 1
+      },
+      "expected": {
+        "count": 1,
+        "sides": 20,
+        "flatBonus": 10
+      },
+      "pointer": "/items/3/system/description/value"
+    }
+  ],
+  "noCasterRoll": [
+    {
+      "id": "light",
+      "pointer": "/desc",
+      "spellbook": "Priest"
+    },
+    {
+      "id": "thaumaturgy",
+      "pointer": "/desc",
+      "spellbook": "Priest"
+    },
+    {
+      "id": "sanctuary",
+      "pointer": "/desc",
+      "spellbook": "Priest"
+    },
+    {
+      "id": "lesser-restoration",
+      "pointer": "/desc",
+      "spellbook": "Priest"
+    },
+    {
+      "id": "detect-magic",
+      "pointer": "/items/2/system/description/value",
+      "spellbook": "Kobold Cavern Mage"
+    },
+    {
+      "id": "fleet-step",
+      "pointer": "/items/4/system/description/value",
+      "spellbook": "Kobold Cavern Mage"
+    },
+    {
+      "id": "know-the-way",
+      "pointer": "/items/6/system/description/value",
+      "spellbook": "Kobold Cavern Mage"
+    },
+    {
+      "id": "runic-weapon",
+      "pointer": "/items/8/system/description/value",
+      "spellbook": "Kobold Cavern Mage"
+    }
+  ]
+}

@@ -17,6 +17,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e:solo": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18181} playwright test e2e/solo-wasm-room.spec.ts",
+    "test:e2e:monster-manual": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18191} playwright test e2e/monster-manual.spec.ts --config playwright.monster.config.ts",
     "test:e2e:runtime-dice": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18182} playwright test e2e/cozy-forest-runtime.spec.ts",
     "test:e2e:hud-layout": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18183} playwright test e2e/hud-layout.spec.ts",
     "test:e2e:roll-builder": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18184} playwright test e2e/roll-builder.spec.ts",

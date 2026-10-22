@@ -52,6 +52,7 @@ import {
 } from './rollSources'
 import { isBasicDiePresentation } from './basicDice'
 import {
+  type SavedRollScoring,
   MAX_EXPLOSION_WAVES,
   addGroup,
   addPercentileGroup,
@@ -80,6 +81,8 @@ export type SavedRollBackend = Pick<
 >
 
 export interface SavedRollExecutionOptions {
+  /** Source rules may opt into conventional standalone d10 reading. */
+  scoring?: SavedRollScoring
   backend: SavedRollBackend
   ownerId: string
   /**
@@ -645,7 +648,7 @@ async function executeSavedRoll(
   signal.throwIfAborted()
 
   // ── Base wave ───────────────────────────────────────────────────────────
-  const plan = createSavedRollPlan(roll)
+  const plan = createSavedRollPlan(roll, options.scoring)
   const ledger: EntrySpawnLedger = { named: [], ownedFirst: [] }
 
   // Claim every die this roll pins BEFORE any of it spawns. Plain entries fill

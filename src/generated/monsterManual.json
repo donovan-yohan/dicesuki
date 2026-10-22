@@ -1,0 +1,1160 @@
+[
+  {
+    "id": "pf2e:remaster:foundry-pf2e:4cbdaa37d6c33e9519561bae2c59a23e0288cbce:Aktz95gNNzfAiTzk",
+    "key": "pf2e:remaster:foundry-pf2e:Aktz95gNNzfAiTzk",
+    "name": "Guard",
+    "system": "pf2e",
+    "edition": "Remaster",
+    "provider": "foundry-pf2e",
+    "kind": "npc",
+    "source": {
+      "sourceId": "Aktz95gNNzfAiTzk",
+      "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-npc-core/official/guard.json",
+      "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+      "sha256": "7c1a35f2ac0f2140c0f27d5a0459df0ab3b5fa2491b39b34493b33af17206fcb",
+      "importedAt": "2026-10-05T04:54:25.921446+00:00",
+      "publication": "Pathfinder NPC Core",
+      "license": "ORC",
+      "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+      "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt"
+    },
+    "actions": [
+      {
+        "id": "UWagoDkGXzULZ0i4",
+        "name": "Sap",
+        "traits": [
+          "agile",
+          "nonlethal"
+        ],
+        "damage": [
+          {
+            "id": "0",
+            "type": "bludgeoning",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 3
+            },
+            "pointer": "/items/7/system/damageRolls/0"
+          }
+        ],
+        "pointer": "/items/7",
+        "note": "Strike · agile, nonlethal.",
+        "attackBonus": 7
+      },
+      {
+        "id": "G5iBcxxzOecJApLi",
+        "name": "Crossbow",
+        "traits": [
+          "range-increment-120",
+          "reload-1"
+        ],
+        "damage": [
+          {
+            "id": "0",
+            "type": "piercing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 8,
+              "bonus": 0
+            },
+            "pointer": "/items/8/system/damageRolls/0"
+          }
+        ],
+        "pointer": "/items/8",
+        "note": "Strike · range-increment-120, reload-1.",
+        "attackBonus": 6
+      },
+      {
+        "id": "i6RGiBt0UOTBg3go",
+        "name": "Fist",
+        "traits": [
+          "agile",
+          "nonlethal",
+          "unarmed"
+        ],
+        "damage": [
+          {
+            "id": "oiodqohoofafi7fqe4of",
+            "type": "bludgeoning",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 4,
+              "bonus": 3
+            },
+            "pointer": "/items/6/system/damageRolls/oiodqohoofafi7fqe4of"
+          }
+        ],
+        "pointer": "/items/6",
+        "note": "Strike · agile, nonlethal, unarmed.",
+        "attackBonus": 7
+      },
+      {
+        "id": "hHccWzh003xSa6dA",
+        "name": "+1 Bonus on Perception to Find concealed objects",
+        "traits": [],
+        "damage": [],
+        "pointer": "/items/9",
+        "note": ""
+      },
+      {
+        "id": "B5Ugi5jmtwo9cynf",
+        "name": "Reactive Strike",
+        "traits": [],
+        "damage": [],
+        "pointer": "/items/10",
+        "note": ""
+      }
+    ],
+    "saves": [
+      {
+        "id": "fortitude",
+        "name": "Fortitude",
+        "bonus": 7,
+        "pointer": "/system/saves/fortitude/value"
+      },
+      {
+        "id": "reflex",
+        "name": "Reflex",
+        "bonus": 5,
+        "pointer": "/system/saves/reflex/value"
+      },
+      {
+        "id": "will",
+        "name": "Will",
+        "bonus": 5,
+        "pointer": "/system/saves/will/value"
+      }
+    ],
+    "notes": [],
+    "overrides": []
+  },
+  {
+    "id": "pf2e:remaster:foundry-pf2e:4cbdaa37d6c33e9519561bae2c59a23e0288cbce:h4gPulyY9uzkAbyo",
+    "key": "pf2e:remaster:foundry-pf2e:h4gPulyY9uzkAbyo",
+    "name": "Apothecary",
+    "system": "pf2e",
+    "edition": "Remaster",
+    "provider": "foundry-pf2e",
+    "kind": "npc",
+    "source": {
+      "sourceId": "h4gPulyY9uzkAbyo",
+      "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-npc-core/healer/apothecary.json",
+      "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+      "sha256": "8711c488dca9e85ea39fb50c87b737c460a9b35fa3159eb944eee41f19ed066e",
+      "importedAt": "2026-10-05T04:54:26.128354+00:00",
+      "publication": "Pathfinder NPC Core",
+      "license": "ORC",
+      "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+      "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt"
+    },
+    "actions": [
+      {
+        "id": "oc2k5FQjYXACg6rP",
+        "name": "Stone Pestle",
+        "traits": [],
+        "damage": [
+          {
+            "id": "mtk1xhn3uwxw2z0t325g",
+            "type": "bludgeoning",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 0
+            },
+            "pointer": "/items/6/system/damageRolls/mtk1xhn3uwxw2z0t325g"
+          }
+        ],
+        "pointer": "/items/6",
+        "note": "Strike.",
+        "attackBonus": 4
+      },
+      {
+        "id": "LbKXY3iqGS2l93BZ",
+        "name": "Fist",
+        "traits": [
+          "agile",
+          "finesse",
+          "nonlethal",
+          "unarmed"
+        ],
+        "damage": [
+          {
+            "id": "0",
+            "type": "bludgeoning",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 4,
+              "bonus": 0
+            },
+            "pointer": "/items/7/system/damageRolls/0"
+          }
+        ],
+        "pointer": "/items/7",
+        "note": "Strike · agile, finesse, nonlethal, unarmed.",
+        "attackBonus": 5
+      },
+      {
+        "id": "D91SDgzufetsXtHT",
+        "name": "Acid Flask",
+        "traits": [
+          "range-increment-20",
+          "splash"
+        ],
+        "damage": [
+          {
+            "id": "0",
+            "type": "acid",
+            "timing": "immediate",
+            "recipe": {
+              "count": 0,
+              "sides": 6,
+              "bonus": 1
+            },
+            "pointer": "/items/8/system/damageRolls/0"
+          },
+          {
+            "id": "1",
+            "type": "acid",
+            "timing": "persistent",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 0
+            },
+            "pointer": "/items/8/system/damageRolls/1"
+          },
+          {
+            "id": "2",
+            "type": "acid",
+            "timing": "splash",
+            "recipe": {
+              "count": 0,
+              "sides": 6,
+              "bonus": 1
+            },
+            "pointer": "/items/8/system/damageRolls/2"
+          }
+        ],
+        "pointer": "/items/8",
+        "note": "Strike · range-increment-20, splash.",
+        "attackBonus": 5
+      },
+      {
+        "id": "zNtJDSruQtC6hlYE",
+        "name": "Medical Specialist",
+        "traits": [],
+        "damage": [],
+        "pointer": "/items/9",
+        "note": ""
+      },
+      {
+        "id": "r19Dz88pBsPS4lU2",
+        "name": "Medical Wisdom",
+        "traits": [],
+        "damage": [],
+        "pointer": "/items/10",
+        "note": ""
+      },
+      {
+        "id": "Yzt7iAgbGNFAn1NW",
+        "name": "+1 Circumstance Bonus on Saves vs. Poisons",
+        "traits": [],
+        "damage": [],
+        "pointer": "/items/11",
+        "note": ""
+      }
+    ],
+    "saves": [
+      {
+        "id": "fortitude",
+        "name": "Fortitude",
+        "bonus": 8,
+        "pointer": "/system/saves/fortitude/value"
+      },
+      {
+        "id": "reflex",
+        "name": "Reflex",
+        "bonus": 3,
+        "pointer": "/system/saves/reflex/value"
+      },
+      {
+        "id": "will",
+        "name": "Will",
+        "bonus": 5,
+        "pointer": "/system/saves/will/value"
+      }
+    ],
+    "notes": [
+      "+1 circumstance bonus on saves versus poisons only."
+    ],
+    "overrides": []
+  },
+  {
+    "id": "pf2e:remaster:foundry-pf2e:4cbdaa37d6c33e9519561bae2c59a23e0288cbce:BWm17BRQYGMLqtNe",
+    "key": "pf2e:remaster:foundry-pf2e:BWm17BRQYGMLqtNe",
+    "name": "Giant Scorpion",
+    "system": "pf2e",
+    "edition": "Remaster",
+    "provider": "foundry-pf2e",
+    "kind": "monster",
+    "source": {
+      "sourceId": "BWm17BRQYGMLqtNe",
+      "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/giant-scorpion.json",
+      "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+      "sha256": "2fb8e826e1f67cc6b76820c2f4c92dead6801bb7e30e6088e0ec3fd5a4d2e243",
+      "importedAt": "2026-10-05T04:54:26.328240+00:00",
+      "publication": "Pathfinder Monster Core",
+      "license": "ORC",
+      "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+      "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt"
+    },
+    "actions": [
+      {
+        "id": "YYsOPt3KeLlEyyOR",
+        "name": "Pincer",
+        "traits": [
+          "agile",
+          "reach-10"
+        ],
+        "damage": [
+          {
+            "id": "u39xt1ve7sl44jf22m4x",
+            "type": "slashing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 8,
+              "bonus": 6
+            },
+            "pointer": "/items/0/system/damageRolls/u39xt1ve7sl44jf22m4x"
+          }
+        ],
+        "pointer": "/items/0",
+        "note": "Strike · agile, reach-10. Effects: grab.",
+        "attackBonus": 11
+      },
+      {
+        "id": "xx3DbCuNgwUZWSha",
+        "name": "Stinger",
+        "traits": [
+          "reach-10"
+        ],
+        "damage": [
+          {
+            "id": "yuxbt5wb29teq10fkz8p",
+            "type": "piercing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 6
+            },
+            "pointer": "/items/1/system/damageRolls/yuxbt5wb29teq10fkz8p"
+          }
+        ],
+        "pointer": "/items/1",
+        "note": "Strike · reach-10. Effects: giant-scorpion-venom.",
+        "attackBonus": 11
+      },
+      {
+        "id": "rQa09Nb9LtSI9UYi",
+        "name": "Tremorsense (Imprecise) 60 feet",
+        "traits": [],
+        "damage": [],
+        "pointer": "/items/2",
+        "note": ""
+      },
+      {
+        "id": "VuCv5cbhAYUoEEgF",
+        "name": "Reactive Strike (Stinger Only)",
+        "traits": [],
+        "damage": [],
+        "pointer": "/items/3",
+        "note": ""
+      },
+      {
+        "id": "5PDURAzo537r6kje",
+        "name": "Constrict",
+        "traits": [],
+        "damage": [
+          {
+            "id": "constrict",
+            "type": "bludgeoning",
+            "timing": "conditional",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 4
+            },
+            "pointer": "/items/4/system/description/value"
+          }
+        ],
+        "pointer": "/items/4",
+        "note": "Constrict · requires a grabbed creature.",
+        "target": "Target: Fortitude save DC 20 · basic save"
+      },
+      {
+        "id": "WuUxcHe2LEnb3BVQ",
+        "name": "Giant Scorpion Venom",
+        "traits": [
+          "poison"
+        ],
+        "damage": [],
+        "pointer": "/items/5",
+        "note": "",
+        "target": "Target: Fortitude save DC 18 · venom stages/conditions"
+      },
+      {
+        "id": "JJc1A4ggjxl0zB12",
+        "name": "Grab",
+        "traits": [],
+        "damage": [],
+        "pointer": "/items/6",
+        "note": ""
+      }
+    ],
+    "saves": [
+      {
+        "id": "fortitude",
+        "name": "Fortitude",
+        "bonus": 12,
+        "pointer": "/system/saves/fortitude/value"
+      },
+      {
+        "id": "reflex",
+        "name": "Reflex",
+        "bonus": 9,
+        "pointer": "/system/saves/reflex/value"
+      },
+      {
+        "id": "will",
+        "name": "Will",
+        "bonus": 7,
+        "pointer": "/system/saves/will/value"
+      }
+    ],
+    "notes": [],
+    "overrides": [
+      {
+        "pointer": "/items/4/system/description/value",
+        "fragment": "@Damage[(1d6+4)[bludgeoning]], @Check[fortitude|dc:20|basic]"
+      },
+      {
+        "pointer": "/items/5/system/description/value",
+        "fragment": "@Check[fortitude|dc:18]"
+      }
+    ]
+  },
+  {
+    "id": "pf2e:remaster:foundry-pf2e:4cbdaa37d6c33e9519561bae2c59a23e0288cbce:Twvzy1yRo6m6dM8D",
+    "key": "pf2e:remaster:foundry-pf2e:Twvzy1yRo6m6dM8D",
+    "name": "Ogre Warrior",
+    "system": "pf2e",
+    "edition": "Remaster",
+    "provider": "foundry-pf2e",
+    "kind": "monster",
+    "source": {
+      "sourceId": "Twvzy1yRo6m6dM8D",
+      "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/ogre-warrior.json",
+      "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+      "sha256": "5497e1b778d41e7f0f49312f9a273dcfa895763bdfcb293882592c521d3b3c47",
+      "importedAt": "2026-10-05T04:54:26.554792+00:00",
+      "publication": "Pathfinder Monster Core",
+      "license": "ORC",
+      "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+      "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt"
+    },
+    "actions": [
+      {
+        "id": "qjYI8SCJrXWZopn6",
+        "name": "Ogre Hook",
+        "traits": [
+          "deadly-d10",
+          "reach-10",
+          "trip"
+        ],
+        "damage": [
+          {
+            "id": "2bh5anro6r6bedbo0ndg",
+            "type": "piercing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 10,
+              "bonus": 7
+            },
+            "pointer": "/items/3/system/damageRolls/2bh5anro6r6bedbo0ndg"
+          }
+        ],
+        "pointer": "/items/3",
+        "note": "Strike · deadly-d10, reach-10, trip.",
+        "attackBonus": 12
+      },
+      {
+        "id": "kN3B1jnfTS7LsbUS",
+        "name": "Javelin",
+        "traits": [
+          "thrown-30"
+        ],
+        "damage": [
+          {
+            "id": "vbrp0m9zq7qcrn5n1f1t",
+            "type": "piercing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 7
+            },
+            "pointer": "/items/4/system/damageRolls/vbrp0m9zq7qcrn5n1f1t"
+          }
+        ],
+        "pointer": "/items/4",
+        "note": "Strike · thrown-30.",
+        "attackBonus": 6
+      }
+    ],
+    "saves": [
+      {
+        "id": "fortitude",
+        "name": "Fortitude",
+        "bonus": 11,
+        "pointer": "/system/saves/fortitude/value"
+      },
+      {
+        "id": "reflex",
+        "name": "Reflex",
+        "bonus": 6,
+        "pointer": "/system/saves/reflex/value"
+      },
+      {
+        "id": "will",
+        "name": "Will",
+        "bonus": 5,
+        "pointer": "/system/saves/will/value"
+      }
+    ],
+    "notes": [],
+    "overrides": []
+  },
+  {
+    "id": "5e:srd-5.1-2014:dnd5eapi:405cc5c94d87f4bef9523f20d9a40a97c3f4ea3a359eb408ec9704a6f13cbc57:guard",
+    "key": "5e:srd-5.1-2014:dnd5eapi:guard",
+    "name": "Guard",
+    "system": "5e",
+    "edition": "SRD 5.1 (2014)",
+    "provider": "dnd5eapi",
+    "kind": "npc",
+    "source": {
+      "sourceId": "guard",
+      "url": "https://www.dnd5eapi.co/api/2014/monsters/guard",
+      "revision": "405cc5c94d87f4bef9523f20d9a40a97c3f4ea3a359eb408ec9704a6f13cbc57",
+      "sha256": "405cc5c94d87f4bef9523f20d9a40a97c3f4ea3a359eb408ec9704a6f13cbc57",
+      "importedAt": "2026-10-05T04:54:26.822460+00:00",
+      "publication": "System Reference Document 5.1",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "noticeUrl": "/licenses/monster-manual/5e-attribution.txt"
+    },
+    "actions": [
+      {
+        "id": "action-0",
+        "name": "Spear",
+        "traits": [],
+        "damage": [
+          {
+            "id": "0-0",
+            "type": "piercing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 1
+            },
+            "choice": "One-handed / thrown",
+            "pointer": "/actions/0/damage/0/from/options/0"
+          },
+          {
+            "id": "0-1",
+            "type": "piercing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 8,
+              "bonus": 1
+            },
+            "choice": "Two-handed melee",
+            "pointer": "/actions/0/damage/0/from/options/1"
+          }
+        ],
+        "pointer": "/actions/0",
+        "note": "Melee or Ranged Weapon Attack: +3 to hit, reach 5 ft. or range 20/60 ft., one target. Hit: 4 (1d6 + 1) piercing damage or 5 (1d8 + 1) piercing damage if used with two hands to make a melee attack.",
+        "attackBonus": 3
+      }
+    ],
+    "saves": [
+      {
+        "id": "str",
+        "name": "Strength",
+        "bonus": 1,
+        "pointer": "/strength"
+      },
+      {
+        "id": "dex",
+        "name": "Dexterity",
+        "bonus": 1,
+        "pointer": "/dexterity"
+      },
+      {
+        "id": "con",
+        "name": "Constitution",
+        "bonus": 1,
+        "pointer": "/constitution"
+      },
+      {
+        "id": "int",
+        "name": "Intelligence",
+        "bonus": 0,
+        "pointer": "/intelligence"
+      },
+      {
+        "id": "wis",
+        "name": "Wisdom",
+        "bonus": 0,
+        "pointer": "/wisdom"
+      },
+      {
+        "id": "cha",
+        "name": "Charisma",
+        "bonus": 0,
+        "pointer": "/charisma"
+      }
+    ],
+    "notes": [],
+    "overrides": []
+  },
+  {
+    "id": "5e:srd-5.1-2014:dnd5eapi:36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1:priest",
+    "key": "5e:srd-5.1-2014:dnd5eapi:priest",
+    "name": "Priest",
+    "system": "5e",
+    "edition": "SRD 5.1 (2014)",
+    "provider": "dnd5eapi",
+    "kind": "npc",
+    "source": {
+      "sourceId": "priest",
+      "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+      "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+      "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+      "importedAt": "2026-10-05T04:54:26.993724+00:00",
+      "publication": "System Reference Document 5.1",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "noticeUrl": "/licenses/monster-manual/5e-attribution.txt"
+    },
+    "actions": [
+      {
+        "id": "action-0",
+        "name": "Mace",
+        "traits": [],
+        "damage": [
+          {
+            "id": "0-0",
+            "type": "bludgeoning",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 0
+            },
+            "pointer": "/actions/0/damage/0"
+          }
+        ],
+        "pointer": "/actions/0",
+        "note": "Melee Weapon Attack: +2 to hit, reach 5 ft., one target. Hit: 3 (1d6) bludgeoning damage.",
+        "attackBonus": 2
+      },
+      {
+        "id": "ability-0",
+        "name": "Divine Eminence",
+        "traits": [],
+        "damage": [],
+        "pointer": "/special_abilities/0",
+        "note": "As a bonus action, the priest can expend a spell slot to cause its melee weapon attacks to magically deal an extra 10 (3d6) radiant damage to a target on a hit. This benefit lasts until the end of the turn. If the priest expends a spell slot of 2nd level or higher, the extra damage increases by 1d6 for each level above 1st."
+      },
+      {
+        "id": "ability-1",
+        "name": "Spellcasting",
+        "traits": [],
+        "damage": [],
+        "pointer": "/special_abilities/1",
+        "note": "The priest is a 5th-level spellcaster. Its spellcasting ability is Wisdom (spell save DC 13, +5 to hit with spell attacks). The priest has the following cleric spells prepared:\n\n- Cantrips (at will): light, sacred flame, thaumaturgy\n- 1st level (4 slots): cure wounds, guiding bolt, sanctuary\n- 2nd level (3 slots): lesser restoration, spiritual weapon\n- 3rd level (2 slots): dispel magic, spirit guardians"
+      }
+    ],
+    "saves": [
+      {
+        "id": "str",
+        "name": "Strength",
+        "bonus": 0,
+        "pointer": "/strength"
+      },
+      {
+        "id": "dex",
+        "name": "Dexterity",
+        "bonus": 0,
+        "pointer": "/dexterity"
+      },
+      {
+        "id": "con",
+        "name": "Constitution",
+        "bonus": 1,
+        "pointer": "/constitution"
+      },
+      {
+        "id": "int",
+        "name": "Intelligence",
+        "bonus": 1,
+        "pointer": "/intelligence"
+      },
+      {
+        "id": "wis",
+        "name": "Wisdom",
+        "bonus": 3,
+        "pointer": "/wisdom"
+      },
+      {
+        "id": "cha",
+        "name": "Charisma",
+        "bonus": 1,
+        "pointer": "/charisma"
+      }
+    ],
+    "notes": [],
+    "overrides": []
+  },
+  {
+    "id": "5e:srd-5.1-2014:dnd5eapi:0dc32cf5a057dca4162c864b4add23243461743719e38d7c52bb4d2746ad1702:giant-spider",
+    "key": "5e:srd-5.1-2014:dnd5eapi:giant-spider",
+    "name": "Giant Spider",
+    "system": "5e",
+    "edition": "SRD 5.1 (2014)",
+    "provider": "dnd5eapi",
+    "kind": "monster",
+    "source": {
+      "sourceId": "giant-spider",
+      "url": "https://www.dnd5eapi.co/api/2014/monsters/giant-spider",
+      "revision": "0dc32cf5a057dca4162c864b4add23243461743719e38d7c52bb4d2746ad1702",
+      "sha256": "0dc32cf5a057dca4162c864b4add23243461743719e38d7c52bb4d2746ad1702",
+      "importedAt": "2026-10-05T04:54:27.158971+00:00",
+      "publication": "System Reference Document 5.1",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "noticeUrl": "/licenses/monster-manual/5e-attribution.txt"
+    },
+    "actions": [
+      {
+        "id": "action-0",
+        "name": "Bite",
+        "traits": [],
+        "damage": [
+          {
+            "id": "0-0",
+            "type": "piercing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 8,
+              "bonus": 3
+            },
+            "pointer": "/actions/0/damage/0"
+          },
+          {
+            "id": "conditional-poison",
+            "type": "poison",
+            "timing": "conditional",
+            "recipe": {
+              "count": 2,
+              "sides": 8,
+              "bonus": 0
+            },
+            "pointer": "/actions/0/desc"
+          }
+        ],
+        "pointer": "/actions/0",
+        "note": "Melee Weapon Attack: +5 to hit, reach 5 ft., one creature. Hit: 7 (1d8 + 3) piercing damage, and the target must make a DC 11 Constitution saving throw, taking 9 (2d8) poison damage on a failed save, or half as much damage on a successful one. If the poison damage reduces the target to 0 hit points, the target is stable but poisoned for 1 hour, even after regaining hit points, and is paralyzed while poisoned in this way.",
+        "attackBonus": 5,
+        "target": "Target: Constitution save DC 11 · conditional poison; half on success"
+      },
+      {
+        "id": "action-1",
+        "name": "Web",
+        "traits": [],
+        "damage": [],
+        "pointer": "/actions/1",
+        "note": "Ranged Weapon Attack: +5 to hit, range 30/60 ft., one creature. Hit: The target is restrained by webbing. As an action, the restrained target can make a DC 12 Strength check, bursting the webbing on a success. The webbing can also be attacked and destroyed (AC 10; hp 5; vulnerability to fire damage; immunity to bludgeoning, poison, and psychic damage). Recharge 5–6.",
+        "attackBonus": 5,
+        "target": "Target: Strength check DC 12 · escape web (not a save)"
+      },
+      {
+        "id": "ability-0",
+        "name": "Spider Climb",
+        "traits": [],
+        "damage": [],
+        "pointer": "/special_abilities/0",
+        "note": "The spider can climb difficult surfaces, including upside down on ceilings, without needing to make an ability check."
+      },
+      {
+        "id": "ability-1",
+        "name": "Web Sense",
+        "traits": [],
+        "damage": [],
+        "pointer": "/special_abilities/1",
+        "note": "While in contact with a web, the spider knows the exact location of any other creature in contact with the same web."
+      },
+      {
+        "id": "ability-2",
+        "name": "Web Walker",
+        "traits": [],
+        "damage": [],
+        "pointer": "/special_abilities/2",
+        "note": "The spider ignores movement restrictions caused by webbing."
+      }
+    ],
+    "saves": [
+      {
+        "id": "str",
+        "name": "Strength",
+        "bonus": 2,
+        "pointer": "/strength"
+      },
+      {
+        "id": "dex",
+        "name": "Dexterity",
+        "bonus": 3,
+        "pointer": "/dexterity"
+      },
+      {
+        "id": "con",
+        "name": "Constitution",
+        "bonus": 1,
+        "pointer": "/constitution"
+      },
+      {
+        "id": "int",
+        "name": "Intelligence",
+        "bonus": -4,
+        "pointer": "/intelligence"
+      },
+      {
+        "id": "wis",
+        "name": "Wisdom",
+        "bonus": 0,
+        "pointer": "/wisdom"
+      },
+      {
+        "id": "cha",
+        "name": "Charisma",
+        "bonus": -3,
+        "pointer": "/charisma"
+      }
+    ],
+    "notes": [],
+    "overrides": [
+      {
+        "pointer": "/actions/0/desc",
+        "fragment": "DC 11 Constitution saving throw, taking 9 (2d8) poison damage on a failed save, or half as much damage on a successful one."
+      },
+      {
+        "pointer": "/actions/1/desc",
+        "fragment": "DC 12 Strength check"
+      }
+    ]
+  },
+  {
+    "id": "5e:srd-5.1-2014:dnd5eapi:b3adca272b4949548711f88060167c3352348195e62ae7bd89f39afbc1800614:young-red-dragon",
+    "key": "5e:srd-5.1-2014:dnd5eapi:young-red-dragon",
+    "name": "Young Red Dragon",
+    "system": "5e",
+    "edition": "SRD 5.1 (2014)",
+    "provider": "dnd5eapi",
+    "kind": "monster",
+    "source": {
+      "sourceId": "young-red-dragon",
+      "url": "https://www.dnd5eapi.co/api/2014/monsters/young-red-dragon",
+      "revision": "b3adca272b4949548711f88060167c3352348195e62ae7bd89f39afbc1800614",
+      "sha256": "b3adca272b4949548711f88060167c3352348195e62ae7bd89f39afbc1800614",
+      "importedAt": "2026-10-05T04:54:27.328951+00:00",
+      "publication": "System Reference Document 5.1",
+      "license": "CC BY 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "noticeUrl": "/licenses/monster-manual/5e-attribution.txt"
+    },
+    "actions": [
+      {
+        "id": "action-0",
+        "name": "Multiattack",
+        "traits": [],
+        "damage": [],
+        "pointer": "/actions/0",
+        "note": "The dragon makes three attacks: one with its bite and two with its claws."
+      },
+      {
+        "id": "action-1",
+        "name": "Bite",
+        "traits": [],
+        "damage": [
+          {
+            "id": "0-0",
+            "type": "piercing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 2,
+              "sides": 10,
+              "bonus": 6
+            },
+            "pointer": "/actions/1/damage/0"
+          },
+          {
+            "id": "1-0",
+            "type": "fire",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 0
+            },
+            "pointer": "/actions/1/damage/1"
+          }
+        ],
+        "pointer": "/actions/1",
+        "note": "Melee Weapon Attack: +10 to hit, reach 10 ft., one target. Hit: 17 (2d10 + 6) piercing damage plus 3 (1d6) fire damage.",
+        "attackBonus": 10
+      },
+      {
+        "id": "action-2",
+        "name": "Claw",
+        "traits": [],
+        "damage": [
+          {
+            "id": "0-0",
+            "type": "slashing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 2,
+              "sides": 6,
+              "bonus": 6
+            },
+            "pointer": "/actions/2/damage/0"
+          }
+        ],
+        "pointer": "/actions/2",
+        "note": "Melee Weapon Attack: +10 to hit, reach 5 ft., one target. Hit: 13 (2d6 + 6) slashing damage.",
+        "attackBonus": 10
+      },
+      {
+        "id": "action-3",
+        "name": "Fire Breath",
+        "traits": [],
+        "damage": [
+          {
+            "id": "0-0",
+            "type": "fire",
+            "timing": "immediate",
+            "recipe": {
+              "count": 16,
+              "sides": 6,
+              "bonus": 0
+            },
+            "pointer": "/actions/3/damage/0"
+          }
+        ],
+        "pointer": "/actions/3",
+        "note": "The dragon exhales fire in a 30-foot cone. Each creature in that area must make a DC 17 Dexterity saving throw, taking 56 (16d6) fire damage on a failed save, or half as much damage on a successful one. Recharge 5–6.",
+        "target": "Target: Dexterity save DC 17 · half on success"
+      }
+    ],
+    "saves": [
+      {
+        "id": "str",
+        "name": "Strength",
+        "bonus": 6,
+        "pointer": "/strength"
+      },
+      {
+        "id": "dex",
+        "name": "Dexterity",
+        "bonus": 4,
+        "pointer": "/proficiencies/0/value"
+      },
+      {
+        "id": "con",
+        "name": "Constitution",
+        "bonus": 9,
+        "pointer": "/proficiencies/1/value"
+      },
+      {
+        "id": "int",
+        "name": "Intelligence",
+        "bonus": 2,
+        "pointer": "/intelligence"
+      },
+      {
+        "id": "wis",
+        "name": "Wisdom",
+        "bonus": 4,
+        "pointer": "/proficiencies/2/value"
+      },
+      {
+        "id": "cha",
+        "name": "Charisma",
+        "bonus": 8,
+        "pointer": "/proficiencies/3/value"
+      }
+    ],
+    "notes": [],
+    "overrides": []
+  },
+  {
+    "id": "pf2e:remaster:foundry-pf2e:4cbdaa37d6c33e9519561bae2c59a23e0288cbce:JFmFuoOzCwc3hA1H",
+    "key": "pf2e:remaster:foundry-pf2e:JFmFuoOzCwc3hA1H",
+    "name": "Kobold Cavern Mage",
+    "system": "pf2e",
+    "edition": "Remaster",
+    "provider": "foundry-pf2e",
+    "kind": "monster",
+    "source": {
+      "sourceId": "JFmFuoOzCwc3hA1H",
+      "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+      "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+      "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+      "importedAt": "2026-10-22T07:35:04.213961+00:00",
+      "publication": "Pathfinder Monster Core",
+      "license": "ORC",
+      "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+      "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt"
+    },
+    "actions": [
+      {
+        "id": "8LYUZymM9ZN8WDw9",
+        "name": "Claw",
+        "traits": [
+          "agile",
+          "finesse",
+          "unarmed"
+        ],
+        "damage": [
+          {
+            "id": "htq8qguyjhots13g6ppy",
+            "type": "slashing",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 2
+            },
+            "pointer": "/items/11/system/damageRolls/htq8qguyjhots13g6ppy"
+          }
+        ],
+        "pointer": "/items/11",
+        "note": "Strike · agile, finesse, unarmed.",
+        "attackBonus": 6
+      },
+      {
+        "id": "u6omxxhGcgdgLj6L",
+        "name": "Light Hammer",
+        "traits": [
+          "agile"
+        ],
+        "damage": [
+          {
+            "id": "SklCyHPvMj76YuDm",
+            "type": "bludgeoning",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 2
+            },
+            "pointer": "/items/12/system/damageRolls/SklCyHPvMj76YuDm"
+          }
+        ],
+        "pointer": "/items/12",
+        "note": "Strike · agile.",
+        "attackBonus": 6
+      },
+      {
+        "id": "PlhmgyPACVjDwLpA",
+        "name": "Light Hammer",
+        "traits": [
+          "agile",
+          "thrown-20"
+        ],
+        "damage": [
+          {
+            "id": "V2ZE3usdTrb1N2bY",
+            "type": "bludgeoning",
+            "timing": "immediate",
+            "recipe": {
+              "count": 1,
+              "sides": 6,
+              "bonus": 2
+            },
+            "pointer": "/items/13/system/damageRolls/V2ZE3usdTrb1N2bY"
+          }
+        ],
+        "pointer": "/items/13",
+        "note": "Strike · agile, thrown-20.",
+        "attackBonus": 6
+      },
+      {
+        "id": "JojW4TyiF3cPdVBJ",
+        "name": "Inspiring Display",
+        "traits": [
+          "auditory",
+          "emotion",
+          "linguistic",
+          "mental"
+        ],
+        "damage": [],
+        "pointer": "/items/14",
+        "note": ""
+      },
+      {
+        "id": "lkJGworLlLUoPpox",
+        "name": "Scamper",
+        "traits": [],
+        "damage": [],
+        "pointer": "/items/15",
+        "note": ""
+      }
+    ],
+    "saves": [
+      {
+        "id": "fortitude",
+        "name": "Fortitude",
+        "bonus": 5,
+        "pointer": "/system/saves/fortitude/value"
+      },
+      {
+        "id": "reflex",
+        "name": "Reflex",
+        "bonus": 6,
+        "pointer": "/system/saves/reflex/value"
+      },
+      {
+        "id": "will",
+        "name": "Will",
+        "bonus": 7,
+        "pointer": "/system/saves/will/value"
+      }
+    ],
+    "notes": [],
+    "overrides": []
+  }
+]

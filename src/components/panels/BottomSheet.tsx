@@ -5,8 +5,8 @@
  * Similar to FlyoutPanel but slides up from bottom.
  */
 
-import { motion, AnimatePresence, PanInfo } from 'framer-motion'
-import { ReactNode, useEffect, useId, useRef } from 'react'
+import { motion, AnimatePresence, PanInfo, useDragControls } from 'framer-motion'
+import { ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 
 interface BottomSheetProps {
@@ -23,6 +23,10 @@ interface BottomSheetProps {
    * transform framer-motion animates. Mobile layout is unaffected.
    */
   desktopClassName?: string
+  /** Panels entered from another sheet can restore to a durable HUD trigger. */
+  returnFocus?: () => HTMLElement | null
+  handleOnlyDrag?: boolean
+  constrainToViewport?: boolean
 }
 
 export function BottomSheet({
@@ -33,13 +37,39 @@ export function BottomSheet({
   children,
   showHandle = true,
   desktopClassName = '',
+  returnFocus,
+  handleOnlyDrag = false,
+  constrainToViewport = false,
 }: BottomSheetProps) {
+  const dragControls = useDragControls()
+  const [viewport, setViewport] = useState<{ height: number; bottom: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const returnFocusRef = useRef(returnFocus)
+  returnFocusRef.current = returnFocus
   const reduceMotion = shouldReduceMotion()
+
+  useEffect(() => {
+    if (!isOpen || !constrainToViewport) return
+    const update = () => {
+      const view = window.visualViewport
+      setViewport({ height: Math.min(window.innerHeight * 0.8, (view?.height ?? window.innerHeight) * 0.9), bottom: Math.max(0, window.innerHeight - (view?.height ?? window.innerHeight) - (view?.offsetTop ?? 0)) })
+      const focused = document.activeElement
+      if (focused instanceof HTMLElement && containerRef.current?.contains(focused)) focused.scrollIntoView({ block: 'nearest' })
+    }
+    update()
+    window.visualViewport?.addEventListener('resize', update)
+    window.visualViewport?.addEventListener('scroll', update)
+    window.addEventListener('resize', update)
+    return () => {
+      window.visualViewport?.removeEventListener('resize', update)
+      window.visualViewport?.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [isOpen, constrainToViewport])
 
   useEffect(() => {
     if (!isOpen) return
@@ -54,9 +84,13 @@ export function BottomSheet({
       'input:not([disabled])',
       'select:not([disabled])',
       'textarea:not([disabled])',
+      'summary',
       '[tabindex]:not([tabindex="-1"])',
     ].join(',')
     const focusFirst = () => {
+      // A retained detail or fast keyboard interaction may already have placed
+      // focus inside the sheet before this frame. Do not steal it back.
+      if (sheet?.contains(document.activeElement)) return
       const first = sheet?.querySelector<HTMLElement>(focusableSelector)
       ;(first ?? sheet)?.focus()
     }
@@ -78,7 +112,7 @@ export function BottomSheet({
 
       const focusable = Array.from(
         sheet.querySelectorAll<HTMLElement>(focusableSelector),
-      )
+      ).filter(node => !constrainToViewport || node.getClientRects().length > 0)
       if (focusable.length === 0) {
         event.preventDefault()
         sheet.focus()
@@ -90,7 +124,7 @@ export function BottomSheet({
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault()
         last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && (document.activeElement === last || !sheet.contains(document.activeElement))) {
         event.preventDefault()
         first.focus()
       }
@@ -100,10 +134,10 @@ export function BottomSheet({
     return () => {
       window.cancelAnimationFrame(animationFrame)
       document.removeEventListener('keydown', handleKeyDown)
-      previouslyFocusedRef.current?.focus()
+      ;(returnFocusRef.current?.() ?? previouslyFocusedRef.current)?.focus()
       previouslyFocusedRef.current = null
     }
-  }, [isOpen])
+  }, [isOpen, constrainToViewport])
 
   const sheetVariants = {
     hidden: {
@@ -171,7 +205,8 @@ export function BottomSheet({
             tabIndex={-1}
             style={{
               height,
-              maxHeight: '90vh',
+              ...(constrainToViewport && viewport ? { height: `${viewport.height}px`, bottom: `${viewport.bottom}px` } : {}),
+              maxHeight: constrainToViewport ? '90dvh' : '90vh',
               backgroundColor: 'var(--color-surface)',
               boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
             }}
@@ -180,13 +215,15 @@ export function BottomSheet({
             animate="visible"
             exit="exit"
             drag={reduceMotion ? false : 'y'}
+            dragControls={dragControls}
+            dragListener={!handleOnlyDrag}
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.5 }}
             onDragEnd={handleDragEnd}
           >
             {/* Drag Handle */}
             {showHandle && (
-              <div className="flex justify-center py-2 cursor-grab active:cursor-grabbing">
+              <div className="flex justify-center py-2 cursor-grab active:cursor-grabbing" style={handleOnlyDrag ? { touchAction: 'none' } : undefined} onPointerDown={handleOnlyDrag ? event => dragControls.start(event) : undefined}>
                 <div
                   className="w-12 h-1 rounded-full"
                   style={{ backgroundColor: 'var(--color-text-muted)' }}
@@ -224,7 +261,7 @@ export function BottomSheet({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div data-sheet-content className={`flex-1 min-h-0 overflow-y-auto p-6 ${constrainToViewport ? 'pb-[max(24px,env(safe-area-inset-bottom))]' : ''}`}>
               {children}
             </div>
           </motion.div>

@@ -1,3 +1,5 @@
+import { executeMonsterIntent } from './monsterManual/execution'
+import { catalog } from './monsterManual/catalog'
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -347,6 +349,36 @@ describe('executePhysicalSavedRoll', () => {
     // The determinism cases spy on `Math.random`; leaving one installed would
     // silently fix the RNG for every test that runs after them in this file.
     vi.restoreAllMocks()
+  })
+
+  it('scores direct catalog Dragon Bite zero as ten plus its source bonus', async () => {
+    const dragon=catalog.find(c=>c.name==='Young Red Dragon')!
+    const bite=dragon.actions.find(a=>a.name==='Bite')!
+    const damage=bite.damage.find(d=>d.recipe.sides===10)!
+    const room=createFakeRoom([0,6])
+    await executeMonsterIntent(dragon,{role:'damage',actionId:bite.id,componentId:damage.id},room.backend,()=>{})
+    await room.quiesce()
+    expect(activeTotal()).toBe(22)
+    expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    expect(useDiceStore.getState().rollHistory[0].sum).toBe(22)
+  })
+
+  it.each([
+    { source: true, percentile: false, values: [0, 3], quantity: 2, expected: 13 },
+    { source: false, percentile: false, values: [0, 3], quantity: 2, expected: 3 },
+    { source: true, percentile: true, values: [0, 0], quantity: 1, expected: 100 },
+    { source: true, percentile: true, values: [70, 0], quantity: 1, expected: 70 },
+  ])('keeps source d10 reading scoped through HUD and single history row: $source/$percentile/$values', async ({source,percentile,values,quantity,expected}) => {
+    const room = createFakeRoom(values)
+    const roll = makeRoll({ type: 'd10', quantity, ...(percentile ? { percentile: true as const } : {}) })
+    const original = JSON.stringify(roll)
+    await executePhysicalSavedRoll(roll, { backend: room.backend, ownerId: OWNER, ...(source ? { scoring: { d10ZeroIsTen: true as const } } : {}) })
+    await room.quiesce()
+    expect(activeTotal()).toBe(expected)
+    expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    expect(useDiceStore.getState().rollHistory[0].sum).toBe(expected)
+    expect(JSON.stringify(roll)).toBe(original)
+    expect(room.spawnLog.map(d=>d.type)).toEqual(percentile ? ['d10tens','d10'] : ['d10','d10'])
   })
 
   it('a manual roll supersedes pending saved-roll waves without stale spawns or scoring', async () => {

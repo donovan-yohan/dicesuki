@@ -1,0 +1,2225 @@
+{
+  "pf2e:remaster:foundry-pf2e:Aktz95gNNzfAiTzk": [],
+  "pf2e:remaster:foundry-pf2e:h4gPulyY9uzkAbyo": [],
+  "pf2e:remaster:foundry-pf2e:BWm17BRQYGMLqtNe": [
+    {
+      "id": "scorpion:constrict",
+      "name": "Constrict",
+      "kind": "ability",
+      "mechanics": [
+        "Requires a grabbed creature."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "BWm17BRQYGMLqtNe",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/giant-scorpion.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "2fb8e826e1f67cc6b76820c2f4c92dead6801bb7e30e6088e0ec3fd5a4d2e243",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/4/system/description/value",
+          "fragment": "@Damage[(1d6+4)[bludgeoning]]"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "damage",
+          "label": "Bludgeoning damage",
+          "kind": "damage",
+          "damageType": "bludgeoning",
+          "timing": "immediate",
+          "selectors": [],
+          "variants": [
+            {
+              "id": "0",
+              "label": "Normal",
+              "selection": {},
+              "recipe": {
+                "count": 1,
+                "sides": 6,
+                "bonus": 4
+              }
+            }
+          ]
+        }
+      ],
+      "target": "Target: Fortitude save DC 20 · basic save"
+    },
+    {
+      "id": "scorpion:venom",
+      "name": "Giant Scorpion Venom",
+      "kind": "ability",
+      "mechanics": [
+        "Stage 1: 1d10 poison, enfeebled 1. Stage 2: 2d10 poison, enfeebled 1. Stage 3: 2d10 poison, enfeebled 2. Each stage lasts 1 round; maximum duration 6 rounds."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "BWm17BRQYGMLqtNe",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/giant-scorpion.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "2fb8e826e1f67cc6b76820c2f4c92dead6801bb7e30e6088e0ec3fd5a4d2e243",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/5/system/description/value",
+          "fragment": "1d10"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "damage",
+          "label": "Poison damage",
+          "kind": "damage",
+          "damageType": "poison",
+          "timing": "immediate",
+          "selectors": [
+            {
+              "id": "stage",
+              "label": "Venom stage",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                },
+                {
+                  "id": "2",
+                  "label": "2"
+                },
+                {
+                  "id": "3",
+                  "label": "3"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "1",
+              "selection": {
+                "stage": "1"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 10,
+                "bonus": 0
+              }
+            },
+            {
+              "id": "1",
+              "label": "2",
+              "selection": {
+                "stage": "2"
+              },
+              "recipe": {
+                "count": 2,
+                "sides": 10,
+                "bonus": 0
+              }
+            },
+            {
+              "id": "2",
+              "label": "3",
+              "selection": {
+                "stage": "3"
+              },
+              "recipe": {
+                "count": 2,
+                "sides": 10,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ],
+      "target": "Target: Fortitude save DC 18"
+    }
+  ],
+  "pf2e:remaster:foundry-pf2e:Twvzy1yRo6m6dM8D": [],
+  "5e:srd-5.1-2014:dnd5eapi:guard": [],
+  "5e:srd-5.1-2014:dnd5eapi:priest": [
+    {
+      "id": "priest:light",
+      "name": "Light",
+      "kind": "spell",
+      "mechanics": [
+        "1 action · Touch · 1 hour",
+        "You touch one object that is no larger than 10 feet in any dimension. Until the spell ends, the object sheds bright light in a 20-foot radius and dim light for an additional 20 feet. The light can be colored as you like. Completely covering the object with something opaque blocks the light. The spell ends if you cast it again or dismiss it as an action.",
+        "If you target an object held or worn by a hostile creature, that creature must succeed on a dexterity saving throw to avoid the spell."
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "light",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/light",
+          "revision": "6ac63bd89190f745d5eb0b811f7559b9e3fd3111c871cc809c5244037767e066",
+          "sha256": "6ac63bd89190f745d5eb0b811f7559b9e3fd3111c871cc809c5244037767e066",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/1/spellcasting"
+        }
+      ],
+      "rolls": [],
+      "target": "Target: Dexterity save DC 13 · hostile held/worn object"
+    },
+    {
+      "id": "priest:sacred-flame",
+      "name": "Sacred Flame",
+      "kind": "spell",
+      "mechanics": [
+        "1 action · 60 feet · Instantaneous",
+        "Caster level 5 · 2d8 radiant. The target gains no benefit from cover."
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "sacred-flame",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/sacred-flame",
+          "revision": "1d0b82f7add46ecdc47ab9d33dc8c358d1c21f16991a2f52a537cd37b596edfb",
+          "sha256": "1d0b82f7add46ecdc47ab9d33dc8c358d1c21f16991a2f52a537cd37b596edfb",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/1/spellcasting"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "sacred-flame",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/sacred-flame",
+          "revision": "1d0b82f7add46ecdc47ab9d33dc8c358d1c21f16991a2f52a537cd37b596edfb",
+          "sha256": "1d0b82f7add46ecdc47ab9d33dc8c358d1c21f16991a2f52a537cd37b596edfb",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/damage/0/damage_at_character_level/5"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "damage",
+          "label": "Radiant damage",
+          "kind": "damage",
+          "damageType": "radiant",
+          "timing": "immediate",
+          "selectors": [],
+          "variants": [
+            {
+              "id": "0",
+              "label": "Normal",
+              "selection": {},
+              "recipe": {
+                "count": 2,
+                "sides": 8,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ],
+      "target": "Target: Dexterity save DC 13 · no damage on success"
+    },
+    {
+      "id": "priest:thaumaturgy",
+      "name": "Thaumaturgy",
+      "kind": "spell",
+      "mechanics": [
+        "1 action · 30 feet · 1 minute",
+        "You manifest a minor wonder, a sign of supernatural power, within range. You create one of the following magical effects within range.",
+        "- Your voice booms up to three times as loud as normal for 1 minute.",
+        "- You cause flames to flicker, brighten, dim, or change color for 1 minute.",
+        "- You cause harmless tremors in the ground for 1 minute.",
+        "- You create an instantaneous sound that originates from a point of your choice within range, such as a rumble of thunder, the cry of a raven, or ominous whispers.",
+        "- You instantaneously cause an unlocked door or window to fly open or slam shut.",
+        "- You alter the appearance of your eyes for 1 minute.",
+        "If you cast this spell multiple times, you can have up to three of its 1-minute effects active at a time, and you can dismiss such an effect as an action."
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "thaumaturgy",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/thaumaturgy",
+          "revision": "440b16ed3e0b6d7d609c7bf23beffd1fddd5e4a49e1b61aea3cf61ee21e35e62",
+          "sha256": "440b16ed3e0b6d7d609c7bf23beffd1fddd5e4a49e1b61aea3cf61ee21e35e62",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/1/spellcasting"
+        }
+      ],
+      "rolls": []
+    },
+    {
+      "id": "priest:cure-wounds",
+      "name": "Cure Wounds",
+      "kind": "spell",
+      "mechanics": [
+        "1 action · Touch · Instantaneous",
+        "A creature you touch regains a number of hit points equal to 1d8 + your spellcasting ability modifier. This spell has no effect on undead or constructs.",
+        "Slot capacity: 1 × 4, 2 × 3, 3 × 2"
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "cure-wounds",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/cure-wounds",
+          "revision": "2f86eda434b060d697e048b016a42953fcdf4d06d2ed647782f04a80e562e29c",
+          "sha256": "2f86eda434b060d697e048b016a42953fcdf4d06d2ed647782f04a80e562e29c",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/1/spellcasting"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "cure-wounds",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/cure-wounds",
+          "revision": "2f86eda434b060d697e048b016a42953fcdf4d06d2ed647782f04a80e562e29c",
+          "sha256": "2f86eda434b060d697e048b016a42953fcdf4d06d2ed647782f04a80e562e29c",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/heal_at_slot_level/1"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "cure-wounds",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/cure-wounds",
+          "revision": "2f86eda434b060d697e048b016a42953fcdf4d06d2ed647782f04a80e562e29c",
+          "sha256": "2f86eda434b060d697e048b016a42953fcdf4d06d2ed647782f04a80e562e29c",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/heal_at_slot_level/2"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "cure-wounds",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/cure-wounds",
+          "revision": "2f86eda434b060d697e048b016a42953fcdf4d06d2ed647782f04a80e562e29c",
+          "sha256": "2f86eda434b060d697e048b016a42953fcdf4d06d2ed647782f04a80e562e29c",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/heal_at_slot_level/3"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/wisdom"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "healing",
+          "label": "Healing",
+          "kind": "healing",
+          "selectors": [
+            {
+              "id": "slot",
+              "label": "Spell slot",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                },
+                {
+                  "id": "2",
+                  "label": "2"
+                },
+                {
+                  "id": "3",
+                  "label": "3"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "1",
+              "selection": {
+                "slot": "1"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 8,
+                "bonus": 3
+              }
+            },
+            {
+              "id": "1",
+              "label": "2",
+              "selection": {
+                "slot": "2"
+              },
+              "recipe": {
+                "count": 2,
+                "sides": 8,
+                "bonus": 3
+              }
+            },
+            {
+              "id": "2",
+              "label": "3",
+              "selection": {
+                "slot": "3"
+              },
+              "recipe": {
+                "count": 3,
+                "sides": 8,
+                "bonus": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "priest:guiding-bolt",
+      "name": "Guiding Bolt",
+      "kind": "spell",
+      "mechanics": [
+        "1 action · 120 feet · 1 round",
+        "Ranged spell attack; radiant damage. The next attack against the target before the end of your next turn has advantage.",
+        "Slot capacity: 1 × 4, 2 × 3, 3 × 2"
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "guiding-bolt",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/guiding-bolt",
+          "revision": "fc9628a87bb2902b0d50977bede2bd8c9194f4c7a72b11dae9732f6ca1abf5e4",
+          "sha256": "fc9628a87bb2902b0d50977bede2bd8c9194f4c7a72b11dae9732f6ca1abf5e4",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/1/spellcasting"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "guiding-bolt",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/guiding-bolt",
+          "revision": "fc9628a87bb2902b0d50977bede2bd8c9194f4c7a72b11dae9732f6ca1abf5e4",
+          "sha256": "fc9628a87bb2902b0d50977bede2bd8c9194f4c7a72b11dae9732f6ca1abf5e4",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/damage/0/damage_at_slot_level/1"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "guiding-bolt",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/guiding-bolt",
+          "revision": "fc9628a87bb2902b0d50977bede2bd8c9194f4c7a72b11dae9732f6ca1abf5e4",
+          "sha256": "fc9628a87bb2902b0d50977bede2bd8c9194f4c7a72b11dae9732f6ca1abf5e4",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/damage/0/damage_at_slot_level/2"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "guiding-bolt",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/guiding-bolt",
+          "revision": "fc9628a87bb2902b0d50977bede2bd8c9194f4c7a72b11dae9732f6ca1abf5e4",
+          "sha256": "fc9628a87bb2902b0d50977bede2bd8c9194f4c7a72b11dae9732f6ca1abf5e4",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/damage/0/damage_at_slot_level/3"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "spell-attack",
+          "label": "Spell attack",
+          "kind": "spell-attack",
+          "selectors": [
+            {
+              "id": "mode",
+              "label": "Roll mode",
+              "options": [
+                {
+                  "id": "normal",
+                  "label": "normal"
+                },
+                {
+                  "id": "advantage",
+                  "label": "advantage"
+                },
+                {
+                  "id": "disadvantage",
+                  "label": "disadvantage"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "normal",
+              "selection": {
+                "mode": "normal"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 5
+              }
+            },
+            {
+              "id": "1",
+              "label": "advantage",
+              "selection": {
+                "mode": "advantage"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 5
+              }
+            },
+            {
+              "id": "2",
+              "label": "disadvantage",
+              "selection": {
+                "mode": "disadvantage"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 5
+              }
+            }
+          ]
+        },
+        {
+          "id": "damage",
+          "label": "Damage",
+          "kind": "damage",
+          "damageType": "radiant",
+          "timing": "immediate",
+          "selectors": [
+            {
+              "id": "slot",
+              "label": "Spell slot",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                },
+                {
+                  "id": "2",
+                  "label": "2"
+                },
+                {
+                  "id": "3",
+                  "label": "3"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "1",
+              "selection": {
+                "slot": "1"
+              },
+              "recipe": {
+                "count": 4,
+                "sides": 6,
+                "bonus": 0
+              }
+            },
+            {
+              "id": "1",
+              "label": "2",
+              "selection": {
+                "slot": "2"
+              },
+              "recipe": {
+                "count": 5,
+                "sides": 6,
+                "bonus": 0
+              }
+            },
+            {
+              "id": "2",
+              "label": "3",
+              "selection": {
+                "slot": "3"
+              },
+              "recipe": {
+                "count": 6,
+                "sides": 6,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "priest:sanctuary",
+      "name": "Sanctuary",
+      "kind": "spell",
+      "mechanics": [
+        "1 bonus action · 30 feet · 1 minute",
+        "You ward a creature within range against attack. Until the spell ends, any creature who targets the warded creature with an attack or a harmful spell must first make a wisdom saving throw. On a failed save, the creature must choose a new target or lose the attack or spell. This spell doesn't protect the warded creature from area effects, such as the explosion of a fireball.",
+        "If the warded creature makes an attack or casts a spell that affects an enemy creature, this spell ends.",
+        "Slot capacity: 1 × 4, 2 × 3, 3 × 2"
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "sanctuary",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/sanctuary",
+          "revision": "0224c6e733d2bc8eb9be2bd652ff5cd42d91656522b62e936c2fa1cb6b9de642",
+          "sha256": "0224c6e733d2bc8eb9be2bd652ff5cd42d91656522b62e936c2fa1cb6b9de642",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/1/spellcasting"
+        }
+      ],
+      "rolls": [],
+      "target": "Attacker: Wisdom save DC 13"
+    },
+    {
+      "id": "priest:lesser-restoration",
+      "name": "Lesser Restoration",
+      "kind": "spell",
+      "mechanics": [
+        "1 action · Touch · Instantaneous",
+        "You touch a creature and can end either one disease or one condition afflicting it. The condition can be blinded, deafened, paralyzed, or poisoned.",
+        "Slot capacity: 2 × 3, 3 × 2"
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "lesser-restoration",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/lesser-restoration",
+          "revision": "842434814f0c6815028d4fb836cc35b6ba370b0051726c45a178c9dd5d588203",
+          "sha256": "842434814f0c6815028d4fb836cc35b6ba370b0051726c45a178c9dd5d588203",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/1/spellcasting"
+        }
+      ],
+      "rolls": []
+    },
+    {
+      "id": "priest:spiritual-weapon",
+      "name": "Spiritual Weapon",
+      "kind": "spell",
+      "mechanics": [
+        "1 bonus action · 60 feet · 1 minute",
+        "You create a floating, spectral weapon within range that lasts for the duration or until you cast this spell again. When you cast the spell, you can make a melee spell attack against a creature within 5 feet of the weapon. On a hit, the target takes force damage equal to 1d8 + your spellcasting ability modifier.",
+        "As a bonus action on your turn, you can move the weapon up to 20 feet and repeat the attack against a creature within 5 feet of it.",
+        "Slot capacity: 2 × 3, 3 × 2"
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "spiritual-weapon",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/spiritual-weapon",
+          "revision": "ade69d67717ed98ac728067e31bba8b3aa876328eb89a64b4a4290198b3c455d",
+          "sha256": "ade69d67717ed98ac728067e31bba8b3aa876328eb89a64b4a4290198b3c455d",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/1/spellcasting"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "spiritual-weapon",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/spiritual-weapon",
+          "revision": "ade69d67717ed98ac728067e31bba8b3aa876328eb89a64b4a4290198b3c455d",
+          "sha256": "ade69d67717ed98ac728067e31bba8b3aa876328eb89a64b4a4290198b3c455d",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/damage/0/damage_at_slot_level/2"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "spiritual-weapon",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/spiritual-weapon",
+          "revision": "ade69d67717ed98ac728067e31bba8b3aa876328eb89a64b4a4290198b3c455d",
+          "sha256": "ade69d67717ed98ac728067e31bba8b3aa876328eb89a64b4a4290198b3c455d",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/damage/0/damage_at_slot_level/3"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "spell-attack",
+          "label": "Spell attack",
+          "kind": "spell-attack",
+          "selectors": [
+            {
+              "id": "mode",
+              "label": "Roll mode",
+              "options": [
+                {
+                  "id": "normal",
+                  "label": "normal"
+                },
+                {
+                  "id": "advantage",
+                  "label": "advantage"
+                },
+                {
+                  "id": "disadvantage",
+                  "label": "disadvantage"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "normal",
+              "selection": {
+                "mode": "normal"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 5
+              }
+            },
+            {
+              "id": "1",
+              "label": "advantage",
+              "selection": {
+                "mode": "advantage"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 5
+              }
+            },
+            {
+              "id": "2",
+              "label": "disadvantage",
+              "selection": {
+                "mode": "disadvantage"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 5
+              }
+            }
+          ]
+        },
+        {
+          "id": "damage",
+          "label": "Damage",
+          "kind": "damage",
+          "damageType": "force",
+          "timing": "immediate",
+          "selectors": [
+            {
+              "id": "slot",
+              "label": "Spell slot",
+              "options": [
+                {
+                  "id": "2",
+                  "label": "2"
+                },
+                {
+                  "id": "3",
+                  "label": "3"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "2",
+              "selection": {
+                "slot": "2"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 8,
+                "bonus": 3
+              }
+            },
+            {
+              "id": "1",
+              "label": "3",
+              "selection": {
+                "slot": "3"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 8,
+                "bonus": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "priest:dispel-magic",
+      "name": "Dispel Magic",
+      "kind": "spell",
+      "mechanics": [
+        "1 action · 120 feet · Instantaneous",
+        "Choose one creature, object, or magical effect within range. Any spell of 3rd level or lower on the target ends. For each spell of 4th level or higher on the target, make an ability check using your spellcasting ability. The DC equals 10 + the spell's level. On a successful check, the spell ends.",
+        "Slot capacity: 3 × 2"
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "dispel-magic",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/dispel-magic",
+          "revision": "e6b49e845e1b310ec919e298e94121a056dd9814d807f14bbc1c0f1fd6ed1d66",
+          "sha256": "e6b49e845e1b310ec919e298e94121a056dd9814d807f14bbc1c0f1fd6ed1d66",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/1/spellcasting"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "dispel-magic",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/dispel-magic",
+          "revision": "e6b49e845e1b310ec919e298e94121a056dd9814d807f14bbc1c0f1fd6ed1d66",
+          "sha256": "e6b49e845e1b310ec919e298e94121a056dd9814d807f14bbc1c0f1fd6ed1d66",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc/0",
+          "fragment": "10 + the spell's level"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/wisdom"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "check",
+          "label": "Wisdom check",
+          "kind": "check",
+          "selectors": [
+            {
+              "id": "mode",
+              "label": "Roll mode",
+              "options": [
+                {
+                  "id": "normal",
+                  "label": "normal"
+                },
+                {
+                  "id": "advantage",
+                  "label": "advantage"
+                },
+                {
+                  "id": "disadvantage",
+                  "label": "disadvantage"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "normal",
+              "selection": {
+                "mode": "normal"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 3
+              }
+            },
+            {
+              "id": "1",
+              "label": "advantage",
+              "selection": {
+                "mode": "advantage"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 3
+              }
+            },
+            {
+              "id": "2",
+              "label": "disadvantage",
+              "selection": {
+                "mode": "disadvantage"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 3
+              }
+            }
+          ]
+        }
+      ],
+      "target": "Spell level ≤3: ends without a check. Level ≥4: Wisdom check DC 10 + target spell level."
+    },
+    {
+      "id": "priest:spirit-guardians",
+      "name": "Spirit Guardians",
+      "kind": "spell",
+      "mechanics": [
+        "1 action · Self · Concentration · Up to 10 minutes",
+        "15-foot aura. Creatures you designate are unaffected; other creatures have halved Speed. On entry or start of turn: Wisdom save, half damage on success. Good/neutral: radiant; evil: necrotic.",
+        "Slot capacity: 3 × 2"
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "spirit-guardians",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/spirit-guardians",
+          "revision": "2dfeafe6c4f9001c36c9a51b5bbc6c7c27ea3d8c6d7c104fa6a156c7b0c089a1",
+          "sha256": "2dfeafe6c4f9001c36c9a51b5bbc6c7c27ea3d8c6d7c104fa6a156c7b0c089a1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/1/spellcasting"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "spirit-guardians",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/spirit-guardians",
+          "revision": "2dfeafe6c4f9001c36c9a51b5bbc6c7c27ea3d8c6d7c104fa6a156c7b0c089a1",
+          "sha256": "2dfeafe6c4f9001c36c9a51b5bbc6c7c27ea3d8c6d7c104fa6a156c7b0c089a1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc/1",
+          "fragment": "3d8 radiant damage"
+        },
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "spirit-guardians",
+          "url": "https://www.dnd5eapi.co/api/2014/spells/spirit-guardians",
+          "revision": "2dfeafe6c4f9001c36c9a51b5bbc6c7c27ea3d8c6d7c104fa6a156c7b0c089a1",
+          "sha256": "2dfeafe6c4f9001c36c9a51b5bbc6c7c27ea3d8c6d7c104fa6a156c7b0c089a1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/desc/1",
+          "fragment": "3d8 necrotic damage"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "damage",
+          "label": "Damage",
+          "kind": "damage",
+          "timing": "immediate",
+          "selectors": [
+            {
+              "id": "slot",
+              "label": "Spell slot",
+              "options": [
+                {
+                  "id": "3",
+                  "label": "3"
+                }
+              ]
+            },
+            {
+              "id": "damageType",
+              "label": "Damage type",
+              "options": [
+                {
+                  "id": "radiant",
+                  "label": "radiant"
+                },
+                {
+                  "id": "necrotic",
+                  "label": "necrotic"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "3 · radiant",
+              "selection": {
+                "slot": "3",
+                "damageType": "radiant"
+              },
+              "recipe": {
+                "count": 3,
+                "sides": 8,
+                "bonus": 0
+              }
+            },
+            {
+              "id": "1",
+              "label": "3 · necrotic",
+              "selection": {
+                "slot": "3",
+                "damageType": "necrotic"
+              },
+              "recipe": {
+                "count": 3,
+                "sides": 8,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ],
+      "target": "Target: Wisdom save DC 13 · half on success"
+    },
+    {
+      "id": "priest:divine-eminence",
+      "name": "Divine Eminence",
+      "kind": "ability",
+      "mechanics": [
+        "As a bonus action, the priest can expend a spell slot to cause its melee weapon attacks to magically deal an extra 10 (3d6) radiant damage to a target on a hit. This benefit lasts until the end of the turn. If the priest expends a spell slot of 2nd level or higher, the extra damage increases by 1d6 for each level above 1st."
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "priest",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/priest",
+          "revision": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "sha256": "36f631b00ea9d7a037cc6944f59cb26cc91a507d9e944574d50b50a92f4055b1",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/special_abilities/0/desc",
+          "fragment": "extra damage increases by 1d6 for each level above 1st"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "damage",
+          "label": "Extra radiant damage",
+          "kind": "damage",
+          "damageType": "radiant",
+          "timing": "immediate",
+          "selectors": [
+            {
+              "id": "slot",
+              "label": "Spell slot",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                },
+                {
+                  "id": "2",
+                  "label": "2"
+                },
+                {
+                  "id": "3",
+                  "label": "3"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "1",
+              "selection": {
+                "slot": "1"
+              },
+              "recipe": {
+                "count": 3,
+                "sides": 6,
+                "bonus": 0
+              }
+            },
+            {
+              "id": "1",
+              "label": "2",
+              "selection": {
+                "slot": "2"
+              },
+              "recipe": {
+                "count": 4,
+                "sides": 6,
+                "bonus": 0
+              }
+            },
+            {
+              "id": "2",
+              "label": "3",
+              "selection": {
+                "slot": "3"
+              },
+              "recipe": {
+                "count": 5,
+                "sides": 6,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "5e:srd-5.1-2014:dnd5eapi:giant-spider": [
+    {
+      "id": "spider:recharge",
+      "name": "Web recharge",
+      "kind": "recharge",
+      "mechanics": [
+        "Roll 1d6; recharges on 5–6."
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "giant-spider",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/giant-spider",
+          "revision": "0dc32cf5a057dca4162c864b4add23243461743719e38d7c52bb4d2746ad1702",
+          "sha256": "0dc32cf5a057dca4162c864b4add23243461743719e38d7c52bb4d2746ad1702",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/actions/1/usage"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "recharge",
+          "label": "Recharge",
+          "kind": "recharge",
+          "selectors": [],
+          "variants": [
+            {
+              "id": "0",
+              "label": "Normal",
+              "selection": {},
+              "recipe": {
+                "count": 1,
+                "sides": 6,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "5e:srd-5.1-2014:dnd5eapi:young-red-dragon": [
+    {
+      "id": "dragon:recharge",
+      "name": "Fire Breath recharge",
+      "kind": "recharge",
+      "mechanics": [
+        "Roll 1d6; recharges on 5–6."
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "young-red-dragon",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/young-red-dragon",
+          "revision": "b3adca272b4949548711f88060167c3352348195e62ae7bd89f39afbc1800614",
+          "sha256": "b3adca272b4949548711f88060167c3352348195e62ae7bd89f39afbc1800614",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/actions/3/usage"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "recharge",
+          "label": "Recharge",
+          "kind": "recharge",
+          "selectors": [],
+          "variants": [
+            {
+              "id": "0",
+              "label": "Normal",
+              "selection": {},
+              "recipe": {
+                "count": 1,
+                "sides": 6,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dragon:fire-breath",
+      "name": "Fire Breath",
+      "kind": "ability",
+      "mechanics": [
+        "The dragon exhales fire in a 30-foot cone. Each creature in that area must make a DC 17 Dexterity saving throw, taking 56 (16d6) fire damage on a failed save, or half as much damage on a successful one."
+      ],
+      "sources": [
+        {
+          "system": "5e",
+          "edition": "SRD 5.1 (2014)",
+          "provider": "dnd5eapi",
+          "sourceId": "young-red-dragon",
+          "url": "https://www.dnd5eapi.co/api/2014/monsters/young-red-dragon",
+          "revision": "b3adca272b4949548711f88060167c3352348195e62ae7bd89f39afbc1800614",
+          "sha256": "b3adca272b4949548711f88060167c3352348195e62ae7bd89f39afbc1800614",
+          "publication": "System Reference Document 5.1",
+          "license": "CC BY 4.0",
+          "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+          "noticeUrl": "/licenses/monster-manual/5e-attribution.txt",
+          "pointer": "/actions/3/damage/0/damage_dice"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "damage",
+          "label": "Fire damage",
+          "kind": "damage",
+          "damageType": "fire",
+          "timing": "immediate",
+          "selectors": [],
+          "variants": [
+            {
+              "id": "0",
+              "label": "Normal",
+              "selection": {},
+              "recipe": {
+                "count": 16,
+                "sides": 6,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ],
+      "target": "Target: Dexterity save DC 17 · half on success"
+    }
+  ],
+  "pf2e:remaster:foundry-pf2e:JFmFuoOzCwc3hA1H": [
+    {
+      "id": "kobold:caustic-blast",
+      "name": "Caustic Blast",
+      "kind": "spell",
+      "mechanics": [
+        "2 actions · 30 feet · 5-foot burst.",
+        "1d8 acid; basic Reflex save. Critical failure also causes 1 persistent acid damage."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/1/system/description/value"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/0/system/spelldc"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/1/system/damage/yI4fzrhnbFxup4Ep/formula"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "damage",
+          "label": "Damage",
+          "kind": "damage",
+          "damageType": "acid",
+          "timing": "immediate",
+          "selectors": [
+            {
+              "id": "rank",
+              "label": "Spell rank",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "1",
+              "selection": {
+                "rank": "1"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 8,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ],
+      "target": "Target: Reflex save DC 18 · basic save"
+    },
+    {
+      "id": "kobold:detect-magic",
+      "name": "Detect Magic",
+      "kind": "spell",
+      "mechanics": [
+        "2 actions · 30-foot emanation.",
+        "Detect presence or absence of magic; you can ignore known magic. Illusions are detected only when lower rank than this spell."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/2/system/description/value"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/0/system/spelldc"
+        }
+      ],
+      "rolls": []
+    },
+    {
+      "id": "kobold:figment",
+      "name": "Figment",
+      "kind": "spell",
+      "mechanics": [
+        "2 actions · 30 feet · sustained.",
+        "Create a simple illusory sound (no words or elaborate music) or crude vision in a 5-foot cube. On casting or sustaining, you can Create a Diversion with a +2 circumstance bonus to Deception. Failure causes the creature to disbelieve."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/3/system/description/value"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/0/system/spelldc"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/3/system/description/value",
+          "fragment": "+2 circumstance bonus"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/system/skills/deception/base"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "check",
+          "label": "Create a Diversion",
+          "kind": "check",
+          "selectors": [
+            {
+              "id": "rank",
+              "label": "Spell rank",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "1",
+              "selection": {
+                "rank": "1"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 10
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kobold:fleet-step",
+      "name": "Fleet Step",
+      "kind": "spell",
+      "mechanics": [
+        "2 actions · 1 minute.",
+        "Gain a +30-foot status bonus to Speed."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/4/system/description/value"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/0/system/spelldc"
+        }
+      ],
+      "rolls": []
+    },
+    {
+      "id": "kobold:heal",
+      "name": "Heal",
+      "kind": "spell",
+      "mechanics": [
+        "Rank 1 · 4 spell slots.",
+        "1 action: touch. 2 actions: 30 feet, +8 healing to a willing living creature. 3 actions: 30-foot emanation, all living and undead creatures. Undead take vitality damage with a basic Fortitude save; the +8 applies only to living healing."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/5/system/description/value"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/0/system/spelldc"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/5/system/description/value",
+          "fragment": "increase the Hit Points restored by 8"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "healing",
+          "label": "Living healing",
+          "kind": "healing",
+          "selectors": [
+            {
+              "id": "rank",
+              "label": "Spell rank",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                }
+              ]
+            },
+            {
+              "id": "actions",
+              "label": "Actions",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                },
+                {
+                  "id": "2",
+                  "label": "2"
+                },
+                {
+                  "id": "3",
+                  "label": "3"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "1 · 1",
+              "selection": {
+                "rank": "1",
+                "actions": "1"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 8,
+                "bonus": 0
+              }
+            },
+            {
+              "id": "1",
+              "label": "1 · 2",
+              "selection": {
+                "rank": "1",
+                "actions": "2"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 8,
+                "bonus": 8
+              }
+            },
+            {
+              "id": "2",
+              "label": "1 · 3",
+              "selection": {
+                "rank": "1",
+                "actions": "3"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 8,
+                "bonus": 0
+              }
+            }
+          ]
+        },
+        {
+          "id": "damage",
+          "label": "Undead damage",
+          "kind": "damage",
+          "damageType": "vitality",
+          "timing": "immediate",
+          "selectors": [
+            {
+              "id": "rank",
+              "label": "Spell rank",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                }
+              ]
+            },
+            {
+              "id": "actions",
+              "label": "Actions",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                },
+                {
+                  "id": "2",
+                  "label": "2"
+                },
+                {
+                  "id": "3",
+                  "label": "3"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "1 · 1",
+              "selection": {
+                "rank": "1",
+                "actions": "1"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 8,
+                "bonus": 0
+              }
+            },
+            {
+              "id": "1",
+              "label": "1 · 2",
+              "selection": {
+                "rank": "1",
+                "actions": "2"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 8,
+                "bonus": 0
+              }
+            },
+            {
+              "id": "2",
+              "label": "1 · 3",
+              "selection": {
+                "rank": "1",
+                "actions": "3"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 8,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ],
+      "target": "Undead target: Fortitude save DC 18 · basic save"
+    },
+    {
+      "id": "kobold:know-the-way",
+      "name": "Know the Way",
+      "kind": "spell",
+      "mechanics": [
+        "2 actions.",
+        "Know north and the direction to a location visited within the last 24 hours."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/6/system/description/value"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/0/system/spelldc"
+        }
+      ],
+      "rolls": []
+    },
+    {
+      "id": "kobold:pummeling-rubble",
+      "name": "Pummeling Rubble",
+      "kind": "spell",
+      "mechanics": [
+        "2 actions · 15-foot cone.",
+        "Reflex save: critical success no damage; success half; failure full damage and pushed 5 feet; critical failure double damage and pushed 10 feet."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/7/system/description/value"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/0/system/spelldc"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/7/system/damage/0/formula"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "damage",
+          "label": "Damage",
+          "kind": "damage",
+          "damageType": "bludgeoning",
+          "timing": "immediate",
+          "selectors": [
+            {
+              "id": "rank",
+              "label": "Spell rank",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "1",
+              "selection": {
+                "rank": "1"
+              },
+              "recipe": {
+                "count": 2,
+                "sides": 4,
+                "bonus": 0
+              }
+            }
+          ]
+        }
+      ],
+      "target": "Target: Reflex save DC 18 · degrees listed above"
+    },
+    {
+      "id": "kobold:runic-weapon",
+      "name": "Runic Weapon",
+      "kind": "spell",
+      "mechanics": [
+        "2 actions · touch · 1 minute.",
+        "One unattended weapon or weapon held by a willing creature becomes a +1 striking weapon."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/8/system/description/value"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/0/system/spelldc"
+        }
+      ],
+      "rolls": []
+    },
+    {
+      "id": "kobold:tangle-vine",
+      "name": "Tangle Vine",
+      "kind": "spell",
+      "mechanics": [
+        "2 actions · 30 feet · 1 creature.",
+        "Spell attack: success gives −10-foot circumstance penalty to Speed for 1 round; critical success also immobilizes. Escape against spell DC 18 removes the effects. Failure has no effect."
+      ],
+      "sources": [
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/9/system/description/value"
+        },
+        {
+          "system": "pf2e",
+          "edition": "Remaster",
+          "provider": "foundry-pf2e",
+          "sourceId": "JFmFuoOzCwc3hA1H",
+          "url": "https://raw.githubusercontent.com/foundryvtt/pf2e/4cbdaa37d6c33e9519561bae2c59a23e0288cbce/packs/pathfinder-monster-core/kobold-cavern-mage.json",
+          "revision": "4cbdaa37d6c33e9519561bae2c59a23e0288cbce",
+          "sha256": "f6d405b388e57a09c4309d37452b38e59abe0ef03e38c2e187aff5dcc147fd81",
+          "publication": "Pathfinder Monster Core",
+          "license": "ORC",
+          "licenseUrl": "/licenses/monster-manual/ORC_License_FINAL.pdf",
+          "noticeUrl": "/licenses/monster-manual/pf2e-attribution.txt",
+          "pointer": "/items/0/system/spelldc"
+        }
+      ],
+      "rolls": [
+        {
+          "id": "spell-attack",
+          "label": "Spell attack",
+          "kind": "spell-attack",
+          "selectors": [
+            {
+              "id": "rank",
+              "label": "Spell rank",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1"
+                }
+              ]
+            },
+            {
+              "id": "ordinal",
+              "label": "Attack this turn",
+              "options": [
+                {
+                  "id": "1",
+                  "label": "1st attack"
+                },
+                {
+                  "id": "2",
+                  "label": "2nd attack · −5 MAP"
+                },
+                {
+                  "id": "3",
+                  "label": "3rd+ attack · −10 MAP"
+                }
+              ]
+            }
+          ],
+          "variants": [
+            {
+              "id": "0",
+              "label": "1 · 1",
+              "selection": {
+                "rank": "1",
+                "ordinal": "1"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 10
+              }
+            },
+            {
+              "id": "1",
+              "label": "1 · 2",
+              "selection": {
+                "rank": "1",
+                "ordinal": "2"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 10
+              }
+            },
+            {
+              "id": "2",
+              "label": "1 · 3",
+              "selection": {
+                "rank": "1",
+                "ordinal": "3"
+              },
+              "recipe": {
+                "count": 1,
+                "sides": 20,
+                "bonus": 10
+              }
+            }
+          ]
+        }
+      ],
+      "target": "Target: spell attack; Escape DC 18"
+    }
+  ]
+}
