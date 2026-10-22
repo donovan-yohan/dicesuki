@@ -19,7 +19,7 @@ export function quickActionState(): 'ready' | 'rolling' | 'disconnected' {
   return 'ready'
 }
 export async function executeMonsterIntent(c: Creature, intent: Intent, backend: SavedRollBackend, onBase: () => void): Promise<void> {
-  return executeAdmittedRoll(compileIntent(c, intent), backend, onBase)
+  return executeAdmittedRoll(compileIntent(c, intent), backend, onBase, { d10ZeroIsTen: true })
 }
 export async function executeAdmittedRoll(roll: SavedRoll, backend: SavedRollBackend, onBase: () => void, scoring?: SavedRollScoring): Promise<void> {
   const state = quickActionState()

@@ -1,3 +1,5 @@
+import { executeMonsterIntent } from './monsterManual/execution'
+import { catalog } from './monsterManual/catalog'
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -347,6 +349,18 @@ describe('executePhysicalSavedRoll', () => {
     // The determinism cases spy on `Math.random`; leaving one installed would
     // silently fix the RNG for every test that runs after them in this file.
     vi.restoreAllMocks()
+  })
+
+  it('scores direct catalog Dragon Bite zero as ten plus its source bonus', async () => {
+    const dragon=catalog.find(c=>c.name==='Young Red Dragon')!
+    const bite=dragon.actions.find(a=>a.name==='Bite')!
+    const damage=bite.damage.find(d=>d.recipe.sides===10)!
+    const room=createFakeRoom([0,6])
+    await executeMonsterIntent(dragon,{role:'damage',actionId:bite.id,componentId:damage.id},room.backend,()=>{})
+    await room.quiesce()
+    expect(activeTotal()).toBe(22)
+    expect(useDiceStore.getState().rollHistory).toHaveLength(1)
+    expect(useDiceStore.getState().rollHistory[0].sum).toBe(22)
   })
 
   it.each([

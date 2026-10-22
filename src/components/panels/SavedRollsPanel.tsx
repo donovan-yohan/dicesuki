@@ -98,7 +98,7 @@ function LibraryView({isOpen,onClose,tableDice=[],tab,setTab,session}:ViewProps)
     const instance=live.data.instances.find(i=>i.id===instanceId);if(!instance)throw new Error('Creature no longer saved')
     const checked=validateStoredKit(instance.kit);const variant=checked.cards.find(c=>c.id===card.id)?.variants.find(v=>v.id===variantId)
     if(!variant)throw new Error('Saved recipe is invalid')
-    void execute({...variant.roll,id:createClientId('kit-roll'),createdAt:Date.now(),name:`${instance.displayName} · ${systemLabels[checked.provenance.system]} · ${card.label}`,dice:variant.roll.dice.map(d=>({...d,id:createClientId('kit-die')}))})
+    void execute({...variant.roll,id:createClientId('kit-roll'),createdAt:Date.now(),name:`${instance.displayName} · ${systemLabels[checked.provenance.system]} · ${card.label}`,dice:variant.roll.dice.map(d=>({...d,id:createClientId('kit-die')}))},undefined,{d10ZeroIsTen:true})
   })}
   function featureExecute(instanceId:string,featureId:string,rollId:string,selection:Selection){attempt(()=>{
     const instance=useRollLibraryStore.getState().data.instances.find(i=>i.id===instanceId)

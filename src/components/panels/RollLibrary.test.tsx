@@ -1,3 +1,4 @@
+import { buildCreatureKit } from '../../lib/rollLibrary'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import { SavedRollsPanel } from './SavedRollsPanel'
@@ -151,4 +152,19 @@ it('opts restored v2 venom into source d10 scoring without rewriting the kit', a
  expect(vi.mocked(executeAdmittedRoll).mock.calls[0][3]).toEqual({d10ZeroIsTen:true})
  expect(vi.mocked(executeAdmittedRoll).mock.calls[0][0]).toMatchObject({dice:[expect.objectContaining({type:'d10',quantity:2})]})
  expect(JSON.stringify(useRollLibraryStore.getState().data)).toBe(original)
+})
+
+
+it.each([1,2])('opts stored v%s base Dragon Bite into source reading without rewriting its snapshot', async version=>{
+ const dragon=catalog.find(c=>c.name==='Young Red Dragon')!,scope=useRollLibraryStore.getState().scope!
+ const kit=version===1?buildCreatureKit(dragon):buildCreatureKitV2(dragon)
+ const data={version:1,groups:[],memberships:{},ungroupedCollapsed:false,instances:[{id:'stored-dragon',displayName:'Ember',collapsed:false,createdAt:37,kit}]}
+ localStorage.setItem(scope,JSON.stringify(data));act(()=>{useAuthStore.setState({status:'loading'});useAuthStore.setState({status:'guest'})})
+ render(<SavedRollsPanel isOpen onClose={()=>{}}/>);fireEvent.click(screen.getByRole('tab',{name:'Monster Manual'}))
+ fireEvent.click(screen.getByRole('button',{name:/^Roll Ember .*2d10 \+ 6$/}))
+ await waitFor(()=>expect(executeAdmittedRoll).toHaveBeenCalledTimes(1))
+ expect(vi.mocked(executeAdmittedRoll).mock.calls[0][3]).toEqual({d10ZeroIsTen:true})
+ expect(vi.mocked(executeAdmittedRoll).mock.calls[0][0]).toMatchObject({flatBonus:6,dice:[expect.objectContaining({type:'d10',quantity:2})]})
+ expect(useRollLibraryStore.getState().data).toEqual(data)
+ expect(JSON.parse(localStorage.getItem(scope)!)).toEqual(data)
 })
