@@ -136,7 +136,7 @@ export function TableHud({
             <button
               type="button"
               onClick={onRotateView}
-              className="fixed left-4 z-40 flex items-center justify-center rounded-full transition-all hover:scale-105"
+              className="theme-hud fixed left-4 z-40 flex items-center justify-center rounded-full transition-all hover:scale-105"
               style={bottomLeftControlStyle(rotateBottom)}
               aria-label="Rotate view 90 degrees"
               title="Rotate my view 90°"
@@ -153,7 +153,7 @@ export function TableHud({
             <button
               type="button"
               onClick={onToggleMotion}
-              className="fixed left-4 z-40 flex items-center justify-center rounded-full transition-all hover:scale-105"
+              className="theme-hud fixed left-4 z-40 flex items-center justify-center rounded-full transition-all hover:scale-105"
               style={{
                 ...bottomLeftControlStyle(motionBottom),
                 // Active state swaps the fill to accent, so the label has to
@@ -203,6 +203,6 @@ function bottomLeftControlStyle(bottom: number) {
     backgroundColor: 'var(--color-surface)',
     color: 'var(--color-text-primary)',
     boxShadow: 'var(--shadow-md)',
-    opacity: 0.7,
+    opacity: 'var(--ui-control-opacity)',
   } as const
 }

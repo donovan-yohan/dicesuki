@@ -156,7 +156,7 @@ test('executes a saved roll through the wasm room backend', async ({ page }) => 
   await expect(room).toHaveAttribute('data-room-dice-types', 'd20')
 
   await page.getByRole('button', { name: 'My Dice Rolls' }).click()
-  await page.getByRole('button', { name: /create new roll/i }).click()
+  await page.getByRole('button', { name: 'New roll', exact: true }).click()
   // Locate by label, not placeholder: #212 changed the placeholder copy to
   // 'e.g. Greatsword Attack' and this manual-run spec was not updated with it.
   await page.getByLabel('Roll name').fill('WASM saved roll')
@@ -171,6 +171,9 @@ test('executes a saved roll through the wasm room backend', async ({ page }) => 
   await expect(room).toHaveAttribute('data-room-dice-count', '4')
   await expect(room).toHaveAttribute('data-room-dice-types', 'd6,d6,d6,d6')
   await expect(room).toHaveAttribute('data-roll-started-sequence', '1')
+  // Execution closes the library asynchronously. Await its actual exit so
+  // the assertion addresses the HUD label, not the retiring recipe duplicate.
+  await expect(page.getByRole('dialog', { name: 'My Dice Rolls', exact: true })).toHaveCount(0)
   await expect(page.getByText('WASM saved roll', { exact: true })).toBeVisible()
   await expect(page.getByText('+2', { exact: true })).toHaveCount(4)
 })

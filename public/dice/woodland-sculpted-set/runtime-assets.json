@@ -1,0 +1,250 @@
+{
+  "contractVersion": 2,
+  "assetKind": "sculpted",
+  "setId": "woodland-sculpted-set",
+  "canonicalReferenceVersion": 2,
+  "source": {
+    "kind": "local-frozen",
+    "record": "sculpted-worlds-v1.source.json",
+    "sha256": "0fc2309fa0547ed2135be6734c96bf9a221e186415a9b2ab3e6ce1101f681dbc"
+  },
+  "budgets": {
+    "completeSetMaxBytes": 14680064,
+    "thumbnailMaxBytes": 153600,
+    "textureMaxDimension": 2048,
+    "embeddedTextureMaxBytesPerDie": 4194304,
+    "maxImages": 2,
+    "maxMaterials": 7,
+    "maxPrimitives": 7,
+    "maxAnimations": 0,
+    "maxNodes": 8,
+    "modelMaxBytes": {
+      "d4": 1245184,
+      "d6": 1179648,
+      "d8": 1835008,
+      "d10": 1245184,
+      "d12": 1310720,
+      "d20": 6619136
+    },
+    "triangleMaxCounts": {
+      "d4": 32000,
+      "d6": 36000,
+      "d8": 32000,
+      "d10": 32000,
+      "d12": 32000,
+      "d20": 61000
+    }
+  },
+  "assets": [
+    {
+      "diceId": "d4",
+      "diceType": "d4",
+      "catalogKey": "woodland-sculpted-set/d4",
+      "model": {
+        "path": "/dice/woodland-sculpted-set/d4/model.glb",
+        "bytes": 1105372,
+        "sha256": "b1bbfce78fed5f431b8be03bd906533c3e708278faabe191e28d4186048b25a2",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 31872,
+        "primitiveCount": 2,
+        "materialCount": 2,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "publicDerivation": {
+        "kind": "woodland-scene-authoring-extras-v1",
+        "sourceSha256": "3e7f61f34eafc8f803682a9a16e8c485c91823209db81e1ff77d1348c4bad96a",
+        "publicSha256": "b1bbfce78fed5f431b8be03bd906533c3e708278faabe191e28d4186048b25a2"
+      },
+      "thumbnail": {
+        "path": "/dice/woodland-sculpted-set/d4/thumbnail.png",
+        "bytes": 43853,
+        "sha256": "d40294fc8437e4cef3cdfc98c188317bd1f6b2aece75fc577ed9e1732c24ce46",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/woodland-sculpted-set/d4/metadata.json",
+        "bytes": 1237,
+        "sha256": "a97d6c1c48411b6a0a8ed26f5a510ad0816cff4aead94f37e32a563091b12e40"
+      }
+    },
+    {
+      "diceId": "d6",
+      "diceType": "d6",
+      "catalogKey": "woodland-sculpted-set/d6",
+      "model": {
+        "path": "/dice/woodland-sculpted-set/d6/model.glb",
+        "bytes": 1170508,
+        "sha256": "7e2e629e71cce4ebc16c8b49d1377aa67d634e5a6faf07f20005111a46d78628",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 35948,
+        "primitiveCount": 1,
+        "materialCount": 1,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "publicDerivation": {
+        "kind": "woodland-scene-authoring-extras-v1",
+        "sourceSha256": "80f3cd24d3910f6924e4054b38dc00f07ed4e56b97339789f27e95158f7cc601",
+        "publicSha256": "7e2e629e71cce4ebc16c8b49d1377aa67d634e5a6faf07f20005111a46d78628"
+      },
+      "thumbnail": {
+        "path": "/dice/woodland-sculpted-set/d6/thumbnail.png",
+        "bytes": 21739,
+        "sha256": "4d9c9c16d11f55e7bd49520f9e48c9b0c72ce0a3ffc5defa11670443017e8bb8",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/woodland-sculpted-set/d6/metadata.json",
+        "bytes": 1230,
+        "sha256": "4bca94a21c49fc14f4a6106bab2eb689b49084892fd2f573da1d0bf4a6833315"
+      }
+    },
+    {
+      "diceId": "d8",
+      "diceType": "d8",
+      "catalogKey": "woodland-sculpted-set/d8",
+      "model": {
+        "path": "/dice/woodland-sculpted-set/d8/model.glb",
+        "bytes": 1723640,
+        "sha256": "5c0d763f73d08e3bdbe66f19ae7bb1614112d3c95ca6447dda5aac0f050baa5c",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 31998,
+        "primitiveCount": 7,
+        "materialCount": 7,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "publicDerivation": {
+        "kind": "woodland-scene-authoring-extras-v1",
+        "sourceSha256": "09adbc367da2c91347bd2b3a75709169df90ab48aaabd2259a1b394f51b48341",
+        "publicSha256": "5c0d763f73d08e3bdbe66f19ae7bb1614112d3c95ca6447dda5aac0f050baa5c"
+      },
+      "thumbnail": {
+        "path": "/dice/woodland-sculpted-set/d8/thumbnail.png",
+        "bytes": 26101,
+        "sha256": "934df24fa6d2b3d41234f2a377578e8390e064e13de84c198eef74636dac8e52",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/woodland-sculpted-set/d8/metadata.json",
+        "bytes": 1758,
+        "sha256": "5c77c448957e1c1503f3a8c40683c1dd9de435cf136ed2d60ec98b90ca583230"
+      }
+    },
+    {
+      "diceId": "d10",
+      "diceType": "d10",
+      "catalogKey": "woodland-sculpted-set/d10",
+      "model": {
+        "path": "/dice/woodland-sculpted-set/d10/model.glb",
+        "bytes": 1115808,
+        "sha256": "f42f6d0ec2968a5d90f3e168fd44c37e92ddb3bbfcf09e1e68fd9c50c4aa5f4e",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 31976,
+        "primitiveCount": 4,
+        "materialCount": 4,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "publicDerivation": {
+        "kind": "woodland-scene-authoring-extras-v1",
+        "sourceSha256": "a14364ec32e67398102c3fe627097128390fc6e6e9c281b645290e2560d93ecb",
+        "publicSha256": "f42f6d0ec2968a5d90f3e168fd44c37e92ddb3bbfcf09e1e68fd9c50c4aa5f4e"
+      },
+      "thumbnail": {
+        "path": "/dice/woodland-sculpted-set/d10/thumbnail.png",
+        "bytes": 52760,
+        "sha256": "3d24909addc8318014266ca25d5076414d5c9166e0567afd3852b987867a240e",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/woodland-sculpted-set/d10/metadata.json",
+        "bytes": 2017,
+        "sha256": "26345cac360b42228ca1339a55fb99cee4da396d2693294f4c037f5fd68c66b2"
+      }
+    },
+    {
+      "diceId": "d12",
+      "diceType": "d12",
+      "catalogKey": "woodland-sculpted-set/d12",
+      "model": {
+        "path": "/dice/woodland-sculpted-set/d12/model.glb",
+        "bytes": 1191880,
+        "sha256": "efefc7f950e8da99d371586bb07f9e4ee69e562c54fe44bb3b5ecc0f984d9a1b",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 31772,
+        "primitiveCount": 3,
+        "materialCount": 3,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "publicDerivation": {
+        "kind": "woodland-scene-authoring-extras-v1",
+        "sourceSha256": "03a6c476ec0b258089de874513a58f5164fdb346f8675f9e2ec0204280594620",
+        "publicSha256": "efefc7f950e8da99d371586bb07f9e4ee69e562c54fe44bb3b5ecc0f984d9a1b"
+      },
+      "thumbnail": {
+        "path": "/dice/woodland-sculpted-set/d12/thumbnail.png",
+        "bytes": 50123,
+        "sha256": "2361e5bb32b5c440e4ed38bef7e13c588e3cb9b3fd1a2b2f7cfb5255a8b297eb",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/woodland-sculpted-set/d12/metadata.json",
+        "bytes": 2122,
+        "sha256": "342f87dc105ea0c1fbae342b48760257c22c743e6d3969cfdffeb3e904b8b3b2"
+      }
+    },
+    {
+      "diceId": "d20",
+      "diceType": "d20",
+      "catalogKey": "woodland-sculpted-set/d20",
+      "model": {
+        "path": "/dice/woodland-sculpted-set/d20/model.glb",
+        "bytes": 6567148,
+        "sha256": "46a60c3bd7106d8c2bcde66ee7cf33b6361ae57729ef94665feef9b40e57ea93",
+        "embeddedTextureBytes": 2487978,
+        "textureFormat": "image/png",
+        "maxTextureDimension": 2048,
+        "triangleCount": 60416,
+        "primitiveCount": 1,
+        "materialCount": 1,
+        "imageCount": 2,
+        "animationCount": 0
+      },
+      "publicDerivation": {
+        "kind": "woodland-scene-authoring-extras-v1",
+        "sourceSha256": "76de28b317d94d8e1c225842b8aeab35cf76144c5015e5615ba4fce88d391fd4",
+        "publicSha256": "46a60c3bd7106d8c2bcde66ee7cf33b6361ae57729ef94665feef9b40e57ea93"
+      },
+      "thumbnail": {
+        "path": "/dice/woodland-sculpted-set/d20/thumbnail.png",
+        "bytes": 55556,
+        "sha256": "054d7e5175a4e92f17330750f730d78a66e8db98d9b14a86a97190b1804ef462",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/woodland-sculpted-set/d20/metadata.json",
+        "bytes": 3238,
+        "sha256": "7cc3d9d10d23289e584e7ba965226acd8486cc20c66e60784f9c5c49f8827053"
+      }
+    }
+  ]
+}

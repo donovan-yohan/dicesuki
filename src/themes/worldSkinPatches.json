@@ -1,0 +1,179 @@
+{
+  "woodland": {
+    "tokens": {
+      "colors": {
+        "primary": "#293D30",
+        "secondary": "#70886A",
+        "accent": "#D9C48A",
+        "onAccent": "#242B20",
+        "background": "#17281E",
+        "surface": "#293D30",
+        "error": "#FFB0A1",
+        "text": {
+          "primary": "#FFF3D9",
+          "secondary": "#E1D5BB",
+          "muted": "#BEB89F"
+        },
+        "dice": {
+          "highlight": "#D9C48A",
+          "shadow": "#17281E"
+        }
+      },
+      "typography": {
+        "fontFamily": {
+          "primary": "ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+          "mono": "ui-monospace, \"SFMono-Regular\", Consolas, \"Liberation Mono\", monospace"
+        }
+      },
+      "effects": {
+        "borderRadius": {
+          "sm": "0.25rem",
+          "md": "0.875rem",
+          "lg": "1rem",
+          "full": "9999px"
+        },
+        "shadows": {
+          "sm": "0 1px 3px #00000040",
+          "md": "0 4px 12px #00000055",
+          "lg": "0 10px 24px #00000066"
+        },
+        "gradients": {
+          "primary": "linear-gradient(135deg, #293D30, #17281E)",
+          "secondary": "linear-gradient(135deg, #D9C48A, #D9C48A)"
+        }
+      }
+    },
+    "assets": {
+      "icons": {
+        "roll": "/icons/woodland/roll.svg",
+        "dice": "/icons/woodland/dice.svg",
+        "history": "/icons/woodland/history.svg",
+        "settings": "/icons/woodland/settings.svg",
+        "profile": "/icons/woodland/profile.svg",
+        "uiToggle": "/icons/woodland/ui-toggle.svg",
+        "savedRolls": "/icons/woodland/saved-rolls.svg",
+        "shop": "/icons/woodland/shop.svg",
+        "rotate": "/icons/woodland/rotate.svg",
+        "motion": "/icons/woodland/motion.svg"
+      }
+    }
+  },
+  "cyberpunk": {
+    "tokens": {
+      "colors": {
+        "primary": "#16252B",
+        "secondary": "#557782",
+        "accent": "#D8FA53",
+        "onAccent": "#14200C",
+        "background": "#0D171C",
+        "surface": "#16252B",
+        "error": "#FF9D9D",
+        "text": {
+          "primary": "#F1F5E9",
+          "secondary": "#C6D6D8",
+          "muted": "#9BB3B9"
+        },
+        "dice": {
+          "highlight": "#D8FA53",
+          "shadow": "#0D171C"
+        }
+      },
+      "typography": {
+        "fontFamily": {
+          "primary": "ui-monospace, \"SFMono-Regular\", Consolas, \"Liberation Mono\", monospace",
+          "mono": "ui-monospace, \"SFMono-Regular\", Consolas, \"Liberation Mono\", monospace"
+        }
+      },
+      "effects": {
+        "borderRadius": {
+          "sm": "0.25rem",
+          "md": "0.125rem",
+          "lg": "1rem",
+          "full": "9999px"
+        },
+        "shadows": {
+          "sm": "0 1px 3px #00000040",
+          "md": "0 4px 12px #00000055",
+          "lg": "0 10px 24px #00000066"
+        },
+        "gradients": {
+          "primary": "linear-gradient(135deg, #16252B, #0D171C)",
+          "secondary": "linear-gradient(135deg, #D8FA53, #D8FA53)"
+        }
+      }
+    },
+    "assets": {
+      "icons": {
+        "roll": "/icons/cyberpunk/roll.svg",
+        "dice": "/icons/cyberpunk/dice.svg",
+        "history": "/icons/cyberpunk/history.svg",
+        "settings": "/icons/cyberpunk/settings.svg",
+        "profile": "/icons/cyberpunk/profile.svg",
+        "uiToggle": "/icons/cyberpunk/ui-toggle.svg",
+        "savedRolls": "/icons/cyberpunk/saved-rolls.svg",
+        "shop": "/icons/cyberpunk/shop.svg",
+        "rotate": "/icons/cyberpunk/rotate.svg",
+        "motion": "/icons/cyberpunk/motion.svg"
+      }
+    }
+  },
+  "monster-dungeon": {
+    "tokens": {
+      "colors": {
+        "primary": "#302B29",
+        "secondary": "#86705A",
+        "accent": "#D9B578",
+        "onAccent": "#241C16",
+        "background": "#1B191A",
+        "surface": "#302B29",
+        "error": "#FFA59B",
+        "text": {
+          "primary": "#F6EAD7",
+          "secondary": "#DDCEB7",
+          "muted": "#BDAE99"
+        },
+        "dice": {
+          "highlight": "#D9B578",
+          "shadow": "#1B191A"
+        }
+      },
+      "typography": {
+        "fontFamily": {
+          "primary": "Georgia, \"Times New Roman\", serif",
+          "mono": "ui-monospace, \"SFMono-Regular\", Consolas, \"Liberation Mono\", monospace"
+        }
+      },
+      "effects": {
+        "borderRadius": {
+          "sm": "0.25rem",
+          "md": "0.375rem",
+          "lg": "1rem",
+          "full": "9999px"
+        },
+        "shadows": {
+          "sm": "0 1px 3px #00000040",
+          "md": "0 4px 12px #00000055",
+          "lg": "0 10px 24px #00000066"
+        },
+        "gradients": {
+          "primary": "linear-gradient(135deg, #302B29, #1B191A)",
+          "secondary": "linear-gradient(135deg, #D9B578, #D9B578)"
+        }
+      }
+    },
+    "assets": {
+      "icons": {
+        "roll": "/icons/monster-dungeon/roll.svg",
+        "dice": "/icons/monster-dungeon/dice.svg",
+        "history": "/icons/monster-dungeon/history.svg",
+        "settings": "/icons/monster-dungeon/settings.svg",
+        "profile": "/icons/monster-dungeon/profile.svg",
+        "uiToggle": "/icons/monster-dungeon/ui-toggle.svg",
+        "savedRolls": "/icons/monster-dungeon/saved-rolls.svg",
+        "shop": "/icons/monster-dungeon/shop.svg",
+        "rotate": "/icons/monster-dungeon/rotate.svg",
+        "motion": "/icons/monster-dungeon/motion.svg"
+      }
+    }
+  }
+}

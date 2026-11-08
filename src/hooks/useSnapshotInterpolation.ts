@@ -23,7 +23,7 @@ export function useSnapshotInterpolation(): MutableRefObject<number> {
 
     // Clamp t to [0, 1] — don't extrapolate beyond the target
     tRef.current = Math.min(elapsed / snapshotInterval, 1.0)
-  })
+  }, -1)
 
   return tRef
 }

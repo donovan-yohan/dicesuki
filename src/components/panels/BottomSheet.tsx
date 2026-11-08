@@ -198,7 +198,7 @@ export function BottomSheet({
           {/* Bottom Sheet */}
           <motion.div
             ref={containerRef}
-            className={`fixed bottom-0 left-0 right-0 z-50 flex flex-col overflow-hidden rounded-t-3xl ${desktopClassName}`.trim()}
+            className={`theme-panel fixed bottom-0 left-0 right-0 z-50 flex flex-col overflow-hidden rounded-t-3xl ${desktopClassName}`.trim()}
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
@@ -208,7 +208,10 @@ export function BottomSheet({
               ...(constrainToViewport && viewport ? { height: `${viewport.height}px`, bottom: `${viewport.bottom}px` } : {}),
               maxHeight: constrainToViewport ? '90dvh' : '90vh',
               backgroundColor: 'var(--color-surface)',
-              boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
+              boxShadow: 'var(--ui-sheet-shadow)',
+              color: 'var(--color-text-primary)',
+              borderTopLeftRadius: 'var(--ui-sheet-radius)',
+              borderTopRightRadius: 'var(--ui-sheet-radius)',
             }}
             variants={sheetVariants}
             initial="hidden"
@@ -235,8 +238,8 @@ export function BottomSheet({
             <div
               className="flex items-center justify-between px-6 py-4 border-b"
               style={{
-                borderColor: 'rgba(249, 135, 151, 0.2)',
-                backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                borderColor: 'var(--ui-border)',
+                backgroundColor: 'var(--ui-inset)',
               }}
             >
               <h2
@@ -251,7 +254,7 @@ export function BottomSheet({
                 onClick={onClose}
                 className="w-11 h-11 flex items-center justify-center rounded-full transition-all"
                 style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  backgroundColor: 'var(--ui-control-10)',
                   color: 'var(--color-text-secondary)',
                 }}
                 aria-label="Close panel"

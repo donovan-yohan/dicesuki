@@ -46,8 +46,9 @@ describe('collectible catalog', () => {
     expect(COLLECTIBLE_CATALOG.contractVersion).toBe(1)
     // 69 through catalog edition 0004; edition 0005 (dice-content-wave-1)
     // appended 7 procedural sets x 6 shapes; edition 0006 (fantasy-earth)
-    // appended the Aurelian Wildwood ImageGen set x 6 shapes.
-    expect(COLLECTIBLE_CATALOG.items).toHaveLength(117)
+    // appended the Aurelian Wildwood ImageGen set x 6 shapes. Edition 0007
+    // appends the three selected sculpted families x 6 shapes.
+    expect(COLLECTIBLE_CATALOG.items).toHaveLength(135)
     expect(COLLECTIBLE_CATALOG.items.every(item => item.id === `${item.catalogKey}@1`)).toBe(true)
     expect(COLLECTIBLE_CATALOG.assetVersions.every(asset => (
       asset.id === `${asset.catalogItemId}/asset@${asset.assetVersion}`

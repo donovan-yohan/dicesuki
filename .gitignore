@@ -39,6 +39,7 @@ coverage/
 .artifacts/cozy-forest-runtime/
 .artifacts/cyberpunk-runtime/
 .artifacts/dark-dungeon-runtime/
+.artifacts/worlds-integration/
 
 # Design/planning documents (architecture captured via ADRs instead)
 docs/plans/

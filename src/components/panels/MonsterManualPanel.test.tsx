@@ -7,7 +7,7 @@ import { useMultiplayerStore, type MultiplayerDie } from '../../store/useMultipl
 import { useDiceStore } from '../../store/useDiceStore'
 
 function renderPanel() {
-  const backend: DiceBackendState = { mode: 'multiplayer', roll: vi.fn(), clearAll: vi.fn(), removeDie: vi.fn(), addDie: vi.fn(), addGenericDie: vi.fn(), rollHistory: [], clearHistory: vi.fn(), multiplayer: null }
+  const backend: DiceBackendState = { mode: 'multiplayer', roll: vi.fn(), clearAll: vi.fn(), removeDie: vi.fn(), addStandardDie: vi.fn(), addDie: vi.fn(), addGenericDie: vi.fn(), rollHistory: [], clearHistory: vi.fn(), multiplayer: null }
   render(<DiceBackendProvider value={backend}><MonsterManualPanel isOpen onClose={vi.fn()} /></DiceBackendProvider>)
   return backend
 }

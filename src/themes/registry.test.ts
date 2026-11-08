@@ -2,8 +2,39 @@ import { describe, it, expect } from 'vitest'
 import { defaultTheme, THEME_ICON_KEYS } from './tokens'
 import { getThemeById, resolveRoomEnvironmentTheme, THEME_REGISTRY } from './registry'
 
+describe('selectable themes', () => {
+  it('offers only Classic and the three environment-backed worlds', () => {
+    expect(THEME_REGISTRY.map(theme => theme.id)).toEqual([
+      'default',
+      'sunlit-glade-cel',
+      'cyberpunk-cutline',
+      'monster-dungeon',
+    ])
+  })
+})
+
+describe('legacy theme resolution', () => {
+  it.each([
+    ['fantasy-earth', 'sunlit-glade-cel'],
+    ['critter-forest', 'sunlit-glade-cel'],
+    ['sunlit-glade', 'sunlit-glade-cel'],
+    ['dungeon-castle', 'monster-dungeon'],
+    ['neon-cyber-city', 'cyberpunk-cutline'],
+  ])('resolves %s to the registered %s world without exposing a legacy choice', (legacyId, canonicalId) => {
+    const canonical = THEME_REGISTRY.find(theme => theme.id === canonicalId)
+    expect(getThemeById(legacyId)).toBe(canonical)
+    expect(resolveRoomEnvironmentTheme(legacyId, defaultTheme)).toBe(canonical)
+    expect(THEME_REGISTRY.some(theme => theme.id === legacyId)).toBe(false)
+  })
+
+  it.each(['totally-made-up', 'toString', '__proto__', 'Sunlit-glade', ''])('does not resolve an unknown id %j', (id) => {
+    expect(getThemeById(id)).toBeUndefined()
+    expect(resolveRoomEnvironmentTheme(id, defaultTheme)).toBe(defaultTheme)
+  })
+})
+
 describe('resolveRoomEnvironmentTheme', () => {
-  const personalTheme = getThemeById('fantasy-earth')!
+  const personalTheme = getThemeById('sunlit-glade-cel')!
 
   it('uses the personal theme when no room theme is set (solo / fresh room)', () => {
     expect(resolveRoomEnvironmentTheme(null, personalTheme)).toBe(personalTheme)

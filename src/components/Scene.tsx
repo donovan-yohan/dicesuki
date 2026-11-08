@@ -1,7 +1,7 @@
 // External libraries
 import { Environment } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import * as THREE from 'three'
 
 // Config
@@ -18,19 +18,22 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useEconomyAccess } from '../hooks/useEconomyAccess'
 import { useEnvironmentTheme } from '../hooks/useEnvironmentTheme'
 import { PerformanceOverlay } from './effects/PerformanceOverlay'
+import { WorldBloom } from './effects/WorldBloom'
 import { useMultiplayerDrag } from '../hooks/useMultiplayerDrag'
 import { useSnapshotInterpolation } from '../hooks/useSnapshotInterpolation'
 
 // Utilities
 import { formatBonus } from '../lib/diceHelpers'
 import {
-  formatDiceShapeLabel,
   groupPercentileResults,
   percentileSumCorrection,
 } from '../lib/percentileRolls'
-import { dieChipLabel, isBasicDiePresentation } from '../lib/basicDice'
+import { dieChipLabel } from '../lib/basicDice'
 import { aggregateSavedRollPlan, facesFromSettled } from '../lib/savedRollPlan'
 import { detectRenderDeviceTier } from '../lib/deviceDetection'
+import { resolveEnvironmentQuality, type EnvironmentQuality, type EnvironmentSceneRecipe } from '../lib/environmentQuality'
+import { setDirectionalShadowMapSize } from '../lib/shadowMapSizing'
+import { SceneEnvironment } from './environment/SceneEnvironment'
 import {
   type DiceRenderContext,
   type RenderDeviceTier,
@@ -186,10 +189,11 @@ function ThemedBackground() {
  * Themed lighting component
  * Uses theme's lighting configuration for ambient and directional lights
  */
-function ThemedLighting() {
+function ThemedLighting({ quality }: { quality?: EnvironmentQuality }) {
   const currentTheme = useEnvironmentTheme()
   const lighting = currentTheme.environment.lighting
-  const { size } = useThree()
+  const sceneKind = currentTheme.environment.scene?.kind
+  const { size, invalidate } = useThree()
   const dirLightRef = useRef<THREE.DirectionalLight>(null)
 
   // Size the shadow frustum to the arena's half-diagonal × 1.4 (tilt allowance for
@@ -239,7 +243,16 @@ function ThemedLighting() {
   }
 
   // Performance optimization: lower shadow quality on mobile
-  const shadowMapSize = isMobile ? 512 : 2048
+  const shadowMapSize = quality?.shadowMapSize ?? (isMobile ? 512 : 2048)
+
+  // Own mapSize and its allocation together, before the next frame. Declarative
+  // mapSize props only mutate the Vector2; Three otherwise keeps the old target.
+  useLayoutEffect(() => {
+    const light = dirLightRef.current
+    if (!light) return
+    setDirectionalShadowMapSize(light.shadow, shadowMapSize)
+    invalidate()
+  }, [shadowMapSize, invalidate])
 
   return (
     <>
@@ -253,8 +266,8 @@ function ThemedLighting() {
         color={lighting.directional.color}
         intensity={lighting.directional.intensity}
         castShadow
-        shadow-mapSize-width={shadowMapSize}
-        shadow-mapSize-height={shadowMapSize}
+        shadow-bias={currentTheme.environment.scene?.shading === 'cel' ? -0.00015 : 0}
+        shadow-normalBias={currentTheme.environment.scene?.shading === 'cel' ? 0.015 : 0}
         // Frustum bounds are set to the arena size in the effect above.
       />
 
@@ -300,8 +313,8 @@ function ThemedLighting() {
         </>
       )}
 
-      {/* HDR Environment lighting with the night preset */}
-      <ThemedEnvironmentMap />
+      {/* Architectural night worlds own their local light; legacy worlds keep HDR fill. */}
+      {sceneKind !== 'cyberpunk-alley' && sceneKind !== 'monster-dungeon' && <ThemedEnvironmentMap />}
     </>
   )
 }
@@ -351,11 +364,10 @@ function ThemedEnvironmentMap() {
  * Renders multiplayer dice with interpolation (no physics).
  * Used inside Canvas when mode === 'multiplayer'.
  */
-function MultiplayerDiceRenderer({ renderDeviceTier }: { renderDeviceTier: RenderDeviceTier }) {
+function MultiplayerDiceRenderer({ renderDeviceTier, tRef }: { renderDeviceTier: RenderDeviceTier; tRef: MutableRefObject<number> }) {
   const dice = useMultiplayerStore((s) => s.dice)
   const players = useMultiplayerStore((s) => s.players)
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId)
-  const tRef = useSnapshotInterpolation()
   const { onPointerDown } = useMultiplayerDrag()
 
   return (
@@ -377,12 +389,23 @@ function MultiplayerDiceRenderer({ renderDeviceTier }: { renderDeviceTier: Rende
   )
 }
 
-/**
- * Camera controller. Fixed zoom so a die always covers `DICE_PIXELS_PER_UNIT` CSS px
- * whatever the canvas size; camera height derives from the CSS height (a bigger
- * canvas shows MORE arena, not bigger dice). The solo arena is sized from the SAME
- * scale, so the walls frame exactly what this camera shows. `?ppu=NN` overrides it.
- */
+/** Dice and responsive grass consume the same pre-frame interpolation clock. */
+function RoomVisuals({ renderDeviceTier, recipe, quality }: {
+  renderDeviceTier: RenderDeviceTier
+  recipe: EnvironmentSceneRecipe | undefined
+  quality: EnvironmentQuality
+}) {
+  const tRef = useSnapshotInterpolation()
+  return (
+    <>
+      <MultiplayerCamera />
+      {recipe ? <SceneEnvironment recipe={recipe} quality={quality} tRef={tRef} /> : <MultiplayerArena />}
+      <MultiplayerDiceRenderer renderDeviceTier={renderDeviceTier} tRef={tRef} />
+    </>
+  )
+}
+
+/** Fits the authoritative room bounds while preserving the existing dice scale. */
 function MultiplayerCamera() {
   const { camera, size } = useThree()
   // The room delivers its actual arena bounds (Shared-ADR-007/009). The camera
@@ -491,6 +514,23 @@ function SceneContent({ onReady }: SceneProps) {
   // UI state
   const { isUIVisible, toggleUIVisibility, motionMode, toggleMotionMode } = useUIStore()
   const { currentTheme } = useTheme()
+  const environmentTheme = useEnvironmentTheme()
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  const [coarsePointer, setCoarsePointer] = useState(() => window.matchMedia('(pointer: coarse)').matches)
+  useEffect(() => {
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const pointer = window.matchMedia('(pointer: coarse)')
+    const update = () => {
+      setReducedMotion(motion.matches)
+      setCoarsePointer(pointer.matches)
+    }
+    motion.addEventListener('change', update)
+    pointer.addEventListener('change', update)
+    return () => {
+      motion.removeEventListener('change', update)
+      pointer.removeEventListener('change', update)
+    }
+  }, [])
   const [isDiceManagerOpen, setIsDiceManagerOpen] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [isSavedRollsOpen, setIsSavedRollsOpen] = useState(false)
@@ -499,7 +539,7 @@ function SceneContent({ onReady }: SceneProps) {
   const [isShopOpen, setIsShopOpen] = useState(false)
   const [isPlayerPanelOpen, setIsPlayerPanelOpen] = useState(false)
   const [inspectedInventoryDieId, setInspectedInventoryDieId] = useState<string | null>(null)
-  const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>('high')
+  const [renderDeviceTier, setRenderDeviceTier] = useState<RenderDeviceTier>(() => getRenderDeviceTierOverride() ?? 'low')
   const [showRenderLodDebug, setShowRenderLodDebug] = useState(false)
   const detectedRenderDeviceTierRef = useRef<RenderDeviceTier | null>(null)
   const railBeforeOverlayRef = useRef(false)
@@ -562,7 +602,11 @@ function SceneContent({ onReady }: SceneProps) {
   // Delegate add/remove/clear through the active room backend
   const handleAddDice = useCallback(
     (type: string, specificInventoryDieId?: string) => {
-      activeBackend.addDie(type as DiceShape, specificInventoryDieId)
+      if (specificInventoryDieId !== undefined) {
+        activeBackend.addDie(type as DiceShape, specificInventoryDieId)
+      } else {
+        activeBackend.addStandardDie(type as DiceShape)
+      }
     },
     [activeBackend]
   )
@@ -650,12 +694,27 @@ function SceneContent({ onReady }: SceneProps) {
     }
   }, [isOverlayOpen])
 
+  const environmentRecipe = environmentTheme.environment.scene
+  const environmentQuality = useMemo(() => resolveEnvironmentQuality({
+    deviceTier: renderDeviceTier,
+    compactViewport: isMobile,
+    coarsePointer,
+    reducedMotion,
+  }), [renderDeviceTier, isMobile, coarsePointer, reducedMotion])
+
   const content = (
     <>
+      <span
+        className="pointer-events-none absolute h-px w-px overflow-hidden"
+        aria-hidden="true"
+        data-environment-kind={environmentRecipe?.kind ?? 'classic'}
+        data-environment-tier={environmentQuality.tier}
+        data-environment-motion={environmentQuality.animate ? 'animated' : 'static'}
+      />
       <Canvas
         shadows
         gl={{ antialias: true, alpha: false }}
-        dpr={[1, 2]} // Device pixel ratio (1x for low-end, 2x for high-end)
+        dpr={[1, environmentRecipe ? environmentQuality.maxDpr : 2]}
         camera={{
           position: [0, 15, 0],
           fov: 40
@@ -674,6 +733,7 @@ function SceneContent({ onReady }: SceneProps) {
       >
         {/* Outside the boundary below on purpose — see SceneReadySignal. */}
         <SceneReadySignal onReady={onReady} />
+        <WorldBloom environmentRecipe={environmentRecipe} environmentQuality={environmentQuality} />
         {/* Camera already configured via Canvas props */}
 
         {/* Backstop boundary for the scene's assets. Each loader already owns a
@@ -688,12 +748,10 @@ function SceneContent({ onReady }: SceneProps) {
           <ThemedBackground />
 
           {/* Themed Lighting */}
-          <ThemedLighting />
+          <ThemedLighting quality={environmentRecipe ? environmentQuality : undefined} />
 
           {/* Room dice: positioned meshes driven by snapshot interpolation. */}
-          <MultiplayerCamera />
-          <MultiplayerArena />
-          <MultiplayerDiceRenderer renderDeviceTier={renderDeviceTier} />
+          <RoomVisuals renderDeviceTier={renderDeviceTier} recipe={environmentRecipe} quality={environmentQuality} />
           <MultiplayerMotionController />
 
           {/* Performance monitoring */}
@@ -872,14 +930,6 @@ function ResultDisplay() {
   const rollingDice = useDiceStore((s) => s.rollingDice)
   const activeSavedRoll = useDiceStore((s) => s.activeSavedRoll)
   const rollNotice = useDiceStore((s) => s.rollNotice)
-  const inventoryDice = useInventoryStore((s) => s.dice)
-  const inventoryDiceById = useMemo(() => {
-    const map = new Map<string, InventoryDie>()
-    for (const die of inventoryDice) {
-      map.set(die.id, die)
-    }
-    return map
-  }, [inventoryDice])
 
   // Per-player filtering (multiplayer only)
   const selectedPlayerId = useMultiplayerStore((s) => s.selectedPlayerId)
@@ -1081,7 +1131,7 @@ function ResultDisplay() {
           })}
           {/* Rolling dice */}
           {rollingDiceOnTable.map((die) => (
-            <DiceChip key={`rolling-${die.id}`} label={getRollingDieLabel(die, inventoryDiceById)} variant="muted" className="animate-pulse">
+            <DiceChip key={`rolling-${die.id}`} label={getRollingDieLabel(die)} variant="muted" className="animate-pulse">
               <span className="text-lg font-bold">?</span>
             </DiceChip>
           ))}
@@ -1118,18 +1168,11 @@ function ResultDisplay() {
 }
 
 function getResultDieLabel(die: DieSettledState) {
-  // `dieChipLabel` reads a basic die as its bare shape (`D6`, not `Basic D6`) and
-  // keeps a stray, unpaired tens die from surfacing as the raw engine shape
-  // `d10tens`.
   return dieChipLabel(die.type, die.presentation)
 }
 
-function getRollingDieLabel(die: MultiplayerDieState, inventoryDiceById: Map<string, InventoryDie>) {
-  if (isBasicDiePresentation(die.presentation)) return formatDiceShapeLabel(die.diceType)
-  const inventoryDieId = die.presentation?.inventoryDieId
-  return die.presentation?.displayName
-    ?? (inventoryDieId ? inventoryDiceById.get(inventoryDieId)?.name : undefined)
-    ?? formatDiceShapeLabel(die.diceType)
+function getRollingDieLabel(die: MultiplayerDieState) {
+  return dieChipLabel(die.diceType, die.presentation)
 }
 
 export default Scene

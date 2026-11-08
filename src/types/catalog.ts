@@ -47,7 +47,9 @@ export interface GltfCatalogAssetMetadata {
     readonly thumbnailBytes: number
     readonly modelBytes: number
     readonly embeddedTextureBytes: number
-    readonly textureFormat: 'image/webp'
+    readonly textureFormat: 'image/webp' | 'image/png' | 'none'
+    readonly assetContractVersion?: 2
+    readonly assetKind?: 'sculpted'
     readonly maxTextureDimension: number
     readonly canonicalReferenceVersion: number
   }

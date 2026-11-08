@@ -126,12 +126,11 @@ describe('DiceToolbar', () => {
 
     renderToolbar()
 
-    // One label whatever the inventory holds: the owned-first-then-basics
-    // behaviour is the same for the d6 the player owns and the d20 they do not.
+    // The standard shape action does not claim an owned inventory die.
     for (const label of ['D6', 'D20']) {
       expect(screen.getByRole('button', {
-        name: `Add ${label} — your owned dice first, then unlimited basics`,
-      })).toBeInTheDocument()
+        name: `Add ${label} to table`,
+      })).toHaveAttribute('title', `Add ${label} to table`)
     }
   })
 
@@ -181,8 +180,7 @@ describe('DiceToolbar', () => {
     const d6Button = screen.getByTestId('dice-quick-slot-d6')
     expect(d6Button).toBeEnabled()
 
-    // Beyond the owned dice the rail keeps spawning; the backend substitutes a
-    // basic die rather than refusing.
+    // Standard spawns remain available independently of owned supply.
     fireEvent.click(d6Button)
     expect(onAddDice).toHaveBeenCalledWith('d6')
   })

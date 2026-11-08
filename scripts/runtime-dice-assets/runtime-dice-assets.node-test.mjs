@@ -1,3 +1,4 @@
+import './sculpted-assets.node-test.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -13,7 +14,10 @@ import {
 import { RUNTIME_ASSET_PROFILES } from './runtime-asset-profiles.mjs'
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..')
+// Keep the historical v1 scale/texture/release-lock assertions unchanged.
+// v2 sculptures have a separate bounded profile and coverage suite.
 const MANIFEST_PATHS = runtimeAssetManifestPaths(REPO_ROOT)
+  .filter(file => JSON.parse(fs.readFileSync(file, 'utf8')).contractVersion === 1)
 const COZY_SET_ROOT = path.join(REPO_ROOT, 'public', 'dice', 'cozy-forest-imagegen-set')
 
 test('the deployable public input excludes retired authoring and dice-index snapshots', () => {

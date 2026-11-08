@@ -501,11 +501,11 @@ export function DiceEntryCard({
                 style={{
                   backgroundColor: source.isMissing
                     ? 'rgba(239, 68, 68, 0.18)'
-                    : 'rgba(249, 135, 151, 0.16)',
+                    : 'var(--ui-tint-16)',
                   color: source.isMissing ? '#fca5a5' : 'var(--color-accent)',
                   border: source.isMissing
                     ? '1px solid rgba(239, 68, 68, 0.35)'
-                    : '1px solid rgba(249, 135, 151, 0.25)',
+                    : '1px solid var(--ui-border-25)',
                 }}
               >
                 {source.label}
@@ -630,9 +630,9 @@ export function DiceEntryCard({
           role="status"
           className="text-xs px-2 py-1 rounded"
           style={{
-            backgroundColor: 'rgba(249, 135, 151, 0.12)',
+            backgroundColor: 'var(--ui-tint-12)',
             color: 'var(--color-text-secondary)',
-            border: '1px solid rgba(249, 135, 151, 0.25)',
+            border: '1px solid var(--ui-border-25)',
           }}
         >
           Removed from this roll: {removedDiceLabels.join(', ')}
@@ -708,9 +708,9 @@ export function DiceEntryCard({
               data-testid="percentile-advanced-notice"
               className="text-xs px-2 py-1.5 rounded"
               style={{
-                backgroundColor: 'rgba(249, 135, 151, 0.12)',
+                backgroundColor: 'var(--ui-tint-12)',
                 color: 'var(--color-text-secondary)',
-                border: '1px solid rgba(249, 135, 151, 0.25)',
+                border: '1px solid var(--ui-border-25)',
               }}
             >
               A d100 rolls as a tens + ones pair, so exploding and reroll are not

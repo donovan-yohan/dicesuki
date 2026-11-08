@@ -101,7 +101,7 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
                           ? 'var(--color-accent)'
                           : 'var(--color-secondary)',
                         backgroundColor: isCurrent
-                          ? 'rgba(249, 135, 151, 0.12)'
+                          ? 'var(--ui-tint-12)'
                           : 'var(--color-background)',
                         borderRadius: 'var(--border-radius-md)',
                       }}

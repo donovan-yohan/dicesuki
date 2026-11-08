@@ -9,12 +9,12 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { BUNDLED_ICON_MARKUP, getBundledIconMarkup } from './bundledIcons'
+import { BUNDLED_ICON_MARKUP, createBundledIconMap, getBundledIconMarkup } from './bundledIcons'
 import { defaultTheme, THEME_ICON_KEYS } from './tokens'
 
 describe('bundled default-theme icons', () => {
   it('bundles markup for all ten public icon files', () => {
-    expect(Object.keys(BUNDLED_ICON_MARKUP).sort()).toEqual(
+    expect(Object.keys(BUNDLED_ICON_MARKUP).filter(url => url.startsWith('/icons/default/')).sort()).toEqual(
       [
         '/icons/default/dice.svg',
         '/icons/default/history.svg',
@@ -59,6 +59,44 @@ describe('bundled default-theme icons', () => {
       // A baked-in fill/stroke literal would ignore the theme.
       expect(markup, url).not.toMatch(/(?:fill|stroke)="#/)
     }
+  })
+
+  it.each(['woodland', 'cyberpunk', 'monster-dungeon'])('maps the ten released %s slots without colliding with default', (directory) => {
+    const files = Object.keys(BUNDLED_ICON_MARKUP)
+      .filter(url => url.startsWith('/icons/default/'))
+      .map(url => url.split('/').at(-1)!)
+    const raw = Object.fromEntries(files.map(file => [
+      `../../public/icons/${directory}/${file}`,
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path stroke="currentColor" d="M2 2L8 8"/></svg>',
+    ]))
+    const bundled = createBundledIconMap(raw)
+    expect(Object.keys(bundled).sort()).toEqual(files.map(file => `/icons/${directory}/${file}`).sort())
+  })
+
+  it('rejects active SVG markup and files outside the explicit skin slots', () => {
+    const svg = (body: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${body}</svg>`
+    const unsafe = [
+      svg('<script>alert(1)</script>'),
+      svg('<path onload="alert(1)" d="M0 0"/>'),
+      svg('<foreignObject><div>HTML</div></foreignObject>'),
+      svg('<use href="https://cdn.example.com/symbols.svg#roll"/>'),
+      svg('<path style="fill:url(https://cdn.example.com/paint.svg)" d="M0 0"/>'),
+      svg('<animate attributeName="href" values="javascript:alert(1)"/>'),
+      svg('<path fill="url(#paint)" d="M0 0"/>'),
+      '<!DOCTYPE svg [<!ENTITY x "unsafe">]>' + svg('&x;'),
+    ]
+    for (const markup of unsafe) {
+      expect(createBundledIconMap({ '../../public/icons/woodland/roll.svg': markup })).toEqual({})
+    }
+    const safe = svg('<path stroke="currentColor" d="M0 0L4 4"/>')
+    expect(createBundledIconMap({
+      '../../public/icons/untrusted/roll.svg': safe,
+      '../../public/icons/woodland/extra.svg': safe,
+      '../../public/icons/woodland/nested/roll.svg': safe,
+    })).toEqual({})
+    expect(getBundledIconMarkup('https://cdn.example.com/icons/woodland/roll.svg')).toBeNull()
+    expect(getBundledIconMarkup('/icons/default/roll.svg?untrusted=true')).toBeNull()
+    expect(getBundledIconMarkup('toString')).toBeNull()
   })
 
   it('returns null for anything that is not a first-party bundled icon', () => {

@@ -149,7 +149,7 @@ export function RollDicePicker({
         aria-describedby={summaryId}
         tabIndex={-1}
         data-testid="roll-dice-picker"
-        className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl"
+        className="theme-panel flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl"
         style={{
           backgroundColor: 'var(--color-surface)',
           color: 'var(--color-text-primary)',
@@ -182,7 +182,7 @@ export function RollDicePicker({
             onClick={onClose}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all"
             style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              backgroundColor: 'var(--ui-control-10)',
               color: 'var(--color-text-secondary)',
             }}
             aria-label="Close dice picker"
@@ -203,9 +203,9 @@ export function RollDicePicker({
               data-testid="roll-dice-picker-percentile-notice"
               className="mt-3 rounded px-2 py-1.5 text-xs"
               style={{
-                backgroundColor: 'rgba(249, 135, 151, 0.12)',
+                backgroundColor: 'var(--ui-tint-12)',
                 color: 'var(--color-text-secondary)',
-                border: '1px solid rgba(249, 135, 151, 0.25)',
+                border: '1px solid var(--ui-border-25)',
               }}
             >
               A d100 rolls as a tens + ones pair. Pinning applies to the ONES die

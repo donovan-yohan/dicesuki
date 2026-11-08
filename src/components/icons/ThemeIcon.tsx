@@ -4,10 +4,11 @@
  * Renders one `theme.assets.icons.*` value, choosing the rendering that keeps
  * the glyph the same colour as its button:
  *
- * - A **bundled default-theme icon** (`/icons/default/*.svg`) is inlined as a
+ * - A **bundled first-party icon** (default, woodland, cyberpunk or
+ *   monster-dungeon) is inlined as a
  *   real SVG node, so its `stroke="currentColor"` inherits the button's `color`
  *   — including the accent/active states.
- * - **Any other URL** (a theme pack, a remote/CDN asset) renders as `<img src>`
+ * - **Any other URL** (an untrusted pack or remote/CDN asset) renders as `<img src>`
  *   exactly as before. Remote markup is never fetched or inlined.
  *
  * See `src/themes/bundledIcons.ts` for why the split exists.

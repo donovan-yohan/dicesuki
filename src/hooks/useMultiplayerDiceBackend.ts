@@ -9,6 +9,9 @@ import { selectRandomAvailableDie } from '../lib/diceSelection'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useDiceStore } from '../store/useDiceStore'
 import { useInventoryStore } from '../store/useInventoryStore'
+import { useSettingsStore } from '../store/useSettingsStore'
+import { getThemeById } from '../themes/registry'
+import { createThemeDicePresentation } from '../lib/themeDicePresentation'
 
 /**
  * Merge caller-supplied presentation fields over a base block.
@@ -41,6 +44,12 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
   const connectionStatus = useMultiplayerStore((s) => s.connectionStatus)
 
   const rollHistory = useDiceStore((s) => s.rollHistory)
+
+  const addStandardDie = useCallback((type: DiceShape) => {
+    useDiceStore.getState().clearActiveSavedRoll()
+    const theme = getThemeById(useSettingsStore.getState().themeId)
+    return spawnDice(type, createThemeDicePresentation(theme?.id, type))
+  }, [spawnDice])
 
   /**
    * Spawn ONE die of `type`, preferring an owned one.
@@ -153,6 +162,7 @@ export function useMultiplayerDiceBackend(): DiceBackendState {
   return {
     mode: 'multiplayer',
     roll,
+    addStandardDie,
     addDie,
     addGenericDie,
     removeDie,

@@ -32,6 +32,16 @@ function renderNav(rollDisabled = false, theme: Theme = defaultTheme) {
 }
 
 describe('BottomNav Layout A', () => {
+  it('derives nav chrome from theme paint while preserving its fixed boxes', () => {
+    renderNav()
+    const nav = screen.getByRole('navigation')
+    expect(nav.style.backgroundColor).toBe('var(--ui-nav-surface)')
+    expect(nav.style.border).toBe('1px solid var(--ui-border)')
+    expect(nav.style.boxShadow).toBe('var(--ui-nav-shadow)')
+    expect(nav).toHaveStyle({ height: '56px', borderRadius: '28px' })
+    expect(screen.getByRole('button', { name: 'Manage Dice' })).toHaveStyle({ width: '44px', height: '44px' })
+  })
+
   it('keeps the exact five-slot order: Dice Manager, Saved Rolls, ROLL, History, Players', () => {
     renderNav()
 

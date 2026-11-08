@@ -209,6 +209,10 @@ export function validateManifestShape(manifest) {
 
 export async function validateRuntimeAssetManifest(manifestPath, repoRoot = process.cwd()) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  if (manifest?.contractVersion === 2) {
+    const { validateSculptedAssetManifest } = await import('./sculpted-asset-contract.mjs')
+    return validateSculptedAssetManifest(manifestPath, repoRoot)
+  }
   const errors = validateManifestShape(manifest)
   let completeSetBytes = 0
 

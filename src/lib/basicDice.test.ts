@@ -80,9 +80,22 @@ describe('dieChipLabel', () => {
     expect(createBasicDicePresentation('d6').displayName).toBe('Basic D6')
   })
 
-  it('keeps an owned die its own name', () => {
+  it('uses the shape instead of an owned die name in compact results', () => {
     expect(dieChipLabel('d20', { inventoryDieId: 'die_1', displayName: 'Lucky d20' }))
-      .toBe('Lucky d20')
+      .toBe('D20')
+  })
+
+  it.each([
+    ['d4', 'Woodland Sculpted D4', 'D4'],
+    ['d6', 'Monster Dungeon Eyes D6', 'D6'],
+    ['d8', 'CUTLINE D8', 'D8'],
+    ['d10', 'Monster Dungeon Slime D10', 'D10'],
+    ['d12', 'Monster Dungeon Mimic D12', 'D12'],
+    ['d20', 'Woodland Sculpted D20', 'D20'],
+  ])('labels named %s as %s without changing its presentation', (shape, displayName, label) => {
+    const presentation = { customAssetId: `set/${shape}`, displayName }
+    expect(dieChipLabel(shape, presentation)).toBe(label)
+    expect(presentation.displayName).toBe(displayName)
   })
 
   it('falls back to the shape label for an unnamed or absent presentation', () => {

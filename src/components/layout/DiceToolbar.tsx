@@ -1,7 +1,7 @@
 /**
  * Dice Toolbar Component
  *
- * A compact game-HUD rail for spawning owned dice, opening favorite dice, and
+ * A compact game-HUD rail for spawning standard dice, opening favorite dice, and
  * exposing the trash drop target for active table dice.
  */
 
@@ -117,9 +117,9 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
 
   /**
    * Favourites are the rail's only inventory-derived content. A player has an
-   * unlimited supply of basic dice (`lib/basicDice.ts`), so every type is always
-   * present, always enabled, and carries no owned-count — tapping spawns an
-   * owned die when one is free and a basic one when none is.
+   * unlimited supply of theme-matched standard dice, so every type is always
+   * present, always enabled, and carries no owned-count. Favorites keep their
+   * explicitly selected inventory identity.
    */
   const favoriteDiceByType = useMemo(() => {
     const grouped = new Map<DiceShape, InventoryDie[]>()
@@ -157,7 +157,7 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
       {isOpen && (
         <motion.div
           data-testid="dice-toolbar-rail"
-          className="fixed left-4 z-40 flex w-12 flex-col"
+          className="theme-hud fixed left-4 z-40 flex w-12 flex-col"
           style={{
             // Keep the slide-out rail clear of the permanent bottom-left
             // rotate/motion/eye control cluster…
@@ -271,12 +271,12 @@ function DiceQuickSlot({
   // whatever replaced the rail and eat its first tap.
   const isPresent = useIsPresent()
   const accentColor = currentTheme.tokens.colors.accent
-  const surfaceColor = currentTheme.tokens.colors.surface
+  const surfaceColor = 'var(--ui-quick-slot-ink)'
   const hasFavorites = favorites.length > 0
   const slotRef = useRef<HTMLDivElement>(null)
   // No count: the supply is effectively unlimited, so the only thing a number
   // could tell the player is which of two indistinguishable dice they get.
-  const actionLabel = `Add ${label} — your owned dice first, then unlimited basics`
+  const actionLabel = `Add ${label} to table`
   // A noun, not a Show/Hide verb: `aria-expanded` already reports the open
   // state, and the verb form went stale on the empty branch (it kept saying
   // "Show" while the hint was on screen). The native tooltip keeps the verb —
@@ -444,12 +444,12 @@ function QuickSlotFlyoutPanel({
 
   return (
     <motion.div
-      className={`fixed overflow-hidden rounded-lg shadow-xl ${className}`.trim()}
+      className={`theme-panel fixed overflow-hidden rounded-lg shadow-xl ${className}`.trim()}
       style={{
         top: `${anchor.top}px`,
         left: `${anchor.left}px`,
         width: 'min(328px, calc(100vw - 92px))',
-        backgroundColor: 'rgba(31, 41, 55, 0.92)',
+        backgroundColor: 'var(--ui-popover-surface)',
         border: `1px solid ${currentTheme.tokens.colors.accent}`,
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
@@ -612,7 +612,7 @@ function InventoryButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       className="flex h-12 w-12 items-center justify-center rounded-xl text-xs font-bold"
       style={{
-        backgroundColor: 'rgba(31, 41, 55, 0.9)',
+        backgroundColor: 'var(--ui-inventory-surface)',
         color: currentTheme.tokens.colors.text.primary,
         border: `1px solid ${currentTheme.tokens.colors.accent}`,
       }}

@@ -29,7 +29,7 @@ export function UIToggleMini({ onClick, isVisible }: UIToggleMiniProps) {
   return (
     <motion.button
       onClick={onClick}
-      className="fixed left-4 z-40 flex items-center justify-center rounded-full transition-all"
+      className="theme-hud fixed left-4 z-40 flex items-center justify-center rounded-full transition-all"
       style={{
         bottom: `${HUD_LAYOUT.eye.bottom}px`,
         width: `${HUD_LAYOUT.eye.size}px`,
@@ -37,11 +37,10 @@ export function UIToggleMini({ onClick, isVisible }: UIToggleMiniProps) {
         backgroundColor: 'var(--color-surface)',
         color: 'var(--color-text-primary)',
         boxShadow: 'var(--shadow-md)',
-        // Semi-transparent when showing
-        opacity: 0.7,
+        // Keep legacy paint; the three opaque skins never fade their ink.
+        opacity: 'var(--ui-control-opacity)',
       }}
       initial={false}
-      animate={{ opacity: 0.7 }}
       whileHover={
         !reduceMotion
           ? {

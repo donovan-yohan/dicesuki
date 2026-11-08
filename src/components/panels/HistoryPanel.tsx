@@ -101,8 +101,8 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
       data-testid="history-roll"
       className="p-4 rounded-lg"
       style={{
-        backgroundColor: 'rgba(0, 0, 0, 0.2)',
-        border: '1px solid rgba(249, 135, 151, 0.2)',
+        backgroundColor: 'var(--ui-inset)',
+        border: '1px solid var(--ui-border)',
       }}
     >
       {/* Header */}
@@ -140,7 +140,7 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
         <div
           className="text-2xl font-bold px-3 py-1 rounded-lg"
           style={{
-            backgroundColor: 'rgba(249, 135, 151, 0.2)',
+            backgroundColor: 'var(--ui-tint-20)',
             color: 'var(--color-accent)',
           }}
         >
@@ -166,7 +166,7 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
               key={key}
               className="flex items-center justify-between p-2 rounded"
               style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                backgroundColor: 'var(--ui-control-05)',
               }}
             >
               <div className="min-w-0">
@@ -200,7 +200,5 @@ function RollHistoryItem({ roll, rollNumber }: RollHistoryItemProps) {
 }
 
 function getHistoryDieLabel(die: RollSnapshot['dice'][number]) {
-  // `dieChipLabel` reads a basic die as its bare shape and keeps a stray,
-  // unpaired tens die from surfacing as the raw engine shape `d10tens`.
   return dieChipLabel(die.type, die.presentation)
 }

@@ -161,10 +161,35 @@ for (const viewport of VIEWPORTS) {
       // The rail state survived the overlay round trip.
       await expect(rail).toBeVisible()
 
+      // Guests have no economy chrome. Exercise shop geometry only after a
+      // local presentation fixture enables the existing account gate. No
+      // credentials, entitlement, backend grant or purchase is involved.
+      await expect(page.getByRole('button', { name: 'Shop', exact: true })).toHaveCount(0)
+      await page.evaluate(async () => {
+        const storeUrl = '/src/store/useAuthStore.ts'
+        const { useAuthStore } = await import(/* @vite-ignore */ storeUrl)
+        useAuthStore.setState({
+          status: 'authenticated',
+          economyAccess: true,
+          user: {
+            id: 'hud-layout-fixture-user',
+            aud: 'authenticated',
+            app_metadata: {},
+            user_metadata: {},
+            created_at: '2026-01-01T00:00:00Z',
+          },
+        })
+      })
       // ── The full-screen shop owns the screen outright ────────────────────
       await page.getByRole('button', { name: 'Shop' }).click()
       const shop = page.getByRole('dialog', { name: 'Shop' })
       await expect(shop).toBeVisible()
+      // Visibility precedes the native slide-in finishing. Measure the settled
+      // dialog, not a still-translated descendant below the viewport.
+      await expect.poll(() => shop.evaluate(element => ({
+        top: element.getBoundingClientRect().top,
+        opacity: Number(getComputedStyle(element).opacity),
+      }))).toEqual({ top: 0, opacity: 1 })
 
       await expect(eye).toHaveCount(0)
       await expect(rotate).toHaveCount(0)
@@ -194,7 +219,7 @@ for (const viewport of VIEWPORTS) {
         expect(hit).toMatchObject({ inFooter: true })
       }
 
-      // ── Guests get the unified shell: one close affordance plus Escape ───
+      // ── The shell has one close affordance plus Escape ──────────────────
       await expect(page.getByRole('button', { name: 'Close Banners' })).toHaveCount(0)
       await expect(page.getByRole('button', { name: 'Close Shop' })).toBeVisible()
       await expect(page.getByRole('tab', { name: /wallet & bundles/i })).toBeVisible()

@@ -1,0 +1,107 @@
+{
+  "version": "1.0",
+  "id": "d10",
+  "diceType": "d10",
+  "setId": "woodland-sculpted-set",
+  "name": "Woodland Sculpted D10",
+  "artist": "Local procedural woodland study",
+  "scale": 1,
+  "canonicalReferenceVersion": 2,
+  "rarity": "uncommon",
+  "description": "Woodland Sculpted D10. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+  "faceNormals": [
+    {
+      "value": 0,
+      "normal": [
+        -0.7416291832923889,
+        0.6708101630210876,
+        0
+      ]
+    },
+    {
+      "value": 1,
+      "normal": [
+        0.22917605936527252,
+        -0.6708101630210876,
+        -0.7053312063217163
+      ]
+    },
+    {
+      "value": 2,
+      "normal": [
+        -0.22917605936527252,
+        0.6708101630210876,
+        -0.7053312063217163
+      ]
+    },
+    {
+      "value": 3,
+      "normal": [
+        -0.5999902486801147,
+        -0.6708102226257324,
+        -0.4359191358089447
+      ]
+    },
+    {
+      "value": 4,
+      "normal": [
+        0.5999910831451416,
+        0.6708100438117981,
+        -0.43591806292533875
+      ]
+    },
+    {
+      "value": 5,
+      "normal": [
+        -0.5999910831451416,
+        -0.6708100438117981,
+        0.43591806292533875
+      ]
+    },
+    {
+      "value": 6,
+      "normal": [
+        0.5999902486801147,
+        0.6708102226257324,
+        0.4359191358089447
+      ]
+    },
+    {
+      "value": 7,
+      "normal": [
+        0.22917605936527252,
+        -0.6708101630210876,
+        0.7053312063217163
+      ]
+    },
+    {
+      "value": 8,
+      "normal": [
+        -0.22917605936527252,
+        0.6708101630210876,
+        0.7053312063217163
+      ]
+    },
+    {
+      "value": 9,
+      "normal": [
+        0.7416291832923889,
+        -0.6708101630210876,
+        0
+      ]
+    }
+  ],
+  "physics": {
+    "density": 0.3,
+    "restitution": 0.3,
+    "friction": 0.6
+  },
+  "colliderType": "hull",
+  "colliderArgs": {},
+  "readingConvention": "upward-face",
+  "tags": [
+    "woodland",
+    "sculpted",
+    "d10"
+  ]
+}

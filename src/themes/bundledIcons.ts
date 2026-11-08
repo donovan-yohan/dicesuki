@@ -1,65 +1,75 @@
 /**
- * Bundled default-theme icon markup.
- *
- * # Why this exists
- *
- * The default theme's icons ship as real files under `public/icons/default/`,
- * so `theme.assets.icons.*` stays a plain, stable URL (`/icons/default/x.svg`)
- * exactly like a theme-supplied remote URL. That keeps the token layer
- * declarative and keeps the files reachable at a fixed public path.
- *
- * An `<img src="…svg">`, however, renders the SVG in its **own** document. Our
- * icons are `stroke="currentColor"` line art, and inside that separate document
- * `currentColor` resolves against the image document's initial colour (black),
- * *not* against the `color` of the HUD button that contains the `<img>`. On the
- * dark HUD surfaces that means near-invisible black-on-charcoal glyphs, and the
- * active/accent states would never tint.
- *
- * So the same first-party files are also read at build time (Vite `?raw`) and
- * inlined into the DOM by `ThemeIcon`, where `currentColor` inherits from the
- * button as intended.
- *
- * # The split
- *
- * - **Bundled default icons** (this map): inlined as real SVG nodes, inherit
- *   `currentColor`.
- * - **Any other theme asset URL** (a future theme pack, a remote/CDN URL): keeps
- *   the existing `<img src>` path untouched. It is never fetched-and-inlined —
- *   only build-time-known, first-party markup is ever handed to
- *   `dangerouslySetInnerHTML`.
+ * Only known, build-time first-party skin icons may be inlined. Public URLs
+ * remain stable theme assets; remote packs always retain the <img> path.
  */
-
-/**
- * Raw SVG source for every file in `public/icons/default/`, keyed by the module
- * path Vite resolved it from.
- */
-const RAW_BY_MODULE_PATH = import.meta.glob('../../public/icons/default/*.svg', {
+const RAW_BY_MODULE_PATH = import.meta.glob([
+  '../../public/icons/default/*.svg',
+  '../../public/icons/woodland/*.svg',
+  '../../public/icons/cyberpunk/*.svg',
+  '../../public/icons/monster-dungeon/*.svg',
+], {
   query: '?raw',
   import: 'default',
   eager: true,
 }) as Record<string, string>
 
-/** Public URL prefix the emitted files are served from. */
-const PUBLIC_PREFIX = '/icons/default/'
+const MODULE_PATH = /^\.\.\/\.\.\/public(\/icons\/(?:default|woodland|cyberpunk|monster-dungeon)\/(?:roll|dice|history|settings|profile|ui-toggle|saved-rolls|shop|rotate|motion)\.svg)$/
+const STATIC_TAGS = new Set(['svg', 'g', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse'])
+const STATIC_ATTRIBUTES = new Set([
+  'xmlns', 'viewBox', 'fill', 'stroke', 'stroke-width', 'stroke-linecap',
+  'stroke-linejoin', 'stroke-miterlimit', 'fill-rule', 'clip-rule',
+  'd', 'cx', 'cy', 'r', 'x', 'y', 'width', 'height', 'rx', 'ry',
+  'x1', 'x2', 'y1', 'y2', 'points', 'transform', 'opacity',
+  'fill-opacity', 'stroke-opacity',
+])
 
-/**
- * Bundled icon markup keyed by the *public URL* a theme token points at, e.g.
- * `'/icons/default/saved-rolls.svg'`.
- */
-export const BUNDLED_ICON_MARKUP: Readonly<Record<string, string>> = Object.freeze(
-  Object.fromEntries(
-    Object.entries(RAW_BY_MODULE_PATH).map(([modulePath, markup]) => {
-      const fileName = modulePath.slice(modulePath.lastIndexOf('/') + 1)
-      return [`${PUBLIC_PREFIX}${fileName}`, markup.trim()]
-    })
-  )
-)
+/** A deliberately narrow static-vector grammar, not a general SVG sanitizer. */
+function isStaticIcon(markup: string): boolean {
+  if (!markup.startsWith('<svg ') || !markup.endsWith('</svg>')) return false
+  if (!markup.includes('xmlns="http://www.w3.org/2000/svg"')) return false
+  // No declarations, entities, CSS, links, animation, event attributes or HTML.
+  if (/[&!]|url\s*\(/i.test(markup)) return false
+  const stack: string[] = []
+  let end = 0
+  for (const tag of markup.matchAll(/<\/?([a-zA-Z]+)\b([^<>]*)>/g)) {
+    if (markup.slice(end, tag.index).trim()) return false
+    end = tag.index! + tag[0].length
+    const name = tag[1]
+    if (!STATIC_TAGS.has(name)) return false
+    if (tag[0].startsWith('</')) {
+      if (tag[2].trim() || stack.pop() !== name) return false
+      continue
+    }
+    if ((stack.length === 0) !== (name === 'svg')) return false
+    const attributes = tag[2].replace(/\/\s*$/, '')
+    let attributeEnd = 0
+    for (const attribute of attributes.matchAll(/\s+([\w-]+)\s*=\s*"([^"<>]*)"/g)) {
+      if (attributes.slice(attributeEnd, attribute.index).trim()) return false
+      attributeEnd = attribute.index! + attribute[0].length
+      if (!STATIC_ATTRIBUTES.has(attribute[1])) return false
+      if (['fill', 'stroke'].includes(attribute[1]) && !['none', 'currentColor'].includes(attribute[2])) return false
+      if (attribute[1] === 'xmlns' && attribute[2] !== 'http://www.w3.org/2000/svg') return false
+    }
+    if (attributes.slice(attributeEnd).trim()) return false
+    if (!tag[0].endsWith('/>')) stack.push(name)
+  }
+  return end === markup.length && stack.length === 0
+}
 
-/**
- * Inline markup for a first-party bundled icon, or `null` for anything else
- * (remote/theme-supplied URLs, which stay on the `<img>` path).
- */
+/** Preserve the family directory: every skin intentionally shares filenames. */
+export function createBundledIconMap(rawByModulePath: Record<string, string>): Readonly<Record<string, string>> {
+  return Object.freeze(Object.fromEntries(
+    Object.entries(rawByModulePath).flatMap(([modulePath, raw]) => {
+      const match = MODULE_PATH.exec(modulePath)
+      const markup = raw.trim()
+      return match && isStaticIcon(markup) ? [[match[1], markup]] : []
+    }),
+  ))
+}
+
+export const BUNDLED_ICON_MARKUP = createBundledIconMap(RAW_BY_MODULE_PATH)
+
 export function getBundledIconMarkup(iconUrl: string | null | undefined): string | null {
-  if (!iconUrl) return null
-  return BUNDLED_ICON_MARKUP[iconUrl] ?? null
+  if (!iconUrl || !Object.prototype.hasOwnProperty.call(BUNDLED_ICON_MARKUP, iconUrl)) return null
+  return BUNDLED_ICON_MARKUP[iconUrl]
 }

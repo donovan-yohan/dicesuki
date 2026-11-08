@@ -82,11 +82,8 @@ export function useGltfDiceLoader(
         mesh.castShadow = castShadow
         mesh.receiveShadow = receiveShadow
 
-        // Ensure material receives lighting
-        if (mesh.material) {
-          const material = mesh.material as THREE.Material
-          material.needsUpdate = true
-        }
+        // Materials/maps remain loader-cache owned. Visual adapters clone before
+        // modifying them; a new shadow receiver needs no shared-material write.
       }
     })
 

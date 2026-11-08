@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { SCULPTED_ASSET_PROFILES } from './runtime-dice-assets/sculpted-asset-profiles.mjs'
 
 const POSTGRES_INTEGER_MAX = 2_147_483_647
 const SHA256_PATTERN = /^[0-9a-f]{64}$/
@@ -226,11 +227,43 @@ function assertAssetMetadata(asset, item) {
     assertRecord(delivery, `GLB catalog asset ${asset.id} delivery metadata`)
     assertNonEmptyString(delivery.thumbnailPath, `GLB catalog asset ${asset.id} thumbnail path`)
     assertSha256(delivery.thumbnailSha256, `GLB catalog asset ${asset.id} thumbnail hash`)
-    for (const key of ['thumbnailBytes', 'modelBytes', 'embeddedTextureBytes', 'maxTextureDimension', 'canonicalReferenceVersion']) {
-      assertPositiveInteger(delivery[key], `GLB catalog asset ${asset.id} delivery ${key}`)
-    }
-    if (delivery.textureFormat !== 'image/webp') {
-      throw new Error(`GLB catalog asset ${asset.id} textures must use image/webp`)
+    const sculptedProfile = delivery.assetContractVersion === 2 && delivery.assetKind === 'sculpted'
+      ? SCULPTED_ASSET_PROFILES[item.setId]
+      : undefined
+    if (sculptedProfile) {
+      for (const key of ['thumbnailBytes', 'modelBytes', 'canonicalReferenceVersion']) {
+        assertPositiveInteger(delivery[key], `GLB catalog asset ${asset.id} delivery ${key}`)
+      }
+      for (const key of ['embeddedTextureBytes', 'maxTextureDimension']) {
+        if (!Number.isSafeInteger(delivery[key]) || delivery[key] < 0 || delivery[key] > POSTGRES_INTEGER_MAX) {
+          throw new Error(`GLB catalog asset ${asset.id} delivery ${key} must be a nonnegative PostgreSQL integer`)
+        }
+      }
+      const budgets = sculptedProfile.budgets
+      const expectedFormat = item.setId === 'woodland-sculpted-set' && item.diceType === 'd20'
+        ? 'image/png'
+        : item.setId === 'monster-dungeon-set' && item.diceType === 'd6'
+          ? 'image/webp'
+          : 'none'
+      if (
+        delivery.textureFormat !== expectedFormat ||
+        (expectedFormat === 'none' ? delivery.embeddedTextureBytes !== 0 || delivery.maxTextureDimension !== 0 : delivery.embeddedTextureBytes === 0 || delivery.maxTextureDimension === 0) ||
+        delivery.embeddedTextureBytes > budgets.embeddedTextureMaxBytesPerDie ||
+        delivery.maxTextureDimension > budgets.textureMaxDimension ||
+        delivery.modelBytes > budgets.modelMaxBytes[item.diceType] ||
+        delivery.thumbnailBytes > budgets.thumbnailMaxBytes ||
+        delivery.canonicalReferenceVersion !== 2 ||
+        asset.metadata.diceMetadata.scale !== 1
+      ) {
+        throw new Error(`GLB catalog asset ${asset.id} violates its bounded sculpted profile`)
+      }
+    } else {
+      for (const key of ['thumbnailBytes', 'modelBytes', 'embeddedTextureBytes', 'maxTextureDimension', 'canonicalReferenceVersion']) {
+        assertPositiveInteger(delivery[key], `GLB catalog asset ${asset.id} delivery ${key}`)
+      }
+      if (delivery.textureFormat !== 'image/webp') {
+        throw new Error(`GLB catalog asset ${asset.id} textures must use image/webp`)
+      }
     }
     const expectedThumbnailPath = asset.modelPath.replace(/model\.glb$/, 'thumbnail.png')
     if (delivery.thumbnailPath !== expectedThumbnailPath) {

@@ -1,4 +1,4 @@
-import { Suspense, useRef, useMemo, useCallback, type MutableRefObject } from 'react'
+import { Suspense, useEffect, useRef, useMemo, useCallback, type MutableRefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -14,6 +14,17 @@ import { getBundledGltfDiceAsset } from '../../lib/collectibleCatalog'
 import { useGltfDiceLoader } from '../../hooks/useGltfDiceLoader'
 import type { GltfDiceAsset } from '../../types/gltfDice'
 import { SceneAssetErrorBoundary } from '../SceneAssetErrorBoundary'
+import { useGLTF } from '@react-three/drei'
+import { useEnvironmentTheme } from '../../hooks/useEnvironmentTheme'
+import { ManagedSculptedDieVisual } from '../dice/ManagedSculptedDieVisual'
+import { managedSculptedSetId } from '../../lib/managedSculptedDice'
+import { createCelPreviewScene } from '../../lib/woodlandCelMaterial'
+import {
+  shouldPreviewSculptedDie,
+  shouldPreviewWoodDie,
+  sculptedDiePreviewUrl,
+  woodDiePreviewUrl,
+} from '../../lib/woodlandExperiment'
 
 /**
  * Owner-attribution ring dimensions. A flat torus encircling the die in its
@@ -53,6 +64,19 @@ export function MultiplayerDie({
 }: MultiplayerDieProps) {
   const groupRef = useRef<THREE.Group>(null)
   const visualRef = useRef<THREE.Group>(null)
+  const woodlandDice = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('woodlandDice') : null
+  const previewInput = {
+    development: import.meta.env.DEV,
+    workerRoom: useMultiplayerStore.getState().lastJoin?.transport === 'worker',
+    shape: diceType,
+    owned: Boolean(presentation?.inventoryDieId || presentation?.customAssetId),
+  }
+  const previewSculpted = shouldPreviewSculptedDie({ ...previewInput, requested: woodlandDice === 'sculpted' })
+  const previewUrl = previewSculpted
+    ? sculptedDiePreviewUrl(diceType)
+    : shouldPreviewWoodDie({ ...previewInput, requested: woodlandDice === '1' })
+      ? woodDiePreviewUrl(renderDeviceTier)
+      : null
 
   const geometry = useMemo(
     () => prepareGeometryForTexturing(createDiceGeometry(diceType), diceType),
@@ -169,7 +193,22 @@ export function MultiplayerDie({
         onPointerEnter={isOwnedByLocalPlayer ? handlePointerEnter : undefined}
         onPointerLeave={handlePointerLeave}
       >
-        {bundledAsset ? (
+        {previewUrl ? (
+          <SceneAssetErrorBoundary resetKey={previewUrl} fallback={(
+            <ProceduralDieVisual geometry={geometry} materials={materials} castShadow={lodPolicy.castShadow} receiveShadow={lodPolicy.receiveShadow} />
+          )}>
+            <Suspense fallback={(
+              <ProceduralDieVisual geometry={geometry} materials={materials} castShadow={lodPolicy.castShadow} receiveShadow={lodPolicy.receiveShadow} />
+            )}>
+              <WoodlandDieProof
+                url={previewUrl}
+                sculptedShape={previewSculpted ? diceType : undefined}
+                castShadow={lodPolicy.castShadow}
+                receiveShadow={lodPolicy.receiveShadow}
+              />
+            </Suspense>
+          </SceneAssetErrorBoundary>
+        ) : bundledAsset ? (
           <SceneAssetErrorBoundary
             resetKey={bundledAsset.modelUrl}
             fallback={(
@@ -223,6 +262,39 @@ export function MultiplayerDie({
   )
 }
 
+/** Dev-only visual proof. Sculpted exports already include canonical Y-up/world scale. */
+function WoodlandDieProof({ url, sculptedShape, castShadow, receiveShadow }: {
+  url: string
+  sculptedShape?: DiceShape
+  castShadow: boolean
+  receiveShadow: boolean
+}) {
+  const { scene } = useGLTF(url, false)
+  const theme = useEnvironmentTheme()
+  const cel = Boolean(sculptedShape && theme.environment.scene?.shading === 'cel')
+  const resources = useMemo(() => {
+    const preview = cel ? createCelPreviewScene(scene) : { scene: scene.clone(true), dispose() {} }
+    const result = preview.scene
+    result.traverse(child => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = castShadow
+        child.receiveShadow = receiveShadow
+      }
+    })
+    if (sculptedShape) result.userData.woodlandSculptedPreview = { shape: sculptedShape, url }
+    return { ...preview, users: 0 }
+  }, [scene, cel, castShadow, receiveShadow, sculptedShape, url])
+  useEffect(() => {
+    resources.users++
+    return () => {
+      resources.users--
+      // StrictMode replays setup before this microtask can retire materials.
+      queueMicrotask(() => { if (resources.users === 0) resources.dispose() })
+    }
+  }, [resources])
+  return <primitive object={resources.scene} scale={sculptedShape ? 1 : 1.1} dispose={null} />
+}
+
 interface ProceduralDieVisualProps {
   geometry: THREE.BufferGeometry
   materials: THREE.Material | THREE.Material[]
@@ -255,11 +327,16 @@ function BundledDieVisual({
   castShadow: boolean
   receiveShadow: boolean
 }) {
-  const { scene, metadata } = useGltfDiceLoader(asset, {
+  const { scene, metadata, animations } = useGltfDiceLoader(asset, {
     useDraco: false,
     castShadow,
     receiveShadow,
   })
+  const theme = useEnvironmentTheme()
   if (!scene) return null
-  return <primitive object={scene} scale={metadata?.scale ?? 1} />
+  return managedSculptedSetId(asset) ? (
+    <group scale={metadata?.scale ?? 1}>
+      <ManagedSculptedDieVisual scene={scene} asset={asset} animations={animations} cel={theme.environment.scene?.shading === 'cel'} response={theme.environment.scene?.kind === 'cyberpunk-alley' || theme.environment.scene?.kind === 'monster-dungeon' ? 'night' : 'original'} />
+    </group>
+  ) : <primitive object={scene} scale={metadata?.scale ?? 1} dispose={null} />
 }

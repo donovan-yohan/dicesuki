@@ -17,6 +17,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e:solo": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18181} playwright test e2e/solo-wasm-room.spec.ts",
+    "test:e2e:solo-loadout": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18193} playwright test e2e/solo-loadout.spec.ts",
     "test:e2e:monster-manual": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18191} playwright test e2e/monster-manual.spec.ts --config playwright.monster.config.ts",
     "test:e2e:runtime-dice": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18182} playwright test e2e/cozy-forest-runtime.spec.ts",
     "test:e2e:hud-layout": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18183} playwright test e2e/hud-layout.spec.ts",
@@ -55,7 +56,8 @@
     "test:e2e:roll-picker": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18187} playwright test e2e/roll-picker.spec.ts",
     "test:e2e:d100": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18188} playwright test e2e/d100-percentile.spec.ts",
     "test:e2e:roll-history": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18189} playwright test e2e/roll-history.spec.ts",
-    "test:e2e:wallet-hud-layout": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18190} playwright test e2e/wallet-hud-layout.spec.ts"
+    "test:e2e:wallet-hud-layout": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18190} playwright test e2e/wallet-hud-layout.spec.ts",
+    "test:e2e:woodland": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18192} playwright test e2e/woodland-environment.spec.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

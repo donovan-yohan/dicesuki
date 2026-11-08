@@ -1,0 +1,2887 @@
+{
+  "edition": 7,
+  "slug": "sculpted-worlds",
+  "label": "EDITION_7_SCULPTED_WORLDS",
+  "migration": "0036_catalog_sculpted_worlds.sql",
+  "items": [
+    {
+      "id": "cyberpunk-cutline-set/d10@1",
+      "catalogKey": "cyberpunk-cutline-set/d10",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-cutline-set",
+      "diceType": "d10",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "cyberpunk-cutline-set/d12@1",
+      "catalogKey": "cyberpunk-cutline-set/d12",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-cutline-set",
+      "diceType": "d12",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "cyberpunk-cutline-set/d20@1",
+      "catalogKey": "cyberpunk-cutline-set/d20",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-cutline-set",
+      "diceType": "d20",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "cyberpunk-cutline-set/d4@1",
+      "catalogKey": "cyberpunk-cutline-set/d4",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-cutline-set",
+      "diceType": "d4",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "cyberpunk-cutline-set/d6@1",
+      "catalogKey": "cyberpunk-cutline-set/d6",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-cutline-set",
+      "diceType": "d6",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "cyberpunk-cutline-set/d8@1",
+      "catalogKey": "cyberpunk-cutline-set/d8",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "cyberpunk-cutline-set",
+      "diceType": "d8",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "monster-dungeon-set/d10@1",
+      "catalogKey": "monster-dungeon-set/d10",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "monster-dungeon-set",
+      "diceType": "d10",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "monster-dungeon-set/d12@1",
+      "catalogKey": "monster-dungeon-set/d12",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "monster-dungeon-set",
+      "diceType": "d12",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "monster-dungeon-set/d20@1",
+      "catalogKey": "monster-dungeon-set/d20",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "monster-dungeon-set",
+      "diceType": "d20",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "monster-dungeon-set/d4@1",
+      "catalogKey": "monster-dungeon-set/d4",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "monster-dungeon-set",
+      "diceType": "d4",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "monster-dungeon-set/d6@1",
+      "catalogKey": "monster-dungeon-set/d6",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "monster-dungeon-set",
+      "diceType": "d6",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "monster-dungeon-set/d8@1",
+      "catalogKey": "monster-dungeon-set/d8",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "monster-dungeon-set",
+      "diceType": "d8",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "woodland-sculpted-set/d10@1",
+      "catalogKey": "woodland-sculpted-set/d10",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "woodland-sculpted-set",
+      "diceType": "d10",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "woodland-sculpted-set/d12@1",
+      "catalogKey": "woodland-sculpted-set/d12",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "woodland-sculpted-set",
+      "diceType": "d12",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "woodland-sculpted-set/d20@1",
+      "catalogKey": "woodland-sculpted-set/d20",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "woodland-sculpted-set",
+      "diceType": "d20",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "woodland-sculpted-set/d4@1",
+      "catalogKey": "woodland-sculpted-set/d4",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "woodland-sculpted-set",
+      "diceType": "d4",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "woodland-sculpted-set/d6@1",
+      "catalogKey": "woodland-sculpted-set/d6",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "woodland-sculpted-set",
+      "diceType": "d6",
+      "rarity": "uncommon"
+    },
+    {
+      "id": "woodland-sculpted-set/d8@1",
+      "catalogKey": "woodland-sculpted-set/d8",
+      "contractVersion": 1,
+      "itemKind": "die",
+      "setId": "woodland-sculpted-set",
+      "diceType": "d8",
+      "rarity": "uncommon"
+    }
+  ],
+  "assetVersions": [
+    {
+      "id": "cyberpunk-cutline-set/d10@1/asset@1",
+      "catalogItemId": "cyberpunk-cutline-set/d10@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-cutline-set/d10/model.glb",
+      "modelSha256": "02a68932ca8357f1d90b356c324a4b54628859e1016b3f9dfeb3f630abd3aa7f",
+      "metadata": {
+        "source": "production",
+        "name": "CUTLINE D10",
+        "description": "Cyberpunk CUTLINE D10. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d10",
+          "diceType": "d10",
+          "setId": "cyberpunk-cutline-set",
+          "name": "CUTLINE D10",
+          "artist": "local procedural original CUTLINE study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Cyberpunk CUTLINE D10. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 0,
+              "normal": [
+                -0.7416291832923889,
+                0.6708101630210876,
+                0
+              ]
+            },
+            {
+              "value": 1,
+              "normal": [
+                0.22917605936527252,
+                -0.6708101630210876,
+                -0.7053312063217163
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                -0.22917605936527252,
+                0.6708101630210876,
+                -0.7053312063217163
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                -0.5999902486801147,
+                -0.6708102226257324,
+                -0.4359191358089447
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.5999910831451416,
+                0.6708100438117981,
+                -0.43591806292533875
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.5999910831451416,
+                -0.6708100438117981,
+                0.43591806292533875
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.5999902486801147,
+                0.6708102226257324,
+                0.4359191358089447
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.22917605936527252,
+                -0.6708101630210876,
+                0.7053312063217163
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.22917605936527252,
+                0.6708101630210876,
+                0.7053312063217163
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.7416291832923889,
+                -0.6708101630210876,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "cyberpunk",
+            "sculpted",
+            "d10"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-cutline-set/d10/thumbnail.png",
+          "thumbnailSha256": "097002a46447b0bced7113de327efc71d6907374c3ce04249b1873757aedfda1",
+          "thumbnailBytes": 6559,
+          "modelBytes": 119496,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "21623584fa82e3f6e9f3f19607f4b88f5a1216848da05c84f8e032f14306ccbd"
+    },
+    {
+      "id": "cyberpunk-cutline-set/d12@1/asset@1",
+      "catalogItemId": "cyberpunk-cutline-set/d12@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-cutline-set/d12/model.glb",
+      "modelSha256": "9dfb1d1462be0a7c7d5f7cb479c86d8b1ef5f498443010d9344cdad5d1c2cb4b",
+      "metadata": {
+        "source": "production",
+        "name": "CUTLINE D12",
+        "description": "Cyberpunk CUTLINE D12. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d12",
+          "diceType": "d12",
+          "setId": "cyberpunk-cutline-set",
+          "name": "CUTLINE D12",
+          "artist": "local procedural original CUTLINE study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Cyberpunk CUTLINE D12. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                0.8506509065628052,
+                0.5257309675216675
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                -0.5257309675216675,
+                0,
+                0.8506509065628052
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.8506509065628052,
+                -0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0,
+                -0.8506509065628052,
+                -0.5257309675216675
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.8506509065628052,
+                0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.5257309675216675,
+                0,
+                -0.8506509065628052
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.5257309675216675,
+                0,
+                -0.8506509065628052
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0.8506509065628052,
+                -0.5257309675216675
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.8506509065628052,
+                0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.8506509065628052,
+                -0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                0,
+                -0.8506509065628052,
+                0.5257309675216675
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.5257309675216675,
+                0,
+                0.8506509065628052
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "cyberpunk",
+            "sculpted",
+            "d12"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-cutline-set/d12/thumbnail.png",
+          "thumbnailSha256": "63d4c769a69ee195a3ff0ca929bec83495bc044146086c1873b6a841fb30ae7b",
+          "thumbnailBytes": 8354,
+          "modelBytes": 113280,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "a477b5c07d98a27d41e95acfec40e376c8bca4e0ea23fc18b9dfd7537b41b38c"
+    },
+    {
+      "id": "cyberpunk-cutline-set/d20@1/asset@1",
+      "catalogItemId": "cyberpunk-cutline-set/d20@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-cutline-set/d20/model.glb",
+      "modelSha256": "d268387609caf860f8fdd2309721595e5b6b077d3424b3da425f13ff5a155372",
+      "metadata": {
+        "source": "production",
+        "name": "CUTLINE D20",
+        "description": "Cyberpunk CUTLINE D20. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d20",
+          "diceType": "d20",
+          "setId": "cyberpunk-cutline-set",
+          "name": "CUTLINE D20",
+          "artist": "local procedural original CUTLINE study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Cyberpunk CUTLINE D20. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0.35682213306427,
+                0,
+                0.9341723322868347
+              ]
+            },
+            {
+              "value": 13,
+              "normal": [
+                0.9341723322868347,
+                0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 14,
+              "normal": [
+                0.35682213306427,
+                0,
+                -0.9341723322868347
+              ]
+            },
+            {
+              "value": 15,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 16,
+              "normal": [
+                0.9341723322868347,
+                -0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 17,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 18,
+              "normal": [
+                0,
+                -0.9341723322868347,
+                0.35682213306427
+              ]
+            },
+            {
+              "value": 19,
+              "normal": [
+                0,
+                -0.9341723322868347,
+                -0.35682213306427
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0.9341723322868347,
+                0.35682213306427
+              ]
+            },
+            {
+              "value": 20,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0,
+                0.9341723322868347,
+                -0.35682213306427
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.9341723322868347,
+                0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.35682213306427,
+                0,
+                0.9341723322868347
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.9341723322868347,
+                -0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                -0.35682213306427,
+                0,
+                -0.9341723322868347
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "cyberpunk",
+            "sculpted",
+            "d20"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-cutline-set/d20/thumbnail.png",
+          "thumbnailSha256": "687c1ba1469eba4c59a8f8bed9ff43f2ba0b315e8a759d2a30d41c7ada615a63",
+          "thumbnailBytes": 10748,
+          "modelBytes": 198468,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "e3a59f95a6a1182f8446b22b489f4b78eb8939acab05314d86e240ac2e6c3ebc"
+    },
+    {
+      "id": "cyberpunk-cutline-set/d4@1/asset@1",
+      "catalogItemId": "cyberpunk-cutline-set/d4@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-cutline-set/d4/model.glb",
+      "modelSha256": "2a7eab3378140b9d6abb9ac2133048bc41fc19dd686e0023f00ade9628a9363e",
+      "metadata": {
+        "source": "production",
+        "name": "CUTLINE D4",
+        "description": "Cyberpunk CUTLINE D4. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d4",
+          "diceType": "d4",
+          "setId": "cyberpunk-cutline-set",
+          "name": "CUTLINE D4",
+          "artist": "local procedural original CUTLINE study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Cyberpunk CUTLINE D4. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "downward-face-vertex-copies",
+          "vertexOutcomeCopies": 12,
+          "tags": [
+            "cyberpunk",
+            "sculpted",
+            "d4"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-cutline-set/d4/thumbnail.png",
+          "thumbnailSha256": "b89e4a9b7cdcfe3705b766d1f3596051585a245841ed37364ab8e8a3f5f11b2b",
+          "thumbnailBytes": 6140,
+          "modelBytes": 62308,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "4a4c209ba30fe40255e6c09f42c703800cc449fbd2a0c60565f867552a82cf6d"
+    },
+    {
+      "id": "cyberpunk-cutline-set/d6@1/asset@1",
+      "catalogItemId": "cyberpunk-cutline-set/d6@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-cutline-set/d6/model.glb",
+      "modelSha256": "3bb581242fb71097ab76ef6660c314ed6e4b23b5754c06d918d72ff827f36af6",
+      "metadata": {
+        "source": "production",
+        "name": "CUTLINE D6",
+        "description": "Cyberpunk CUTLINE D6. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d6",
+          "diceType": "d6",
+          "setId": "cyberpunk-cutline-set",
+          "name": "CUTLINE D6",
+          "artist": "local procedural original CUTLINE study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Cyberpunk CUTLINE D6. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                -1,
+                0
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0,
+                -1
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "cuboid",
+          "colliderArgs": {
+            "halfExtents": [
+              0.55,
+              0.55,
+              0.55
+            ]
+          },
+          "readingConvention": "upward-face",
+          "tags": [
+            "cyberpunk",
+            "sculpted",
+            "d6"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-cutline-set/d6/thumbnail.png",
+          "thumbnailSha256": "32d5e5cdcfd1350d9017ba9bbecae2917068d13c26c9e70620db15dec16fb17f",
+          "thumbnailBytes": 6775,
+          "modelBytes": 38160,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "a22bc6d819a41710a198ed732b451f4cb804cf4d7024a2693928445eb54c7d26"
+    },
+    {
+      "id": "cyberpunk-cutline-set/d8@1/asset@1",
+      "catalogItemId": "cyberpunk-cutline-set/d8@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/cyberpunk-cutline-set/d8/model.glb",
+      "modelSha256": "a0a7fcab14e2ef8ab722e8bd166c257b3f19fbfdda8d3101b1cbedb7dc84078d",
+      "metadata": {
+        "source": "production",
+        "name": "CUTLINE D8",
+        "description": "Cyberpunk CUTLINE D8. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d8",
+          "diceType": "d8",
+          "setId": "cyberpunk-cutline-set",
+          "name": "CUTLINE D8",
+          "artist": "local procedural original CUTLINE study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Cyberpunk CUTLINE D8. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "cyberpunk",
+            "sculpted",
+            "d8"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/cyberpunk-cutline-set/d8/thumbnail.png",
+          "thumbnailSha256": "15b07863e8aa56d152144637b420ff7128d8fb0215bbabf40ba2cd808e8334b8",
+          "thumbnailBytes": 4799,
+          "modelBytes": 44432,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "43068ec42f883c7e788b880112098212c798f7178c02a0b91b53892355139c9c"
+    },
+    {
+      "id": "monster-dungeon-set/d10@1/asset@1",
+      "catalogItemId": "monster-dungeon-set/d10@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/monster-dungeon-set/d10/model.glb",
+      "modelSha256": "f8940b9ced0f233f9b86f4813bffcdd3d35f704381d20d7de8174a76f2b6e177",
+      "metadata": {
+        "source": "production",
+        "name": "Monster Dungeon D10",
+        "description": "Monster Dungeon D10. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d10",
+          "diceType": "d10",
+          "setId": "monster-dungeon-set",
+          "name": "Monster Dungeon D10",
+          "artist": "Local procedural Monster Dungeon study; Zabi eyes D6",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Monster Dungeon D10. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 0,
+              "normal": [
+                -0.7416291832923889,
+                0.6708101630210876,
+                0
+              ]
+            },
+            {
+              "value": 1,
+              "normal": [
+                0.22917605936527252,
+                -0.6708101630210876,
+                -0.7053312063217163
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                -0.22917605936527252,
+                0.6708101630210876,
+                -0.7053312063217163
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                -0.5999902486801147,
+                -0.6708102226257324,
+                -0.4359191358089447
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.5999910831451416,
+                0.6708100438117981,
+                -0.43591806292533875
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.5999910831451416,
+                -0.6708100438117981,
+                0.43591806292533875
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.5999902486801147,
+                0.6708102226257324,
+                0.4359191358089447
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.22917605936527252,
+                -0.6708101630210876,
+                0.7053312063217163
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.22917605936527252,
+                0.6708101630210876,
+                0.7053312063217163
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.7416291832923889,
+                -0.6708101630210876,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "monster-dungeon",
+            "sculpted",
+            "d10"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/monster-dungeon-set/d10/thumbnail.png",
+          "thumbnailSha256": "e4af08678216d1d711ac7a1aaa4e9828c87208f1bc1db3fa1adbb952b07d9150",
+          "thumbnailBytes": 26666,
+          "modelBytes": 993916,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "1c81f81954a349d9de257a85a25d5c997bb4aa05b70aad4c3df7c5f3bce1f3ff"
+    },
+    {
+      "id": "monster-dungeon-set/d12@1/asset@1",
+      "catalogItemId": "monster-dungeon-set/d12@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/monster-dungeon-set/d12/model.glb",
+      "modelSha256": "c0efb23d75497909baaa21a70571718ea2f486ea4c5a84c07c51d6e9089e7987",
+      "metadata": {
+        "source": "production",
+        "name": "Monster Dungeon D12",
+        "description": "Monster Dungeon D12. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d12",
+          "diceType": "d12",
+          "setId": "monster-dungeon-set",
+          "name": "Monster Dungeon D12",
+          "artist": "Local procedural Monster Dungeon study; Zabi eyes D6",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Monster Dungeon D12. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                0.8506509065628052,
+                0.5257309675216675
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                -0.5257309675216675,
+                0,
+                0.8506509065628052
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.8506509065628052,
+                -0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0,
+                -0.8506509065628052,
+                -0.5257309675216675
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.8506509065628052,
+                0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.5257309675216675,
+                0,
+                -0.8506509065628052
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.5257309675216675,
+                0,
+                -0.8506509065628052
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0.8506509065628052,
+                -0.5257309675216675
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.8506509065628052,
+                0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.8506509065628052,
+                -0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                0,
+                -0.8506509065628052,
+                0.5257309675216675
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.5257309675216675,
+                0,
+                0.8506509065628052
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "monster-dungeon",
+            "sculpted",
+            "d12"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/monster-dungeon-set/d12/thumbnail.png",
+          "thumbnailSha256": "e7ec102f11a33f1c1b466fc9b468004fd86c7a1653b3f9caf9a5cbfd63dd6c65",
+          "thumbnailBytes": 35235,
+          "modelBytes": 5540024,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "2c3d25253b98441de87bd153d5663edfc567fa0ca7f99d7725cc69edeb89146c"
+    },
+    {
+      "id": "monster-dungeon-set/d20@1/asset@1",
+      "catalogItemId": "monster-dungeon-set/d20@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/monster-dungeon-set/d20/model.glb",
+      "modelSha256": "1c43a9add91fd4f09eb2182c4912e8e5bef7925a371631ef52f4510e8266b0ca",
+      "metadata": {
+        "source": "production",
+        "name": "Monster Dungeon D20",
+        "description": "Monster Dungeon D20. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d20",
+          "diceType": "d20",
+          "setId": "monster-dungeon-set",
+          "name": "Monster Dungeon D20",
+          "artist": "Local procedural Monster Dungeon study; Zabi eyes D6",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Monster Dungeon D20. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0.35682213306427,
+                0,
+                0.9341723322868347
+              ]
+            },
+            {
+              "value": 13,
+              "normal": [
+                0.9341723322868347,
+                0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 14,
+              "normal": [
+                0.35682213306427,
+                0,
+                -0.9341723322868347
+              ]
+            },
+            {
+              "value": 15,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 16,
+              "normal": [
+                0.9341723322868347,
+                -0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 17,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 18,
+              "normal": [
+                0,
+                -0.9341723322868347,
+                0.35682213306427
+              ]
+            },
+            {
+              "value": 19,
+              "normal": [
+                0,
+                -0.9341723322868347,
+                -0.35682213306427
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0.9341723322868347,
+                0.35682213306427
+              ]
+            },
+            {
+              "value": 20,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0,
+                0.9341723322868347,
+                -0.35682213306427
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.9341723322868347,
+                0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.35682213306427,
+                0,
+                0.9341723322868347
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.9341723322868347,
+                -0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                -0.35682213306427,
+                0,
+                -0.9341723322868347
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "monster-dungeon",
+            "sculpted",
+            "d20"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/monster-dungeon-set/d20/thumbnail.png",
+          "thumbnailSha256": "394fce646cf6313500f42260de3e7499dacb10c586e9c6103319c51e9bb8f81f",
+          "thumbnailBytes": 29721,
+          "modelBytes": 2614000,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "7be43b1b6d5ff97736808bc937c3e40f97234cfb36c0213b57cc56ace613023a"
+    },
+    {
+      "id": "monster-dungeon-set/d4@1/asset@1",
+      "catalogItemId": "monster-dungeon-set/d4@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/monster-dungeon-set/d4/model.glb",
+      "modelSha256": "72203b473b6ad6543379a5653ce26e6fb6fecb0cf2dbd5e5c4062dfe7d90d1b9",
+      "metadata": {
+        "source": "production",
+        "name": "Monster Dungeon D4",
+        "description": "Monster Dungeon D4. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d4",
+          "diceType": "d4",
+          "setId": "monster-dungeon-set",
+          "name": "Monster Dungeon D4",
+          "artist": "Local procedural Monster Dungeon study; Zabi eyes D6",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Monster Dungeon D4. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "downward-face-vertex-copies",
+          "vertexOutcomeCopies": 12,
+          "tags": [
+            "monster-dungeon",
+            "sculpted",
+            "d4"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/monster-dungeon-set/d4/thumbnail.png",
+          "thumbnailSha256": "62486535506d25830b8ad506ab6cbb6cb02612e8fbc8c7793c2e86d5befd027e",
+          "thumbnailBytes": 25171,
+          "modelBytes": 951284,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "b2982f715ee80f2fc010ee63eafe5f64c8c97c7dd274dca10a7ebf2a73b5d8b5"
+    },
+    {
+      "id": "monster-dungeon-set/d6@1/asset@1",
+      "catalogItemId": "monster-dungeon-set/d6@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/monster-dungeon-set/d6/model.glb",
+      "modelSha256": "ac1b9f16766ca63a6294934323f874efb6de1f83d601e75d596774423ecab15c",
+      "metadata": {
+        "source": "production",
+        "name": "Monster Dungeon Zabi Eyes D6",
+        "description": "Monster Dungeon D6. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d6",
+          "diceType": "d6",
+          "setId": "monster-dungeon-set",
+          "name": "Monster Dungeon Zabi Eyes D6",
+          "artist": "Zabi",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Monster Dungeon D6. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                -1,
+                0
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0,
+                -1
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "cuboid",
+          "colliderArgs": {
+            "halfExtents": [
+              0.55,
+              0.55,
+              0.55
+            ]
+          },
+          "readingConvention": "upward-face",
+          "tags": [
+            "monster-dungeon",
+            "sculpted",
+            "d6"
+          ],
+          "animations": [
+            {
+              "name": "1_eyeAction",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye2_1Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye2_2Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye31Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye32Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye33Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye4_1Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye4_2Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye4_3Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye4_4Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye5_1Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye5_2Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye5_3Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye5_4Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye5_5Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye62Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye63Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye64Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye65Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye66Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            },
+            {
+              "name": "eye6_1Action",
+              "autoPlay": true,
+              "loop": "repeat",
+              "speed": 1,
+              "triggerOn": "always"
+            }
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/monster-dungeon-set/d6/thumbnail.png",
+          "thumbnailSha256": "d2d9d42bcc3b046ce626b802d7bc62898014b25586c57d9f275b56307eb33409",
+          "thumbnailBytes": 101527,
+          "modelBytes": 6778388,
+          "embeddedTextureBytes": 2590284,
+          "textureFormat": "image/webp",
+          "maxTextureDimension": 1024,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "d47148c60a2a6af0cbcd182db7e69d5b6c5a947782a1bcc447962d87221f3b60"
+    },
+    {
+      "id": "monster-dungeon-set/d8@1/asset@1",
+      "catalogItemId": "monster-dungeon-set/d8@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/monster-dungeon-set/d8/model.glb",
+      "modelSha256": "1b6d6280f18b3f1d2ad96675e497954fbd888374ae5db6b925c7a6ac70e37363",
+      "metadata": {
+        "source": "production",
+        "name": "Monster Dungeon D8",
+        "description": "Monster Dungeon D8. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d8",
+          "diceType": "d8",
+          "setId": "monster-dungeon-set",
+          "name": "Monster Dungeon D8",
+          "artist": "Local procedural Monster Dungeon study; Zabi eyes D6",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Monster Dungeon D8. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "monster-dungeon",
+            "sculpted",
+            "d8"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/monster-dungeon-set/d8/thumbnail.png",
+          "thumbnailSha256": "05c02da81a70fa397738a7b26585089751ed09fb8e4eb6d1b078f12cd5d46a3d",
+          "thumbnailBytes": 17474,
+          "modelBytes": 1012100,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "2e743620967d7d5387b387b10202f3ce74202db4364c181af282b82fc89a84e6"
+    },
+    {
+      "id": "woodland-sculpted-set/d10@1/asset@1",
+      "catalogItemId": "woodland-sculpted-set/d10@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/woodland-sculpted-set/d10/model.glb",
+      "modelSha256": "f42f6d0ec2968a5d90f3e168fd44c37e92ddb3bbfcf09e1e68fd9c50c4aa5f4e",
+      "metadata": {
+        "source": "production",
+        "name": "Woodland Sculpted D10",
+        "description": "Woodland Sculpted D10. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d10",
+          "diceType": "d10",
+          "setId": "woodland-sculpted-set",
+          "name": "Woodland Sculpted D10",
+          "artist": "Local procedural woodland study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Woodland Sculpted D10. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 0,
+              "normal": [
+                -0.7416291832923889,
+                0.6708101630210876,
+                0
+              ]
+            },
+            {
+              "value": 1,
+              "normal": [
+                0.22917605936527252,
+                -0.6708101630210876,
+                -0.7053312063217163
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                -0.22917605936527252,
+                0.6708101630210876,
+                -0.7053312063217163
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                -0.5999902486801147,
+                -0.6708102226257324,
+                -0.4359191358089447
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.5999910831451416,
+                0.6708100438117981,
+                -0.43591806292533875
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.5999910831451416,
+                -0.6708100438117981,
+                0.43591806292533875
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.5999902486801147,
+                0.6708102226257324,
+                0.4359191358089447
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.22917605936527252,
+                -0.6708101630210876,
+                0.7053312063217163
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.22917605936527252,
+                0.6708101630210876,
+                0.7053312063217163
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.7416291832923889,
+                -0.6708101630210876,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "woodland",
+            "sculpted",
+            "d10"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/woodland-sculpted-set/d10/thumbnail.png",
+          "thumbnailSha256": "3d24909addc8318014266ca25d5076414d5c9166e0567afd3852b987867a240e",
+          "thumbnailBytes": 52760,
+          "modelBytes": 1115808,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "b6b08d77163142be3d71b6e848eed31ba0a7949870a66209372a2c3bc9074913"
+    },
+    {
+      "id": "woodland-sculpted-set/d12@1/asset@1",
+      "catalogItemId": "woodland-sculpted-set/d12@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/woodland-sculpted-set/d12/model.glb",
+      "modelSha256": "efefc7f950e8da99d371586bb07f9e4ee69e562c54fe44bb3b5ecc0f984d9a1b",
+      "metadata": {
+        "source": "production",
+        "name": "Woodland Sculpted D12",
+        "description": "Woodland Sculpted D12. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d12",
+          "diceType": "d12",
+          "setId": "woodland-sculpted-set",
+          "name": "Woodland Sculpted D12",
+          "artist": "Local procedural woodland study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Woodland Sculpted D12. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                0.8506509065628052,
+                0.5257309675216675
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.8506509065628052,
+                0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.5257309675216675,
+                0,
+                -0.8506509065628052
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.5257309675216675,
+                0,
+                -0.8506509065628052
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0.8506509065628052,
+                -0.5257309675216675
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.8506509065628052,
+                0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                0.8506509065628052,
+                -0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                0,
+                -0.8506509065628052,
+                0.5257309675216675
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                0.5257309675216675,
+                0,
+                0.8506509065628052
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                -0.5257309675216675,
+                0,
+                0.8506509065628052
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.8506509065628052,
+                -0.5257309675216675,
+                0
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0,
+                -0.8506509065628052,
+                -0.5257309675216675
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "woodland",
+            "sculpted",
+            "d12"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/woodland-sculpted-set/d12/thumbnail.png",
+          "thumbnailSha256": "2361e5bb32b5c440e4ed38bef7e13c588e3cb9b3fd1a2b2f7cfb5255a8b297eb",
+          "thumbnailBytes": 50123,
+          "modelBytes": 1191880,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "a7953d510408ebf81640fc71fe609afd58687079d8d8674f2f9e040d6aed581a"
+    },
+    {
+      "id": "woodland-sculpted-set/d20@1/asset@1",
+      "catalogItemId": "woodland-sculpted-set/d20@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/woodland-sculpted-set/d20/model.glb",
+      "modelSha256": "46a60c3bd7106d8c2bcde66ee7cf33b6361ae57729ef94665feef9b40e57ea93",
+      "metadata": {
+        "source": "production",
+        "name": "Woodland Sculpted D20",
+        "description": "Woodland Sculpted D20. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d20",
+          "diceType": "d20",
+          "setId": "woodland-sculpted-set",
+          "name": "Woodland Sculpted D20",
+          "artist": "Local procedural woodland study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Woodland Sculpted D20. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0.9341723322868347,
+                0.35682213306427
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0,
+                0.9341723322868347,
+                -0.35682213306427
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.9341723322868347,
+                0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.35682213306427,
+                0,
+                0.9341723322868347
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.9341723322868347,
+                -0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 9,
+              "normal": [
+                -0.35682213306427,
+                0,
+                -0.9341723322868347
+              ]
+            },
+            {
+              "value": 10,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 11,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 12,
+              "normal": [
+                0.35682213306427,
+                0,
+                0.9341723322868347
+              ]
+            },
+            {
+              "value": 13,
+              "normal": [
+                0.9341723322868347,
+                0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 14,
+              "normal": [
+                0.35682213306427,
+                0,
+                -0.9341723322868347
+              ]
+            },
+            {
+              "value": 15,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 16,
+              "normal": [
+                0.9341723322868347,
+                -0.35682213306427,
+                0
+              ]
+            },
+            {
+              "value": 17,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 18,
+              "normal": [
+                0,
+                -0.9341723322868347,
+                0.35682213306427
+              ]
+            },
+            {
+              "value": 19,
+              "normal": [
+                0,
+                -0.9341723322868347,
+                -0.35682213306427
+              ]
+            },
+            {
+              "value": 20,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "woodland",
+            "sculpted",
+            "d20"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/woodland-sculpted-set/d20/thumbnail.png",
+          "thumbnailSha256": "054d7e5175a4e92f17330750f730d78a66e8db98d9b14a86a97190b1804ef462",
+          "thumbnailBytes": 55556,
+          "modelBytes": 6567148,
+          "embeddedTextureBytes": 2487978,
+          "textureFormat": "image/png",
+          "maxTextureDimension": 2048,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "b01985f9e3eaedc93b77e39d2482ed01e2e882a9ea79fe88905fa3ba110a3a58"
+    },
+    {
+      "id": "woodland-sculpted-set/d4@1/asset@1",
+      "catalogItemId": "woodland-sculpted-set/d4@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/woodland-sculpted-set/d4/model.glb",
+      "modelSha256": "b1bbfce78fed5f431b8be03bd906533c3e708278faabe191e28d4186048b25a2",
+      "metadata": {
+        "source": "production",
+        "name": "Woodland Sculpted D4",
+        "description": "Woodland Sculpted D4. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d4",
+          "diceType": "d4",
+          "setId": "woodland-sculpted-set",
+          "name": "Woodland Sculpted D4",
+          "artist": "Local procedural woodland study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Woodland Sculpted D4. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "downward-face-vertex-copies",
+          "vertexOutcomeCopies": 12,
+          "tags": [
+            "woodland",
+            "sculpted",
+            "d4"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/woodland-sculpted-set/d4/thumbnail.png",
+          "thumbnailSha256": "d40294fc8437e4cef3cdfc98c188317bd1f6b2aece75fc577ed9e1732c24ce46",
+          "thumbnailBytes": 43853,
+          "modelBytes": 1105372,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "88c8749b400d4e6c7dab1c0e29ea8ede1ace7c2801ad20e99e7e1300716f8f52"
+    },
+    {
+      "id": "woodland-sculpted-set/d6@1/asset@1",
+      "catalogItemId": "woodland-sculpted-set/d6@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/woodland-sculpted-set/d6/model.glb",
+      "modelSha256": "7e2e629e71cce4ebc16c8b49d1377aa67d634e5a6faf07f20005111a46d78628",
+      "metadata": {
+        "source": "production",
+        "name": "Woodland Sculpted D6",
+        "description": "Woodland Sculpted D6. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d6",
+          "diceType": "d6",
+          "setId": "woodland-sculpted-set",
+          "name": "Woodland Sculpted D6",
+          "artist": "Local procedural woodland study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Woodland Sculpted D6. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0,
+                -1,
+                0
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0,
+                0,
+                1
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                -1,
+                0,
+                0
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                0,
+                0,
+                -1
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                0,
+                1,
+                0
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "cuboid",
+          "colliderArgs": {
+            "halfExtents": [
+              0.55,
+              0.55,
+              0.55
+            ]
+          },
+          "readingConvention": "upward-face",
+          "tags": [
+            "woodland",
+            "sculpted",
+            "d6"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/woodland-sculpted-set/d6/thumbnail.png",
+          "thumbnailSha256": "4d9c9c16d11f55e7bd49520f9e48c9b0c72ce0a3ffc5defa11670443017e8bb8",
+          "thumbnailBytes": 21739,
+          "modelBytes": 1170508,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "1a67d6ff93f50101e75f603e333d51bbd720c0ff23bc8cefb1c07e22b42838a1"
+    },
+    {
+      "id": "woodland-sculpted-set/d8@1/asset@1",
+      "catalogItemId": "woodland-sculpted-set/d8@1",
+      "assetVersion": 1,
+      "assetKind": "gltf",
+      "modelPath": "/dice/woodland-sculpted-set/d8/model.glb",
+      "modelSha256": "5c0d763f73d08e3bdbe66f19ae7bb1614112d3c95ca6447dda5aac0f050baa5c",
+      "metadata": {
+        "source": "production",
+        "name": "Woodland Sculpted D8",
+        "description": "Woodland Sculpted D8. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+        "appearance": {
+          "baseColor": "#8b5cf6",
+          "accentColor": "#ffffff",
+          "material": "plastic",
+          "roughness": 0.7,
+          "metalness": 0
+        },
+        "vfx": {},
+        "diceMetadata": {
+          "version": "1.0",
+          "id": "d8",
+          "diceType": "d8",
+          "setId": "woodland-sculpted-set",
+          "name": "Woodland Sculpted D8",
+          "artist": "Local procedural woodland study",
+          "scale": 1,
+          "canonicalReferenceVersion": 2,
+          "rarity": "uncommon",
+          "description": "Woodland Sculpted D8. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+          "faceNormals": [
+            {
+              "value": 1,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 2,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 3,
+              "normal": [
+                0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 4,
+              "normal": [
+                0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 5,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 6,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                0.5773503184318542
+              ]
+            },
+            {
+              "value": 7,
+              "normal": [
+                -0.5773503184318542,
+                0.5773503184318542,
+                -0.5773503184318542
+              ]
+            },
+            {
+              "value": 8,
+              "normal": [
+                -0.5773503184318542,
+                -0.5773503184318542,
+                -0.5773503184318542
+              ]
+            }
+          ],
+          "physics": {
+            "density": 0.3,
+            "restitution": 0.3,
+            "friction": 0.6
+          },
+          "colliderType": "hull",
+          "colliderArgs": {},
+          "readingConvention": "upward-face",
+          "tags": [
+            "woodland",
+            "sculpted",
+            "d8"
+          ]
+        },
+        "delivery": {
+          "thumbnailPath": "/dice/woodland-sculpted-set/d8/thumbnail.png",
+          "thumbnailSha256": "934df24fa6d2b3d41234f2a377578e8390e064e13de84c198eef74636dac8e52",
+          "thumbnailBytes": 26101,
+          "modelBytes": 1723640,
+          "embeddedTextureBytes": 0,
+          "textureFormat": "none",
+          "maxTextureDimension": 0,
+          "canonicalReferenceVersion": 2,
+          "assetContractVersion": 2,
+          "assetKind": "sculpted"
+        }
+      },
+      "metadataSha256": "de15bdf7d3bd35af0a58665597f7d1e8979b5f48fb747aa671d9d59d9d285901"
+    }
+  ]
+}

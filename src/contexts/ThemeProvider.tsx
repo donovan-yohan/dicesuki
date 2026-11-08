@@ -71,19 +71,19 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
     if (missingThemes.length > 0) {
       console.log('[ThemeProvider] Granting access to all themes:', missingThemes)
-      setOwnedThemes(allThemeIds)
+      setOwnedThemes([...ownedThemes, ...missingThemes])
     }
   }, [ownedThemes])
 
   const setTheme = (themeId: string): boolean => {
-    if (!ownedThemes.includes(themeId)) {
-      console.warn(`Cannot switch to theme "${themeId}" - not owned by user`)
-      return false
-    }
-
     const theme = getThemeById(themeId)
     if (!theme) {
       console.error(`Theme "${themeId}" not found in registry`)
+      return false
+    }
+
+    if (!ownedThemes.some(id => getThemeById(id)?.id === theme.id)) {
+      console.warn(`Cannot switch to theme "${themeId}" - not owned by user`)
       return false
     }
 
@@ -129,9 +129,21 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
 
+type UISkin = 'classic' | 'woodland' | 'cyberpunk' | 'monster-dungeon'
+
+// Presentation only: room environment and gameplay remain with their existing
+// owners. Legacy IDs resolve to current worlds before reaching this projection.
+const UI_SKINS: Readonly<Record<string, UISkin>> = {
+  'sunlit-glade-cel': 'woodland',
+  'cyberpunk-cutline': 'cyberpunk',
+  'monster-dungeon': 'monster-dungeon',
+}
+
 function applyCSSVariables(theme: Theme) {
   const root = document.documentElement
   const { tokens } = theme
+  root.dataset.theme = theme.id
+  root.dataset.uiSkin = UI_SKINS[theme.id] ?? 'classic'
 
   root.style.setProperty('--color-primary', tokens.colors.primary)
   root.style.setProperty('--color-secondary', tokens.colors.secondary)

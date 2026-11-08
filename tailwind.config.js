@@ -6,6 +6,11 @@ export default {
   ],
   theme: {
     extend: {
+      // Keep the existing size/weight scale; fonts inherit the active skin.
+      fontFamily: {
+        sans: ['var(--font-family-primary)'],
+        mono: ['var(--font-family-mono)'],
+      },
       // Theme-aware colors using CSS variables
       colors: {
         'theme-primary': 'var(--color-primary)',

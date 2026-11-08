@@ -5,31 +5,36 @@
  * Used by ThemeProvider to load and manage themes.
  */
 
-import {
-  defaultTheme,
-  fantasyTheme,
-  critterForestTheme,
-  dungeonCastleTheme,
-  neonCyberCityTheme,
-  type Theme,
-} from './tokens'
+import { defaultTheme, type Theme } from './tokens'
+import { sunlitGladeCelTheme } from './woodland'
+import { cyberpunkCutlineTheme, monsterDungeonTheme } from './worlds'
 
 /**
  * All available themes in the application
  */
 export const THEME_REGISTRY: Theme[] = [
   defaultTheme,
-  fantasyTheme,
-  critterForestTheme,
-  dungeonCastleTheme,
-  neonCyberCityTheme,
+  sunlitGladeCelTheme,
+  cyberpunkCutlineTheme,
+  monsterDungeonTheme,
 ]
 
+// Resolve retired selections at read time. Keep stored settings and ownership
+// history intact, while exposing only the current worlds in pickers.
+const LEGACY_THEME_IDS = new Map<string, string>([
+  ['fantasy-earth', 'sunlit-glade-cel'],
+  ['critter-forest', 'sunlit-glade-cel'],
+  ['sunlit-glade', 'sunlit-glade-cel'],
+  ['dungeon-castle', 'monster-dungeon'],
+  ['neon-cyber-city', 'cyberpunk-cutline'],
+])
+
 /**
- * Get a theme by ID
+ * Get an active theme by ID, including known retired aliases.
  */
 export function getThemeById(id: string): Theme | undefined {
-  return THEME_REGISTRY.find((theme) => theme.id === id)
+  const canonicalId = LEGACY_THEME_IDS.get(id) ?? id
+  return THEME_REGISTRY.find((theme) => theme.id === canonicalId)
 }
 
 /**

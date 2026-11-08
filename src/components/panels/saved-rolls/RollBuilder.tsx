@@ -255,9 +255,9 @@ export function RollBuilder({ initialRoll, tableDice = [], onSave, onCancel }: R
                   onClick={handleAddTableDice}
                   className="h-8 px-3 rounded text-xs font-semibold"
                   style={{
-                    backgroundColor: 'rgba(249, 135, 151, 0.16)',
+                    backgroundColor: 'var(--ui-tint-16)',
                     color: 'var(--color-accent)',
-                    border: '1px solid rgba(249, 135, 151, 0.28)',
+                    border: '1px solid var(--ui-border-28)',
                   }}
                 >
                   Add Table ({tableDice.length})
