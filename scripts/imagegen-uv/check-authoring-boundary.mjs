@@ -71,6 +71,9 @@ const REVIEWED_BINARY_FILE_LIMITS = new Map([
   ],
 
   // Sanitized compiled-browser guest-fixture captures, reviewed as exact bytes.
+  ['docs/pr-evidence/dice-visibility/bounce-apex-phone.png', { maxBytes: 368220, sha256: 'e3d4ae2fb929f7ecf5b50bc7e8f168da2ab76395f37b51797db7837b1a276820' }],
+  ['docs/pr-evidence/dice-visibility/foliage-after.png', { maxBytes: 1621144, sha256: '545ff034f51b1b0bccff123fb84df2b6c1c17668fccba007bd8a155116399647' }],
+  ['docs/pr-evidence/dice-visibility/foliage-before.png', { maxBytes: 1603670, sha256: 'fd4bf00bede0bc0e5f3123184ee72cf87a055200bf7416ca29f529c706a13c00' }],
   ['docs/pr-evidence/themed-worlds/cyberpunk-cutline-1280.png', { maxBytes: 721048, sha256: '201c080752e3ecd83ebe6d261e8450eaf2fd2fa15136097ad7df11d45856ae84' }],
   ['docs/pr-evidence/themed-worlds/cyberpunk-cutline-390.png', { maxBytes: 240509, sha256: 'b8b7a4e39ddb2699edda25c7f71c4777c855fece3a3a38826cf237d0e880708f' }],
   ['docs/pr-evidence/themed-worlds/monster-dungeon-1280.png', { maxBytes: 933253, sha256: 'da55e2e1fd8feed7ffc9fadb640001af224712019a6fd32bb34ad413224137c6' }],

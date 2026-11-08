@@ -3,6 +3,7 @@ import {
   CylinderGeometry, DataTexture, IcosahedronGeometry, InstancedBufferAttribute, InstancedBufferGeometry,
   InstancedMesh, LinearFilter, Mesh, MeshLambertMaterial, MeshStandardMaterial, MeshToonMaterial, NearestFilter, NoColorSpace, Object3D, PlaneGeometry, Points, RepeatWrapping, RGBAFormat, ShaderMaterial, SphereGeometry, Vector2, Vector3,
 } from 'three'
+import type { Camera } from 'three'
 import type { EnvironmentQuality, WoodlandRecipe } from '../../lib/environmentQuality'
 import { createGrassInteractionField, type GrassContactDie } from './grassInteraction'
 import { sampleGrassField } from './grassField'
@@ -566,8 +567,9 @@ export function createWoodlandResources({ recipe, quality, arenaHalfX, arenaHalf
   let disposed = false
   return {
     root,
-    update(delta: number, animate: boolean, dice?: ReadonlyMap<string, GrassContactDie>, interpolation = 1, groundY = -0.5) {
+    update(delta: number, animate: boolean, dice?: ReadonlyMap<string, GrassContactDie>, interpolation = 1, groundY = -0.5, camera?: Camera, drawingBufferSize?: Vector2) {
       if (disposed) return
+      reviewedCanopy?.updateReveal(dice ?? emptyGrassContacts, interpolation, camera, drawingBufferSize)
       if (animate && Number.isFinite(delta)) time.value += Math.max(0, Math.min(delta, 0.1))
       interaction.update(delta, dice ?? emptyGrassContacts, interpolation, groundY)
     },
