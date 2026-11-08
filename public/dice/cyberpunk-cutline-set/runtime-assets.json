@@ -1,0 +1,220 @@
+{
+  "contractVersion": 2,
+  "assetKind": "sculpted",
+  "setId": "cyberpunk-cutline-set",
+  "canonicalReferenceVersion": 2,
+  "source": {
+    "kind": "local-frozen",
+    "record": "sculpted-worlds-v1.source.json",
+    "sha256": "0fc2309fa0547ed2135be6734c96bf9a221e186415a9b2ab3e6ce1101f681dbc"
+  },
+  "budgets": {
+    "completeSetMaxBytes": 1572864,
+    "thumbnailMaxBytes": 153600,
+    "textureMaxDimension": 1024,
+    "embeddedTextureMaxBytesPerDie": 4194304,
+    "maxImages": 0,
+    "maxMaterials": 7,
+    "maxPrimitives": 7,
+    "maxAnimations": 0,
+    "maxNodes": 8,
+    "modelMaxBytes": {
+      "d4": 65536,
+      "d6": 65536,
+      "d8": 65536,
+      "d10": 131072,
+      "d12": 131072,
+      "d20": 262144
+    },
+    "triangleMaxCounts": {
+      "d4": 1000,
+      "d6": 700,
+      "d8": 850,
+      "d10": 2850,
+      "d12": 1750,
+      "d20": 3100
+    }
+  },
+  "assets": [
+    {
+      "diceId": "d4",
+      "diceType": "d4",
+      "catalogKey": "cyberpunk-cutline-set/d4",
+      "model": {
+        "path": "/dice/cyberpunk-cutline-set/d4/model.glb",
+        "bytes": 62308,
+        "sha256": "2a7eab3378140b9d6abb9ac2133048bc41fc19dd686e0023f00ade9628a9363e",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 968,
+        "primitiveCount": 2,
+        "materialCount": 2,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-cutline-set/d4/thumbnail.png",
+        "bytes": 6140,
+        "sha256": "b89e4a9b7cdcfe3705b766d1f3596051585a245841ed37364ab8e8a3f5f11b2b",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/cyberpunk-cutline-set/d4/metadata.json",
+        "bytes": 1236,
+        "sha256": "360cb1f6d1288d08c5be4d915dba8d92b05ecc47f1c904ebcc1bac238bfc08a8"
+      }
+    },
+    {
+      "diceId": "d6",
+      "diceType": "d6",
+      "catalogKey": "cyberpunk-cutline-set/d6",
+      "model": {
+        "path": "/dice/cyberpunk-cutline-set/d6/model.glb",
+        "bytes": 38160,
+        "sha256": "3bb581242fb71097ab76ef6660c314ed6e4b23b5754c06d918d72ff827f36af6",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 692,
+        "primitiveCount": 3,
+        "materialCount": 3,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-cutline-set/d6/thumbnail.png",
+        "bytes": 6775,
+        "sha256": "32d5e5cdcfd1350d9017ba9bbecae2917068d13c26c9e70620db15dec16fb17f",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/cyberpunk-cutline-set/d6/metadata.json",
+        "bytes": 1229,
+        "sha256": "9ce159c66907b160cd3522cdbb2d0e2ed8ab370b26a7e98375f18eef09f0f7e6"
+      }
+    },
+    {
+      "diceId": "d8",
+      "diceType": "d8",
+      "catalogKey": "cyberpunk-cutline-set/d8",
+      "model": {
+        "path": "/dice/cyberpunk-cutline-set/d8/model.glb",
+        "bytes": 44432,
+        "sha256": "a0a7fcab14e2ef8ab722e8bd166c257b3f19fbfdda8d3101b1cbedb7dc84078d",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 820,
+        "primitiveCount": 3,
+        "materialCount": 3,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-cutline-set/d8/thumbnail.png",
+        "bytes": 4799,
+        "sha256": "15b07863e8aa56d152144637b420ff7128d8fb0215bbabf40ba2cd808e8334b8",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/cyberpunk-cutline-set/d8/metadata.json",
+        "bytes": 1757,
+        "sha256": "b2dc8d9ea746f312dd09773de59a87782766bf39d0be60875d8597fad7252cef"
+      }
+    },
+    {
+      "diceId": "d10",
+      "diceType": "d10",
+      "catalogKey": "cyberpunk-cutline-set/d10",
+      "model": {
+        "path": "/dice/cyberpunk-cutline-set/d10/model.glb",
+        "bytes": 119496,
+        "sha256": "02a68932ca8357f1d90b356c324a4b54628859e1016b3f9dfeb3f630abd3aa7f",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 2800,
+        "primitiveCount": 4,
+        "materialCount": 4,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-cutline-set/d10/thumbnail.png",
+        "bytes": 6559,
+        "sha256": "097002a46447b0bced7113de327efc71d6907374c3ce04249b1873757aedfda1",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/cyberpunk-cutline-set/d10/metadata.json",
+        "bytes": 2016,
+        "sha256": "8efc40dff988250d1a19748d41b724e843d70f7d10cafa9ed86c1903ff140764"
+      }
+    },
+    {
+      "diceId": "d12",
+      "diceType": "d12",
+      "catalogKey": "cyberpunk-cutline-set/d12",
+      "model": {
+        "path": "/dice/cyberpunk-cutline-set/d12/model.glb",
+        "bytes": 113280,
+        "sha256": "9dfb1d1462be0a7c7d5f7cb479c86d8b1ef5f498443010d9344cdad5d1c2cb4b",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 1704,
+        "primitiveCount": 3,
+        "materialCount": 3,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-cutline-set/d12/thumbnail.png",
+        "bytes": 8354,
+        "sha256": "63d4c769a69ee195a3ff0ca929bec83495bc044146086c1873b6a841fb30ae7b",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/cyberpunk-cutline-set/d12/metadata.json",
+        "bytes": 2121,
+        "sha256": "821192665369ed65ff1c087898df9b3e28d754932274d759aa78e6ee6492d855"
+      }
+    },
+    {
+      "diceId": "d20",
+      "diceType": "d20",
+      "catalogKey": "cyberpunk-cutline-set/d20",
+      "model": {
+        "path": "/dice/cyberpunk-cutline-set/d20/model.glb",
+        "bytes": 198468,
+        "sha256": "d268387609caf860f8fdd2309721595e5b6b077d3424b3da425f13ff5a155372",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 3032,
+        "primitiveCount": 3,
+        "materialCount": 3,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/cyberpunk-cutline-set/d20/thumbnail.png",
+        "bytes": 10748,
+        "sha256": "687c1ba1469eba4c59a8f8bed9ff43f2ba0b315e8a759d2a30d41c7ada615a63",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/cyberpunk-cutline-set/d20/metadata.json",
+        "bytes": 3237,
+        "sha256": "62be8e6951ace9dcfb2f22c5a078e1adb87b2033843ad4ba11f988a35ea4b25f"
+      }
+    }
+  ]
+}

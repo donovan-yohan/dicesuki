@@ -356,6 +356,9 @@ function productionEntries(source, paths) {
           textureFormat: runtimeAsset.model.textureFormat,
           maxTextureDimension: runtimeAsset.model.maxTextureDimension,
           canonicalReferenceVersion: runtimeManifest.canonicalReferenceVersion,
+          ...(runtimeManifest.contractVersion === 2 && runtimeManifest.assetKind === 'sculpted'
+            ? { assetContractVersion: 2, assetKind: 'sculpted' }
+            : {}),
         }
       } else if (runtimeManifest) {
         throw new Error(`${runtimeManifestPath} has no delivery record for ${catalogKey}`)

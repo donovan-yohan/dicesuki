@@ -78,14 +78,15 @@ export function FlyoutPanel({
 
           {/* Panel */}
           <motion.div
-            className={`fixed top-0 ${position === 'left' ? 'left-0' : 'right-0'} h-full z-50 flex flex-col overflow-hidden`}
+            className={`theme-panel fixed top-0 ${position === 'left' ? 'left-0' : 'right-0'} h-full z-50 flex flex-col overflow-hidden`}
             style={{
               width,
               maxWidth: '90vw',
               backgroundColor: 'var(--color-surface)',
               boxShadow: position === 'left'
-                ? '4px 0 20px rgba(0, 0, 0, 0.3)'
-                : '-4px 0 20px rgba(0, 0, 0, 0.3)',
+                ? 'var(--ui-flyout-shadow-left)'
+                : 'var(--ui-flyout-shadow-right)',
+              color: 'var(--color-text-primary)',
               borderRight: position === 'left' ? '1px solid var(--color-accent)' : 'none',
               borderLeft: position === 'right' ? '1px solid var(--color-accent)' : 'none',
             }}
@@ -98,8 +99,8 @@ export function FlyoutPanel({
             <div
               className="flex items-center justify-between px-6 py-4 border-b"
               style={{
-                borderColor: 'rgba(249, 135, 151, 0.2)',
-                backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                borderColor: 'var(--ui-border)',
+                backgroundColor: 'var(--ui-inset)',
               }}
             >
               <h2
@@ -112,7 +113,7 @@ export function FlyoutPanel({
                 onClick={onClose}
                 className="w-8 h-8 flex items-center justify-center rounded-full transition-all"
                 style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  backgroundColor: 'var(--ui-control-10)',
                   color: 'var(--color-text-secondary)',
                 }}
                 aria-label="Close panel"

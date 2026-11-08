@@ -33,7 +33,7 @@ export function CenterRollButton({
     <motion.button
       onClick={onClick}
       disabled={disabled}
-      className="absolute rounded-full flex items-center justify-center cursor-pointer disabled:cursor-not-allowed transition-opacity"
+      className="theme-hud absolute rounded-full flex items-center justify-center cursor-pointer disabled:cursor-not-allowed transition-opacity"
       data-nav-item="ROLL"
       style={{
         // Size - smaller to match new nav

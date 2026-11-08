@@ -43,7 +43,7 @@ async function openBuilder(page: Page) {
     { timeout: 60_000 },
   )
   await page.getByRole('button', { name: 'My Dice Rolls' }).click()
-  await page.getByRole('button', { name: /Create New Roll/i }).click()
+  await page.getByRole('button', { name: 'New roll', exact: true }).click()
   await expect(page.getByLabel('Roll name')).toBeVisible()
 }
 
@@ -217,68 +217,72 @@ for (const saved of [false, true]) {
       await expect(page.getByTestId('solo-room')).toHaveAttribute('data-table-revealed', 'true', { timeout: 60_000 })
     }
 
-    // Inspect the real worker-backed stores, without injecting faces or state.
-    // Click in one browser task so every tap precedes a possible settle.
-    const start = await page.evaluate(async (saved) => {
+    // Observe the real stores read-only; every launch goes through the native
+    // pointer target, so disabled controls or a tap-stealing overlay cannot pass.
+    await page.evaluate(async () => {
       const mpPath = '/src/store/useMultiplayerStore.ts'
       const dicePath = '/src/store/useDiceStore.ts'
       const { useMultiplayerStore: mp } = await import(mpPath)
       const { useDiceStore: dice } = await import(dicePath)
-      const sequence = mp.getState().rollStartedSequence
-      const started = new Promise<void>((resolve) => {
-        const unsubscribe = dice.subscribe(() => {
-          if (mp.getState().rollStartedSequence <= sequence || dice.getState().rollingDice.size === 0) return
-          unsubscribe()
-          // Let React close the saved-roll sheet before sampling the live HUD.
-          requestAnimationFrame(() => resolve())
-        })
-      })
-      document.querySelector<HTMLButtonElement>(
-        `button[aria-label="${saved ? 'Roll Reentrant saved roll' : 'Roll dice'}"]`,
-      )!.click()
-      await started
-      // AnimatePresence may keep the outgoing sheet mounted for another frame.
-      await new Promise<void>((resolve) => {
-        const check = () => {
-          if (document.querySelector('button[data-nav-item="ROLL"]')) {
-            observer.disconnect()
-            resolve()
-          }
-        }
-        const observer = new MutationObserver(check)
-        observer.observe(document.body, { childList: true, subtree: true })
-        check()
-      })
-      const button = document.querySelector<HTMLButtonElement>('button[data-nav-item="ROLL"]')!
-      const before = {
+      const clicks: Array<{ trusted: boolean; rolling: number; pending: boolean; sequence: number }> = []
+      const probe = { clicks, read: () => ({
         sequence: mp.getState().rollStartedSequence,
         pending: dice.getState().savedRollWavesPending,
         rolling: dice.getState().rollingDice.size,
-        disabled: button.disabled,
-      }
-      for (let i = 0; i < 5; i++) button.click()
-      return before
-    }, saved)
-    expect(start).toMatchObject({ pending: saved, disabled: false })
-    expect(start.rolling).toBeGreaterThan(0)
-    await expect.poll(() => page.evaluate(async () => {
-      const path = '/src/store/useMultiplayerStore.ts'
-      return (await import(path)).useMultiplayerStore.getState().rollStartedSequence
-    })).toBe(start.sequence + 5)
+        rows: dice.getState().rollHistory.length,
+        requests: mp.getState().pendingLocalRolls.length,
+        savedName: dice.getState().activeSavedRoll?.name,
+      }) }
+      Reflect.set(window, '__reentrantRollProbe', probe)
+      document.addEventListener('click', (event) => {
+        if (!(event.target instanceof Element)) return
+        if (!event.target.closest('button[data-nav-item="ROLL"]')) return
+        const state = probe.read()
+        clicks.push({ trusted: event.isTrusted, rolling: state.rolling, pending: state.pending, sequence: state.sequence })
+      }, true)
+    })
+    const readState = () => page.evaluate(() => Reflect.get(window, '__reentrantRollProbe').read())
+    const initialSequence = (await readState()).sequence
+    await page.getByRole('button', {
+      name: saved ? 'Roll Reentrant saved roll' : 'Roll dice', exact: true,
+    }).click()
+    await expect.poll(async () => {
+      const state = await readState()
+      return state.sequence > initialSequence && state.rolling > 0
+    }).toBe(true)
 
-    await expect.poll(() => page.evaluate(async () => {
-      const path = '/src/store/useDiceStore.ts'
-      const mpPath = '/src/store/useMultiplayerStore.ts'
-      const state = (await import(path)).useDiceStore.getState()
-      const requests = (await import(mpPath)).useMultiplayerStore.getState().pendingLocalRolls.length
-      return { pending: state.savedRollWavesPending, rolling: state.rollingDice.size, rows: state.rollHistory.length, requests }
-    }), { timeout: 60_000 }).toEqual({ pending: false, rolling: 0, rows: 1, requests: 0 })
-    if (saved) {
-      await expect.poll(() => page.evaluate(async () => {
-        const path = '/src/store/useDiceStore.ts'
-        return (await import(path)).useDiceStore.getState().activeSavedRoll?.name
-      })).toBe('Reentrant saved roll')
+    const button = page.getByRole('button', { name: 'Roll dice', exact: true })
+    await expect(button).toBeVisible()
+    await expect(button).toBeEnabled()
+    // The saved-roll sheet exits above the already-visible HUD for 200ms.
+    // Wait for its native hit target to be released, not a fixed delay.
+    await expect.poll(() => button.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+    })).toBe(true)
+    const before = await readState()
+    expect(before.pending).toBe(saved)
+    expect(before.rolling).toBeGreaterThan(0)
+    const bounds = await button.boundingBox()
+    expect(bounds).not.toBeNull()
+    // Fixed target, no actionability retries between taps: this is a rapid
+    // native burst, not five DOM .click() calls that bypass browser hit testing.
+    for (let i = 0; i < 5; i++) {
+      await page.mouse.click(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2)
     }
+    await expect.poll(async () => (await readState()).sequence).toBe(before.sequence + 5)
+    const clicks = await page.evaluate(() => Reflect.get(window, '__reentrantRollProbe').clicks)
+    expect(clicks).toHaveLength(saved ? 5 : 6)
+    for (const click of clicks.slice(saved ? 0 : 1)) {
+      expect(click.trusted).toBe(true)
+      expect(click.rolling).toBeGreaterThan(0)
+      expect(click.pending).toBe(saved)
+    }
+    await expect.poll(async () => {
+      const { pending, rolling, rows, requests } = await readState()
+      return { pending, rolling, rows, requests }
+    }, { timeout: 60_000 }).toEqual({ pending: false, rolling: 0, rows: 1, requests: 0 })
+    if (saved) expect((await readState()).savedName).toBe('Reentrant saved roll')
   })
 }
 

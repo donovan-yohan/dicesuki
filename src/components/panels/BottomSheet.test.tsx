@@ -27,6 +27,27 @@ describe('BottomSheet accessibility', () => {
     trigger.remove()
   })
 
+  it('uses the active skin surface without changing the panel focus contract', async () => {
+    const { rerender } = render(
+      <BottomSheet isOpen onClose={vi.fn()} title="My Dice Rolls">
+        <input aria-label="Search rolls" />
+      </BottomSheet>,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'My Dice Rolls' })
+    expect(dialog.style.backgroundColor).toBe('var(--color-surface)')
+    expect(dialog.style.boxShadow).toBe('var(--ui-sheet-shadow)')
+    expect(dialog).toHaveStyle({ height: '80vh', maxHeight: '90vh' })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus())
+    const search = screen.getByRole('textbox', { name: 'Search rolls' })
+    search.focus()
+    document.documentElement.dataset.uiSkin = 'cyberpunk'
+    rerender(<BottomSheet isOpen onClose={vi.fn()} title="My Dice Rolls"><input aria-label="Search rolls" /></BottomSheet>)
+    expect(search).toHaveFocus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(screen.getByRole('button', { name: 'Close panel' })).toHaveFocus()
+    delete document.documentElement.dataset.uiSkin
+  })
+
   it('keeps focus in place when a parent rerender replaces onClose', async () => {
     const firstOnClose = vi.fn()
     const nextOnClose = vi.fn()

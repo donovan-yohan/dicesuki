@@ -39,6 +39,7 @@
  * connection state.
  */
 
+import { createStore } from 'zustand/vanilla'
 import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient'
 import { useAuthStore } from '../store/useAuthStore'
 import {
@@ -463,6 +464,20 @@ interface StartOptions {
 const DEFAULT_DEBOUNCE_MS = 1000
 const DEFAULT_STARTER_TIMEOUT_MS = 3000
 
+export interface InventoryHydration {
+  readonly userId: string | null
+  readonly generation: number
+  readonly status: 'idle' | 'pending' | 'ready' | 'unavailable'
+}
+
+// Read-only lifecycle receipt, not persisted inventory or a cache ownership claim.
+// Only an accepted copies + catalog join in this generation can publish ready.
+const inventoryHydration = createStore<InventoryHydration>(() => ({ userId: null, generation: 0, status: 'idle' }))
+export const getInventoryHydration = inventoryHydration.getState
+export const subscribeInventoryHydration = inventoryHydration.subscribe
+const INVENTORY_HYDRATION_TIMEOUT_MS = 3000
+let inventoryHydrationTimer: ReturnType<typeof setTimeout> | undefined
+
 let activeUserId: string | null = null
 let startingUserId: string | null = null
 let startPromise: Promise<void> | null = null
@@ -576,32 +591,28 @@ async function startSyncGeneration(
   // alongside the catalog as the ownership compatibility surface; dice_copies
   // is the authoritative signed-in playable copy list.
   useWalletStore.getState().setUserId(userId)
-  const [entitlementsResult, catalogResult, copiesResult, walletResult] =
-    await Promise.allSettled([
-      fetchMyEntitlements(client),
-      fetchCatalogSnapshot(client),
-      fetchMyDiceCopies(client),
-      useWalletStore.getState().refresh(client),
-    ])
+  const ownershipRead = Promise.allSettled([
+    fetchCatalogSnapshot(client),
+    fetchMyDiceCopies(client),
+  ]).then(([catalogResult, copiesResult]) => {
+    if (!isCurrent()) return
+    const copiesApplied = copiesResult.status === 'fulfilled'
+      && catalogResult.status === 'fulfilled' && catalogResult.value !== null
+      && useInventoryStore.getState().syncServerCopies(copiesResult.value, catalogResult.value)
+    // Store notifications can synchronously stop/replace this generation.
+    if (!isCurrent()) return
+    if (inventoryHydrationTimer) clearTimeout(inventoryHydrationTimer)
+    inventoryHydrationTimer = undefined
+    inventoryHydration.setState({ userId, generation, status: copiesApplied ? 'ready' : 'unavailable' })
+  })
+  // Wallet/entitlements are independent: they cannot certify or delay copy
+  // readiness. Keep their existing best-effort orchestration and realtime owner.
+  await Promise.allSettled([
+    ownershipRead,
+    fetchMyEntitlements(client),
+    useWalletStore.getState().refresh(client),
+  ])
   if (!isCurrent()) return
-
-  // Keeping this result explicit proves the existing entitlement reader is now
-  // part of sign-in orchestration even though copy identity, not entitlement
-  // rows, drives the playable inventory view.
-  void entitlementsResult
-  if (
-    copiesResult.status === 'fulfilled' &&
-    catalogResult.status === 'fulfilled' &&
-    catalogResult.value !== null
-  ) {
-    useInventoryStore.getState().syncServerCopies(
-      copiesResult.value,
-      catalogResult.value,
-    )
-  }
-  if (walletResult.status === 'rejected') {
-    // refresh already marks the store stale; local play remains available.
-  }
 
   // Realtime is an enhancement over the completed reads. Some injected/offline
   // clients intentionally have no channel implementation.
@@ -619,19 +630,50 @@ export function startSync(userId: string, options: StartOptions = {}): Promise<v
   if (!client || !userId) return Promise.resolve()
   if (startingUserId === userId && startPromise) return startPromise
   if (activeUserId === userId) return Promise.resolve()
-  if (activeUserId || startPromise) stopSync() // switch accounts cleanly
+  if (activeUserId || startPromise) {
+    const previousGeneration = syncGeneration
+    stopSync() // switch accounts cleanly
+    // A synchronous stop observer may have admitted a newer owner. This older
+    // invocation must not overwrite its state, timer or in-flight promise.
+    if (syncGeneration !== previousGeneration + 1) return startPromise ?? Promise.resolve()
+  }
 
   activeUserId = userId
   startingUserId = userId
   const generation = ++syncGeneration
-  const pending = startSyncGeneration(client, userId, generation, options)
-    .finally(() => {
-      if (startPromise === pending) {
-        startPromise = null
-        startingUserId = null
-      }
-    })
+  // Install the promise before publishing: synchronous subscribers may stop or
+  // replace this generation (including same-account ABA).
+  let begin!: () => void
+  const pending = new Promise<void>((resolve, reject) => {
+    begin = () => {
+      if (syncGeneration === generation && activeUserId === userId) {
+        void startSyncGeneration(client, userId, generation, options).then(resolve, reject)
+      } else resolve()
+    }
+  }).catch((error: unknown) => {
+    if (syncGeneration === generation && activeUserId === userId) {
+      if (inventoryHydrationTimer) clearTimeout(inventoryHydrationTimer)
+      inventoryHydrationTimer = undefined
+      inventoryHydration.setState({ userId, generation, status: 'unavailable' })
+    }
+    throw error
+  }).finally(() => {
+    if (startPromise === pending) {
+      startPromise = null
+      startingUserId = null
+    }
+  })
   startPromise = pending
+  // A deadline means unresolved, NEVER resolved-missing. It also covers a hung
+  // earlier domain read; eventual accepted copies can still become ready.
+  inventoryHydrationTimer = setTimeout(() => {
+    if (syncGeneration === generation && activeUserId === userId) {
+      inventoryHydrationTimer = undefined
+      inventoryHydration.setState({ userId, generation, status: 'unavailable' })
+    }
+  }, INVENTORY_HYDRATION_TIMEOUT_MS)
+  inventoryHydration.setState({ userId, generation, status: 'pending' })
+  begin()
   return pending
 }
 
@@ -645,7 +687,9 @@ export function startSync(userId: string, options: StartOptions = {}): Promise<v
  * account correctly refuses to adopt it.
  */
 export function stopSync(): void {
-  syncGeneration += 1
+  const generation = ++syncGeneration
+  if (inventoryHydrationTimer) clearTimeout(inventoryHydrationTimer)
+  inventoryHydrationTimer = undefined
   for (const unsub of unsubscribers) unsub()
   unsubscribers = []
   for (const timer of pushTimers.values()) clearTimeout(timer)
@@ -654,7 +698,11 @@ export function stopSync(): void {
   activeUserId = null
   startingUserId = null
   startPromise = null
+  // Invalidate ownership BEFORE clearing stores, whose observers can reenter.
+  inventoryHydration.setState({ userId: null, generation, status: 'idle' })
+  if (syncGeneration !== generation) return
   useInventoryStore.getState().clearServerCopies()
+  if (syncGeneration !== generation) return
   useWalletStore.getState().resetOnSignOut()
 }
 

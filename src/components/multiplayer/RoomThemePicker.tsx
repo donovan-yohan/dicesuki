@@ -15,7 +15,7 @@
  */
 
 import type { Theme } from '../../themes/tokens'
-import { THEME_REGISTRY } from '../../themes/registry'
+import { getThemeById, THEME_REGISTRY } from '../../themes/registry'
 
 interface RoomThemePickerProps {
   /** Currently selected room theme id, or null for "each player's own". */
@@ -90,9 +90,9 @@ function ThemeCard({
       className="flex flex-col overflow-hidden rounded-lg text-left transition-all"
       style={{
         border: selected
-          ? '2px solid var(--color-accent, #f98797)'
-          : '1px solid rgba(255,255,255,0.12)',
-        backgroundColor: 'rgba(255,255,255,0.04)',
+          ? '2px solid var(--color-accent)'
+          : '1px solid var(--ui-roster-border)',
+        backgroundColor: 'var(--ui-picker-surface)',
         cursor: disabled ? 'default' : 'pointer',
         opacity: disabled && !selected ? 0.55 : 1,
       }}
@@ -124,7 +124,7 @@ function ThemeCard({
             style={{
               width: '16px',
               height: '16px',
-              backgroundColor: 'var(--color-accent, #f98797)',
+              backgroundColor: 'var(--color-accent)',
               color: 'var(--color-on-accent)',
             }}
             aria-hidden="true"
@@ -149,6 +149,8 @@ export function RoomThemePicker({
   disabled = false,
   label = 'Room theme',
 }: RoomThemePickerProps) {
+  const selectedThemeId = value === null ? null : getThemeById(value)?.id
+
   return (
     <div
       role="radiogroup"
@@ -167,7 +169,7 @@ export function RoomThemePicker({
         <ThemeCard
           key={theme.id}
           theme={theme}
-          selected={value === theme.id}
+          selected={selectedThemeId === theme.id}
           disabled={disabled}
           onSelect={() => !disabled && onChange(theme.id)}
         />

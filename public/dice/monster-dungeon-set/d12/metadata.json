@@ -1,0 +1,123 @@
+{
+  "version": "1.0",
+  "id": "d12",
+  "diceType": "d12",
+  "setId": "monster-dungeon-set",
+  "name": "Monster Dungeon D12",
+  "artist": "Local procedural Monster Dungeon study; Zabi eyes D6",
+  "scale": 1,
+  "canonicalReferenceVersion": 2,
+  "rarity": "uncommon",
+  "description": "Monster Dungeon D12. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+  "faceNormals": [
+    {
+      "value": 1,
+      "normal": [
+        0,
+        0.8506509065628052,
+        0.5257309675216675
+      ]
+    },
+    {
+      "value": 10,
+      "normal": [
+        -0.5257309675216675,
+        0,
+        0.8506509065628052
+      ]
+    },
+    {
+      "value": 11,
+      "normal": [
+        -0.8506509065628052,
+        -0.5257309675216675,
+        0
+      ]
+    },
+    {
+      "value": 12,
+      "normal": [
+        0,
+        -0.8506509065628052,
+        -0.5257309675216675
+      ]
+    },
+    {
+      "value": 2,
+      "normal": [
+        0.8506509065628052,
+        0.5257309675216675,
+        0
+      ]
+    },
+    {
+      "value": 3,
+      "normal": [
+        0.5257309675216675,
+        0,
+        -0.8506509065628052
+      ]
+    },
+    {
+      "value": 4,
+      "normal": [
+        -0.5257309675216675,
+        0,
+        -0.8506509065628052
+      ]
+    },
+    {
+      "value": 5,
+      "normal": [
+        0,
+        0.8506509065628052,
+        -0.5257309675216675
+      ]
+    },
+    {
+      "value": 6,
+      "normal": [
+        -0.8506509065628052,
+        0.5257309675216675,
+        0
+      ]
+    },
+    {
+      "value": 7,
+      "normal": [
+        0.8506509065628052,
+        -0.5257309675216675,
+        0
+      ]
+    },
+    {
+      "value": 8,
+      "normal": [
+        0,
+        -0.8506509065628052,
+        0.5257309675216675
+      ]
+    },
+    {
+      "value": 9,
+      "normal": [
+        0.5257309675216675,
+        0,
+        0.8506509065628052
+      ]
+    }
+  ],
+  "physics": {
+    "density": 0.3,
+    "restitution": 0.3,
+    "friction": 0.6
+  },
+  "colliderType": "hull",
+  "colliderArgs": {},
+  "readingConvention": "upward-face",
+  "tags": [
+    "monster-dungeon",
+    "sculpted",
+    "d12"
+  ]
+}

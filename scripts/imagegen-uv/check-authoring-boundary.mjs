@@ -4,6 +4,9 @@ import { execFileSync } from 'node:child_process'
 import { lstatSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { SCULPTED_ASSET_PROFILES } from '../runtime-dice-assets/sculpted-asset-profiles.mjs'
+import { readSculptedSourceRecord } from '../runtime-dice-assets/sculpted-asset-contract.mjs'
+import { validatePublicSculptedModel } from '../runtime-dice-assets/sculpted-public-model.mjs'
 import {
   RUNTIME_ASSET_BUDGETS,
   runtimeAssetManifestPaths,
@@ -30,6 +33,26 @@ const AUTHORING_PAYLOAD_EXTENSIONS = new Set([
  * and these are enumerated here.
  */
 const REVIEWED_BINARY_FILE_LIMITS = new Map([
+  // Exact reviewed runtime maps and licensed sign font. Never admit this
+  // directory wholesale: study captures and authoring sources remain ignored.
+  ['public/environments/cyberpunk/SpaceGrotesk.ttf', { maxBytes: 160 * 1024, sha256: 'acad6de1fc93436f5c0f1f4137751ef04f1aea3063e7036535970ffcfbd79f72' }],
+  ['public/environments/monster-dungeon/bone-albedo.png', { maxBytes: 192 * 1024, sha256: '65d81d9e34eba5a075799d4125b60aa2c7088c70d38a391c4167fc460382ad19' }],
+  ['public/environments/monster-dungeon/bone-normal.png', { maxBytes: 448 * 1024, sha256: 'c93714a257956630799ce818b3ea241a46161235f971e8af25f6c1e37770aa83' }],
+  ['public/environments/monster-dungeon/brick-albedo.png', { maxBytes: 96 * 1024, sha256: 'd2ae3dc967fb427cca00d899dd7b5dcda78c04dd678bcd18065cbcced439fff1' }],
+  ['public/environments/monster-dungeon/brick-normal.png', { maxBytes: 544 * 1024, sha256: 'd63dbfdcb45a9d804df2ecbe022750f2838b53866b401b849d1c8644f440481e' }],
+  ['public/environments/monster-dungeon/iron-albedo.png', { maxBytes: 96 * 1024, sha256: '2e00e5bec98f5cb5e5b2471ee95a9ccc3480bf7bea37ac2c99540b6386b4f588' }],
+  ['public/environments/monster-dungeon/iron-normal.png', { maxBytes: 608 * 1024, sha256: '4342eb650e0222050f900f31b9dc0bb7913dea34fe0d9c289af4d3d39e3b5785' }],
+  ['public/environments/monster-dungeon/leather-albedo.png', { maxBytes: 160 * 1024, sha256: '2966c0ee05660b35260c6be3fd76532a334285fb5d081007d3fb755690a56fd2' }],
+  ['public/environments/monster-dungeon/leather-normal.png', { maxBytes: 608 * 1024, sha256: '9bd4f466f8ea80d148439ecb5fbdf28aed4b0737d2f4adc98b6df74f8126e1fb' }],
+  ['public/environments/monster-dungeon/moss-albedo.png', { maxBytes: 64 * 1024, sha256: 'f800afc3eb77e6bf951d91e563267a26ed3cde61289ca2e2a80ab02f06be06de' }],
+  ['public/environments/monster-dungeon/moss-normal.png', { maxBytes: 544 * 1024, sha256: '1b3f96c876905cccff269f93a7de3e327f22d2024e233ac1f57a2c0853e71a34' }],
+  ['public/environments/monster-dungeon/stone-albedo.png', { maxBytes: 96 * 1024, sha256: '27bc17238f961df418177c30b16171a57a28afd4af3e1ba842ed4045583aa969' }],
+  ['public/environments/monster-dungeon/stone-normal.png', { maxBytes: 544 * 1024, sha256: 'd63dbfdcb45a9d804df2ecbe022750f2838b53866b401b849d1c8644f440481e' }],
+  ['public/environments/monster-dungeon/wood-albedo.png', { maxBytes: 128 * 1024, sha256: '98e5e63ad216bfdbd468a181a55aad9d7b6320ac2aff9b3a0903654fe9ad663d' }],
+  ['public/environments/monster-dungeon/wood-normal.png', { maxBytes: 544 * 1024, sha256: '57c237b9e762a7d8fdff3d5745a9a267ec17c9bd5e68ffef4fa255d964b38a68' }],
+  ['src/components/environment/textures/bark-albedo.png', { maxBytes: 160 * 1024, sha256: '1974f20e7a7e69965021f4d386a2478126aa68743f37cf7e4758f5aafe0679bb' }],
+  ['src/components/environment/textures/bark-normal.png', { maxBytes: 320 * 1024, sha256: 'b77e30026be4cbc79c550678d766c3a1492db5e17a3845bf0d8d85465693faf0' }],
+  ['src/components/environment/textures/leaf-albedo.png', { maxBytes: 32 * 1024, sha256: '2237e257525ef5daa074d2cf8ec7bb1fe15767fd37d9e68af60a7ad658c7c409' }],
   ['public/dice/devil-set/devil-d6/model.glb', 20 * 1024 * 1024],
   ['public/icons/apple-touch-icon.png', 128 * 1024],
   ['public/icons/pwa-192x192.png', 128 * 1024],
@@ -48,6 +71,12 @@ const REVIEWED_BINARY_FILE_LIMITS = new Map([
   ],
 
   // Sanitized compiled-browser guest-fixture captures, reviewed as exact bytes.
+  ['docs/pr-evidence/themed-worlds/cyberpunk-cutline-1280.png', { maxBytes: 721048, sha256: '201c080752e3ecd83ebe6d261e8450eaf2fd2fa15136097ad7df11d45856ae84' }],
+  ['docs/pr-evidence/themed-worlds/cyberpunk-cutline-390.png', { maxBytes: 240509, sha256: 'b8b7a4e39ddb2699edda25c7f71c4777c855fece3a3a38826cf237d0e880708f' }],
+  ['docs/pr-evidence/themed-worlds/monster-dungeon-1280.png', { maxBytes: 933253, sha256: 'da55e2e1fd8feed7ffc9fadb640001af224712019a6fd32bb34ad413224137c6' }],
+  ['docs/pr-evidence/themed-worlds/monster-dungeon-390.png', { maxBytes: 313403, sha256: 'ebecb885ce1265f113fc7188b9b9e5626b673c0b908a5db7918cf38528f73574' }],
+  ['docs/pr-evidence/themed-worlds/sunlit-glade-cel-1280.png', { maxBytes: 1158805, sha256: '74de99c09aa98531aa72da0bb1588b19f5cf96c0606ac67b0efa42bc1a958e58' }],
+  ['docs/pr-evidence/themed-worlds/sunlit-glade-cel-390.png', { maxBytes: 372803, sha256: '8768e1ad597252d6f1d4322c7440c04788a8d6a6e599ed473127dcef9b90e1a6' }],
   ['docs/pr-evidence/monster-manual/priest-spellbook-phone.png', { maxBytes: 256 * 1024, sha256: '991006d0092eb7336129e2377410cb456e0914a36a604de1380041bfdca59152' }],
   ['docs/pr-evidence/monster-manual/pf-spellbook-desktop.png', { maxBytes: 256 * 1024, sha256: '7811bc8d30cab77c54f37254f90cf05eae5a6bf72dd58017be32848f27494e30' }],
 
@@ -165,7 +194,26 @@ function reviewedBinaryFileLimits(repoRoot) {
     for (const asset of manifest.assets ?? []) {
       const expectedRoot = `/dice/${manifest.setId}/${asset.diceId}`
       if (asset.model?.path === `${expectedRoot}/model.glb`) {
-        limits.set(`public${asset.model.path}`, { maxBytes: RUNTIME_ASSET_BUDGETS.modelHardMaxBytes })
+        if (manifest.contractVersion === 2) {
+          const profile = SCULPTED_ASSET_PROFILES[manifest.setId]
+          const frozen = readSculptedSourceRecord().record
+          const selected = frozen.sets.find(set => set.setId === manifest.setId)?.dice.find(die => die.shape === asset.diceType)
+          const source = frozen.files.find(file => file.path === selected?.model)
+          if (!profile || asset.diceId !== asset.diceType || !source) {
+            throw new Error(`${manifestPath} has an unrecognized sculpted model`)
+          }
+          const modelBytes = readFileSync(path.join(repoRoot, `public${asset.model.path}`))
+          try {
+            validatePublicSculptedModel(modelBytes, manifest.setId, asset.diceType, source.sha256, asset.publicDerivation)
+          } catch {
+            // Keep reporting mismatched bytes through the existing boundary result.
+            limits.set(`public${asset.model.path}`, { maxBytes: profile.budgets.modelMaxBytes[asset.diceType], sha256: 'invalid-sculpted-custody' })
+            continue
+          }
+          limits.set(`public${asset.model.path}`, { maxBytes: profile.budgets.modelMaxBytes[asset.diceType], sha256: asset.model.sha256 })
+        } else {
+          limits.set(`public${asset.model.path}`, { maxBytes: RUNTIME_ASSET_BUDGETS.modelHardMaxBytes })
+        }
       }
       if (asset.thumbnail?.path === `${expectedRoot}/thumbnail.png`) {
         limits.set(`public${asset.thumbnail.path}`, { maxBytes: RUNTIME_ASSET_BUDGETS.thumbnailMaxBytes })

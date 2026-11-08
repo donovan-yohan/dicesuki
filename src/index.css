@@ -68,6 +68,95 @@
   --startup-splash-shadow: rgba(63, 29, 63, 0.12);
   --startup-splash-pink-glow: rgba(249, 135, 151, 0.13);
   --startup-splash-purple-glow: rgba(156, 137, 196, 0.16);
+
+  /* Presentation aliases over existing Theme roles. Classic values preserve
+     the accepted live paint/geometry; only the released skins opt into opaque
+     chrome. These are not additional Theme token or gameplay authorities. */
+  --ui-nav-surface: rgba(31, 41, 55, 0.7);
+  --ui-nav-finish: none;
+  --ui-popover-surface: rgba(31, 41, 55, 0.92);
+  --ui-inventory-surface: rgba(31, 41, 55, 0.9);
+  --ui-border: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  --ui-border-25: color-mix(in srgb, var(--color-accent) 25%, transparent);
+  --ui-border-28: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  --ui-border-30: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  /* Tinted backplates, not solid accent fills: retain normal/accent text. */
+  --ui-tint-10: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --ui-tint-12: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --ui-tint-16: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  --ui-tint-20: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  --ui-tint-22: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  --ui-nav-active: color-mix(in srgb, var(--color-accent) 25%, transparent);
+  --ui-nav-active-hover: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  --ui-nav-active-ink: var(--color-accent);
+  --ui-control-05: rgba(255, 255, 255, 0.05);
+  --ui-control-08: rgba(255, 255, 255, 0.08);
+  --ui-control-10: rgba(255, 255, 255, 0.1);
+  --ui-control-15: rgba(255, 255, 255, 0.15);
+  --ui-inset: rgba(0, 0, 0, 0.2);
+  --ui-field: rgba(0, 0, 0, 0.3);
+  --ui-control-opacity: 0.7;
+  --ui-quick-slot-ink: var(--color-surface);
+  --ui-nav-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 0 1px color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --ui-sheet-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  --ui-flyout-shadow-left: 4px 0 20px rgba(0, 0, 0, 0.3);
+  --ui-flyout-shadow-right: -4px 0 20px rgba(0, 0, 0, 0.3);
+  --ui-sheet-radius: 1.5rem;
+  --ui-roster-surface: rgba(0, 0, 0, 0.55);
+  --ui-roster-border: rgba(255, 255, 255, 0.12);
+  --ui-room-active: rgba(139, 92, 246, 0.55);
+  --ui-room-active-ink: #fff;
+  --ui-picker-surface: rgba(255, 255, 255, 0.04);
+}
+
+:root:is([data-ui-skin="woodland"], [data-ui-skin="cyberpunk"], [data-ui-skin="monster-dungeon"]) {
+  --ui-nav-surface: var(--color-surface);
+  --ui-nav-finish: var(--gradient-primary);
+  --color-border: var(--color-secondary);
+  --ui-popover-surface: var(--color-surface);
+  --ui-inventory-surface: var(--color-surface);
+  --ui-border: var(--color-accent);
+  --ui-border-25: var(--color-secondary);
+  --ui-border-28: var(--color-secondary);
+  --ui-border-30: var(--color-secondary);
+  --ui-tint-10: var(--color-background);
+  --ui-tint-12: var(--color-background);
+  --ui-tint-16: var(--color-background);
+  --ui-tint-20: var(--color-background);
+  --ui-tint-22: var(--color-background);
+  --ui-nav-active: var(--color-accent);
+  --ui-nav-active-hover: var(--color-accent);
+  --ui-nav-active-ink: var(--color-on-accent);
+  --ui-control-05: var(--color-surface);
+  --ui-control-08: var(--color-background);
+  --ui-control-10: var(--color-background);
+  --ui-control-15: var(--color-background);
+  --ui-inset: var(--color-background);
+  --ui-field: var(--color-background);
+  --ui-control-opacity: 1;
+  --ui-quick-slot-ink: var(--color-on-accent);
+  --ui-nav-shadow: var(--shadow-md);
+  --ui-sheet-shadow: var(--shadow-lg);
+  --ui-flyout-shadow-left: var(--shadow-lg);
+  --ui-flyout-shadow-right: var(--shadow-lg);
+  --ui-sheet-radius: var(--border-radius-lg);
+  --ui-roster-surface: var(--color-surface);
+  --ui-roster-border: var(--color-secondary);
+  --ui-room-active: var(--color-accent);
+  --ui-room-active-ink: var(--color-on-accent);
+  --ui-picker-surface: var(--color-background);
+}
+
+/* The new skins change corner treatment, never targets, lanes or spacing. */
+:root:not([data-ui-skin="classic"])[data-ui-skin] .theme-panel .rounded-lg {
+  border-radius: var(--border-radius-md);
+}
+
+.theme-hud:focus-visible,
+.theme-hud button:focus-visible,
+.theme-panel :is(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -94,9 +183,7 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-family-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--startup-splash-bg);

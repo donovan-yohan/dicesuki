@@ -1,0 +1,1747 @@
+{
+  "contractVersion": 1,
+  "kind": "local-frozen",
+  "status": "local-managed-packaging-not-published",
+  "sourceRootHint": ".artifacts/theme-workshop/experiments",
+  "deliveryManifestSha256": "4086ae401824ea0f36e785b637959e27b1d8b8f2b975c5a2d52fcc19dab0e8cc",
+  "publicationRequiredBeforeRelease": true,
+  "qualification": {
+    "physicalDevice": false,
+    "settledPhysics": "parent integration gate",
+    "materials": "CUTLINE opaque graphic PBR counterpart; Dungeon procedural grain and gel volume omitted; woodland palette adaptation is renderer owned"
+  },
+  "sets": [
+    {
+      "setId": "woodland-sculpted-set",
+      "name": "Woodland Sculpted",
+      "theme": "woodland",
+      "loaderReceipt": "woodland/anime-grade/proof/receipt.json",
+      "mappingReceipt": "woodland/sculpted-runtime/gltf-proof/receipt.json",
+      "dice": [
+        {
+          "shape": "d4",
+          "model": "woodland/anime-grade/assets/d4.glb",
+          "metadata": "woodland/anime-grade/assets/d4.json",
+          "hero": "woodland/anime-grade/proof/webgl2-d4-hero.png",
+          "faceProofs": [
+            "woodland/anime-grade/proof/d4-1.png",
+            "woodland/anime-grade/proof/d4-2.png",
+            "woodland/anime-grade/proof/d4-3.png",
+            "woodland/anime-grade/proof/d4-4.png"
+          ],
+          "faceSheet": "woodland/anime-grade/proof/d4-all-faces.png",
+          "geometryPredecessor": "woodland/sculpted-runtime/assets/d4.glb"
+        },
+        {
+          "shape": "d6",
+          "model": "woodland/anime-grade/assets/d6.glb",
+          "metadata": "woodland/anime-grade/assets/d6.json",
+          "hero": "woodland/anime-grade/proof/webgl2-d6-hero.png",
+          "faceProofs": [
+            "woodland/anime-grade/proof/d6-1.png",
+            "woodland/anime-grade/proof/d6-2.png",
+            "woodland/anime-grade/proof/d6-3.png",
+            "woodland/anime-grade/proof/d6-4.png",
+            "woodland/anime-grade/proof/d6-5.png",
+            "woodland/anime-grade/proof/d6-6.png"
+          ],
+          "faceSheet": "woodland/anime-grade/proof/d6-all-faces.png",
+          "geometryPredecessor": "woodland/sculpted-runtime/assets/d6.glb"
+        },
+        {
+          "shape": "d8",
+          "model": "woodland/anime-grade/assets/d8.glb",
+          "metadata": "woodland/anime-grade/assets/d8.json",
+          "hero": "woodland/anime-grade/proof/webgl2-d8-hero.png",
+          "faceProofs": [
+            "woodland/anime-grade/proof/d8-1.png",
+            "woodland/anime-grade/proof/d8-2.png",
+            "woodland/anime-grade/proof/d8-3.png",
+            "woodland/anime-grade/proof/d8-4.png",
+            "woodland/anime-grade/proof/d8-5.png",
+            "woodland/anime-grade/proof/d8-6.png",
+            "woodland/anime-grade/proof/d8-7.png",
+            "woodland/anime-grade/proof/d8-8.png"
+          ],
+          "faceSheet": "woodland/anime-grade/proof/d8-all-faces.png",
+          "geometryPredecessor": "woodland/sculpted-runtime/assets/d8.glb"
+        },
+        {
+          "shape": "d10",
+          "model": "woodland/anime-grade/assets/d10.glb",
+          "metadata": "woodland/anime-grade/assets/d10.json",
+          "hero": "woodland/anime-grade/proof/webgl2-d10-hero.png",
+          "faceProofs": [
+            "woodland/anime-grade/proof/d10-0.png",
+            "woodland/anime-grade/proof/d10-1.png",
+            "woodland/anime-grade/proof/d10-2.png",
+            "woodland/anime-grade/proof/d10-3.png",
+            "woodland/anime-grade/proof/d10-4.png",
+            "woodland/anime-grade/proof/d10-5.png",
+            "woodland/anime-grade/proof/d10-6.png",
+            "woodland/anime-grade/proof/d10-7.png",
+            "woodland/anime-grade/proof/d10-8.png",
+            "woodland/anime-grade/proof/d10-9.png"
+          ],
+          "faceSheet": "woodland/anime-grade/proof/d10-all-faces.png",
+          "geometryPredecessor": "woodland/sculpted-runtime/assets/d10.glb"
+        },
+        {
+          "shape": "d12",
+          "model": "woodland/anime-grade/assets/d12.glb",
+          "metadata": "woodland/anime-grade/assets/d12.json",
+          "hero": "woodland/anime-grade/proof/webgl2-d12-hero.png",
+          "faceProofs": [
+            "woodland/anime-grade/proof/d12-1.png",
+            "woodland/anime-grade/proof/d12-2.png",
+            "woodland/anime-grade/proof/d12-3.png",
+            "woodland/anime-grade/proof/d12-4.png",
+            "woodland/anime-grade/proof/d12-5.png",
+            "woodland/anime-grade/proof/d12-6.png",
+            "woodland/anime-grade/proof/d12-7.png",
+            "woodland/anime-grade/proof/d12-8.png",
+            "woodland/anime-grade/proof/d12-9.png",
+            "woodland/anime-grade/proof/d12-10.png",
+            "woodland/anime-grade/proof/d12-11.png",
+            "woodland/anime-grade/proof/d12-12.png"
+          ],
+          "faceSheet": "woodland/anime-grade/proof/d12-all-faces.png",
+          "geometryPredecessor": "woodland/sculpted-runtime/assets/d12.glb"
+        },
+        {
+          "shape": "d20",
+          "model": "woodland/anime-grade/assets/d20.glb",
+          "metadata": "woodland/anime-grade/assets/d20.json",
+          "hero": "woodland/anime-grade/proof/webgl2-d20-hero.png",
+          "faceProofs": [
+            "woodland/anime-grade/proof/d20-1.png",
+            "woodland/anime-grade/proof/d20-2.png",
+            "woodland/anime-grade/proof/d20-3.png",
+            "woodland/anime-grade/proof/d20-4.png",
+            "woodland/anime-grade/proof/d20-5.png",
+            "woodland/anime-grade/proof/d20-6.png",
+            "woodland/anime-grade/proof/d20-7.png",
+            "woodland/anime-grade/proof/d20-8.png",
+            "woodland/anime-grade/proof/d20-9.png",
+            "woodland/anime-grade/proof/d20-10.png",
+            "woodland/anime-grade/proof/d20-11.png",
+            "woodland/anime-grade/proof/d20-12.png",
+            "woodland/anime-grade/proof/d20-13.png",
+            "woodland/anime-grade/proof/d20-14.png",
+            "woodland/anime-grade/proof/d20-15.png",
+            "woodland/anime-grade/proof/d20-16.png",
+            "woodland/anime-grade/proof/d20-17.png",
+            "woodland/anime-grade/proof/d20-18.png",
+            "woodland/anime-grade/proof/d20-19.png",
+            "woodland/anime-grade/proof/d20-20.png"
+          ],
+          "faceSheet": "woodland/anime-grade/proof/d20-all-faces.png",
+          "geometryPredecessor": "woodland/sculpted-runtime/assets/d20.glb"
+        }
+      ]
+    },
+    {
+      "setId": "cyberpunk-cutline-set",
+      "name": "Cyberpunk CUTLINE",
+      "theme": "cyberpunk",
+      "loaderReceipt": "shipping-assets/cyberpunk/proof-model/receipt.json",
+      "mappingReceipt": "shipping-assets/binary-mapping-proof.json",
+      "dice": [
+        {
+          "shape": "d4",
+          "model": "shipping-assets/cyberpunk/d4/model.glb",
+          "metadata": "shipping-assets/cyberpunk/d4/metadata.json",
+          "hero": "shipping-assets/cyberpunk/proof-model/d4-hero.png",
+          "faceProofs": [
+            "shipping-assets/cyberpunk/proof-model/d4-1.png",
+            "shipping-assets/cyberpunk/proof-model/d4-2.png",
+            "shipping-assets/cyberpunk/proof-model/d4-3.png",
+            "shipping-assets/cyberpunk/proof-model/d4-4.png"
+          ],
+          "faceSheet": "shipping-assets/cyberpunk/proof-model/d4-all-faces.png"
+        },
+        {
+          "shape": "d6",
+          "model": "shipping-assets/cyberpunk/d6/model.glb",
+          "metadata": "shipping-assets/cyberpunk/d6/metadata.json",
+          "hero": "shipping-assets/cyberpunk/proof-model/d6-hero.png",
+          "faceProofs": [
+            "shipping-assets/cyberpunk/proof-model/d6-1.png",
+            "shipping-assets/cyberpunk/proof-model/d6-2.png",
+            "shipping-assets/cyberpunk/proof-model/d6-3.png",
+            "shipping-assets/cyberpunk/proof-model/d6-4.png",
+            "shipping-assets/cyberpunk/proof-model/d6-5.png",
+            "shipping-assets/cyberpunk/proof-model/d6-6.png"
+          ],
+          "faceSheet": "shipping-assets/cyberpunk/proof-model/d6-all-faces.png"
+        },
+        {
+          "shape": "d8",
+          "model": "shipping-assets/cyberpunk/d8/model.glb",
+          "metadata": "shipping-assets/cyberpunk/d8/metadata.json",
+          "hero": "shipping-assets/cyberpunk/proof-model/d8-hero.png",
+          "faceProofs": [
+            "shipping-assets/cyberpunk/proof-model/d8-1.png",
+            "shipping-assets/cyberpunk/proof-model/d8-2.png",
+            "shipping-assets/cyberpunk/proof-model/d8-3.png",
+            "shipping-assets/cyberpunk/proof-model/d8-4.png",
+            "shipping-assets/cyberpunk/proof-model/d8-5.png",
+            "shipping-assets/cyberpunk/proof-model/d8-6.png",
+            "shipping-assets/cyberpunk/proof-model/d8-7.png",
+            "shipping-assets/cyberpunk/proof-model/d8-8.png"
+          ],
+          "faceSheet": "shipping-assets/cyberpunk/proof-model/d8-all-faces.png"
+        },
+        {
+          "shape": "d10",
+          "model": "shipping-assets/cyberpunk/d10/model.glb",
+          "metadata": "shipping-assets/cyberpunk/d10/metadata.json",
+          "hero": "shipping-assets/cyberpunk/proof-model/d10-hero.png",
+          "faceProofs": [
+            "shipping-assets/cyberpunk/proof-model/d10-0.png",
+            "shipping-assets/cyberpunk/proof-model/d10-1.png",
+            "shipping-assets/cyberpunk/proof-model/d10-2.png",
+            "shipping-assets/cyberpunk/proof-model/d10-3.png",
+            "shipping-assets/cyberpunk/proof-model/d10-4.png",
+            "shipping-assets/cyberpunk/proof-model/d10-5.png",
+            "shipping-assets/cyberpunk/proof-model/d10-6.png",
+            "shipping-assets/cyberpunk/proof-model/d10-7.png",
+            "shipping-assets/cyberpunk/proof-model/d10-8.png",
+            "shipping-assets/cyberpunk/proof-model/d10-9.png"
+          ],
+          "faceSheet": "shipping-assets/cyberpunk/proof-model/d10-all-faces.png"
+        },
+        {
+          "shape": "d12",
+          "model": "shipping-assets/cyberpunk/d12/model.glb",
+          "metadata": "shipping-assets/cyberpunk/d12/metadata.json",
+          "hero": "shipping-assets/cyberpunk/proof-model/d12-hero.png",
+          "faceProofs": [
+            "shipping-assets/cyberpunk/proof-model/d12-1.png",
+            "shipping-assets/cyberpunk/proof-model/d12-2.png",
+            "shipping-assets/cyberpunk/proof-model/d12-3.png",
+            "shipping-assets/cyberpunk/proof-model/d12-4.png",
+            "shipping-assets/cyberpunk/proof-model/d12-5.png",
+            "shipping-assets/cyberpunk/proof-model/d12-6.png",
+            "shipping-assets/cyberpunk/proof-model/d12-7.png",
+            "shipping-assets/cyberpunk/proof-model/d12-8.png",
+            "shipping-assets/cyberpunk/proof-model/d12-9.png",
+            "shipping-assets/cyberpunk/proof-model/d12-10.png",
+            "shipping-assets/cyberpunk/proof-model/d12-11.png",
+            "shipping-assets/cyberpunk/proof-model/d12-12.png"
+          ],
+          "faceSheet": "shipping-assets/cyberpunk/proof-model/d12-all-faces.png"
+        },
+        {
+          "shape": "d20",
+          "model": "shipping-assets/cyberpunk/d20/model.glb",
+          "metadata": "shipping-assets/cyberpunk/d20/metadata.json",
+          "hero": "shipping-assets/cyberpunk/proof-model/d20-hero.png",
+          "faceProofs": [
+            "shipping-assets/cyberpunk/proof-model/d20-1.png",
+            "shipping-assets/cyberpunk/proof-model/d20-2.png",
+            "shipping-assets/cyberpunk/proof-model/d20-3.png",
+            "shipping-assets/cyberpunk/proof-model/d20-4.png",
+            "shipping-assets/cyberpunk/proof-model/d20-5.png",
+            "shipping-assets/cyberpunk/proof-model/d20-6.png",
+            "shipping-assets/cyberpunk/proof-model/d20-7.png",
+            "shipping-assets/cyberpunk/proof-model/d20-8.png",
+            "shipping-assets/cyberpunk/proof-model/d20-9.png",
+            "shipping-assets/cyberpunk/proof-model/d20-10.png",
+            "shipping-assets/cyberpunk/proof-model/d20-11.png",
+            "shipping-assets/cyberpunk/proof-model/d20-12.png",
+            "shipping-assets/cyberpunk/proof-model/d20-13.png",
+            "shipping-assets/cyberpunk/proof-model/d20-14.png",
+            "shipping-assets/cyberpunk/proof-model/d20-15.png",
+            "shipping-assets/cyberpunk/proof-model/d20-16.png",
+            "shipping-assets/cyberpunk/proof-model/d20-17.png",
+            "shipping-assets/cyberpunk/proof-model/d20-18.png",
+            "shipping-assets/cyberpunk/proof-model/d20-19.png",
+            "shipping-assets/cyberpunk/proof-model/d20-20.png"
+          ],
+          "faceSheet": "shipping-assets/cyberpunk/proof-model/d20-all-faces.png"
+        }
+      ]
+    },
+    {
+      "setId": "monster-dungeon-set",
+      "name": "Monster Dungeon",
+      "theme": "monster-dungeon",
+      "loaderReceipt": "shipping-assets/monster-dungeon/proof-model/receipt.json",
+      "mappingReceipt": "shipping-assets/binary-mapping-proof.json",
+      "dice": [
+        {
+          "shape": "d4",
+          "model": "shipping-assets/monster-dungeon/d4/model.glb",
+          "metadata": "shipping-assets/monster-dungeon/d4/metadata.json",
+          "hero": "shipping-assets/monster-dungeon/proof-model/d4-hero.png",
+          "faceProofs": [
+            "shipping-assets/monster-dungeon/proof-model/d4-1.png",
+            "shipping-assets/monster-dungeon/proof-model/d4-2.png",
+            "shipping-assets/monster-dungeon/proof-model/d4-3.png",
+            "shipping-assets/monster-dungeon/proof-model/d4-4.png"
+          ],
+          "faceSheet": "shipping-assets/monster-dungeon/proof-model/d4-all-faces.png"
+        },
+        {
+          "shape": "d6",
+          "model": "shipping-assets/monster-dungeon/d6/model.glb",
+          "metadata": "shipping-assets/monster-dungeon/d6/metadata.json",
+          "hero": "shipping-assets/monster-dungeon/proof-model/d6-hero.png",
+          "faceProofs": [
+            "shipping-assets/monster-dungeon/proof-model/d6-1.png",
+            "shipping-assets/monster-dungeon/proof-model/d6-2.png",
+            "shipping-assets/monster-dungeon/proof-model/d6-3.png",
+            "shipping-assets/monster-dungeon/proof-model/d6-4.png",
+            "shipping-assets/monster-dungeon/proof-model/d6-5.png",
+            "shipping-assets/monster-dungeon/proof-model/d6-6.png"
+          ],
+          "faceSheet": "shipping-assets/monster-dungeon/proof-model/d6-all-faces.png"
+        },
+        {
+          "shape": "d8",
+          "model": "shipping-assets/monster-dungeon/d8/model.glb",
+          "metadata": "shipping-assets/monster-dungeon/d8/metadata.json",
+          "hero": "shipping-assets/monster-dungeon/proof-model/d8-hero.png",
+          "faceProofs": [
+            "shipping-assets/monster-dungeon/proof-model/d8-1.png",
+            "shipping-assets/monster-dungeon/proof-model/d8-2.png",
+            "shipping-assets/monster-dungeon/proof-model/d8-3.png",
+            "shipping-assets/monster-dungeon/proof-model/d8-4.png",
+            "shipping-assets/monster-dungeon/proof-model/d8-5.png",
+            "shipping-assets/monster-dungeon/proof-model/d8-6.png",
+            "shipping-assets/monster-dungeon/proof-model/d8-7.png",
+            "shipping-assets/monster-dungeon/proof-model/d8-8.png"
+          ],
+          "faceSheet": "shipping-assets/monster-dungeon/proof-model/d8-all-faces.png"
+        },
+        {
+          "shape": "d10",
+          "model": "shipping-assets/monster-dungeon/d10/model.glb",
+          "metadata": "shipping-assets/monster-dungeon/d10/metadata.json",
+          "hero": "shipping-assets/monster-dungeon/proof-model/d10-hero.png",
+          "faceProofs": [
+            "shipping-assets/monster-dungeon/proof-model/d10-0.png",
+            "shipping-assets/monster-dungeon/proof-model/d10-1.png",
+            "shipping-assets/monster-dungeon/proof-model/d10-2.png",
+            "shipping-assets/monster-dungeon/proof-model/d10-3.png",
+            "shipping-assets/monster-dungeon/proof-model/d10-4.png",
+            "shipping-assets/monster-dungeon/proof-model/d10-5.png",
+            "shipping-assets/monster-dungeon/proof-model/d10-6.png",
+            "shipping-assets/monster-dungeon/proof-model/d10-7.png",
+            "shipping-assets/monster-dungeon/proof-model/d10-8.png",
+            "shipping-assets/monster-dungeon/proof-model/d10-9.png"
+          ],
+          "faceSheet": "shipping-assets/monster-dungeon/proof-model/d10-all-faces.png"
+        },
+        {
+          "shape": "d12",
+          "model": "shipping-assets/monster-dungeon/d12/model.glb",
+          "metadata": "shipping-assets/monster-dungeon/d12/metadata.json",
+          "hero": "shipping-assets/monster-dungeon/proof-model/d12-hero.png",
+          "faceProofs": [
+            "shipping-assets/monster-dungeon/proof-model/d12-1.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-2.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-3.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-4.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-5.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-6.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-7.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-8.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-9.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-10.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-11.png",
+            "shipping-assets/monster-dungeon/proof-model/d12-12.png"
+          ],
+          "faceSheet": "shipping-assets/monster-dungeon/proof-model/d12-all-faces.png"
+        },
+        {
+          "shape": "d20",
+          "model": "shipping-assets/monster-dungeon/d20/model.glb",
+          "metadata": "shipping-assets/monster-dungeon/d20/metadata.json",
+          "hero": "shipping-assets/monster-dungeon/proof-model/d20-hero.png",
+          "faceProofs": [
+            "shipping-assets/monster-dungeon/proof-model/d20-1.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-2.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-3.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-4.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-5.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-6.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-7.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-8.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-9.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-10.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-11.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-12.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-13.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-14.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-15.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-16.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-17.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-18.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-19.png",
+            "shipping-assets/monster-dungeon/proof-model/d20-20.png"
+          ],
+          "faceSheet": "shipping-assets/monster-dungeon/proof-model/d20-all-faces.png"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "shipping-assets/README.md",
+      "bytes": 10689,
+      "sha256": "5ea786fdf82257f8c0ede60cdfaf26186e492cf63ffd842bfb7e2771dcd543bb"
+    },
+    {
+      "path": "shipping-assets/binary-mapping-proof.json",
+      "bytes": 33506,
+      "sha256": "67098ebadb4ca67828f9ccb6920807b5b73c96be16af2fe930b030ff4aba2a9b"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d10/metadata.json",
+      "bytes": 14749,
+      "sha256": "f970733b9605b26dd6838a79d72603034fab212eea8ff6fb79389deb149476b8"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d10/model.glb",
+      "bytes": 119496,
+      "sha256": "02a68932ca8357f1d90b356c324a4b54628859e1016b3f9dfeb3f630abd3aa7f"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d12/metadata.json",
+      "bytes": 18564,
+      "sha256": "328f4577a066f5fa7a35d5e4095cc00a3773f4634bf5ee430e707dfcfdb6250f"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d12/model.glb",
+      "bytes": 113280,
+      "sha256": "9dfb1d1462be0a7c7d5f7cb479c86d8b1ef5f498443010d9344cdad5d1c2cb4b"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d20/metadata.json",
+      "bytes": 29590,
+      "sha256": "baaa0f67fdc5ea2cd13d465b94f53e71ddaf6d26c4f55f60159b99f8fb38b484"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d20/model.glb",
+      "bytes": 198468,
+      "sha256": "d268387609caf860f8fdd2309721595e5b6b077d3424b3da425f13ff5a155372"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d4/metadata.json",
+      "bytes": 12952,
+      "sha256": "e6f86c8438946adfeb47056d8030836400b396da16f6759550f02d9b6df359a2"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d4/model.glb",
+      "bytes": 62308,
+      "sha256": "2a7eab3378140b9d6abb9ac2133048bc41fc19dd686e0023f00ade9628a9363e"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d6/metadata.json",
+      "bytes": 9820,
+      "sha256": "467f35f01334a26ba982d1f05cbb22e13dd13d9a1faa9cec5e87556e2a26f3cf"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d6/model.glb",
+      "bytes": 38160,
+      "sha256": "3bb581242fb71097ab76ef6660c314ed6e4b23b5754c06d918d72ff827f36af6"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d8/metadata.json",
+      "bytes": 11969,
+      "sha256": "6f3354626ad1a3ff212869285e6a18d1ed75734f88488099d5c4beba5e78ea8e"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/d8/model.glb",
+      "bytes": 44432,
+      "sha256": "a0a7fcab14e2ef8ab722e8bd166c257b3f19fbfdda8d3101b1cbedb7dc84078d"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-0.png",
+      "bytes": 12263,
+      "sha256": "9c5abb20cfef630681e6655ff3d516ca41dc5a418d1dd331c109dd5073213257"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-1.png",
+      "bytes": 11862,
+      "sha256": "6d2eadb152d8ed107008c3887b8bfd172b3ab2954a29bb31a8d71d9e38913efa"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-2.png",
+      "bytes": 12448,
+      "sha256": "70bd6a13e70bf8973835a4db9085c0930d8cf2e24ef0604c7e6462070261855d"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-3.png",
+      "bytes": 11912,
+      "sha256": "f8b774b497717b86d5f23cabe24046160975597f1583926ac3df995e0d584b91"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-4.png",
+      "bytes": 12005,
+      "sha256": "72217a56a84e62f15e5f727064b0ff87b96ea80f3e68a767233dfc31dea66d2a"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-5.png",
+      "bytes": 11818,
+      "sha256": "e78b3a29750338c94271b295494edc9722079903b0f9c0d91863ac0dbbe195c2"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-6.png",
+      "bytes": 12228,
+      "sha256": "379ad8ae2a84c40c02749f1a17ee70fe4697d26d893aa3e4d73257c8338b7dae"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-7.png",
+      "bytes": 12411,
+      "sha256": "35b1d7b87d92db09b5a88092a2738495d69a6ca2b884b44b3f98df25bef8cbf3"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-8.png",
+      "bytes": 12132,
+      "sha256": "349f8eeb41346cda06e1918488ff620147bcb2bcc28235beaf38ffe656745057"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-9.png",
+      "bytes": 11965,
+      "sha256": "cfacaafb7a43b5e9f4d851b4680c8c2a6bdbdf78574958caa9a190f03f5be8f4"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-all-faces.png",
+      "bytes": 70454,
+      "sha256": "0383879010f7f93beff7ca8831e960e3f5b1d1fcbbb1e3b4b6eeb2237958f2d1"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d10-hero.png",
+      "bytes": 14226,
+      "sha256": "42790f4f63f1dc35881fd8c456ec2d72b6a9542072bcb574dc4b2fc1f3c775df"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-1.png",
+      "bytes": 16151,
+      "sha256": "8f24c59f84a07835879767380397553a1a4dbce53e589d2252f0c8c9789b5ca8"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-10.png",
+      "bytes": 15967,
+      "sha256": "bc45677adf4ccef6165fe0462a10bd4394daedb317b8767f991e905dfba89d98"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-11.png",
+      "bytes": 16434,
+      "sha256": "604a5887d1454e57bd3c417b69b26fb22fe390782fee7153bcd3ad42feb9e03a"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-12.png",
+      "bytes": 15689,
+      "sha256": "0178f327a7ab35b0d782f751971199d8d801b3e2d7fabf1bb2b136a1b64cbf35"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-2.png",
+      "bytes": 15467,
+      "sha256": "bfb54a814b6c6aaa1f7256c1f90826640563bc9ee5aa48cb4dd354ce786196e5"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-3.png",
+      "bytes": 15560,
+      "sha256": "4ea3098cfb3338e90752f80bbb4d4371ff74b49d674a027c4897af935bdff706"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-4.png",
+      "bytes": 16165,
+      "sha256": "16343be5d5a9b0ec7b57c2f04b80b293666d960749f10aef7cd4c0134360dcdb"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-5.png",
+      "bytes": 15739,
+      "sha256": "d9af056b1628086b6bfdaa83883e6514e49aa922352b1c9b1122529cf801c120"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-6.png",
+      "bytes": 16096,
+      "sha256": "c1ebac29de3759506f84352a8287c3263f4c92ddb65fbb75dabb398092b0d8c6"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-7.png",
+      "bytes": 15958,
+      "sha256": "bccd1d0556a84ac3a4ba27ab805bfc2822830489b46b6b57aece17bb6000ef40"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-8.png",
+      "bytes": 16905,
+      "sha256": "12a36dd70ee8665996a2bda9699ca85a3f517f69154121e86a5cf6a6f79b92db"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-9.png",
+      "bytes": 15799,
+      "sha256": "20ef473ec583391d577fcae5c94a7c0d20f22a8967f277e125ce5b863e863219"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-all-faces.png",
+      "bytes": 127844,
+      "sha256": "3f2021d4bf3649c78336413947eaa69e6052b296ae15083773c3e553af370fb1"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d12-hero.png",
+      "bytes": 17414,
+      "sha256": "7c82d757ca2d6c536e5070c14a32f0738c1bc169188c8577c3834fe74d28a556"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-1.png",
+      "bytes": 21450,
+      "sha256": "e4c26b99c287d138841e9f750c0d7a56575288130aeb072f1ff020ab5fdfaa70"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-10.png",
+      "bytes": 21640,
+      "sha256": "a8f91c6b83f4fd3306b619e11e421071ef6a54f89c22819b7d56a2f7862c665e"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-11.png",
+      "bytes": 21859,
+      "sha256": "55e4dc68da0b7bf54cbba358bc814bcedfecab795a22d1c1d0a199682b81cef3"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-12.png",
+      "bytes": 21742,
+      "sha256": "2b11639ccb7c03a75e1319568b54c8345656c60c0a5fc46be3a74fd7db60c8c0"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-13.png",
+      "bytes": 23250,
+      "sha256": "5988d737fa43b2099660bf70745bff0886369be1f5ff2e6f5d555d8dc7fa0c2f"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-14.png",
+      "bytes": 22908,
+      "sha256": "cd6b353fdae1d039b466f11c1b1ee302e91494174e44382bcb30db1f03e7d134"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-15.png",
+      "bytes": 22255,
+      "sha256": "b514e13d449a8a478420c88f3e77a96bf2e71d5486a542e375eee083b0b77983"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-16.png",
+      "bytes": 24220,
+      "sha256": "74ffebfb92af36a7db9730461ffea3ac8c5682d6f6cf2f2bd99b3b92ff64d9a4"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-17.png",
+      "bytes": 22750,
+      "sha256": "e5ab51b155c53ecd78cb25f7f6152a9517bf221b7ec64da6dcdde243bbaa9ac2"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-18.png",
+      "bytes": 23649,
+      "sha256": "694171abd9e1b9e36d040923f616f4623364bbb8a52c38187b9d28c85b0d3d95"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-19.png",
+      "bytes": 23293,
+      "sha256": "ce10876b6cd9eec693a89799c8194b31930e53fd5db7631fa4c766290f30ba4c"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-2.png",
+      "bytes": 22968,
+      "sha256": "f14687befacb2caa53c12327aeecf2829f9f5a15826d1430f49ecb3eddba4bda"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-20.png",
+      "bytes": 23127,
+      "sha256": "c569d687e2ae3aeb059ffdf0dcbe5abf0dccd1dca92364ef3de0d30b44393388"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-3.png",
+      "bytes": 21316,
+      "sha256": "67b4f6ff0560d28ebf244ec638267e76c3dc8c1f8782744826d8d30b35c377c4"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-4.png",
+      "bytes": 22345,
+      "sha256": "03747ec44fccf25142307010b7b4b470dc6a129a9140cb798a3db625f75f1688"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-5.png",
+      "bytes": 21841,
+      "sha256": "e3bb248bb62c9e439afba0eee8e81c201871d2606e531f47a67812c5bae7dc99"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-6.png",
+      "bytes": 22362,
+      "sha256": "f8b56bd6d61e9734dc74212b2e8f548d8b7cb754aee1d59a4ee935aacacef245"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-7.png",
+      "bytes": 21914,
+      "sha256": "e406052e4f1b641782cf0983419dd74b7623769b94e26db2ad819f58959e9693"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-8.png",
+      "bytes": 22490,
+      "sha256": "6bb2a7b144e25d52c508edfb5ff1f9dbf6ed9cd2855bfbea6f412c1a8a8d7b12"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-9.png",
+      "bytes": 22052,
+      "sha256": "c187350b74004c47fbfb95f0d426acbf0ddf6833c2e727e47b5f08878e5ed292"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-all-faces.png",
+      "bytes": 278122,
+      "sha256": "f64d863c5d5a482d20d64c8073cdf97069e131b089bd3c0cefa3add3ee55529c"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d20-hero.png",
+      "bytes": 21629,
+      "sha256": "b335399245cd86ceca30f2406fc4e179c5682294c7ea5a067efcda099f51d18a"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d4-1.png",
+      "bytes": 8606,
+      "sha256": "dda77031da4947353cf3b603c3cd257a398004777d7eaf9ce32ec3b8adb0ce87"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d4-2.png",
+      "bytes": 8403,
+      "sha256": "e9a0700f37ac64786abd29f618e18985937c6c669a264b77e0bb5f123269baa3"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d4-3.png",
+      "bytes": 8359,
+      "sha256": "ec3b7de0c27ae2f10fba5acd7592e1bc0f807be07d0724d412c138eface0160a"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d4-4.png",
+      "bytes": 8736,
+      "sha256": "fdd4f20d1b3247cd637ba9601f43e6b57769b6f1b1c0fc1cabfe269b83d32ae7"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d4-all-faces.png",
+      "bytes": 20384,
+      "sha256": "e72b09c230dac8c562f20a8ae1ba09619748073737a249df520b8f6d4da156a4"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d4-hero.png",
+      "bytes": 13631,
+      "sha256": "d184642c6ab8238b086bb861f029d1ca1d3c6171ca18eb02ab9e8738b776a8db"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d6-1.png",
+      "bytes": 5268,
+      "sha256": "e85c14d78e7abb558ec004ae705f832b33e50eb86132f4af6ca0a31711ab2287"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d6-2.png",
+      "bytes": 5954,
+      "sha256": "2f6b831bdab6fb127a7fc8d0130d300e6e1c66408799c9c1511214369722f3bb"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d6-3.png",
+      "bytes": 6140,
+      "sha256": "2be220c6aeb8bef584bf43903374afab99c6837f6fa0300332f3e1f2a288377d"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d6-4.png",
+      "bytes": 5933,
+      "sha256": "545e50a1c9127ee1779d76b2b9b10339e1f57e3380f96508d78bd18ebacd32ff"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d6-5.png",
+      "bytes": 5980,
+      "sha256": "f7bae0fcb14bf3f5f157b8bb2ac6fcba0504d27629b539e6a15ceb5c1a1c851d"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d6-6.png",
+      "bytes": 5919,
+      "sha256": "1e8d8c9b08dfc4b722289aaa14a66670f6c226e6f4aff24cb3fb1dfb6a0ab88d"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d6-all-faces.png",
+      "bytes": 38246,
+      "sha256": "23c5af33027e6f167020a435c46dc5bc0e10233aa280ec86a4937e0e0b7f021e"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d6-hero.png",
+      "bytes": 14910,
+      "sha256": "37f907c5896f5b7a20df228d7ef997ebcec9dcb110bd831c9e0140d409010b2d"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d8-1.png",
+      "bytes": 9934,
+      "sha256": "6e815095b6b02a97d79668bf38fbaa201d2d9bc6d9942140001acec9c51ea3ec"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d8-2.png",
+      "bytes": 8964,
+      "sha256": "a8bae8a13b2087c099ebf513a1e146fd929ee3c2272e3e4a85575686aead5048"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d8-3.png",
+      "bytes": 9671,
+      "sha256": "3b043c4bf889d3aea3fe5fb9631d8ef19c122e21c6069f1f28a2fb9f22821033"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d8-4.png",
+      "bytes": 10137,
+      "sha256": "01f13dfe52963b5b3404e2cf7c64ebb932e1d21ceef4e86b66b9e45966bd8fb9"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d8-5.png",
+      "bytes": 9401,
+      "sha256": "8d68793aa4a5cd85d8ee4745a9d9ee9d6e5c1e8182bef88b65763acc453a1e39"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d8-6.png",
+      "bytes": 9233,
+      "sha256": "a88992911d7aa21de962a89024983a4ded336aedeae1489409fa71e85481e30d"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d8-7.png",
+      "bytes": 9267,
+      "sha256": "287292b597114ea4242642ea6d64ecadfef0bda33aaa2e84437153f971a239c8"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d8-8.png",
+      "bytes": 10361,
+      "sha256": "30e1ba27add31e3676ad9295ab3aa701476195b1ef69c193870672230e1894eb"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d8-all-faces.png",
+      "bytes": 56566,
+      "sha256": "12891b9105fa7dfc08574d6139771fea948e4c301614c5ac3dea78ff8cf6ad27"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/d8-hero.png",
+      "bytes": 11625,
+      "sha256": "c2c3654ed580e639524bd4174599a4da05318b2cd49f10cb29af32dc426cc11f"
+    },
+    {
+      "path": "shipping-assets/cyberpunk/proof-model/receipt.json",
+      "bytes": 28463,
+      "sha256": "42a84698de124881cb266935973655521ba70205fb4350eefdd20f07a683f73f"
+    },
+    {
+      "path": "shipping-assets/delivery-manifest.json",
+      "bytes": 9425,
+      "sha256": "4086ae401824ea0f36e785b637959e27b1d8b8f2b975c5a2d52fcc19dab0e8cc"
+    },
+    {
+      "path": "shipping-assets/file-manifest.json",
+      "bytes": 140706,
+      "sha256": "062356bfaec5002253fe7230bc4588105adfb6a4a18d382b5a78bb3addad1c3d"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d10/metadata.json",
+      "bytes": 16069,
+      "sha256": "bc894c9d56ef660b6582cd7b10fa6631e36fa04b28084437851afb1f351f2531"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d10/model.glb",
+      "bytes": 993916,
+      "sha256": "f8940b9ced0f233f9b86f4813bffcdd3d35f704381d20d7de8174a76f2b6e177"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d12/metadata.json",
+      "bytes": 62758,
+      "sha256": "3a23a76791163837c2eac1936f996f32beae59bb593224ac355e270ab1fb9d86"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d12/model.glb",
+      "bytes": 5540024,
+      "sha256": "c0efb23d75497909baaa21a70571718ea2f486ea4c5a84c07c51d6e9089e7987"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d20/metadata.json",
+      "bytes": 55197,
+      "sha256": "4e2e0438bbbc6256a9f0fc920987d01483594c47fbd28c3a0ebec6c1c0b3cfab"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d20/model.glb",
+      "bytes": 2614000,
+      "sha256": "1c43a9add91fd4f09eb2182c4912e8e5bef7925a371631ef52f4510e8266b0ca"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d4/metadata.json",
+      "bytes": 24325,
+      "sha256": "1ee323243bbcc2f38fcc7d0a7cd1603dfbf287e9425ef889e50bcde8033802ce"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d4/model.glb",
+      "bytes": 951284,
+      "sha256": "72203b473b6ad6543379a5653ce26e6fb6fecb0cf2dbd5e5c4062dfe7d90d1b9"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d6/metadata.json",
+      "bytes": 13067,
+      "sha256": "6784e590b5e1416b313354cc1537cb07ee65afe3b3648a031c43f6be207523a6"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d6/model.glb",
+      "bytes": 6778388,
+      "sha256": "ac1b9f16766ca63a6294934323f874efb6de1f83d601e75d596774423ecab15c"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d8/metadata.json",
+      "bytes": 57686,
+      "sha256": "afcd4011a0f3aded188661715fa77e655cba095cc346ad65b4229dd6233703ba"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/d8/model.glb",
+      "bytes": 1012100,
+      "sha256": "1b6d6280f18b3f1d2ad96675e497954fbd888374ae5db6b925c7a6ac70e37363"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-0.png",
+      "bytes": 31067,
+      "sha256": "da82f8e5831864cc375322b0fa4c745bc730edad428d953af22e69bc60252c0b"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-1.png",
+      "bytes": 28726,
+      "sha256": "c3b65ce1005429716d5badbd007fba9a52f301a98323b9485bef8a81cbb20897"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-2.png",
+      "bytes": 31320,
+      "sha256": "60d11ca6ef7e9de30ebc962a4d3acdc27133f6fe503e900ae04b55687dde9244"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-3.png",
+      "bytes": 29796,
+      "sha256": "798f07fb1053d654600c2a5d20e46ef6afd0100a796d94c59917d541c22a57bf"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-4.png",
+      "bytes": 31764,
+      "sha256": "fd5dc9a9f47fcb8df6117ec318bd643ae762bf06277fcf7e871628b04e224b9f"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-5.png",
+      "bytes": 31060,
+      "sha256": "ff6ef3aa02a27b584624d8c272a1c214b4becdb263826a2b6b88cb172443d462"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-6.png",
+      "bytes": 33332,
+      "sha256": "cd2b8980065af44d5ab5d598f1d43f5271d29178200f4d339c8c29e124e67a75"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-7.png",
+      "bytes": 31091,
+      "sha256": "ff7c1fcadfe10e248c2ca80948e8760a919d85e4e8f1c7316dd4dabe00b5a3c2"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-8.png",
+      "bytes": 32251,
+      "sha256": "d4f717cff2e78cf0920924790378afaec413494ef80454bc612527337c787140"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-9.png",
+      "bytes": 31017,
+      "sha256": "eb08bb53d90b0cf34939de3f3ec874b056775beb308891fe6da03293d55defa7"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-all-faces.png",
+      "bytes": 283538,
+      "sha256": "a185e15ca37505e749e27135754930e3387c00eda8a0c82851fa0b9a545ff02d"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d10-hero.png",
+      "bytes": 33153,
+      "sha256": "2de55ea88bbef4a17c134b0385de2794b5e75a9147a0e8989db45b3531e2c0c6"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-1.png",
+      "bytes": 50820,
+      "sha256": "ef4d0b7d3fec35f94d6453633e31ac743bb4ef7c677417baf2d7f783a2f83e4c"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-10.png",
+      "bytes": 47837,
+      "sha256": "f850a0394f0d822e26bf3ac8487c66d1700cfe95b589a514105e1a4614c2e5a3"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-11.png",
+      "bytes": 47961,
+      "sha256": "018020caf51eba4c555f954613f3386ea4c81ac11b8c78c5c4c36cb192c9886e"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-12.png",
+      "bytes": 52817,
+      "sha256": "50f69e92f82b565bb0587138d0e890ed02e48bd70d671eddb6cad0c636047a4f"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-2.png",
+      "bytes": 49028,
+      "sha256": "ed6126d7b3d70e00723ac5d1716161a269a6ab86863bd9d9843bcb08c577c5ec"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-3.png",
+      "bytes": 43585,
+      "sha256": "f13638952817cc56b3787c87aeae514afefb905358a88abb626c423d90ff742d"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-4.png",
+      "bytes": 52086,
+      "sha256": "0643b211f8382ea2f651660adecdf92ea907c17bb3930c4a12d5c686afd9a953"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-5.png",
+      "bytes": 45271,
+      "sha256": "8a889d1b0c3b3c50b3330b1b1a9359604e6c4dbf10c4265011bc4be610b0fd67"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-6.png",
+      "bytes": 49310,
+      "sha256": "31ab6a95c941ae454b876b6ecbb66b5e5057efdb293a2858dca83d861897248f"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-7.png",
+      "bytes": 50037,
+      "sha256": "3850c03be9de77c1110122f6c422e7035bfc683a0fd463d7a5807c87f13e726a"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-8.png",
+      "bytes": 51951,
+      "sha256": "03e7690a7293473206f74cfe25752d7a7d5fe29728dc4d7da74ca2a71b8efc9c"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-9.png",
+      "bytes": 51310,
+      "sha256": "4ab200a135f9fbe6641be00787740678be6db8652e690682bbc3d9b4be35fdcd"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-all-faces.png",
+      "bytes": 485716,
+      "sha256": "8e3de6d21e5dd8a0be00be904adfd8ee313efcbca8947f40080eb8454bb07f42"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d12-hero.png",
+      "bytes": 48388,
+      "sha256": "079da95dd649a2c54a8adf13f94ff3d3b456ccfeb8ca1a192e9468da5a85688f"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-1.png",
+      "bytes": 47148,
+      "sha256": "050738e0d909951c6c7b86e92c157eb2d340c82aa7bd9c2b6537bde80a9045f4"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-10.png",
+      "bytes": 47449,
+      "sha256": "ec9750fdc7fe7baa52943ec4c7873cd07bfd1d21c2e9eab0ed22d260b1e15363"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-11.png",
+      "bytes": 47493,
+      "sha256": "5d960a3861b98679f38ff80d31bfb17731ba64f9e80fc51e4f2c00bc2d191448"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-12.png",
+      "bytes": 47254,
+      "sha256": "6e4f53b5f699378c75e905cc771123ba3455bea1ff576b74ce2d85695ed0a0ec"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-13.png",
+      "bytes": 45614,
+      "sha256": "42b9d7daba4a69c640901a686c8710e6da96d7732a04f7c41168146138d1c644"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-14.png",
+      "bytes": 47261,
+      "sha256": "4663f793cb40b8464ed068c329e9ad81d3c40605a5a2d023f7dd378686f988f9"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-15.png",
+      "bytes": 47378,
+      "sha256": "5746b3e0d8cb0f8e5070fd9e67f0a3bfa1b94962c09cdbea13f09b46474fa6ef"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-16.png",
+      "bytes": 46072,
+      "sha256": "e66694bdf4a86ca3b618cc062f73ccc1da48d3fb9162490125718ed60cc518dd"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-17.png",
+      "bytes": 47347,
+      "sha256": "a1dd08964eba071558b2f8de6f723a153038900b6a4072b5b999577795cf61a3"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-18.png",
+      "bytes": 47364,
+      "sha256": "8be037647cc7802e0ef519f56a90c9181319785faeeeb7d108e29e778e591570"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-19.png",
+      "bytes": 45902,
+      "sha256": "98351e6eddea8adce181d74f86b151808dd5e90002b2ee2e812189cbb94ead27"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-2.png",
+      "bytes": 45157,
+      "sha256": "bbd9b93e980edaefa7a5ab4108d8b4585b0c4c8254dc1208dd1c541752525b73"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-20.png",
+      "bytes": 47035,
+      "sha256": "58086d14398435f41b1bc0763c10c5db494947bfbd4a13419bf15c749fbbbe35"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-3.png",
+      "bytes": 47082,
+      "sha256": "02f886e063b595862e25fef69d7e21b0a96e19fb842f92061e214fc604887b5e"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-4.png",
+      "bytes": 47608,
+      "sha256": "2a2ee23c71a0d8e23415db4aeda2c80f65e212a6103dbb737ca93d4778b1a670"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-5.png",
+      "bytes": 46030,
+      "sha256": "38d9582536406e9552e0447dae6cc0e14ca6b875c452baf94a0fca2285ce1092"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-6.png",
+      "bytes": 46951,
+      "sha256": "bcb4e59d1d68b0e3c0ed347a39a67db488dfbe4f314c26ac3c041d39ce1978c4"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-7.png",
+      "bytes": 47371,
+      "sha256": "4addf927ee5a9e5b67e58de102ab14aa5764ac001678d7a70d26b9b3c329dfea"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-8.png",
+      "bytes": 46060,
+      "sha256": "a6c3d5718d9febc379b94474bd6a74246e8198c98e04bb34ae0f16d30ac8e3bb"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-9.png",
+      "bytes": 47477,
+      "sha256": "1ff0da912ed307ff71e0a0e9505606d51af6e1fa9452c6509ae9d928bb84a7c9"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-all-faces.png",
+      "bytes": 637033,
+      "sha256": "c6b4d39a960b863d8145bacd456c9ce57233292727ad6e4745ac85612c54d757"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d20-hero.png",
+      "bytes": 43779,
+      "sha256": "a86eaf45067f6237b25251015f7580a136fb31b9d5b5422e25b1da39bfc4f863"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d4-1.png",
+      "bytes": 30251,
+      "sha256": "54cb955653cad4d266c9be7a97b6e895c00fcd24a63e33001d4bf55049ea0509"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d4-2.png",
+      "bytes": 30000,
+      "sha256": "6dfdbb027ccb66845b37a1d78251a4eca4e2127ca24dae6cadb02796e45d87be"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d4-3.png",
+      "bytes": 30573,
+      "sha256": "0938f43fb56a9e5ebb1609159d9b4ed987387eb01b67c377df41db4fc96d4ccf"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d4-4.png",
+      "bytes": 29465,
+      "sha256": "110ed42f36e05f1beb83d11e972eaafeedf7798af52f9b7b63e8f2ce81eb8aab"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d4-all-faces.png",
+      "bytes": 66518,
+      "sha256": "549b0d72705358dd823ee58562f0b67284716a22a1f47cc7b6a985c76b89db73"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d4-hero.png",
+      "bytes": 39778,
+      "sha256": "dc6618025ad9d182574559c517b57dbbaa7173047f34894a27dcdf8f13bc21f5"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d6-1.png",
+      "bytes": 67739,
+      "sha256": "020ef1ae8d7b8356f6e75f7d9a52d011880ba88b722f08d737593252ab1d3997"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d6-2.png",
+      "bytes": 67621,
+      "sha256": "9d9018cf8e0c1567185fc7485642f785566824964a10ae12f127fd721d17ce03"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d6-3.png",
+      "bytes": 69062,
+      "sha256": "ff870eac3ae7cab0de1814cf320725be61e1c9562b82f5d333d9aec70d11101f"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d6-4.png",
+      "bytes": 69093,
+      "sha256": "1f1c2c37bfdf2bdd32d98a2f529c66b363689dc8b6a37a23a330cd66a4a25326"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d6-5.png",
+      "bytes": 69230,
+      "sha256": "3bfa37ac2219fcdfaac438fc3a4af30d4775ceb7a91b258f3865f0b9df3faa95"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d6-6.png",
+      "bytes": 68317,
+      "sha256": "1e7c93f6ca42af8a0436a6a2c2194a815559a5d7d460ed2d026122962c4e424b"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d6-all-faces.png",
+      "bytes": 447340,
+      "sha256": "b9f0b46cb96e14aae18dec9145e4a639259e8c073d78f7a2d549cec1310a9916"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d6-hero.png",
+      "bytes": 94778,
+      "sha256": "4cfe1a99938dca258fb55218f8a1ae6134e7f1387e064753816a24806872eb8d"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d8-1.png",
+      "bytes": 23989,
+      "sha256": "f0d2046cd8caff23d5a9bd0b895c8b170373aea09b390907e092357c79746602"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d8-2.png",
+      "bytes": 22679,
+      "sha256": "628ceae4d25291f106940bf0534c0869b8b65f87d14be672154d71ceb455ed9f"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d8-3.png",
+      "bytes": 23579,
+      "sha256": "66679a2dccf00e417351cebaaadc000833ea7d9e2f0d225576752e768a041204"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d8-4.png",
+      "bytes": 23443,
+      "sha256": "de2d9dd676dcb34082d0c8611cff6d511dbc9d7d399ec039b28e2d29d51ef45a"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d8-5.png",
+      "bytes": 24029,
+      "sha256": "0addd17149218a469312d860b41ad4cfd5d122784c5e6d9279ddad58d9f82bf9"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d8-6.png",
+      "bytes": 24057,
+      "sha256": "4f3bf902ae4b51c70f95f28fbc83e2f88bf83d1653ad9c54ea419d748912bca2"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d8-7.png",
+      "bytes": 24229,
+      "sha256": "30c3e8661cea838f1204e71929a3a582956278c4ab77dcaf1d777179b2451b9c"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d8-8.png",
+      "bytes": 25022,
+      "sha256": "53fc3e1a96b87b2d94700accac91604dfbdb626775387d5f41ff705177f92997"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d8-all-faces.png",
+      "bytes": 147639,
+      "sha256": "70798d7fcd08c661efaeecbeff0361fa5c866f9ea6a5442073e17dd73f997a89"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/d8-hero.png",
+      "bytes": 25925,
+      "sha256": "63cebd4cf4e5ee364ae253a3c8e0a9277e575b763ebe9f03f69204486e44e83e"
+    },
+    {
+      "path": "shipping-assets/monster-dungeon/proof-model/receipt.json",
+      "bytes": 42047,
+      "sha256": "ffd2d67ed1ac832fec09b29408ab7c3978db3de73ef3e0d8a3dd572d0cae6703"
+    },
+    {
+      "path": "theme-system/integration-audit/canonical-shipping-assets-consumption.md",
+      "bytes": 4683,
+      "sha256": "c106a4c796c7967e3fa900f524e961770d8c5ca8caa15f107863a5e6430370c5"
+    },
+    {
+      "path": "woodland/anime-grade/RESULT.md",
+      "bytes": 5133,
+      "sha256": "ca6586eda290381f9b174a2c1e673feb1a08c3ba91e3f006410cadd6efe81d70"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d10.glb",
+      "bytes": 1201424,
+      "sha256": "a14364ec32e67398102c3fe627097128390fc6e6e9c281b645290e2560d93ecb"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d10.json",
+      "bytes": 150180,
+      "sha256": "f169d4ea456dce8883486f0e3b2a843c48c8612840ea3682e3777d864955f468"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d12.glb",
+      "bytes": 1298968,
+      "sha256": "03a6c476ec0b258089de874513a58f5164fdb346f8675f9e2ec0204280594620"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d12.json",
+      "bytes": 181857,
+      "sha256": "79e0f3ba3d486a1b27a239e0502908e4128ed05aa8f2bd7c095bbc52087b9b47"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d20.glb",
+      "bytes": 6568268,
+      "sha256": "76de28b317d94d8e1c225842b8aeab35cf76144c5015e5615ba4fce88d391fd4"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d20.json",
+      "bytes": 22866,
+      "sha256": "8fb5599b101e2797b5a7d0110ab7487312aec0fded32f966ecdd80243e68b10f"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d4.glb",
+      "bytes": 1214176,
+      "sha256": "3e7f61f34eafc8f803682a9a16e8c485c91823209db81e1ff77d1348c4bad96a"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d4.json",
+      "bytes": 203891,
+      "sha256": "e36ce262e572aa35e58e7e1073a6b3a0dc43a8cf60216d1f99334d87401aef9e"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d6.glb",
+      "bytes": 1171632,
+      "sha256": "80f3cd24d3910f6924e4054b38dc00f07ed4e56b97339789f27e95158f7cc601"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d6.json",
+      "bytes": 12102,
+      "sha256": "694655d2ce0bcc43b667b564bdb3772dfea94f6d6aef1dbc0b6a76b20447ce20"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d8.glb",
+      "bytes": 1786716,
+      "sha256": "09adbc367da2c91347bd2b3a75709169df90ab48aaabd2259a1b394f51b48341"
+    },
+    {
+      "path": "woodland/anime-grade/assets/d8.json",
+      "bytes": 114031,
+      "sha256": "9359b58fe51540c4b64fefc7104231aba79c4d07c25218b350b972e8593b8573"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-0.png",
+      "bytes": 78087,
+      "sha256": "fd3948533ea4e3055e5aad14794b82dbbb4b37ab4847b8551ced649c4df08f84"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-1.png",
+      "bytes": 76118,
+      "sha256": "5af6e77b25bdf94c37564c8ef1307a17db53ef283931d54a86b5492639fde179"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-2.png",
+      "bytes": 77943,
+      "sha256": "1c5693df9ede7e3db7087d993d7a88b79a2cdaa820786689841a3141bd46b837"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-3.png",
+      "bytes": 77424,
+      "sha256": "5992bf26eb52c70f708a3fa812a8ced5345a015c87315e946e2c26828949c4ba"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-4.png",
+      "bytes": 77729,
+      "sha256": "f1cbe97422f849a5328139a328a166ba43f459014af6c5254b4d3fcd8e6daa1d"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-5.png",
+      "bytes": 76814,
+      "sha256": "d012164b29802925c79609597de1384db537d7eed4ac741ddf37f6c0b0c0b96d"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-6.png",
+      "bytes": 79020,
+      "sha256": "904c174856f4bff733fc7fe21546cb7aeb550d42df06f75bac662389a05571fd"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-7.png",
+      "bytes": 77588,
+      "sha256": "11bd853737e2502c00414d93ceb203cdf98b55bd11f7b575a47f00fcda3f3a22"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-8.png",
+      "bytes": 79540,
+      "sha256": "181c2e35ed0f0cb3419825f4509b205b76c75edcc79d68115b1a8e1ae8a4c8fe"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-9.png",
+      "bytes": 77964,
+      "sha256": "77f28de55161cf96eee6713691a3c37193bd6d2d8ff975048627b2490dfddf6d"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d10-all-faces.png",
+      "bytes": 405778,
+      "sha256": "81d3c3b468c677bce6b5433735dd4a71f8f1d7f8e0a995b012f4fa112f6afa15"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-1.png",
+      "bytes": 91396,
+      "sha256": "28aca1ed2b6628de8219044e86d2790676952d73988aa367c59aa1c64ed56de3"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-10.png",
+      "bytes": 92361,
+      "sha256": "dff7e52309531d5b0eb1e45e936cb38ffd11a6c842686a2da76ab60766dd2da1"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-11.png",
+      "bytes": 93215,
+      "sha256": "d0ab1e5a81af88be4a3d2926265ed58b20d7bfe0592ce54a75cf8184bf5df152"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-12.png",
+      "bytes": 93060,
+      "sha256": "3070e19fcf59b254cfd322e080b641e5868364a986f4e519cc47f65cec068f4b"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-2.png",
+      "bytes": 91136,
+      "sha256": "0a5ab418a67601f7fb83c53d5fca0f118367773686aad177480a7fe5edf3207b"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-3.png",
+      "bytes": 93368,
+      "sha256": "ec25ca0043964bcfa25992712fdc4cff37c0b69a7ed73b9081b4aba356b508fb"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-4.png",
+      "bytes": 92697,
+      "sha256": "347474a71c041b4504318afc75b95580d1cee5231ef2e619a29ca2c1591caf1f"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-5.png",
+      "bytes": 91392,
+      "sha256": "1b84005ebe8bca52536907cde740615caad95b9d9b9810b439f229dafd37312d"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-6.png",
+      "bytes": 92116,
+      "sha256": "4f0dde9bb7c3de8a267ae1f41e05295063b7faca2078b799e5fb0dad82443262"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-7.png",
+      "bytes": 92705,
+      "sha256": "6cd1f251a8f1b1103cad263ccdd385a99b5399acf700dfdd77ac0d467f0ea1d4"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-8.png",
+      "bytes": 94112,
+      "sha256": "4bfc83b90dd860d863b030aefe56e9c18f363b922a09df3e6b09c9cb883c1cdf"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-9.png",
+      "bytes": 92877,
+      "sha256": "2c81756a183f95809d0884a50292270a6d7babdc04747053f0ee8c8946ed6d78"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d12-all-faces.png",
+      "bytes": 621996,
+      "sha256": "c980cbdababad49b420f5d08de107cae3ad3c057909739cee09eeaa9f67ad388"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-1.png",
+      "bytes": 210976,
+      "sha256": "4c1095defd38829d90aaa2f8bd688630374c7aaa1ef9bf889b0379b39b73bdaf"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-10.png",
+      "bytes": 213029,
+      "sha256": "5b82c66aa521d4f58bb6c9d07135e0ccb1f496c5009d79b2ed31df66be6add84"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-11.png",
+      "bytes": 213295,
+      "sha256": "0d3fe134a9d9fc52d4ee7760f21616180252948d551a4ce10add7d8cd65f577a"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-12.png",
+      "bytes": 216475,
+      "sha256": "947fd9e42ce184081160b16ce6d01ec5e83eb9ad6c0608f55b5e41fb9b0baafd"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-13.png",
+      "bytes": 212472,
+      "sha256": "44a7dace1b5b7f8ed0f78e8b0f29334a41aff776b2adb6155e49b045b4a9ded6"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-14.png",
+      "bytes": 216372,
+      "sha256": "77e454f65cf6901a2e704a78bd582aca8b105d324c5d17f6f84ac0e2b91d8a48"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-15.png",
+      "bytes": 213253,
+      "sha256": "c9fcb3085f5bb8e0eb672b1989bb2daf2115142954a6aacb1c81209199a1c034"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-16.png",
+      "bytes": 213268,
+      "sha256": "36de761b244a1772b27e57e9ed90bab65910908e12ab37bed24b3ad08ec4a857"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-17.png",
+      "bytes": 214461,
+      "sha256": "6f3249f2b20102d653e6b101de7a28a85c2ffe43ff0b185cff7c96040bf76b75"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-18.png",
+      "bytes": 204921,
+      "sha256": "7f2550d9894a548762314adf5099538cb3663fe7396d9b51e46d8b06eb26557f"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-19.png",
+      "bytes": 204402,
+      "sha256": "1b00b376d955edd67d2c07c9ca5e5c8dfa024dae5828702d6cb4e447974ba76c"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-2.png",
+      "bytes": 201209,
+      "sha256": "499a24b76e34924f769523fab11d9d1ebaed03ced61a2a60649b37f7ebd547fa"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-20.png",
+      "bytes": 214291,
+      "sha256": "c87e5261117ff1f25cb97cd7f02339b15b07b4f803159d30befdec4209d570b0"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-3.png",
+      "bytes": 200022,
+      "sha256": "26286df59c80a80ce55163bbe86ffe410dd24940d8b5293fb5c44072c478b73f"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-4.png",
+      "bytes": 212069,
+      "sha256": "63f227f3d9e561d2af5f1a0be687840a170b9eed6dd9e248d6245a928d94da21"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-5.png",
+      "bytes": 209508,
+      "sha256": "7cb37153c3a9f27eb17b8eb36210912bc8895fbd3d41ac930c8feb0af1fe0921"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-6.png",
+      "bytes": 213598,
+      "sha256": "a17a501c3299a00f5977721cc6381b03c16810cd72d6f664885eeab9f80fac63"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-7.png",
+      "bytes": 214531,
+      "sha256": "b26e0210b8912f0e2618c18b6f4318c6655319533ffbefb3470afab695060d4e"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-8.png",
+      "bytes": 209203,
+      "sha256": "cd7fca354928e933a42f5dfe129209167ca24dae806d847e5119363a0766e4aa"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-9.png",
+      "bytes": 215585,
+      "sha256": "f76839a657cea55198482fed94e4ca57a195d96cf449302f8ff828572e1c976e"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d20-all-faces.png",
+      "bytes": 1117273,
+      "sha256": "5d5d29fa6aefb80c62d3857d16e4867ade2fb412de46b898031722688cfd105e"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d4-1.png",
+      "bytes": 55257,
+      "sha256": "2449e367991ef738d10e8a6475bdb36eed50f7c12652cd9312cb893f7849d1e5"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d4-2.png",
+      "bytes": 57604,
+      "sha256": "1a8279724b254a07b6643a59e0feaf918c05fd296c33fdfb6b74f60a988f9240"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d4-3.png",
+      "bytes": 58905,
+      "sha256": "cc80fb0566a6a127992507eff1d4cf96f66e2e8296e27f756b519765b1066d47"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d4-4.png",
+      "bytes": 57109,
+      "sha256": "8c2bf833db7cb8b791579858b0fdc0edbbeb39ae3b27bd83d7ba6bd6b38129ec"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d4-all-faces.png",
+      "bytes": 152232,
+      "sha256": "be626216e032b729b22396e33d9d53b37faf4b0aa314068857603ae10e7680de"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d6-1.png",
+      "bytes": 40432,
+      "sha256": "bce0f0b9db67117b2a91233b12fa343859b917942f49bb3b67c6a6c247f00c96"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d6-2.png",
+      "bytes": 44184,
+      "sha256": "adfea8c411463d6c75cbfad51f5d5d03cac5486890db9a5fdfa629cb77d1e4d3"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d6-3.png",
+      "bytes": 43850,
+      "sha256": "f68ca256f74d065d7c7b0f3b47e341dc180fbde9b190aade00d8d3c6d047b80b"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d6-4.png",
+      "bytes": 44321,
+      "sha256": "12430f9a7dee070cd6cb2460228f8d7633e5e05264619d7670f91a1a8ca429a8"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d6-5.png",
+      "bytes": 45397,
+      "sha256": "9e122b3f0ff8da42baaf4a0cd2aa56f9ec09a1ffba87cfc18a78c372c23c76d1"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d6-6.png",
+      "bytes": 43890,
+      "sha256": "5ffeedaa71ce4196c2e150a6de3ec938619f3da642cb02d4c278c359e2828f8c"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d6-all-faces.png",
+      "bytes": 123367,
+      "sha256": "46b7ede8c62e5f3ca3d0d3cb322fe8f087a236b9b85fa2710425d597fc70c6ab"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d8-1.png",
+      "bytes": 43407,
+      "sha256": "c4da5845cfdeec3c411afb2fe7057961c8f73c73def28f6dc493e7eb80a1418f"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d8-2.png",
+      "bytes": 45001,
+      "sha256": "ed3af0476ee81e8cc69b9c3c77f29b6a4fd6f19cbf4e202e4fb58d0df28afbdd"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d8-3.png",
+      "bytes": 44369,
+      "sha256": "6db4ed2bc4ac8e0374fdacc8710acffa12b3a8f52d095db702a2ceec03c2e207"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d8-4.png",
+      "bytes": 47737,
+      "sha256": "f743e955941b4420bb0e1b1abc3c1a4f5571d6d6ee37d6bff908bce32df7bc4e"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d8-5.png",
+      "bytes": 46580,
+      "sha256": "c66254fd83da927e46594f137839404e9c0f9a633060052b525d4490d6b2620f"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d8-6.png",
+      "bytes": 46205,
+      "sha256": "f12e9e52015aed45d8d00a2f657d495584d31697a3aede653539bf00f9026481"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d8-7.png",
+      "bytes": 48056,
+      "sha256": "8583245a81d73481c194bcaac02b4d2ba470575a6b9d4d5f005277fbd5c6a505"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d8-8.png",
+      "bytes": 47179,
+      "sha256": "a8942a3c6e32fdc1d4a35f390efccd8e1281ccd37c879ec6dc200e71ce5ecaa4"
+    },
+    {
+      "path": "woodland/anime-grade/proof/d8-all-faces.png",
+      "bytes": 237944,
+      "sha256": "d3d721be7d769ef48c4661de4a08fd60bf07f5b40aa83dab88748b4ab9536ae4"
+    },
+    {
+      "path": "woodland/anime-grade/proof/receipt.json",
+      "bytes": 18924,
+      "sha256": "5c9ca13f5826e11dc53cec58447065df27cbf9872b1d0eab7438f1e8d610f1a1"
+    },
+    {
+      "path": "woodland/anime-grade/proof/webgl2-d10-hero.png",
+      "bytes": 77870,
+      "sha256": "61687af6e81bd8294c7f87ce2b5d784b7fc913d9965d19341f63358e4a94c318"
+    },
+    {
+      "path": "woodland/anime-grade/proof/webgl2-d12-hero.png",
+      "bytes": 84917,
+      "sha256": "be15a769ac0508a890ad447ce7dd8d115f2ca8d28a10207a4989effde919f98d"
+    },
+    {
+      "path": "woodland/anime-grade/proof/webgl2-d20-hero.png",
+      "bytes": 212158,
+      "sha256": "1e12192d890ec31d8cec8681f936f226f6199437ee4e6637cf701a67967bec87"
+    },
+    {
+      "path": "woodland/anime-grade/proof/webgl2-d4-hero.png",
+      "bytes": 65848,
+      "sha256": "a4a71209ad16ca0078412ffd4c2fa7c204b1923134d210d0f8fa6d1e0ff5d861"
+    },
+    {
+      "path": "woodland/anime-grade/proof/webgl2-d6-hero.png",
+      "bytes": 57223,
+      "sha256": "1a1d6d5b7b2036338c36340869746d46a460919db937edd4ff6e06f0539a3c3f"
+    },
+    {
+      "path": "woodland/anime-grade/proof/webgl2-d8-hero.png",
+      "bytes": 45854,
+      "sha256": "b782945eb903884b6008fa0384045fd3cbb0a70b63cb7c0c130a847aace28171"
+    },
+    {
+      "path": "woodland/palette-readability/README.md",
+      "bytes": 2085,
+      "sha256": "a2594221d93547f165791a5a543ed33d056b3ac317667d2c6844f8b4898aaed9"
+    },
+    {
+      "path": "woodland/sculpted-runtime/assets/d10.glb",
+      "bytes": 1122380,
+      "sha256": "0d148fd9dfa678b365dc1d31d8a8f5f750654bf3d080594a7a44077a729d1964"
+    },
+    {
+      "path": "woodland/sculpted-runtime/assets/d12.glb",
+      "bytes": 1218332,
+      "sha256": "a1c19e34059690e7cacdb64bb9bdc7a2a5b7ddf018667ad959713299da17d26d"
+    },
+    {
+      "path": "woodland/sculpted-runtime/assets/d20.glb",
+      "bytes": 4941156,
+      "sha256": "b0bf29a063e3551525c9cb7a85361c304757778fa731322683b592138e85cf62"
+    },
+    {
+      "path": "woodland/sculpted-runtime/assets/d4.glb",
+      "bytes": 1132004,
+      "sha256": "a560f0afbb92369d80a34ca666a494c9291e69a3343a358a8db79651e6e3a2af"
+    },
+    {
+      "path": "woodland/sculpted-runtime/assets/d6.glb",
+      "bytes": 1093924,
+      "sha256": "db0844ed468bb4e91a64db4966c2adc8d21dc1de4d7c7a3cc50ed4b488aefb41"
+    },
+    {
+      "path": "woodland/sculpted-runtime/assets/d8.glb",
+      "bytes": 1627928,
+      "sha256": "648e48bf0445f37e58cf81328dbd4064c446cc2b010d0ec41d24374f4f30311a"
+    },
+    {
+      "path": "woodland/sculpted-runtime/continuous/three-verification.json",
+      "bytes": 1176,
+      "sha256": "2c083760a115391cc66049f7c2258ab82f5862f489bc93a8cdef420ef3b8ed1a"
+    },
+    {
+      "path": "woodland/sculpted-runtime/gltf-proof/receipt.json",
+      "bytes": 21815,
+      "sha256": "6046009916cedf7cc15b5866302a1508a13826d03497d69651bfed6b4952fe45"
+    },
+    {
+      "path": "woodland/sculpted-runtime/shells/three-loader-verification.json",
+      "bytes": 22230,
+      "sha256": "f81d30bb42631fffcf73fca06730df01e363b1302ffc9a106b0335d6b0ba51f1"
+    }
+  ]
+}

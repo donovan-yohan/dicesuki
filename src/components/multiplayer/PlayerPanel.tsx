@@ -81,16 +81,16 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed z-30 flex flex-col rounded-xl overflow-hidden"
+          className="theme-panel fixed z-30 flex flex-col rounded-xl overflow-hidden"
           style={{
             // Starts below the top-right Shop CornerIcon (16px + 56px).
             top: '80px',
             right: '16px',
             width: '232px',
             maxHeight: '60vh',
-            backgroundColor: 'rgba(0, 0, 0, 0.55)',
+            backgroundColor: 'var(--ui-roster-surface)',
             backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            border: '1px solid var(--ui-roster-border)',
             boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
           }}
           initial={!reduceMotion ? { x: 100, opacity: 0 } : { opacity: 0 }}
@@ -239,8 +239,9 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                       flexShrink: 0,
                       fontSize: '13px',
                       cursor: 'pointer',
+                      color: isRollerPlayer ? 'var(--ui-room-active-ink)' : colors.text.primary,
                       backgroundColor: isRollerPlayer
-                        ? 'rgba(139, 92, 246, 0.55)'
+                        ? 'var(--ui-room-active)'
                         : 'rgba(255,255,255,0.06)',
                       border: '1px solid rgba(255,255,255,0.12)',
                       opacity: isRollerPlayer ? 1 : 0.75,
@@ -316,8 +317,8 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                     data-testid={`visibility-${mode}`}
                     className="flex-1 px-1.5 py-1.5 text-xs font-medium transition-colors"
                     style={{
-                      backgroundColor: isActive ? 'rgba(139, 92, 246, 0.55)' : 'transparent',
-                      color: isActive ? '#fff' : colors.text.secondary,
+                      backgroundColor: isActive ? 'var(--ui-room-active)' : 'transparent',
+                      color: isActive ? 'var(--ui-room-active-ink)' : colors.text.secondary,
                       cursor: isHost ? 'pointer' : 'default',
                       opacity: !isHost && !isActive ? 0.5 : 1,
                       borderLeft: index > 0 ? '1px solid rgba(255,255,255,0.12)' : 'none',
@@ -420,9 +421,9 @@ export function PlayerPanel({ isOpen }: PlayerPanelProps) {
                     className="flex-1 px-1.5 py-1.5 text-xs font-medium transition-colors"
                     style={{
                       backgroundColor: isActive
-                        ? 'rgba(139, 92, 246, 0.55)'
+                        ? 'var(--ui-room-active)'
                         : 'transparent',
-                      color: isActive ? '#fff' : colors.text.secondary,
+                      color: isActive ? 'var(--ui-room-active-ink)' : colors.text.secondary,
                       cursor: isHost ? 'pointer' : 'default',
                       opacity: !isHost && !isActive ? 0.5 : 1,
                       borderLeft: mode !== MOTION_CONTROL_OPTIONS[0]

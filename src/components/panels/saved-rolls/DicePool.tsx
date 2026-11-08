@@ -46,7 +46,7 @@ export function DicePool({ onDiceSelect, onPercentileSelect }: DicePoolProps) {
                   onClick={() => onDiceSelect?.(type, quantity)}
                   className="h-8 rounded text-xs font-bold transition-all hover:scale-105"
                   style={{
-                    backgroundColor: quantity === 1 ? 'var(--color-accent)' : 'rgba(255, 255, 255, 0.08)',
+                    backgroundColor: quantity === 1 ? 'var(--color-accent)' : 'var(--ui-control-08)',
                     color: quantity === 1 ? 'var(--color-on-accent)' : 'var(--color-text-primary)',
                     border: quantity === 1 ? 'none' : '1px solid var(--color-border)',
                   }}
@@ -81,7 +81,7 @@ export function DicePool({ onDiceSelect, onPercentileSelect }: DicePoolProps) {
                   onClick={() => onPercentileSelect(quantity)}
                   className="h-8 rounded text-xs font-bold transition-all hover:scale-105"
                   style={{
-                    backgroundColor: quantity === 1 ? 'var(--color-accent)' : 'rgba(255, 255, 255, 0.08)',
+                    backgroundColor: quantity === 1 ? 'var(--color-accent)' : 'var(--ui-control-08)',
                     color: quantity === 1 ? 'var(--color-on-accent)' : 'var(--color-text-primary)',
                     border: quantity === 1 ? 'none' : '1px solid var(--color-border)',
                   }}

@@ -1,10 +1,13 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThemeSelector } from './ThemeSelector'
 import { ThemeContext, type ThemeContextValue } from '../contexts/ThemeContext'
 import { useAuthStore } from '../store/useAuthStore'
 import type { Theme } from '../themes/tokens'
+import { ThemeProvider } from '../contexts/ThemeProvider'
+import { useSettingsStore } from '../store/useSettingsStore'
+import { useMultiplayerStore } from '../store/useMultiplayerStore'
 
 /**
  * Priced themes are a storefront, so they obey the economy access flag.
@@ -18,6 +21,35 @@ import type { Theme } from '../themes/tokens'
 
 const FREE_THEME = { id: 'default', name: 'Default', description: 'Free', price: 0 } as unknown as Theme
 const PAID_THEME = { id: 'cozy-forest', name: 'Cozy Forest', description: 'Paid', price: 299 } as unknown as Theme
+
+describe('ThemeSelector current worlds', () => {
+  it('lists only Classic and current worlds with the resolved legacy selection, then restores Classic', () => {
+    localStorage.clear()
+    useSettingsStore.setState({ themeId: 'fantasy-earth' })
+    useMultiplayerStore.getState().reset()
+    useAuthStore.setState({ economyAccess: false })
+    const onClose = vi.fn()
+    render(<ThemeProvider><ThemeSelector isOpen onClose={onClose} /></ThemeProvider>)
+
+    expect(screen.getAllByRole('heading', { level: 3 }).map(heading => heading.textContent)).toEqual([
+      'Classic Dice',
+      'Sunlit Glade · Cel',
+      'Cyberpunk · Cutline',
+      'Monster Dungeon',
+    ])
+    const woodland = screen.getByRole('button', { name: /Sunlit Glade · Cel/ })
+    expect(within(woodland).getByText('Active')).toBeInTheDocument()
+    expect(document.documentElement.dataset.uiSkin).toBe('woodland')
+    expect(useSettingsStore.getState().themeId).toBe('fantasy-earth')
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /Classic Dice/ }))
+    expect(useSettingsStore.getState().themeId).toBe('default')
+    expect(document.documentElement.dataset.uiSkin).toBe('classic')
+    expect(onClose).toHaveBeenCalledOnce()
+    localStorage.clear()
+  })
+})
 
 function renderSelector({
   economyAccess,

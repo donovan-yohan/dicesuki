@@ -40,6 +40,44 @@ npm run build:wasm-room
 
 > `cargo` is not on `PATH` in this environment — use `~/.cargo/bin/cargo` for server commands.
 
+## Woodland Scene Experiment
+
+Choose **Sunlit Glade** in Settings → Change Theme. The scene quality follows the
+existing device tier, with compact/coarse-pointer devices capped below desktop
+quality. `?lodTier=low`, `mid`, or `high` makes tier comparisons reproducible;
+reduced-motion preferences stop ambient animation.
+
+The wood D6 authoring proof is local-only. Generate the files with the pipeline
+under `scripts/environment-assets/`, then run
+`node scripts/environment-assets/wood-d6-variants.mjs`, open `/?woodlandDice=1`
+and add a basic D6. Vite serves only the raw GLB/metadata and two explicitly
+allowlisted tier variants from the ignored
+`.artifacts/theme-workshop/experiments/woodland/` directory. The endpoint does not
+exist in production builds; it cannot load arbitrary paths or replace owned or
+network dice. No new environment variables are required by this route.
+
+Run `node scripts/environment-performance.mjs` for repeated idle/rolling frame
+cadence and draw-work samples. `PERF_URL`, `PERF_OUT`, `PERF_THEME`, `PERF_CHROME`,
+and optional `PERF_CDP` select the local origin, output file, theme, Chrome
+executable and a physical-device debugging connection. These are benchmark
+process settings, not app configuration. See the
+[execution plan](docs/exec-plans/active/woodland-environment.md) for measurement
+limits and asset provenance.
+The [prototype evidence](docs/guides/woodland-prototype-evidence.md) records
+rendered checks, rejected measurements and remaining device/art acceptance.
+
+`node scripts/capture-meadow-proof.mjs` checks full-floor blade coverage and
+actual center-region grass motion, with particles hidden. Set `MEADOW_VIDEO=1`
+to also render a four-second, 30 fps wind study with ffmpeg. Frames use fixed
+shader times from the real scene; the encoded clip is visual evidence, not a
+real-time frame-rate measurement. Outputs stay in the ignored woodland tree.
+
+`MEADOW_VIDEO=1 node scripts/capture-grass-reaction.mjs` isolates dice-driven
+compression and recovery through the live renderer. It pauses incoming worker
+messages only in that disposable test page and feeds controlled snapshots;
+the resulting clip is not a real physics roll. The normal table uses the live
+room snapshots, with grass and dice sharing the interpolation clock.
+
 ## Tech Stack
 
 - **Frontend**: React 19 + TypeScript, Vite, Tailwind CSS

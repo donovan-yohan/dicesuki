@@ -1,0 +1,220 @@
+{
+  "contractVersion": 2,
+  "assetKind": "sculpted",
+  "setId": "monster-dungeon-set",
+  "canonicalReferenceVersion": 2,
+  "source": {
+    "kind": "local-frozen",
+    "record": "sculpted-worlds-v1.source.json",
+    "sha256": "0fc2309fa0547ed2135be6734c96bf9a221e186415a9b2ab3e6ce1101f681dbc"
+  },
+  "budgets": {
+    "completeSetMaxBytes": 18874368,
+    "thumbnailMaxBytes": 153600,
+    "textureMaxDimension": 1024,
+    "embeddedTextureMaxBytesPerDie": 4194304,
+    "maxImages": 10,
+    "maxMaterials": 7,
+    "maxPrimitives": 22,
+    "maxAnimations": 22,
+    "maxNodes": 64,
+    "modelMaxBytes": {
+      "d4": 983040,
+      "d6": 6815744,
+      "d8": 1048576,
+      "d10": 1048576,
+      "d12": 5570560,
+      "d20": 2621440
+    },
+    "triangleMaxCounts": {
+      "d4": 15000,
+      "d6": 149000,
+      "d8": 17000,
+      "d10": 29000,
+      "d12": 77000,
+      "d20": 72000
+    }
+  },
+  "assets": [
+    {
+      "diceId": "d4",
+      "diceType": "d4",
+      "catalogKey": "monster-dungeon-set/d4",
+      "model": {
+        "path": "/dice/monster-dungeon-set/d4/model.glb",
+        "bytes": 951284,
+        "sha256": "72203b473b6ad6543379a5653ce26e6fb6fecb0cf2dbd5e5c4062dfe7d90d1b9",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 14800,
+        "primitiveCount": 3,
+        "materialCount": 3,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/monster-dungeon-set/d4/thumbnail.png",
+        "bytes": 25171,
+        "sha256": "62486535506d25830b8ad506ab6cbb6cb02612e8fbc8c7793c2e86d5befd027e",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/monster-dungeon-set/d4/metadata.json",
+        "bytes": 1259,
+        "sha256": "7d5754ffeda46117be9fc490a22d4f6d252e2d45c3411dee869365ca55ddf808"
+      }
+    },
+    {
+      "diceId": "d6",
+      "diceType": "d6",
+      "catalogKey": "monster-dungeon-set/d6",
+      "model": {
+        "path": "/dice/monster-dungeon-set/d6/model.glb",
+        "bytes": 6778388,
+        "sha256": "ac1b9f16766ca63a6294934323f874efb6de1f83d601e75d596774423ecab15c",
+        "embeddedTextureBytes": 2590284,
+        "textureFormat": "image/webp",
+        "maxTextureDimension": 1024,
+        "triangleCount": 148123,
+        "primitiveCount": 22,
+        "materialCount": 7,
+        "imageCount": 10,
+        "animationCount": 22
+      },
+      "thumbnail": {
+        "path": "/dice/monster-dungeon-set/d6/thumbnail.png",
+        "bytes": 101527,
+        "sha256": "d2d9d42bcc3b046ce626b802d7bc62898014b25586c57d9f275b56307eb33409",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/monster-dungeon-set/d6/metadata.json",
+        "bytes": 4235,
+        "sha256": "cd7e9ce391f7c1371d5d889f77410497b2c7038b4bb904f7839940fdc16a6980"
+      }
+    },
+    {
+      "diceId": "d8",
+      "diceType": "d8",
+      "catalogKey": "monster-dungeon-set/d8",
+      "model": {
+        "path": "/dice/monster-dungeon-set/d8/model.glb",
+        "bytes": 1012100,
+        "sha256": "1b6d6280f18b3f1d2ad96675e497954fbd888374ae5db6b925c7a6ac70e37363",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 16728,
+        "primitiveCount": 3,
+        "materialCount": 3,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/monster-dungeon-set/d8/thumbnail.png",
+        "bytes": 17474,
+        "sha256": "05c02da81a70fa397738a7b26585089751ed09fb8e4eb6d1b078f12cd5d46a3d",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/monster-dungeon-set/d8/metadata.json",
+        "bytes": 1780,
+        "sha256": "c1aa3163e1f731b23e0237782f2e2bc53133f969227e3178471672e1a714b2f4"
+      }
+    },
+    {
+      "diceId": "d10",
+      "diceType": "d10",
+      "catalogKey": "monster-dungeon-set/d10",
+      "model": {
+        "path": "/dice/monster-dungeon-set/d10/model.glb",
+        "bytes": 993916,
+        "sha256": "f8940b9ced0f233f9b86f4813bffcdd3d35f704381d20d7de8174a76f2b6e177",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 28844,
+        "primitiveCount": 3,
+        "materialCount": 3,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/monster-dungeon-set/d10/thumbnail.png",
+        "bytes": 26666,
+        "sha256": "e4af08678216d1d711ac7a1aaa4e9828c87208f1bc1db3fa1adbb952b07d9150",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/monster-dungeon-set/d10/metadata.json",
+        "bytes": 2039,
+        "sha256": "4fb7b1df58b5cc12befa8732d1d407f8e902bc7a0d6a13100371a3eca0cdc950"
+      }
+    },
+    {
+      "diceId": "d12",
+      "diceType": "d12",
+      "catalogKey": "monster-dungeon-set/d12",
+      "model": {
+        "path": "/dice/monster-dungeon-set/d12/model.glb",
+        "bytes": 5540024,
+        "sha256": "c0efb23d75497909baaa21a70571718ea2f486ea4c5a84c07c51d6e9089e7987",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 76840,
+        "primitiveCount": 6,
+        "materialCount": 6,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/monster-dungeon-set/d12/thumbnail.png",
+        "bytes": 35235,
+        "sha256": "e7ec102f11a33f1c1b466fc9b468004fd86c7a1653b3f9caf9a5cbfd63dd6c65",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/monster-dungeon-set/d12/metadata.json",
+        "bytes": 2144,
+        "sha256": "182404e982448c1c2bbe50e6019700e6e5d8049f9e7148ca00540cc388624947"
+      }
+    },
+    {
+      "diceId": "d20",
+      "diceType": "d20",
+      "catalogKey": "monster-dungeon-set/d20",
+      "model": {
+        "path": "/dice/monster-dungeon-set/d20/model.glb",
+        "bytes": 2614000,
+        "sha256": "1c43a9add91fd4f09eb2182c4912e8e5bef7925a371631ef52f4510e8266b0ca",
+        "embeddedTextureBytes": 0,
+        "textureFormat": "none",
+        "maxTextureDimension": 0,
+        "triangleCount": 71804,
+        "primitiveCount": 4,
+        "materialCount": 4,
+        "imageCount": 0,
+        "animationCount": 0
+      },
+      "thumbnail": {
+        "path": "/dice/monster-dungeon-set/d20/thumbnail.png",
+        "bytes": 29721,
+        "sha256": "394fce646cf6313500f42260de3e7499dacb10c586e9c6103319c51e9bb8f81f",
+        "width": 320,
+        "height": 320
+      },
+      "metadata": {
+        "path": "/dice/monster-dungeon-set/d20/metadata.json",
+        "bytes": 3260,
+        "sha256": "3efddcd06d7eae10babd848cfeec5849b08709bd7a74661ba902c3c47bc49110"
+      }
+    }
+  ]
+}

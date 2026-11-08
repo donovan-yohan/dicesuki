@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import Scene from './Scene'
 import { DiceBackendProvider } from '../contexts/DiceBackendProvider'
 import { useMultiplayerDiceBackend } from '../hooks/useMultiplayerDiceBackend'
+import { useSoloTableLoadout } from '../hooks/useSoloTableLoadout'
 import { useMultiplayerStore } from '../store/useMultiplayerStore'
 import { useDiceStore } from '../store/useDiceStore'
 import { usePlayerIdentityStore } from '../store/usePlayerIdentityStore'
@@ -44,30 +45,11 @@ export function SoloRoom() {
   const rememberedColor = usePlayerIdentityStore((s) => s.color)
 
   const [tableRevealed, setTableRevealed] = useState(false)
-  const didSeedDefaultRef = useRef(false)
   const backend = useMultiplayerDiceBackend()
-  const { addDie } = backend
+  const { scope, error: loadoutError } = useSoloTableLoadout(backend.addStandardDie)
   const roomIsReady =
     connectionStatus === 'connected' && localPlayerId !== null && engineConfig !== null
   const startupPhase: StartupPhase = connectionStatus === 'connected' ? 'room' : 'engine'
-
-  // Seed a single d20 FROM THE INVENTORY in the center of an empty table when the
-  // solo room opens, so the app never boots to an empty tray (center-out spawn
-  // places the first die at the table center). `addDie` picks an available d20 from
-  // the player's inventory and spawns it with its presentation metadata — every die
-  // on the table is an inventory die, never an invented one. Guarded so it seeds
-  // once per connected session and never stomps a table that already has dice.
-  useEffect(() => {
-    if (!roomIsReady) {
-      didSeedDefaultRef.current = false
-      return
-    }
-    if (didSeedDefaultRef.current) return
-    didSeedDefaultRef.current = true
-    if (useMultiplayerStore.getState().dice.size === 0) {
-      addDie('d20')
-    }
-  }, [roomIsReady, addDie])
 
   // Open the solo worker room on mount; disconnect + reset on unmount. Reset and
   // connect are paired in ONE effect so React StrictMode's dev remount
@@ -75,7 +57,8 @@ export function SoloRoom() {
   // returns the store to `disconnected`, and the second setup re-opens the room
   // (guarded on the live status so we never stack two workers). The body reads
   // identity via `getState()` so it does not re-run when name/color change.
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!scope) return
     useDiceStore.getState().reset()
     if (useMultiplayerStore.getState().connectionStatus === 'disconnected') {
       const { displayName, color } = usePlayerIdentityStore.getState()
@@ -85,14 +68,16 @@ export function SoloRoom() {
       disconnect()
       useDiceStore.getState().reset()
     }
-  }, [connect, disconnect])
+  }, [connect, disconnect, scope])
 
   const startupFailed =
-    connectionStatus === 'error' ||
+    loadoutError !== null || connectionStatus === 'error' ||
     (connectionStatus === 'disconnected' && connectionError !== null)
 
   if (startupFailed) {
     const retry = () => {
+      if (!scope) return
+      disconnect()
       useDiceStore.getState().reset()
       const { displayName, color } = usePlayerIdentityStore.getState()
       connect(SOLO_ROOM_ID, displayName || 'You', color, undefined, 'worker')
@@ -111,7 +96,7 @@ export function SoloRoom() {
           />
           <h1 className="text-2xl font-bold mb-3">Couldn’t start your table</h1>
           <p className="mb-6">
-            {connectionError ?? 'The local dice engine stopped before the room was ready.'}
+            {loadoutError ?? connectionError ?? 'The local dice engine stopped before the room was ready.'}
           </p>
           <button
             type="button"

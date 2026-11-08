@@ -2,6 +2,11 @@ import { Environment } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useGltfDiceLoader } from '../../hooks/useGltfDiceLoader'
+import { useEnvironmentTheme } from '../../hooks/useEnvironmentTheme'
+import { ManagedSculptedDieVisual } from '../dice/ManagedSculptedDieVisual'
+import { managedSculptedSetId } from '../../lib/managedSculptedDice'
+import type { GltfDiceAsset } from '../../types/gltfDice'
+import type { Group, AnimationClip } from 'three'
 import { useDiceMaterials } from '../../hooks/useDiceMaterials'
 import { useNestedDialog } from '../../hooks/useNestedDialog'
 import { getFaceRendererForShape } from '../../lib/faceRenderers'
@@ -88,7 +93,7 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
         aria-label={`${die.name} inspector`}
         tabIndex={-1}
         data-testid="hero-die-inspector"
-        className="grid max-h-[92vh] w-full max-w-5xl gap-4 overflow-y-auto rounded-lg p-4 md:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1fr)] md:p-5"
+        className="theme-panel grid max-h-[92vh] w-full max-w-5xl gap-4 overflow-y-auto rounded-lg p-4 md:grid-cols-[minmax(280px,0.9fr)_minmax(320px,1fr)] md:p-5"
         style={{
           backgroundColor: theme.tokens.colors.surface,
           color: theme.tokens.colors.text.primary,
@@ -108,7 +113,7 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
                 <span
                   className="rounded px-2 py-1 text-xs font-bold capitalize"
                   style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    backgroundColor: 'var(--ui-control-08)',
                     color: rarityColor,
                   }}
                 >
@@ -124,7 +129,7 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
               onClick={onClose}
               className="h-9 w-9 shrink-0 rounded-full text-lg"
               style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                backgroundColor: 'var(--ui-control-08)',
                 color: theme.tokens.colors.text.secondary,
               }}
               aria-label="Close die inspector"
@@ -194,7 +199,7 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
               onClick={() => toggleFavorite(die.id)}
               className="h-10 rounded-md px-4 text-sm font-semibold"
               style={{
-                backgroundColor: die.isFavorite ? 'rgba(249, 135, 151, 0.22)' : 'rgba(255, 255, 255, 0.08)',
+                backgroundColor: die.isFavorite ? 'var(--ui-tint-22)' : 'var(--ui-control-08)',
                 color: die.isFavorite ? theme.tokens.colors.accent : theme.tokens.colors.text.primary,
                 border: `1px solid ${die.isFavorite ? theme.tokens.colors.accent : theme.tokens.colors.text.muted}`,
               }}
@@ -220,7 +225,7 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
                 onClick={onSpawn}
                 className="h-10 rounded-md px-4 text-sm font-semibold"
                 style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  backgroundColor: 'var(--ui-control-08)',
                   color: theme.tokens.colors.text.primary,
                   border: `1px solid ${theme.tokens.colors.text.muted}`,
                 }}
@@ -233,7 +238,7 @@ export function HeroDieInspector({ die, theme, onClose, onSpawn }: HeroDieInspec
               disabled
               className="h-10 rounded-md px-4 text-sm font-semibold opacity-50"
               style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                backgroundColor: 'var(--ui-control-08)',
                 color: theme.tokens.colors.text.secondary,
                 border: `1px solid ${theme.tokens.colors.text.muted}`,
               }}
@@ -367,12 +372,29 @@ function GltfHeroDie({ die }: { die: InventoryDie }) {
     [die],
   )
 
-  const { scene, metadata } = useGltfDiceLoader(asset)
+  const managed = Boolean(managedSculptedSetId(asset))
+  const { scene, metadata, animations } = useGltfDiceLoader(asset, managed ? { useDraco: false } : undefined)
   const scale = metadata?.scale ?? 1.0
 
   if (!scene) return null
+  if (managed) return <ManagedGltfHeroDie scene={scene} asset={asset} animations={animations} scale={scale} />
 
-  return <primitive object={scene} scale={scale} rotation={HERO_DIE_ROTATION} />
+  return <primitive object={scene} scale={scale} rotation={HERO_DIE_ROTATION} dispose={null} />
+}
+
+/** Only the managed visual uses room lighting; personal identity and inspector layout stay independent. */
+function ManagedGltfHeroDie({ scene, asset, animations, scale }: {
+  scene: Group
+  asset: GltfDiceAsset
+  animations: AnimationClip[]
+  scale: number
+}) {
+  const environment = useEnvironmentTheme()
+  return (
+    <group scale={scale} rotation={HERO_DIE_ROTATION}>
+      <ManagedSculptedDieVisual scene={scene} asset={asset} animations={animations} cel={environment.environment.scene?.shading === 'cel'} response={environment.environment.scene?.kind === 'cyberpunk-alley' || environment.environment.scene?.kind === 'monster-dungeon' ? 'night' : 'original'} />
+    </group>
+  )
 }
 
 function DetailStat({ label, value, theme }: { label: string; value: string; theme: Theme }) {

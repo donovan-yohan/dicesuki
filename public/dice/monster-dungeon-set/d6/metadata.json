@@ -1,0 +1,237 @@
+{
+  "version": "1.0",
+  "id": "d6",
+  "diceType": "d6",
+  "setId": "monster-dungeon-set",
+  "name": "Monster Dungeon Zabi Eyes D6",
+  "artist": "Zabi",
+  "scale": 1,
+  "canonicalReferenceVersion": 2,
+  "rarity": "uncommon",
+  "description": "Monster Dungeon D6. Canonical collider sizing is baked into the model; sculpted margins are visual detail.",
+  "faceNormals": [
+    {
+      "value": 1,
+      "normal": [
+        0,
+        -1,
+        0
+      ]
+    },
+    {
+      "value": 2,
+      "normal": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "value": 3,
+      "normal": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "value": 4,
+      "normal": [
+        -1,
+        0,
+        0
+      ]
+    },
+    {
+      "value": 5,
+      "normal": [
+        0,
+        0,
+        -1
+      ]
+    },
+    {
+      "value": 6,
+      "normal": [
+        0,
+        1,
+        0
+      ]
+    }
+  ],
+  "physics": {
+    "density": 0.3,
+    "restitution": 0.3,
+    "friction": 0.6
+  },
+  "colliderType": "cuboid",
+  "colliderArgs": {
+    "halfExtents": [
+      0.55,
+      0.55,
+      0.55
+    ]
+  },
+  "readingConvention": "upward-face",
+  "tags": [
+    "monster-dungeon",
+    "sculpted",
+    "d6"
+  ],
+  "animations": [
+    {
+      "name": "1_eyeAction",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye2_1Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye2_2Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye31Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye32Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye33Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye4_1Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye4_2Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye4_3Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye4_4Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye5_1Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye5_2Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye5_3Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye5_4Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye5_5Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye62Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye63Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye64Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye65Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye66Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    },
+    {
+      "name": "eye6_1Action",
+      "autoPlay": true,
+      "loop": "repeat",
+      "speed": 1,
+      "triggerOn": "always"
+    }
+  ]
+}

@@ -24,7 +24,7 @@ export function immutableReferencePathsAtRef(ref, repoRoot = process.cwd()) {
     RUNTIME_DICE_DIRECTORY,
   ], repoRoot)).filter((file) => (
     /canonical-contract-v\d+\.json$/.test(file) ||
-    (file.startsWith(`${RUNTIME_SOURCE_LOCK_DIRECTORY}/`) && file.endsWith('.lock.json')) ||
+    (file.startsWith(`${RUNTIME_SOURCE_LOCK_DIRECTORY}/`) && (file.endsWith('.lock.json') || file.endsWith('.source.json'))) ||
     /^public\/dice\/[^/]+\/runtime-assets\.json$/.test(file)
   )).sort()
 }

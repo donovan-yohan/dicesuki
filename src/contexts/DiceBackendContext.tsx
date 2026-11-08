@@ -22,6 +22,8 @@ export interface DiceBackendState {
    * hand the click event in as the name.
    */
   roll: (savedRollName?: string) => void
+  /** Spawn an unlimited standard die using the personal theme at action time. */
+  addStandardDie: (type: DiceShape) => string | null
   /**
    * Spawn one die of `type`, preferring an owned one and falling back to a basic
    * die (`lib/basicDice.ts`) when the inventory cannot supply it — an unknown

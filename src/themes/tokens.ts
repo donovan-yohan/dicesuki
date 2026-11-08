@@ -5,6 +5,8 @@
  * Each theme consists of design tokens (colors, typography, effects) and asset references.
  */
 
+import type { EnvironmentSceneRecipe } from '../lib/environmentQuality'
+
 // ============================================================================
 // Color Tokens
 // ============================================================================
@@ -212,6 +214,9 @@ export interface DiceCustomization {
 // ============================================================================
 
 export interface EnvironmentCustomization {
+  /** Optional scene dressing. Absent recipes retain the classic tray renderer. */
+  scene?: EnvironmentSceneRecipe
+
   // Floor configuration
   floor: {
     color: string

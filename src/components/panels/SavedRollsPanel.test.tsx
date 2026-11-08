@@ -78,6 +78,7 @@ function recordSpawns(
 function renderPanel(backendOverrides: Partial<DiceBackendState> = {}) {
   const onClose = vi.fn()
   const backend: DiceBackendState = {
+    addStandardDie: vi.fn(() => 'spawn-standard'),
     mode: 'multiplayer',
     roll: vi.fn(),
     addDie: vi.fn(() => 'spawn-specific'),

@@ -49,8 +49,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             onClick={() => setShowThemeSelector(true)}
             className="w-full flex items-center justify-between p-4 rounded-lg transition-all"
             style={{
-              backgroundColor: 'rgba(249, 135, 151, 0.1)',
-              border: '1px solid rgba(249, 135, 151, 0.3)',
+              backgroundColor: 'var(--ui-tint-10)',
+              border: '1px solid var(--ui-border-30)',
             }}
           >
             <div className="flex items-center gap-3">
@@ -89,7 +89,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
               <div
                 className="p-4 rounded-lg"
                 style={{
-                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  backgroundColor: 'var(--ui-inset)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                 }}
               >
@@ -135,7 +135,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         <footer
           className="flex items-center gap-4 border-t pt-4 text-xs"
           style={{
-            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderColor: 'var(--ui-control-10)',
             color: 'var(--color-text-muted)',
           }}
         >

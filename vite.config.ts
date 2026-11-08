@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import fs from 'fs'
 import path from 'path'
+import { woodlandDevAssets } from './scripts/woodlandDevAssets'
 
 // Check if SSL certificates exist (only in local development)
 const certKeyPath = path.resolve(__dirname, '.cert/localhost+3-key.pem')
@@ -13,6 +14,7 @@ const hasLocalCerts = fs.existsSync(certKeyPath) && fs.existsSync(certPath)
 export default defineConfig({
   plugins: [
     react(),
+    woodlandDevAssets(),
     // PWA / offline support (issue #116). Solo play runs entirely in-browser
     // (WASM room worker, #114), so the app shell + worker + wasm are precached
     // and solo works with no network. Multiplayer, room discovery, the OG

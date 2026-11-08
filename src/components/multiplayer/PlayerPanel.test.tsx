@@ -323,15 +323,15 @@ describe('PlayerPanel room theme', () => {
     })
     renderPanel()
 
-    // Act: host selects the neon theme preview card.
-    fireEvent.click(screen.getByTestId('room-theme-card-neon-cyber-city'))
+    // Act: host selects the current cyberpunk world preview card.
+    fireEvent.click(screen.getByTestId('room-theme-card-cyberpunk-cutline'))
 
     // Assert: the choice goes out as a host settings mutation.
     expect(send).toHaveBeenCalledTimes(1)
     const payload = JSON.parse(send.mock.calls[0][0])
     expect(payload).toEqual({
       type: 'update_settings',
-      settings: { version: 1, themeId: 'neon-cyber-city' },
+      settings: { version: 1, themeId: 'cyberpunk-cutline' },
     })
   })
 
@@ -345,8 +345,9 @@ describe('PlayerPanel room theme', () => {
     })
     renderPanel()
 
-    // The active theme card is marked selected.
-    expect(screen.getByTestId('room-theme-card-fantasy-earth')).toHaveAttribute(
+    // The legacy room selection marks its current world without a settings write.
+    expect(send).not.toHaveBeenCalled()
+    expect(screen.getByTestId('room-theme-card-sunlit-glade-cel')).toHaveAttribute(
       'aria-checked',
       'true',
     )
@@ -368,7 +369,7 @@ describe('PlayerPanel room theme', () => {
     })
     renderPanel()
 
-    const card = screen.getByTestId('room-theme-card-neon-cyber-city') as HTMLButtonElement
+    const card = screen.getByTestId('room-theme-card-cyberpunk-cutline') as HTMLButtonElement
     expect(card.disabled).toBe(true)
     // Non-hosts still see the room's current theme reflected.
     expect(card).toHaveAttribute('aria-checked', 'true')
