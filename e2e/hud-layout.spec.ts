@@ -90,6 +90,125 @@ test.describe('empty-favorites hint at 390x844', () => {
   })
 })
 
+// A controlled result publication exercises the production ResultDisplay and
+// Tailwind animation in the actual table. It is not a scripted physics result.
+for (const viewport of [VIEWPORTS[3], VIEWPORTS[4]]) {
+  test.describe(`animated result at ${viewport.label}`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } })
+
+    test('contains every bounce phase without moving the resting HUD or losing horizontal scrolling', async ({ page }, testInfo) => {
+      await openTable(page)
+      // The starter die can still be falling at reveal. Wait for its real
+      // settled publication so it cannot overwrite the controlled HUD result.
+      await expect.poll(() => page.evaluate(async () => {
+        const url = '/src/store/useDiceStore.ts'
+        const { useDiceStore } = await import(/* @vite-ignore */ url)
+        const state = useDiceStore.getState()
+        return state.settledDice.size > 0 && state.rollingDice.size === 0
+      })).toBe(true)
+      await expect(page.getByTestId('roll-grand-total').locator('xpath=..')).not.toHaveClass(/animate-bounce/)
+      await page.evaluate(async () => {
+        const url = '/src/store/useDiceStore.ts'
+        const { useDiceStore } = await import(/* @vite-ignore */ url)
+        useDiceStore.setState({ settledDice: new Map(), rollingDice: new Set() })
+      })
+      await expect(page.getByTestId('roll-grand-total')).toHaveCount(0)
+      // Hold the existing 500ms React cleanup while sampling the real CSS
+      // animation. No replacement keyframes, layout styles or renderer.
+      await page.clock.install({ time: new Date('2030-01-01T00:00:00Z') })
+      await page.clock.pauseAt(new Date('2030-01-01T00:00:01Z'))
+      await page.evaluate(async () => {
+        const url = '/src/store/useDiceStore.ts'
+        const { useDiceStore } = await import(/* @vite-ignore */ url)
+        useDiceStore.setState({
+          activeSavedRoll: null,
+          rollingDice: new Set(),
+          settledDice: new Map([['hud-boundary', {
+            diceId: 'hud-boundary', value: 1, type: 'd20', settledAt: Date.now(),
+          }]]),
+        })
+      })
+      await page.clock.runFor(16)
+      const total = page.getByTestId('roll-grand-total')
+      await expect(total).toHaveText('1')
+      const samples = await total.evaluate(element => {
+        const animated = element.parentElement!
+        const animation = animated.getAnimations().find(item => (item as CSSAnimation).animationName === 'bounce')!
+        if (!animation) throw new Error('The actual result change did not start the production bounce')
+        animation.pause()
+        const result = []
+        for (const time of [0, 125, 250, 375, 500]) {
+          animation.currentTime = time
+          const range = document.createRange()
+          range.selectNodeContents(element)
+          const glyph = range.getBoundingClientRect()
+          const box = element.getBoundingClientRect()
+          const clips = []
+          for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+            const style = getComputedStyle(ancestor)
+            if (['auto', 'scroll', 'hidden', 'clip'].includes(style.overflowY)) {
+              const bounds = ancestor.getBoundingClientRect()
+              clips.push({ top: bounds.top + ancestor.clientTop, bottom: bounds.top + ancestor.clientTop + ancestor.clientHeight, overflowX: style.overflowX, overflowY: style.overflowY })
+            }
+          }
+          result.push({ time, top: box.top, bottom: box.bottom, glyphTop: glyph.top, glyphBottom: glyph.bottom, clips })
+        }
+        return result
+      })
+      await testInfo.attach('actual-animation-bounds', { body: JSON.stringify(samples, null, 2), contentType: 'application/json' })
+      // Capture the apex even on RED; the geometric assertion below must not
+      // prevent retaining the visible original failure.
+      await total.evaluate(element => { element.parentElement!.getAnimations()[0].currentTime = 0 })
+      await page.screenshot({ path: testInfo.outputPath('bounce-apex.png') })
+      expect(Math.max(...samples.map(sample => sample.top)) - Math.min(...samples.map(sample => sample.top))).toBe(12)
+      for (const sample of samples) {
+        expect(sample.glyphTop).toBeGreaterThanOrEqual(0)
+        expect(sample.glyphBottom).toBeLessThanOrEqual(viewport.height)
+        for (const clip of sample.clips) {
+          expect(sample.top, `line box at ${sample.time}ms versus ${clip.overflowY} clip`).toBeGreaterThanOrEqual(clip.top)
+          expect(sample.glyphTop, `glyph at ${sample.time}ms versus ${clip.overflowY} clip`).toBeGreaterThanOrEqual(clip.top)
+          expect(sample.glyphBottom).toBeLessThanOrEqual(clip.bottom)
+        }
+      }
+      await total.evaluate(element => { element.parentElement!.getAnimations()[0].currentTime = 500 })
+      expect((await total.boundingBox())!.y).toBe(32)
+      const chip = page.getByTestId('result-die-chip')
+      expect((await chip.boundingBox())!.y).toBe(88)
+      await expect(chip).toHaveText('D201')
+      const scroll = total.locator('xpath=../../..')
+      const geometry = await scroll.evaluate(element => {
+        const style = getComputedStyle(element)
+        const before = element.getBoundingClientRect()
+        // A wide content control tests the existing scroll owner, not a switch
+        // to page overflow. Restore it before native HUD interactions.
+        const content = element.firstElementChild as HTMLElement
+        const oldWidth = content.style.minWidth
+        content.style.minWidth = `${window.innerWidth + 200}px`
+        element.scrollLeft = 50
+        const result = {
+          overflowX: style.overflowX, pointerEvents: style.pointerEvents,
+          scrollLeft: element.scrollLeft, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth,
+          pageWidth: document.documentElement.scrollWidth, viewportWidth: window.innerWidth,
+          contentTop: content.getBoundingClientRect().top, bottomCap: before.top + Number.parseFloat(style.maxHeight),
+        }
+        content.style.minWidth = oldWidth
+        element.scrollLeft = 0
+        return result
+      })
+      expect(geometry.overflowX).toBe('auto')
+      expect(geometry.pointerEvents).toBe('none')
+      expect(geometry.scrollWidth).toBeGreaterThan(geometry.clientWidth)
+      expect(geometry.scrollLeft).toBeGreaterThan(0)
+      expect(geometry.pageWidth).toBe(geometry.viewportWidth)
+      expect(geometry.contentTop).toBe(32)
+      expect(geometry.bottomCap).toBeCloseTo(32 + viewport.height * 0.4, 0)
+      await page.clock.resume()
+      await page.getByRole('button', { name: 'Settings', exact: true }).click()
+      await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible()
+    })
+  })
+}
+
 for (const viewport of VIEWPORTS) {
   test.describe(`at ${viewport.label}`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } })

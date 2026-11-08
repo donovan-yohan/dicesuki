@@ -2,6 +2,7 @@ import * as T from 'three';
 import {mergeGeometries} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {attachCombinedCel} from '../../lib/woodlandCelMaterial'
 import { createTextureOwner } from './environmentRuntime'
+import { createFoliageReveal } from './foliageReveal'
 import barkUrl from './textures/bark-albedo.png'
 import normalUrl from './textures/bark-normal.png'
 import leafUrl from './textures/leaf-albedo.png'
@@ -77,9 +78,10 @@ export function createReviewedCanopy({ halfX, halfZ, groundY, time }: CanopyOpti
  function wind(mat: T.Material){const prior=mat.onBeforeCompile,key=mat.customProgramCacheKey();mat.onBeforeCompile=(s,r)=>{prior.call(mat,s,r);s.uniforms.treeTime=time;s.uniforms.treeReduced=reduced;s.vertexShader=decl+'\n'+s.vertexShader;s.vertexShader=s.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nobjectNormal=normalize(objectNormal+vec3(-.891,0.,-.454)*treeBend()*aWeight*.30);');s.vertexShader=s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nfloat treeOffset=treeBend()*aWeight*aWeight;transformed.xz+=vec2(.891,.454)*treeOffset;transformed.y+=treeOffset*.19;');};mat.customProgramCacheKey=()=>key+'-anchored-tree-wind-v1';}
  wind(leafMat);const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking,side:T.DoubleSide});wind(depth);const distance=new T.MeshDistanceMaterial({side:T.DoubleSide});wind(distance);
  const woodMesh=merged(wood,barkMat,'woodland-mature-trunks');const leafMesh=merged(leaves,leafMat,'woodland-canopy');leafMesh.customDepthMaterial=depth;leafMesh.customDistanceMaterial=distance;
+ const reveal = createFoliageReveal(leafMesh)
  let disposed=false
- return {root,woodMesh,leafMesh,leafCount,variants,dispose(){
-   if(disposed)return;disposed=true;textureOwner.dispose()
+ return {root,woodMesh,leafMesh,leafCount,variants,updateReveal:reveal.update,dispose(){
+   if(disposed)return;disposed=true;reveal.dispose();textureOwner.dispose()
    for(const texture of [bark,normal,leafMap])texture.dispose()
    for(const mesh of [woodMesh,leafMesh]){mesh.geometry.dispose();(mesh.material as T.Material).dispose()}
    depth.dispose();distance.dispose();root.removeFromParent();root.clear()

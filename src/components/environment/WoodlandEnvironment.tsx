@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement, type MutableRefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
-import type { Group } from 'three'
+import { Vector2, type Group } from 'three'
 import { useEngineConfig } from '../../config/engineConfig'
 import type { EnvironmentQuality, WoodlandRecipe } from '../../lib/environmentQuality'
 import { createWoodlandResources } from './woodlandGeometry'
@@ -39,8 +39,10 @@ export function WoodlandEnvironment({ recipe, quality, tRef }: WoodlandEnvironme
     }
   }, [halfX, halfZ, groundY, seed, base, tip, sunlight, pollen, shading, tier, grassCount, particleCount, shaftCount])
 
-  useFrame((_, delta) => {
-    resources.current?.update(delta, quality.animate, useMultiplayerStore.getState().dice, tRef?.current ?? 1, config?.arenaGroundY ?? -0.5)
+  const drawingBufferSize = useState(() => new Vector2())[0]
+  useFrame((state, delta) => {
+    state.gl?.getDrawingBufferSize(drawingBufferSize)
+    resources.current?.update(delta, quality.animate, useMultiplayerStore.getState().dice, tRef?.current ?? 1, config?.arenaGroundY ?? -0.5, state.camera, drawingBufferSize)
   })
 
   // No loaders or suspense: scene readiness never waits for decorative assets.

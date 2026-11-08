@@ -1025,9 +1025,11 @@ function ResultDisplay() {
 
   return (
     <div
-      className="absolute top-8 left-0 right-0 text-white z-20 flex items-start justify-center gap-4 overflow-x-auto pointer-events-none px-4"
+      // Reserve the existing top inset inside the scrollport: overflow-x-auto
+      // also clips y, and the total bounces above its resting line box.
+      className="absolute top-0 left-0 right-0 text-white z-20 flex items-start justify-center gap-4 overflow-x-auto pointer-events-none px-4 pt-8"
       style={{
-        maxHeight: '40vh',
+        maxHeight: 'calc(40vh + 2rem)',
         scrollbarWidth: 'thin',
         scrollbarColor: 'rgba(249, 135, 151, 0.5) transparent'
       }}
