@@ -71,6 +71,7 @@ const REVIEWED_BINARY_FILE_LIMITS = new Map([
   ],
 
   // Sanitized compiled-browser guest-fixture captures, reviewed as exact bytes.
+  ['docs/pr-evidence/mobile-dice-menu/menu-open-phone.png', { maxBytes: 250673, sha256: '4cf826326ae15c882059b1d9de105688565db5b02577569bf2ca80eac52f917b' }],
   ['docs/pr-evidence/dice-visibility/bounce-apex-phone.png', { maxBytes: 368220, sha256: 'e3d4ae2fb929f7ecf5b50bc7e8f168da2ab76395f37b51797db7837b1a276820' }],
   ['docs/pr-evidence/dice-visibility/foliage-after.png', { maxBytes: 1621144, sha256: '545ff034f51b1b0bccff123fb84df2b6c1c17668fccba007bd8a155116399647' }],
   ['docs/pr-evidence/dice-visibility/foliage-before.png', { maxBytes: 1603670, sha256: 'fd4bf00bede0bc0e5f3123184ee72cf87a055200bf7416ca29f529c706a13c00' }],

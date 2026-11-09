@@ -72,8 +72,9 @@ export function TableHud({
   onOpenInventory,
 }: TableHudProps) {
   // One rule, encoded once: the permanent bottom-left cluster (rotate, motion,
-  // eye) only exists when no overlay owns the screen.
-  const showControlCluster = !isOverlayOpen
+  // eye) yields its lane to the dice menu and to overlays. The restore eye
+  // survives hidden UI even if a caller still retains the open-menu flag.
+  const showControlCluster = !isOverlayOpen && (!isUIVisible || !isDiceManagerOpen)
 
   // Slots come from the cluster stack, not from per-button constants: a control
   // with no slot on this form factor (motion, on desktop) is not rendered, and
@@ -175,7 +176,6 @@ export function TableHud({
 
           <DiceToolbar
             isOpen={isDiceManagerOpen}
-            isMobile={isMobile}
             onAddDice={onAddDice}
             onClearAllDice={onClearAllDice}
             onOpenInventory={onOpenInventory}
@@ -185,8 +185,8 @@ export function TableHud({
 
       {/*
         Permanent UI toggle / hide-UI eye. It survives hiding the UI, and is
-        suppressed only while an overlay owns the screen — the two states can
-        never coincide, so the eye is never unreachable.
+        yields to the dice menu and overlays while UI is visible. Hidden UI
+        retains the restore eye even if the menu flag has not retired yet.
       */}
       {showControlCluster && (
         <UIToggleMini onClick={onToggleUIVisibility} isVisible={isUIVisible} />

@@ -23,11 +23,6 @@ import { getDiceToolbarLane } from './hudLayout'
 
 interface DiceToolbarProps {
   isOpen: boolean
-  /**
-   * Drives the rail's bottom anchor: the mobile-only motion toggle adds a slot
-   * to the control cluster below it, so the rail sits one slot lower on desktop.
-   */
-  isMobile: boolean
   onAddDice: (type: DiceShape, inventoryDieId?: string) => void
   onClearAllDice: () => void
   onOpenInventory: () => void
@@ -81,10 +76,10 @@ function useViewportHeight(): number {
   return height
 }
 
-export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpenInventory }: DiceToolbarProps) {
+export function DiceToolbar({ isOpen, onAddDice, onClearAllDice, onOpenInventory }: DiceToolbarProps) {
   const reduceMotion = shouldReduceMotion()
   const viewportHeight = useViewportHeight()
-  const railLane = getDiceToolbarLane(viewportHeight, isMobile)
+  const railLane = getDiceToolbarLane(viewportHeight)
   const { dice: inventoryDice } = useInventoryStore()
   const multiplayerDiceOnTable = useMultiplayerStore(state => state.dice)
   const localPlayerId = useMultiplayerStore(state => state.localPlayerId)
@@ -159,8 +154,7 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
           data-testid="dice-toolbar-rail"
           className="theme-hud fixed left-4 z-40 flex w-12 flex-col"
           style={{
-            // Keep the slide-out rail clear of the permanent bottom-left
-            // rotate/motion/eye control cluster…
+            // The menu replaces the cluster in the lane above bottom navigation.
             bottom: `${railLane.bottom}px`,
             // …and clamp its top to the corner-icon clearance so short
             // viewports scroll the rail instead of pushing it off-screen.
@@ -210,6 +204,7 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
           <motion.div
             initial={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
             animate={!reduceMotion ? { x: 0, opacity: 1 } : { opacity: 1 }}
+            className="shrink-0"
             exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
             transition={{
               duration: 0.3,
@@ -220,8 +215,10 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
             <InventoryButton onClick={onOpenInventory} />
           </motion.div>
 
+          </div>
+
           <motion.div
-            className="mt-1"
+            className="mt-4 shrink-0"
             initial={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
             animate={!reduceMotion ? { x: 0, opacity: 1 } : { opacity: 1 }}
             exit={!reduceMotion ? { x: -100, opacity: 0 } : { opacity: 0 }}
@@ -233,7 +230,6 @@ export function DiceToolbar({ isOpen, isMobile, onAddDice, onClearAllDice, onOpe
           >
             <TrashButton onClick={onClearAllDice} />
           </motion.div>
-          </div>
         </motion.div>
       )}
     </AnimatePresence>

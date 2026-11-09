@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
-  DICE_TOOLBAR_NATURAL_HEIGHT,
+  DICE_TOOLBAR_SCROLL_HEIGHT,
   getDiceToolbarLane,
 } from '../src/components/layout/hudLayout'
 
@@ -89,6 +89,114 @@ test.describe('empty-favorites hint at 390x844', () => {
     expect(hitTestId).toBe('dice-quick-slot-d20')
   })
 })
+
+// Native coordinate input deliberately avoids locator auto-scrolling trash into view.
+for (const mode of [
+  { label: '360x640 pointer', width: 360, height: 640, touch: false, reduced: false },
+  { label: '360x640 touch', width: 360, height: 640, touch: true, reduced: false },
+  { label: '390x844 pointer', width: 390, height: 844, touch: false, reduced: false },
+  { label: '390x844 touch', width: 390, height: 844, touch: true, reduced: false },
+  { label: '1280x800 desktop', width: 1280, height: 800, touch: false, reduced: false },
+  { label: '360x640 reduced touch', width: 360, height: 640, touch: true, reduced: true },
+]) {
+  test.describe(`menu lane regression ${mode.label}`, () => {
+    test.use({
+      viewport: { width: mode.width, height: mode.height },
+      // Admit the ordinary desktop GPU before enabling native touch below.
+      hasTouch: false,
+      isMobile: false,
+    })
+
+    test('keeps trash painted and natively tappable without scrolling', async ({ page }, testInfo) => {
+      test.setTimeout(90_000)
+      await page.emulateMedia({ reducedMotion: mode.reduced ? 'reduce' : 'no-preference' })
+      await page.addInitScript(() => localStorage.setItem('dicesuki-settings', JSON.stringify({ version: 1, state: { themeId: 'sunlit-glade-cel' } })))
+      await openTable(page)
+      const touchSession = mode.touch ? await page.context().newCDPSession(page) : null
+      if (touchSession) await touchSession.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 })
+      await expect(page.getByTestId('solo-room')).not.toHaveAttribute('data-room-dice-count', '0')
+      const activate = async (name: string) => {
+        const button = page.getByRole('button', { name, exact: true })
+        // Settle startup/overlay hit ownership for setup. Never auto-scroll trash.
+        if (name !== 'Clear all dice') await button.click({ trial: true })
+        const box = (await button.boundingBox())!
+        if (touchSession) {
+          await touchSession.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] })
+          await touchSession.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+        } else await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+      }
+      await activate('Manage Dice')
+      const trash = page.locator('#trash-drop-zone')
+      await expect.poll(() => trash.evaluate(element => Number(getComputedStyle(element.parentElement!).opacity))).toBe(1)
+      const bounds = await trash.evaluate(element => {
+        const box = element.getBoundingClientRect()
+        const scroll = document.querySelector('[data-testid="dice-toolbar-scroll"]')!
+        const clips = []
+        for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+          const style = getComputedStyle(ancestor)
+          if (['auto', 'scroll', 'hidden', 'clip'].includes(style.overflowY)) {
+            const rect = ancestor.getBoundingClientRect()
+            clips.push({ top: rect.top + ancestor.clientTop, bottom: rect.top + ancestor.clientTop + ancestor.clientHeight })
+          }
+        }
+        return {
+          box: box.toJSON(), clips, scrollTop: scroll.scrollTop,
+          inScroll: scroll.contains(element),
+          hits: [4, box.height / 2, box.height - 4].map(y => {
+            const hit = document.elementFromPoint(box.x + box.width / 2, box.y + y)
+            return hit === element || element.contains(hit)
+          }),
+        }
+      })
+      await testInfo.attach('trash-paint-and-hit-bounds', { body: JSON.stringify(bounds, null, 2), contentType: 'application/json' })
+      expect(bounds.scrollTop).toBe(0)
+      expect(bounds.inScroll).toBe(false)
+      expect(bounds.box.top).toBeGreaterThanOrEqual(0)
+      expect(bounds.box.bottom).toBeLessThanOrEqual(mode.height - 80)
+      expect(bounds.box.width).toBe(48)
+      expect(bounds.box.height).toBe(48)
+      expect(bounds.hits).toEqual([true, true, true])
+      for (const clip of bounds.clips) {
+        expect(bounds.box.top).toBeGreaterThanOrEqual(clip.top)
+        expect(bounds.box.bottom).toBeLessThanOrEqual(clip.bottom)
+      }
+      for (const name of ['Rotate view 90 degrees', 'Motion Mode', 'Hide UI']) {
+        await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0)
+      }
+      await page.screenshot({ path: testInfo.outputPath('menu-open.png') })
+      await activate('Clear all dice')
+      await expect(page.getByTestId('solo-room')).toHaveAttribute('data-room-dice-count', '0')
+      await activate('Manage Dice')
+      await expect(trash).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Hide UI' })).toBeVisible()
+      await expect(page.getByTestId('rotate-view-button')).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Motion Mode' })).toHaveCount(mode.width < 768 ? 1 : 0)
+      await activate('Manage Dice')
+      await expect(trash).toBeVisible()
+      await activate('Roll History')
+      await expect(page.getByRole('heading', { name: 'Roll History' })).toBeVisible()
+      await expect(trash).toHaveCount(0)
+      await page.getByRole('button', { name: 'Close panel' }).click()
+      await expect(page.getByRole('button', { name: 'Close panel' })).toHaveCount(0)
+      await expect(trash).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Hide UI' })).toHaveCount(0)
+      // Controlled drag presentation uses the same native target and retires on exit.
+      await page.evaluate(async () => {
+        const url = '/src/store/useDragStore.ts'
+        const { useDragStore } = await import(/* @vite-ignore */ url)
+        useDragStore.setState({ draggedDiceId: 'hud-drop-presentation' })
+      })
+      await expect(trash).toHaveAttribute('aria-label', 'Drop die to remove from table')
+      await activate('Manage Dice')
+      await expect(trash).toHaveCount(0)
+      await page.evaluate(async () => {
+        const url = '/src/store/useDragStore.ts'
+        const { useDragStore } = await import(/* @vite-ignore */ url)
+        useDragStore.setState({ draggedDiceId: null })
+      })
+    })
+  })
+}
 
 // A controlled result publication exercises the production ResultDisplay and
 // Tailwind animation in the actual table. It is not a scripted physics result.
@@ -241,14 +349,14 @@ for (const viewport of VIEWPORTS) {
       expect(railBox.y).toBeGreaterThanOrEqual(gearBox.y + gearBox.height)
 
       // The rendered rail matches the lane model that hudLayout.test.ts asserts.
-      // The cluster below the rail collapses on desktop, so the lane depends on
-      // the form factor the app itself derives from the viewport width.
-      const lane = getDiceToolbarLane(viewport.height, viewport.width < 768)
+      // The menu replaces the cluster and uses the same nav-clearing anchor
+      // on desktop and phone-width viewports.
+      const lane = getDiceToolbarLane(viewport.height)
       const scroll = await page.getByTestId('dice-toolbar-scroll').evaluate(element => ({
         scrollHeight: element.scrollHeight,
         clientHeight: element.clientHeight,
       }))
-      expect(scroll.scrollHeight).toBeLessThanOrEqual(DICE_TOOLBAR_NATURAL_HEIGHT)
+      expect(scroll.scrollHeight).toBeLessThanOrEqual(DICE_TOOLBAR_SCROLL_HEIGHT)
       expect(scroll.clientHeight).toBeLessThanOrEqual(lane.maxHeight)
       expect(railBox.height).toBeLessThanOrEqual(lane.maxHeight + 1)
 
@@ -275,8 +383,8 @@ for (const viewport of VIEWPORTS) {
 
       await page.getByRole('button', { name: 'Close panel' }).click()
       await expect(page.getByRole('heading', { name: 'Roll History' })).toHaveCount(0)
-      await expect(eye).toBeVisible()
-      await expect(rotate).toBeVisible()
+      await expect(eye).toHaveCount(0)
+      await expect(rotate).toHaveCount(0)
       // The rail state survived the overlay round trip.
       await expect(rail).toBeVisible()
 
@@ -344,6 +452,9 @@ for (const viewport of VIEWPORTS) {
       await expect(page.getByRole('tab', { name: /wallet & bundles/i })).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(shop).toHaveCount(0)
+      // The synthetic guest → account transition above remounts the solo room,
+      // so this new table has no retained open menu. Its cluster returns.
+      await expect(rail).toHaveCount(0)
       await expect(eye).toBeVisible()
     })
   })
