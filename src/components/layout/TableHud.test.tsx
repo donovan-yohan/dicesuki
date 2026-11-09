@@ -136,24 +136,37 @@ describe('TableHud (Layout A)', () => {
   })
 
   it('stacks the mobile cluster one control per slot', () => {
-    renderHud({ isMobile: true, isDiceManagerOpen: true })
+    renderHud({ isMobile: true })
 
     expect(screen.getByRole('button', { name: 'Hide UI' })).toHaveStyle({ bottom: '80px' })
     expect(screen.getByRole('button', { name: 'Motion Mode' })).toHaveStyle({ bottom: '136px' })
     expect(screen.getByTestId('rotate-view-button')).toHaveStyle({ bottom: '192px' })
-    expect(screen.getByTestId('dice-toolbar-rail')).toHaveStyle({ bottom: '248px' })
+    expect(screen.queryByTestId('dice-toolbar-rail')).not.toBeInTheDocument()
   })
 
   it('collapses the cluster over the absent motion slot on desktop', () => {
     // Desktop never renders the motion toggle, so leaving its slot empty showed
     // as a dead gap between the eye and rotate. Slots are assigned by rendered
     // order instead, which keeps one uniform gap on both form factors.
-    renderHud({ isMobile: false, isDiceManagerOpen: true })
+    renderHud({ isMobile: false })
 
     expect(screen.queryByRole('button', { name: 'Motion Mode' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Hide UI' })).toHaveStyle({ bottom: '80px' })
     expect(screen.getByTestId('rotate-view-button')).toHaveStyle({ bottom: '136px' })
-    expect(screen.getByTestId('dice-toolbar-rail')).toHaveStyle({ bottom: '192px' })
+    expect(screen.queryByTestId('dice-toolbar-rail')).not.toBeInTheDocument()
+  })
+
+  it.each([true, false])('gives the open menu the cluster lane on mobile=%s', (isMobile) => {
+    renderHud({ isMobile, isDiceManagerOpen: true })
+    for (const control of CLUSTER_CONTROLS) {
+      expect(screen.queryByRole('button', { name: control })).not.toBeInTheDocument()
+    }
+    expect(screen.getByTestId('dice-toolbar-rail')).toHaveStyle({ bottom: '80px' })
+  })
+
+  it('keeps the restore eye reachable when hidden UI retains menu state', () => {
+    renderHud({ isUIVisible: false, isDiceManagerOpen: true })
+    expect(screen.getByRole('button', { name: 'Show UI' })).toBeInTheDocument()
   })
 
   it('routes each HUD control to its callback', () => {
@@ -201,7 +214,7 @@ describe('TableHud (Layout A)', () => {
     })
     renderHud({ isDiceManagerOpen: true })
 
-    const lane = getDiceToolbarLane(window.innerHeight, true)
+    const lane = getDiceToolbarLane(window.innerHeight)
     const rail = screen.getByTestId('dice-toolbar-rail')
     expect(rail).toHaveStyle({
       bottom: `${lane.bottom}px`,

@@ -67,14 +67,12 @@ function makeMultiplayerDie(overrides: Partial<MultiplayerDie>): MultiplayerDie 
 }
 
 function renderToolbar(overrides: {
-  isMobile?: boolean
   onAddDice?: (type: DiceShape, inventoryDieId?: string) => void
   onClearAllDice?: () => void
   onOpenInventory?: () => void
 } = {}) {
   const props = {
     isOpen: true,
-    isMobile: overrides.isMobile ?? true,
     onAddDice: overrides.onAddDice ?? vi.fn(),
     onClearAllDice: overrides.onClearAllDice ?? vi.fn(),
     onOpenInventory: overrides.onOpenInventory ?? vi.fn(),
@@ -389,6 +387,18 @@ describe('DiceToolbar', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /clear all dice/i }))
 
+    expect(onClearAllDice).toHaveBeenCalledOnce()
+  })
+
+  it('pins trash outside the scrolling shapes and inventory list', () => {
+    const { onClearAllDice } = renderToolbar()
+    const scroll = screen.getByTestId('dice-toolbar-scroll')
+    const trash = screen.getByRole('button', { name: 'Clear all dice' })
+    expect(scroll).not.toContainElement(trash)
+    expect(screen.getByTestId('dice-toolbar-rail')).toContainElement(trash)
+    expect(scroll).toContainElement(screen.getByRole('button', { name: 'Open full dice inventory' }))
+    expect(scroll.querySelectorAll('[data-testid^="dice-quick-slot-"]')).toHaveLength(6)
+    fireEvent.click(trash)
     expect(onClearAllDice).toHaveBeenCalledOnce()
   })
 
