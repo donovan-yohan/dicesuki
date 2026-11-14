@@ -19,9 +19,12 @@ const IO_TIMEOUT: Duration = Duration::from_secs(5);
 async fn text(socket: &mut Socket) -> Value {
     timeout(IO_TIMEOUT, async {
         loop {
-            match socket.next().await.unwrap().unwrap() {
-                Message::Text(value) => return serde_json::from_str(&value).unwrap(),
-                Message::Ping(_) => socket.flush().await.unwrap(),
+            match socket.next().await {
+                Some(Ok(Message::Text(value))) => return serde_json::from_str(&value).unwrap(),
+                Some(Ok(Message::Ping(_))) => socket.flush().await.unwrap(),
+                None | Some(Err(_)) | Some(Ok(Message::Close(_))) => {
+                    return json!({"type":"closed"})
+                }
                 other => panic!("unexpected frame: {other:?}"),
             }
         }
@@ -113,11 +116,21 @@ async fn prejoin_deadline_preserves_guest_and_one_verified_refresh_retry() {
     guest.send(join(&guest_room, None)).await.unwrap();
     assert_eq!(text(&mut guest).await["type"], "room_state");
     let (retry_room, mut retry) = connect(addr).await;
+    let retry_started = Instant::now();
+    // Positive handler marker without granting auth grace. Advance only the
+    // idle wait, never actual HTTP/JWKS/WS I/O.
+    retry.send(Message::Text("{}".into())).await.unwrap();
+    assert_eq!(text(&mut retry).await["code"], "INVALID_MESSAGE");
+    tokio::time::pause();
+    tokio::time::advance(Duration::from_secs(8)).await;
+    tokio::time::resume();
     retry
         .send(join(&retry_room, Some("not-a-jwt")))
         .await
         .unwrap();
     assert_eq!(text(&mut retry).await["code"], "AUTH_INVALID");
+    assert!(retry_started.elapsed() >= Duration::from_secs(8));
+    assert!(retry_started.elapsed() < Duration::from_secs(9));
     let (idle_room, idle) = connect(addr).await;
     let (bad_room, mut bad) = connect(addr).await;
     bad.send(join(&bad_room, Some("not-a-jwt"))).await.unwrap();
@@ -136,9 +149,15 @@ async fn prejoin_deadline_preserves_guest_and_one_verified_refresh_retry() {
     let idle_check = assert_reaped(idle, idle_room.clone(), false);
     let bad_check = assert_reaped(bad, bad_room.clone(), true);
     let recovery_check = async {
-        // The existing client's one refresh-retry still has a usable open socket.
-        tokio::time::sleep(Duration::from_secs(10)).await;
-        retry.send(join(&retry_room, Some(&token))).await.unwrap();
+        // Retry at ~18s, beyond the original 15s but inside the refreshed ~23s.
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(10)).await;
+        tokio::time::resume();
+        assert!(retry_started.elapsed() > Duration::from_secs(15));
+        assert!(retry_started.elapsed() < Duration::from_secs(23));
+        // A closed socket is observed by the same room_state assertion below,
+        // including when the grace-extension mutation causes an early close.
+        let _ = retry.send(join(&retry_room, Some(&token))).await;
         let state = text(&mut retry).await;
         assert_eq!(state["type"], "room_state", "refresh response: {state}");
         let local = state["localPlayerId"].as_str().unwrap();
