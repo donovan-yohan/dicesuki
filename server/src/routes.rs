@@ -278,9 +278,12 @@ pub async fn discord_targets(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    tokio::time::timeout(crate::discord_targets::TARGETS_TIMEOUT,
-        discord_targets_inner(state, headers)).await
-        .unwrap_or_else(|_| Json(targets_response(&[])).into_response())
+    tokio::time::timeout(
+        crate::discord_targets::TARGETS_TIMEOUT,
+        discord_targets_inner(state, headers),
+    )
+    .await
+    .unwrap_or_else(|_| Json(targets_response(&[])).into_response())
 }
 
 async fn discord_targets_inner(state: AppState, headers: HeaderMap) -> axum::response::Response {
@@ -700,16 +703,30 @@ mod tests {
         let mut fake = FakeDiscord::new(BOT).with_guild(GUILD_X, "Xanadu", CHANNEL_X, &[DISCORD_A]);
         fake.member_delay = std::time::Duration::from_secs(1);
         let api = Arc::new(fake);
-        let service = DiscordService::with_identity_lookup(api.clone(), Some(FakeIdentities::of(&[("supabase-a", DISCORD_A)])), "https://dicesuki.app".to_string(), None);
+        let service = DiscordService::with_identity_lookup(
+            api.clone(),
+            Some(FakeIdentities::of(&[("supabase-a", DISCORD_A)])),
+            "https://dicesuki.app".to_string(),
+            None,
+        );
         let claims = discord_claims("supabase-a");
         let pending = advertise(&manager, &service, &claims, &room_id, CHANNEL_X);
         tokio::pin!(pending);
         assert!(futures_util::poll!(&mut pending).is_pending());
-        assert_eq!(api.member_calls.load(std::sync::atomic::Ordering::SeqCst), 1, "membership consumer must be reached");
+        assert_eq!(
+            api.member_calls.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "membership consumer must be reached"
+        );
         let room = manager.read().await.get_room(&room_id).unwrap();
         {
             let mut room = room.write().await;
-            let mut next = Player::new("p2".to_string(), "Next".to_string(), "#000".to_string(), NullSink);
+            let mut next = Player::new(
+                "p2".to_string(),
+                "Next".to_string(),
+                "#000".to_string(),
+                NullSink,
+            );
             next.user_id = Some("supabase-b".to_string());
             room.add_player(next).unwrap();
             room.mark_disconnected("p1");

@@ -167,8 +167,8 @@ pub fn verify_with_jwks(
     issuer: Option<&str>,
     algorithms: &[Algorithm],
 ) -> Result<SupabaseClaims, AuthError> {
-    let header = decode_header(token)
-        .map_err(|e| AuthError::Invalid(format!("unreadable header: {e}")))?;
+    let header =
+        decode_header(token).map_err(|e| AuthError::Invalid(format!("unreadable header: {e}")))?;
     let kid = header
         .kid
         .ok_or_else(|| AuthError::Invalid("token header has no key id (kid)".to_string()))?;
@@ -180,7 +180,9 @@ pub fn verify_with_jwks(
         .map_err(|e| AuthError::Invalid(format!("unusable signing key: {e}")))?;
 
     if !algorithms.contains(&header.alg) {
-        return Err(AuthError::Invalid("token algorithm is not allowed".to_string()));
+        return Err(AuthError::Invalid(
+            "token algorithm is not allowed".to_string(),
+        ));
     }
     let mut validation = Validation::new(header.alg);
     // jsonwebtoken requires every validation algorithm to share the key family.
@@ -255,10 +257,7 @@ impl AuthVerifier {
     /// # Errors
     ///
     /// Returns [`AuthError`] when a supplied token cannot be verified.
-    pub async fn authenticate(
-        &self,
-        token: Option<&str>,
-    ) -> Result<AuthOutcome, AuthError> {
+    pub async fn authenticate(&self, token: Option<&str>) -> Result<AuthOutcome, AuthError> {
         let token = match token {
             Some(t) if !t.trim().is_empty() => t,
             _ => return Ok(AuthOutcome::Guest),
@@ -279,10 +278,7 @@ impl AuthVerifier {
     /// # Errors
     ///
     /// Returns [`AuthError`] when the token cannot be verified.
-    pub async fn authenticate_claims(
-        &self,
-        token: &str,
-    ) -> Result<SupabaseClaims, AuthError> {
+    pub async fn authenticate_claims(&self, token: &str) -> Result<SupabaseClaims, AuthError> {
         // Which key signed this token? Refresh once if the kid is unknown.
         let kid = decode_header(token)
             .map_err(|e| AuthError::Invalid(format!("unreadable header: {e}")))?
@@ -395,8 +391,7 @@ mod tests {
     fn sign(claims: &TestClaims) -> String {
         let mut header = Header::new(Algorithm::HS256);
         header.kid = Some(TEST_KID.to_string());
-        encode(&header, claims, &EncodingKey::from_secret(TEST_SECRET))
-            .expect("token encodes")
+        encode(&header, claims, &EncodingKey::from_secret(TEST_SECRET)).expect("token encodes")
     }
 
     fn valid_claims() -> TestClaims {
@@ -424,26 +419,36 @@ mod tests {
             "kty":"EC", "crv":"P-256", "kid":"ws-test-only", "alg":"ES256",
             "x":"jJcomY6ab9CQfi4gZjMhBkk8kl7XQS4X6KwFntrwq-8",
             "y":"tWsThK81u2NxaXxURCSbHQzZa0SDZRdbHeqiB4-tu1o"
-        }]})).unwrap();
+        }]}))
+        .unwrap();
         let mut header = Header::new(Algorithm::ES256);
         header.kid = Some("ws-test-only".to_string());
-        let token = encode(&header, &valid_claims(), &EncodingKey::from_ec_pem(
-            include_bytes!("../tests/fixtures/ws-test-only-ec.pem")).unwrap()).unwrap();
+        let token = encode(
+            &header,
+            &valid_claims(),
+            &EncodingKey::from_ec_pem(include_bytes!("../tests/fixtures/ws-test-only-ec.pem"))
+                .unwrap(),
+        )
+        .unwrap();
         assert!(verify_with_jwks(&token, &jwks, Some(TEST_ISSUER), PROD_ALGORITHMS).is_ok());
         assert!(verify_with_jwks(&token, &jwks, Some(TEST_ISSUER), &[Algorithm::RS256]).is_err());
-        assert!(verify_with_jwks(&sign(&valid_claims()), &test_jwks(), Some(TEST_ISSUER), PROD_ALGORITHMS).is_err(), "HMAC is never a production algorithm");
+        assert!(
+            verify_with_jwks(
+                &sign(&valid_claims()),
+                &test_jwks(),
+                Some(TEST_ISSUER),
+                PROD_ALGORITHMS
+            )
+            .is_err(),
+            "HMAC is never a production algorithm"
+        );
     }
 
     #[test]
     fn accepts_valid_token_and_extracts_sub() {
         let token = sign(&valid_claims());
-        let claims = verify_with_jwks(
-            &token,
-            &test_jwks(),
-            Some(TEST_ISSUER),
-            &[Algorithm::HS256],
-        )
-        .expect("valid token verifies");
+        let claims = verify_with_jwks(&token, &test_jwks(), Some(TEST_ISSUER), &[Algorithm::HS256])
+            .expect("valid token verifies");
         assert_eq!(claims.sub, "user-abc-123");
         assert_eq!(claims.role.as_deref(), Some("authenticated"));
     }
@@ -453,13 +458,8 @@ mod tests {
         let mut claims = valid_claims();
         claims.exp = 1_000_000; // 1970-ish, long past.
         let token = sign(&claims);
-        let err = verify_with_jwks(
-            &token,
-            &test_jwks(),
-            Some(TEST_ISSUER),
-            &[Algorithm::HS256],
-        )
-        .expect_err("expired token rejected");
+        let err = verify_with_jwks(&token, &test_jwks(), Some(TEST_ISSUER), &[Algorithm::HS256])
+            .expect_err("expired token rejected");
         assert_eq!(err.code(), "AUTH_INVALID");
     }
 
@@ -475,13 +475,8 @@ mod tests {
             &EncodingKey::from_secret(b"a-totally-different-secret"),
         )
         .expect("token encodes");
-        let err = verify_with_jwks(
-            &token,
-            &test_jwks(),
-            Some(TEST_ISSUER),
-            &[Algorithm::HS256],
-        )
-        .expect_err("forged token rejected");
+        let err = verify_with_jwks(&token, &test_jwks(), Some(TEST_ISSUER), &[Algorithm::HS256])
+            .expect_err("forged token rejected");
         assert_eq!(err.code(), "AUTH_INVALID");
     }
 
@@ -490,13 +485,8 @@ mod tests {
         let mut claims = valid_claims();
         claims.iss = "https://evil.example/auth/v1".to_string();
         let token = sign(&claims);
-        let err = verify_with_jwks(
-            &token,
-            &test_jwks(),
-            Some(TEST_ISSUER),
-            &[Algorithm::HS256],
-        )
-        .expect_err("wrong issuer rejected");
+        let err = verify_with_jwks(&token, &test_jwks(), Some(TEST_ISSUER), &[Algorithm::HS256])
+            .expect_err("wrong issuer rejected");
         assert_eq!(err.code(), "AUTH_INVALID");
     }
 
@@ -505,13 +495,8 @@ mod tests {
         let mut claims = valid_claims();
         claims.aud = "some-other-audience".to_string();
         let token = sign(&claims);
-        let err = verify_with_jwks(
-            &token,
-            &test_jwks(),
-            Some(TEST_ISSUER),
-            &[Algorithm::HS256],
-        )
-        .expect_err("wrong audience rejected");
+        let err = verify_with_jwks(&token, &test_jwks(), Some(TEST_ISSUER), &[Algorithm::HS256])
+            .expect_err("wrong audience rejected");
         assert_eq!(err.code(), "AUTH_INVALID");
     }
 
@@ -522,13 +507,8 @@ mod tests {
         header.kid = Some("unknown-kid".to_string());
         let token = encode(&header, &claims, &EncodingKey::from_secret(TEST_SECRET))
             .expect("token encodes");
-        let err = verify_with_jwks(
-            &token,
-            &test_jwks(),
-            Some(TEST_ISSUER),
-            &[Algorithm::HS256],
-        )
-        .expect_err("unknown kid rejected");
+        let err = verify_with_jwks(&token, &test_jwks(), Some(TEST_ISSUER), &[Algorithm::HS256])
+            .expect_err("unknown kid rejected");
         assert_eq!(err.code(), "AUTH_INVALID");
     }
 
@@ -590,7 +570,10 @@ mod tests {
             TEST_ISSUER.to_string(),
             JWKS_TTL,
         );
-        assert_eq!(verifier.authenticate(None).await.unwrap(), AuthOutcome::Guest);
+        assert_eq!(
+            verifier.authenticate(None).await.unwrap(),
+            AuthOutcome::Guest
+        );
         assert_eq!(
             verifier.authenticate(Some("")).await.unwrap(),
             AuthOutcome::Guest

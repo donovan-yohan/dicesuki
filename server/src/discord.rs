@@ -3046,6 +3046,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn concurrent_advert_registrations_preserve_user_and_global_capacity() {
+        let registry = HostPostRegistry::default();
+        let outcomes = futures_util::future::join_all((0..16).map(|index| {
+            let registry = &registry;
+            async move {
+                registry
+                    .register(&format!("room-{index}"), HOST_CHANNEL, "same-user")
+                    .await
+            }
+        }))
+        .await;
+        assert_eq!(
+            outcomes.iter().filter(|result| result.is_ok()).count(),
+            MAX_ADVERTISED_ROOMS_PER_USER
+        );
+        assert_eq!(
+            registry.snapshot().await.len(),
+            MAX_ADVERTISED_ROOMS_PER_USER
+        );
+        // Distinct users can still fill the global ceiling, which remains a
+        // separate bound from the new per-user share.
+        let global = HostPostRegistry::default();
+        for index in 0..MAX_ADVERTISED_ROOMS {
+            global
+                .register(
+                    &format!("room-{index}"),
+                    HOST_CHANNEL,
+                    &format!("user-{index}"),
+                )
+                .await
+                .unwrap();
+        }
+        assert_eq!(
+            global
+                .register("overflow", HOST_CHANNEL, "fresh-user")
+                .await,
+            Err(AdvertiseRejection::TooManyAdverts)
+        );
+        global.forget("room-0", HOST_CHANNEL).await;
+        assert!(global
+            .register("recovered", HOST_CHANNEL, "fresh-user")
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
     async fn the_registry_is_idempotent_and_bounded_per_room() {
         let registry = HostPostRegistry::default();
         for _ in 0..3 {

@@ -96,6 +96,12 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter:
 
     // Read loop: process incoming messages
     loop {
+        // timeout_at may prefer an already-ready read over an expired timer.
+        // Check the absolute deadline too, so a continuously readable flood
+        // cannot keep a never-joined connection alive.
+        if !is_joined && tokio::time::Instant::now() >= join_deadline {
+            break;
+        }
         let wait_started = tokio::time::Instant::now();
         let deadline = if is_joined {
             wait_started + WS_SILENT_TIMEOUT
@@ -191,6 +197,9 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter:
                     break;
                 };
 
+                if tokio::time::Instant::now() >= join_deadline {
+                    break;
+                }
                 match room_guard.join(
                     player_id.clone(),
                     display_name.clone(),

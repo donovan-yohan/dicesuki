@@ -348,7 +348,7 @@ impl HttpDiscordApi {
         // Resource 403/404s still pace the next caller, even if the reconcile
         // planner intentionally retries an operator-configured billboard.
         if status == 0
-            || matches!(status, 401 | 403 | 429 | 500..=599)
+            || matches!(status, 401 | 403 | 410 | 429 | 500..=599)
             || (status == 404 && !missing_is_normal)
         {
             admission.failures = admission.failures.saturating_add(1);
@@ -797,6 +797,7 @@ mod tests {
         status: u16,
         retry_after: Option<&str>,
         body: &str,
+        repeat_failure: bool,
     ) -> (HttpDiscordApi, tokio::task::JoinHandle<()>) {
         use axum::response::IntoResponse;
         use axum::{routing::any, Router};
@@ -812,7 +813,7 @@ mod tests {
             let header = header.clone();
             let body = body.clone();
             async move {
-                if first {
+                if first || repeat_failure {
                     let mut response =
                         (axum::http::StatusCode::from_u16(status).unwrap(), body).into_response();
                     if let Some(header) = header {
@@ -837,7 +838,7 @@ mod tests {
 
     #[tokio::test]
     async fn retry_after_delays_other_routes_without_replaying_a_post() {
-        let (api, server) = mock_api(429, Some("0.2"), r#"{"retry_after": 0.2}"#).await;
+        let (api, server) = mock_api(429, Some("0.2"), r#"{"retry_after": 0.2}"#, false).await;
         let payload = serde_json::json!({"content": "test"});
         assert_eq!(
             api.create_message("123", &payload).await,
@@ -854,7 +855,8 @@ mod tests {
 
     #[tokio::test]
     async fn json_retry_after_is_used_when_the_header_is_absent() {
-        let (api, server) = mock_api(429, None, r#"{"retry_after": 0.2, "global": true}"#).await;
+        let (api, server) =
+            mock_api(429, None, r#"{"retry_after": 0.2, "global": true}"#, false).await;
         assert_eq!(
             api.guild_member("123", "456").await,
             Err(DiscordApiError::Status(429))
@@ -870,15 +872,62 @@ mod tests {
 
     #[tokio::test]
     async fn terminal_failures_back_off_instead_of_hammering_a_deleted_channel() {
-        let (api, server) = mock_api(403, None, "{}").await;
-        assert_eq!(
-            api.current_user_id().await,
-            Err(DiscordApiError::Status(403))
-        );
+        for status in [403, 404, 410] {
+            let (api, server) = mock_api(status, None, "{}", false).await;
+            assert_eq!(
+                api.current_user_id().await,
+                Err(DiscordApiError::Status(status))
+            );
+            let start = tokio::time::Instant::now();
+            api.current_user_id().await.unwrap();
+            assert!(
+                start.elapsed() >= Duration::from_secs(1),
+                "status {status} bypassed backoff"
+            );
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_callers_share_aggregate_request_pacing() {
+        let (api, server) = mock_api(200, None, r#"{"id":"123"}"#, false).await;
         let start = tokio::time::Instant::now();
-        api.current_user_id().await.unwrap();
-        assert!(start.elapsed() >= Duration::from_secs(1));
+        let results = futures_util::future::join_all((0..6).map(|_| api.current_user_id())).await;
+        assert!(results.iter().all(|result| result.as_deref() == Ok("123")));
+        assert!(
+            start.elapsed() >= Duration::from_millis(240),
+            "concurrent reads bypassed aggregate pacing"
+        );
         server.abort();
+    }
+
+    #[tokio::test]
+    async fn consecutive_terminal_failures_increase_the_shared_cooldown() {
+        let (api, server) = mock_api(403, None, "{}", true).await;
+        for seconds in [1, 2, 4] {
+            assert_eq!(
+                api.current_user_id().await,
+                Err(DiscordApiError::Status(403))
+            );
+            let deadline = api.admission.lock().await.next;
+            assert!(
+                deadline.saturating_duration_since(tokio::time::Instant::now())
+                    >= Duration::from_millis(seconds * 1000 - 100)
+            );
+            // Real HTTP consumes the status; paused time advances only its retry wait.
+            tokio::time::pause();
+            tokio::time::advance(Duration::from_secs(seconds)).await;
+            tokio::time::resume();
+        }
+        server.abort();
+    }
+
+    #[test]
+    fn invalid_retry_delays_never_panic_or_disable_fallback() {
+        for value in [f64::NAN, f64::INFINITY, -1.0, f64::MAX] {
+            assert!(retry_delay(value).is_none());
+        }
+        assert_eq!(retry_delay(0.25), Some(Duration::from_millis(250)));
     }
 
     const GUILD: &str = "111111111111111111";
