@@ -796,6 +796,7 @@ pub(crate) mod test_support {
         /// When set, only `edit_message` fails — a Discord that accepts posts
         /// but cannot complete the anchor's archive PATCH.
         pub edit_failure: Option<DiscordApiError>,
+        pub edit_gate: Option<Arc<(tokio::sync::Notify, tokio::sync::Notify)>>,
     }
 
     impl FakeDiscord {
@@ -822,6 +823,7 @@ pub(crate) mod test_support {
                 thread_message_failure: None,
                 issued_thread_ids: Mutex::new(BTreeSet::new()),
                 edit_failure: None,
+                edit_gate: None,
             }
         }
 
@@ -1022,6 +1024,10 @@ pub(crate) mod test_support {
             payload: &'a serde_json::Value,
         ) -> ApiFuture<'a, ()> {
             Box::pin(async move {
+                if let Some(gate) = &self.edit_gate {
+                    gate.0.notify_one();
+                    gate.1.notified().await;
+                }
                 if let Some(failure) = self.failure.or(self.edit_failure) {
                     return Err(failure);
                 }

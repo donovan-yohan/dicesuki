@@ -3073,6 +3073,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn an_advertise_accepted_during_a_failed_edit_is_not_silently_retired() {
+        let gate = Arc::new((tokio::sync::Notify::new(), tokio::sync::Notify::new()));
+        let mut fake = FakeDiscord::new("400000000000000001");
+        fake.edit_failure = Some(DiscordApiError::Status(404));
+        fake.edit_gate = Some(gate.clone());
+        let api = Arc::new(fake);
+        let service = service_with(api.clone(), None);
+        service.registry.register("a", HOST_CHANNEL, "host-a").await.unwrap();
+        let mut tracked = HashMap::new();
+        reconcile(&service, &mut tracked, &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])]).await;
+        let changed = [desired(advert("a", 2), &[(HOST_CHANNEL, AdvertKind::HostPosted)])];
+        tokio::join!(
+            reconcile(&service, &mut tracked, &changed),
+            async {
+                gate.0.notified().await;
+                service.registry.register("a", HOST_CHANNEL, "host-a").await.unwrap();
+                gate.1.notify_one();
+            }
+        );
+        assert!(!tracked.contains_key("a"));
+        assert!(service.registry.snapshot().await.get("a").is_some_and(|channels| channels.contains(HOST_CHANNEL)), "a fresh accepted intent was silently deleted");
+        reconcile(&service, &mut tracked, &changed).await;
+        assert_eq!(api.created.lock().unwrap().len(), 2, "fresh intent must produce a new anchor after a terminal edit");
+    }
+
+    #[tokio::test]
     async fn a_permanently_refused_edit_drops_the_advert() {
         // Post successfully, then a moderator deletes the message (404 on PATCH).
         let live = Arc::new(FakeDiscord::new("400000000000000001"));
