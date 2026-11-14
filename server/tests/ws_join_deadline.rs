@@ -61,6 +61,7 @@ fn join(room: &str, token: Option<&str>) -> Message {
 async fn assert_reaped(mut socket: Socket, room: String, auth_invalid: bool) {
     let started = Instant::now();
     let mut chatter = tokio::time::interval(Duration::from_secs(1));
+    let mut chatter_writable = true;
     let closed = timeout(Duration::from_secs(17), async {
         loop {
             tokio::select! {
@@ -78,10 +79,10 @@ async fn assert_reaped(mut socket: Socket, room: String, auth_invalid: bool) {
                     Some(Ok(Message::Ping(_))) => { let _ = socket.flush().await; }
                     _ => {}
                 },
-                _ = chatter.tick() => {
+                _ = chatter.tick(), if chatter_writable => {
                     let message = if auth_invalid { join(&room, Some("not-a-jwt")) }
                         else { Message::Pong(vec![1,2,3]) };
-                    if socket.send(message).await.is_err() { break; }
+                    chatter_writable = socket.send(message).await.is_ok();
                 }
             }
         }
