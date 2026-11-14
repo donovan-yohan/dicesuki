@@ -653,6 +653,9 @@ pub(crate) mod test_support {
         pub failure: Option<DiscordApiError>,
         pub guild_list_calls: AtomicUsize,
         pub member_calls: AtomicUsize,
+        pub member_delay: Duration,
+        pub active_members: AtomicUsize,
+        pub peak_members: AtomicUsize,
         pub created: Mutex<Vec<(String, serde_json::Value)>>,
         pub edited: Mutex<Vec<(String, String, serde_json::Value)>>,
         pub deleted: Mutex<Vec<(String, String)>>,
@@ -686,6 +689,9 @@ pub(crate) mod test_support {
                 failure: None,
                 guild_list_calls: AtomicUsize::new(0),
                 member_calls: AtomicUsize::new(0),
+                member_delay: Duration::ZERO,
+                active_members: AtomicUsize::new(0),
+                peak_members: AtomicUsize::new(0),
                 created: Mutex::new(Vec::new()),
                 edited: Mutex::new(Vec::new()),
                 deleted: Mutex::new(Vec::new()),
@@ -823,6 +829,10 @@ pub(crate) mod test_support {
         ) -> ApiFuture<'a, Option<crate::discord_api::GuildMember>> {
             Box::pin(async move {
                 self.member_calls.fetch_add(1, Ordering::AcqRel);
+                let active = self.active_members.fetch_add(1, Ordering::SeqCst) + 1;
+                self.peak_members.fetch_max(active, Ordering::SeqCst);
+                tokio::time::sleep(self.member_delay).await;
+                self.active_members.fetch_sub(1, Ordering::SeqCst);
                 if let Some(failure) = self.failure {
                     return Err(failure);
                 }
@@ -944,6 +954,79 @@ mod tests {
     const USER_A: &str = "300000000000000001";
     const USER_B: &str = "300000000000000002";
     const BOT: &str = "400000000000000001";
+
+    struct CountingIdentity(std::sync::atomic::AtomicUsize);
+    impl IdentityLookup for CountingIdentity {
+        fn discord_user_id<'a>(&'a self, _: &'a str) -> IdentityFuture<'a> {
+            Box::pin(async move {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                Some(USER_A)
+                    .map(str::to_string)
+            })
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn concurrent_identity_cache_misses_share_one_admin_read() {
+        let source = Arc::new(CountingIdentity(std::sync::atomic::AtomicUsize::new(0)));
+        let directory = DiscordDirectory::with_identity_lookup(Arc::new(FakeDiscord::new(BOT)), Some(source.clone()));
+        let caller = claims(serde_json::json!({"sub":"same-user", "app_metadata":{"provider":"discord"}}));
+        let resolved = futures_util::future::join_all((0..8).map(|_| directory.resolve_discord_user_id(&caller))).await;
+        assert!(resolved.iter().all(|id| id.as_deref() == Some(USER_A)));
+        assert_eq!(source.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn transient_admin_failure_does_not_hide_a_link_for_ten_minutes() {
+        use axum::{Router, routing::get, response::IntoResponse};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let count = Arc::new(AtomicUsize::new(0));
+        let counter = count.clone();
+        let app = Router::new().route("/auth/v1/admin/users/same-user", get(move || {
+            let first = counter.fetch_add(1, Ordering::SeqCst) == 0;
+            async move {
+                if first { axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response() }
+                else { axum::Json(serde_json::json!({"identities":[{"provider":"discord","id":USER_A}]})).into_response() }
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let config = SupabaseServiceConfig::from_values(Some(format!("http://{}",listener.local_addr().unwrap())), Some("sb_secret_fixture".to_string()), None).unwrap().unwrap();
+        let server = tokio::spawn(async { axum::serve(listener,app).await.unwrap() });
+        let directory = DiscordDirectory::new(Arc::new(FakeDiscord::new(BOT)), Some(config));
+        let caller = claims(serde_json::json!({"sub":"same-user", "app_metadata":{"provider":"discord"}}));
+        assert_eq!(directory.resolve_discord_user_id(&caller).await, None);
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(2)).await;
+        tokio::time::resume();
+        assert_eq!(directory.resolve_discord_user_id(&caller).await.as_deref(), Some(USER_A));
+        assert_eq!(count.load(Ordering::SeqCst), 2);
+        server.abort();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn cold_membership_fanout_is_concurrent_but_bounded() {
+        let mut fake = FakeDiscord::new(BOT);
+        for id in 100..112 { fake = fake.with_guild(&id.to_string(), "hidden", "999", &[]); }
+        fake.member_delay = Duration::from_secs(1);
+        let api = Arc::new(fake);
+        let directory = DiscordDirectory::new(api.clone(), None);
+        let start = tokio::time::Instant::now();
+        assert!(directory.targets_for(USER_A).await.is_empty());
+        assert!(start.elapsed() <= Duration::from_secs(4), "sequential fanout");
+        let peak = api.peak_members.load(std::sync::atomic::Ordering::SeqCst);
+        assert!(peak > 1 && peak <= 4, "unbounded or serialized fanout: {peak}");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_whole_targets_lookup_has_one_deadline() {
+        let mut fake = FakeDiscord::new(BOT).with_guild(GUILD_X, "hidden", CHANNEL_X, &[USER_A]);
+        fake.member_delay = Duration::from_secs(60);
+        let directory = DiscordDirectory::new(Arc::new(fake), None);
+        let start = tokio::time::Instant::now();
+        assert!(directory.targets_for(USER_A).await.is_empty());
+        assert!(start.elapsed() <= Duration::from_secs(15), "aggregate deadline missing");
+    }
 
     /// Guild X holds user A, guild Y holds user B; the bot is in both.
     fn two_tenant_directory() -> (Arc<FakeDiscord>, DiscordDirectory) {
