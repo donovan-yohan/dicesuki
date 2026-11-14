@@ -179,8 +179,14 @@ pub fn verify_with_jwks(
     let decoding_key = DecodingKey::from_jwk(jwk)
         .map_err(|e| AuthError::Invalid(format!("unusable signing key: {e}")))?;
 
+    if !algorithms.contains(&header.alg) {
+        return Err(AuthError::Invalid("token algorithm is not allowed".to_string()));
+    }
     let mut validation = Validation::new(header.alg);
-    validation.algorithms = algorithms.to_vec();
+    // jsonwebtoken requires every validation algorithm to share the key family.
+    // Select the already-allowlisted algorithm, then let decode enforce that it
+    // matches this key. Never pass a mixed RSA/EC family list to decode.
+    validation.algorithms = vec![header.alg];
     validation.validate_exp = true;
     validation.set_audience(&[EXPECTED_AUDIENCE]);
     if let Some(iss) = issuer {
