@@ -96,8 +96,9 @@ export function CheckoutReturn({ client, onFulfilled }: CheckoutReturnProps) {
         <div className="text-center max-w-md px-4">
           <h1 className="text-xl font-semibold mb-2">No purchase in progress</h1>
           <p data-testid="checkout-status" data-status="none" className="text-sm opacity-80">
-            There is nothing to confirm right now.
+            Return to the browser or installed app where you started checkout, and sign in to the same account. This return link alone cannot confirm a purchase.
           </p>
+          <a href="/" className="mt-4 inline-flex min-h-11 items-center underline">Back to your dice table</a>
         </div>
       </main>
     )

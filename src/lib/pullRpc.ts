@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { assertAccountMutationAvailable } from './pwaActivity'
 import type {
   PullCancelReceipt,
   PullCount,
@@ -291,6 +292,7 @@ async function rpc(
   const attempts = retryThrownTransport ? 2 : 1
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
+      assertAccountMutationAvailable()
       const result = await client.rpc(operation, parameters)
       if (result.error) {
         throw new PullRpcError(operation, result.error.message, result.error.code)

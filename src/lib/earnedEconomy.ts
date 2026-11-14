@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { assertAccountMutationAvailable } from './pwaActivity'
 import type {
   CommunityRewardState,
   EarnedRewardClaimKind,
@@ -246,6 +247,7 @@ async function claim(
   idempotencyKey: string,
 ): Promise<EarnedRewardClaimOutcome> {
   assertIdempotencyKey(idempotencyKey, operation)
+  assertAccountMutationAvailable()
   return parseClaim(
     await rpc(client, operation, { p_idempotency_key: idempotencyKey }),
     operation,

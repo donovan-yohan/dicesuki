@@ -51,6 +51,7 @@ describe('WalletBalanceSummary', () => {
     renderBalanceSummary({ premiumTickets: 0, stale: true })
 
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.getByTestId('wallet-stars')).toHaveAttribute('aria-label', 'Stars: Unavailable')
     expect(screen.queryByTestId('wallet-premium-rolls')).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
     expect(screen.getByRole('status')).toHaveTextContent(/balances may be stale/i)

@@ -63,7 +63,7 @@ export const WalletBalanceSummary = memo(function WalletBalanceSummary({
         }}
       >
         {balances.map(balance => (
-          <BalanceCell key={balance.label} {...balance} />
+          <BalanceCell key={balance.label} {...balance} value={stale ? null : balance.value} />
         ))}
       </ul>
       {stale && (
@@ -88,14 +88,14 @@ export const WalletBalanceSummary = memo(function WalletBalanceSummary({
 interface Balance {
   label: string
   compactLabel?: string
-  value: number
+  value: number | null
   kind: CurrencyKind
 }
 
 function BalanceCell({ label, compactLabel = label, value, kind }: Balance) {
   const { currentTheme } = useTheme()
   const { colors, effects, spacing, typography } = currentTheme.tokens
-  const formattedValue = value.toLocaleString()
+  const formattedValue = value === null ? 'Unavailable' : value.toLocaleString()
 
   return (
     <li
@@ -130,6 +130,7 @@ function BalanceCell({ label, compactLabel = label, value, kind }: Balance) {
           fontWeight: typography.fontWeight.bold,
           fontSize: typography.fontSize.sm,
           fontVariantNumeric: 'tabular-nums',
+          overflowWrap: 'anywhere',
         }}
       >
         {formattedValue}

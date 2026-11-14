@@ -8,10 +8,13 @@ import {
   isSessionActive,
   readSessionSnapshot,
   startServiceWorkerUpdates,
+  getServiceWorkerUpdate,
+  requestServiceWorkerUpdate,
   type SessionSnapshot,
 } from './swUpdate'
 import { useMultiplayerStore, type RoomTransportKind } from '../store/useMultiplayerStore'
 import { useDiceStore } from '../store/useDiceStore'
+import { setPwaActivating } from './pwaActivity'
 
 // The plugin's virtual module is the seam the whole policy hangs off: mocking it
 // at module level lets the tests drive `onNeedReload` / `onRegisteredSW` exactly
@@ -141,6 +144,7 @@ describe('startServiceWorkerUpdates', () => {
   let reload: Mock<() => void>
 
   beforeEach(() => {
+    setPwaActivating(false)
     registerSWMock.mockReset()
     window.sessionStorage.clear()
     setVisibility('visible')
@@ -157,6 +161,7 @@ describe('startServiceWorkerUpdates', () => {
     stop?.()
     stop = null
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
   it('registers immediately and owns the reload via onNeedReload', () => {
@@ -184,6 +189,8 @@ describe('startServiceWorkerUpdates', () => {
     expect(reload).not.toHaveBeenCalled()
 
     leaveRoom()
+    expect(reload).not.toHaveBeenCalled()
+    requestServiceWorkerUpdate()
 
     expect(reload).toHaveBeenCalledTimes(1)
   })
@@ -199,6 +206,8 @@ describe('startServiceWorkerUpdates', () => {
     // Dice settle and the table is cleared — solo with an empty table is safe.
     useDiceStore.setState({ rollingDice: new Set() })
     useMultiplayerStore.setState({ dice: new Map() })
+    expect(reload).not.toHaveBeenCalled()
+    requestServiceWorkerUpdate()
 
     expect(reload).toHaveBeenCalledTimes(1)
   })
@@ -215,6 +224,8 @@ describe('startServiceWorkerUpdates', () => {
 
     expect(reload).not.toHaveBeenCalled()
     leaveRoom()
+    expect(reload).not.toHaveBeenCalled()
+    requestServiceWorkerUpdate()
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
@@ -273,6 +284,39 @@ describe('startServiceWorkerUpdates', () => {
 
     expect(() => capturedOptions().onRegisteredSW?.('/sw.js', undefined)).not.toThrow()
     expect(() => vi.advanceTimersByTime(SW_UPDATE_CHECK_INTERVAL_MS)).not.toThrow()
+  })
+
+  it('reloads after native controllerchange for an explicitly requested custom-worker activation', () => {
+    const serviceWorker = new EventTarget()
+    vi.stubGlobal('navigator', { serviceWorker, onLine: true, userAgent: '', platform: '' })
+    const waiting = { postMessage: vi.fn() }
+    const registration = { waiting, update: vi.fn().mockResolvedValue(undefined) } as unknown as ServiceWorkerRegistration
+    stop = startServiceWorkerUpdates({ reload })
+    capturedOptions().onRegisteredSW?.('/sw.js', registration)
+    capturedOptions().onNeedRefresh?.()
+    requestServiceWorkerUpdate()
+    expect(waiting.postMessage).toHaveBeenCalledTimes(1)
+    serviceWorker.dispatchEvent(new Event('controllerchange'))
+    expect(reload).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
+  })
+
+  it('does not synchronously reread persistent recovery state on unchanged physics snapshots', () => {
+    stop = startServiceWorkerUpdates({ reload })
+    const reads = vi.spyOn(Storage.prototype, 'getItem')
+    for (let frame = 0; frame < 60; frame++) useMultiplayerStore.setState({ dice: new Map() })
+    expect(reads).not.toHaveBeenCalled()
+    reads.mockRestore()
+  })
+
+  it('keeps the current page usable when a retired waiting worker rejects message dispatch', () => {
+    const registration = { waiting: { postMessage: () => { throw new Error('redundant worker') } }, update: vi.fn().mockResolvedValue(undefined) } as unknown as ServiceWorkerRegistration
+    stop = startServiceWorkerUpdates({ reload })
+    capturedOptions().onRegisteredSW?.('/sw.js', registration)
+    capturedOptions().onNeedRefresh?.()
+    expect(requestServiceWorkerUpdate).not.toThrow()
+    expect(getServiceWorkerUpdate()).toMatchObject({ busy: false, message: expect.stringMatching(/couldn’t finish/) })
+    expect(reload).not.toHaveBeenCalled()
   })
 
   it('stops listening after teardown', () => {

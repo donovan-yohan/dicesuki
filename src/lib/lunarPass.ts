@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { assertAccountMutationAvailable } from './pwaActivity'
 import { getSupabaseClient } from './supabaseClient'
 
 const OPERATION = 'claim_lunar_daily_stars'
@@ -209,7 +210,9 @@ export async function claimLunarDailyStars(
   }
 
   try {
+    assertAccountMutationAvailable()
     const previousReceiptId = await latestReceiptId(resolved)
+    assertAccountMutationAvailable()
     const result = await resolved.rpc(OPERATION)
     if (result.error) throw backendError(result.error)
     return parseReceipt(result.data, previousReceiptId)

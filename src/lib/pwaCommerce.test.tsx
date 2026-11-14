@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { registerSW } from 'virtual:pwa-register'
-import { startServiceWorkerUpdates } from './swUpdate'
+import { startServiceWorkerUpdates, requestServiceWorkerUpdate } from './swUpdate'
 import { startPurchase } from './paymentsClient'
 import { usePaymentsStore } from '../store/usePaymentsStore'
 import { usePullFlow } from '../hooks/usePullFlow'
@@ -35,6 +35,8 @@ it('keeps a checkout creation alive before a pending order exists, even while hi
   await purchase
   expect(reload).not.toHaveBeenCalled()
   usePaymentsStore.getState().clearPending()
+  expect(reload).not.toHaveBeenCalled()
+  requestServiceWorkerUpdate()
   expect(reload).toHaveBeenCalledTimes(1)
 })
 
@@ -61,6 +63,8 @@ it('holds reload throughout real pull preparation until the failed intent is ack
   await act(async () => { finish({ data: null, error: { message: 'unavailable' } }); await pull })
   expect(reload).not.toHaveBeenCalled()
   act(() => result.current.clearReveal())
+  expect(reload).not.toHaveBeenCalled()
+  requestServiceWorkerUpdate()
   expect(reload).toHaveBeenCalledTimes(1)
 })
 

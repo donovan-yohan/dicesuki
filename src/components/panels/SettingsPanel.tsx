@@ -8,12 +8,13 @@
  * PlayerPanel now — the panel is the single "go online" surface (Shared-ADR-005).
  */
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { ThemeSelector } from '../ThemeSelector'
 import { FlyoutPanel } from './FlyoutPanel'
 import { AccountSection } from './AccountSection'
+import { PwaAppSection } from './PwaAppSection'
 
 interface SettingsPanelProps {
   isOpen: boolean
@@ -22,6 +23,7 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showThemeSelector, setShowThemeSelector] = useState(false)
+  const themeButton = useRef<HTMLButtonElement>(null)
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
 
   return (
@@ -30,6 +32,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         isOpen={isOpen}
         onClose={onClose}
         title="Settings"
+        manageFocus
+        focusSuspended={showThemeSelector}
         position="left"
         width="360px"
       >
@@ -46,6 +50,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           </h3>
 
           <button
+            ref={themeButton}
             onClick={() => setShowThemeSelector(true)}
             className="w-full flex items-center justify-between p-4 rounded-lg transition-all"
             style={{
@@ -132,6 +137,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           </div>
         </div>
 
+        <PwaAppSection />
+
         <footer
           className="flex items-center gap-4 border-t pt-4 text-xs"
           style={{
@@ -151,7 +158,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       {/* Theme Selector Modal */}
       <ThemeSelector
         isOpen={showThemeSelector}
-        onClose={() => setShowThemeSelector(false)}
+        onClose={() => { setShowThemeSelector(false); themeButton.current?.focus() }}
       />
     </>
   )

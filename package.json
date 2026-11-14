@@ -23,6 +23,7 @@
     "test:e2e:hud-layout": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18183} playwright test e2e/hud-layout.spec.ts",
     "test:e2e:roll-builder": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18184} playwright test e2e/roll-builder.spec.ts",
     "test:e2e:roll-advanced": "PLAYWRIGHT_TEST_PORT=${PLAYWRIGHT_TEST_PORT:-18185} playwright test e2e/roll-advanced.spec.ts",
+    "test:e2e:pwa": "playwright test e2e/pwa-hardening.spec.ts --config playwright.pwa.config.ts",
     "test:coverage": "vitest --coverage",
     "generate:collectible-catalog": "node scripts/generate-collectible-catalog.js",
     "check:collectible-catalog": "node scripts/generate-collectible-catalog.js --check",
@@ -99,7 +100,11 @@
     "typescript": "^5.3.3",
     "vite": "^5.1.0",
     "vite-plugin-pwa": "^1.3.0",
-    "vitest": "^4.0.8"
+    "vitest": "^4.0.8",
+    "workbox-core": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-range-requests": "^7.4.1",
+    "workbox-routing": "^7.4.1"
   },
   "overrides": {
     "ws": "^8.21.1",

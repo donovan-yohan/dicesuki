@@ -26,6 +26,11 @@ describe('SettingsPanel', () => {
     </MemoryRouter>,
   )
 
+  it('keeps App install help in the existing Settings panel', () => {
+    renderSettingsPanel()
+    expect(screen.getByRole('heading', { name: 'App' })).toBeInTheDocument()
+  })
+
   it('no longer hosts the multiplayer entry points (moved to the in-scene panel)', () => {
     renderSettingsPanel()
 

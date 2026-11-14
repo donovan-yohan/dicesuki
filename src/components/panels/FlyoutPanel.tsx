@@ -6,7 +6,7 @@
  */
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { ReactNode } from 'react'
+import { ReactNode, useEffect, useId, useRef } from 'react'
 import { shouldReduceMotion } from '../../animations/ui-transitions'
 
 interface FlyoutPanelProps {
@@ -15,6 +15,8 @@ interface FlyoutPanelProps {
   title: string
   position?: 'left' | 'right'
   width?: string
+  manageFocus?: boolean
+  focusSuspended?: boolean
   children: ReactNode
 }
 
@@ -25,8 +27,35 @@ export function FlyoutPanel({
   position = 'left',
   width = '320px',
   children,
+  manageFocus = false,
+  focusSuspended = false,
 }: FlyoutPanelProps) {
   const reduceMotion = shouldReduceMotion()
+  const dialog = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  const closeRef = useRef(onClose)
+  const suspendedRef = useRef(focusSuspended)
+  closeRef.current = onClose
+  suspendedRef.current = focusSuspended
+  useEffect(() => {
+    if (!isOpen || !manageFocus) return
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const root = dialog.current
+    root?.focus()
+    const keydown = (event: KeyboardEvent) => {
+      if (suspendedRef.current || root?.querySelector('[role="dialog"][aria-modal="true"]')) return
+      if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); return }
+      if (event.key !== 'Tab' || !root) return
+      const items = [...root.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]')]
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (!first) { event.preventDefault(); root.focus() }
+      else if (event.shiftKey && (document.activeElement === first || document.activeElement === root)) { event.preventDefault(); last.focus() }
+      else if (!event.shiftKey && (document.activeElement === last || !root.contains(document.activeElement))) { event.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', keydown)
+    return () => { document.removeEventListener('keydown', keydown); if (opener?.isConnected) opener.focus() }
+  }, [isOpen, manageFocus])
 
   const panelVariants = {
     hidden: {
@@ -78,6 +107,11 @@ export function FlyoutPanel({
 
           {/* Panel */}
           <motion.div
+            ref={dialog}
+            role={manageFocus ? 'dialog' : undefined}
+            aria-modal={manageFocus ? true : undefined}
+            aria-labelledby={manageFocus ? titleId : undefined}
+            tabIndex={-1}
             className={`theme-panel fixed top-0 ${position === 'left' ? 'left-0' : 'right-0'} h-full z-50 flex flex-col overflow-hidden`}
             style={{
               width,
@@ -103,7 +137,7 @@ export function FlyoutPanel({
                 backgroundColor: 'var(--ui-inset)',
               }}
             >
-              <h2
+              <h2 id={titleId}
                 className="text-xl font-bold"
                 style={{ color: 'var(--color-text-primary)' }}
               >
