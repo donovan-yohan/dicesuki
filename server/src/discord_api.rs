@@ -981,6 +981,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn malformed_json_and_member_bodies_accumulate_shared_transport_backoff() {
+        for member in [false, true] {
+            let (api, server) = mock_api(200, None, "not-json", true).await;
+            for (attempt, seconds) in [1, 2, 4].into_iter().enumerate() {
+                let result = if member {
+                    api.guild_member("123", "456").await.map(|_| ())
+                } else {
+                    api.current_user_id().await.map(|_| ())
+                };
+                assert_eq!(result, Err(DiscordApiError::Transport));
+                assert_eq!(api.admission.lock().await.failures, attempt as u32 + 1,
+                    "successful headers must not reset the body failure streak");
+                let started = tokio::time::Instant::now();
+                // Poll a different route through actual admission, then advance
+                // only the retry wait. Resume before loopback response I/O.
+                let next = api.bot_guilds();
+                tokio::pin!(next);
+                tokio::time::pause();
+                assert!(futures_util::poll!(&mut next).is_pending());
+                tokio::time::advance(Duration::from_secs(seconds)).await;
+                tokio::time::resume();
+                drop(next);
+                assert!(started.elapsed() >= Duration::from_secs(seconds));
+            }
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn truncated_success_body_feeds_shared_backoff() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut api = HttpDiscordApi::new("test-only");
+        api.base_url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = [0; 4096];
+            assert!(stream.read(&mut request).await.unwrap() > 0);
+            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: close\r\n\r\n{\"id\":").await.unwrap();
+            stream.shutdown().await.unwrap();
+        });
+        assert_eq!(api.current_user_id().await, Err(DiscordApiError::Transport));
+        server.await.unwrap();
+        assert_eq!(api.admission.lock().await.failures, 1, "truncated body bypassed shared transport backoff");
+    }
+
+    #[tokio::test]
     async fn retry_after_delays_other_routes_without_replaying_a_post() {
         let (api, server) = mock_api(429, Some("0.2"), r#"{"retry_after": 0.2}"#, false).await;
         let payload = serde_json::json!({"content": "test"});
