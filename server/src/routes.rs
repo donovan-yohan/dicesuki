@@ -409,7 +409,11 @@ pub async fn advertise(
         .directory
         .verified_channel_ids(&discord_user_id)
         .await;
-    authorize_advertise(host.as_deref(), &claims.sub, channel_id, &verified)?;
+    // Host transfer can occur during the network reads. Hold the room's read
+    // lease through registry admission so only the current host can authorize it.
+    let room_guard = room.read().await;
+    let current_host = host_user_id(&room_guard);
+    authorize_advertise(current_host.as_deref(), &claims.sub, channel_id, &verified)?;
 
     service
         .registry
