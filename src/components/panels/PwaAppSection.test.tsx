@@ -1,7 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { registerSW } from 'virtual:pwa-register'
 import { PwaAppSection } from './PwaAppSection'
 import { startPwaInstallGuidance, PWA_VALUE_KEY } from '../../lib/pwaInstall'
+import { startServiceWorkerUpdates } from '../../lib/swUpdate'
 import { useMultiplayerStore } from '../../store/useMultiplayerStore'
 import { useDiceStore } from '../../store/useDiceStore'
 vi.mock('virtual:pwa-register', () => ({ registerSW: vi.fn() }))
@@ -54,4 +56,16 @@ it('uses dismissible inline iOS guidance rather than a fake install button', () 
   expect(screen.queryByRole('button', { name: 'Install Dicesuki' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
   expect(screen.queryByText('Tap Share, then Add to Home Screen.')).toBeNull()
+})
+
+it('explains the full restart before an update request and after Later', () => {
+  stop = startServiceWorkerUpdates()
+  render(<PwaAppSection />)
+  const options = vi.mocked(registerSW).mock.calls.at(-1)?.[0]
+  act(() => { options?.onNeedRefresh?.() })
+  const instruction = 'Close all Dicesuki tabs and windows, then reopen Dicesuki to update.'
+  expect(screen.getByText(instruction)).toBeInTheDocument()
+  expect(screen.queryByText('Reload to use the latest version.')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Later' }))
+  expect(screen.getByText(instruction)).toBeInTheDocument()
 })

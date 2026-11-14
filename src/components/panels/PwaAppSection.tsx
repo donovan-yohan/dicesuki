@@ -25,7 +25,7 @@ export function PwaAppSection() {
       {education && (install.native || install.ios) && <button type="button" className={`${buttonClass} ml-2`} onClick={dismiss}>Not now</button>}
       {update.available && <div className="space-y-2" aria-live="polite">
         <p className="font-semibold">Update ready</p>
-        <p>{update.message ?? 'Reload to use the latest version.'}</p>
+        <p>{update.message ?? 'Close all Dicesuki tabs and windows, then reopen Dicesuki to update.'}</p>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={buttonClass} disabled={!safe || update.busy} onClick={requestServiceWorkerUpdate}>{update.busy ? 'Updating…' : 'Update now'}</button>
           <button type="button" className={buttonClass} disabled={update.busy} onClick={() => { deferServiceWorkerUpdate(); heading.current?.focus() }}>Later</button>
