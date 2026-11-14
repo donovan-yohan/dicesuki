@@ -203,7 +203,7 @@ describe('startServiceWorkerUpdates', () => {
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
-  it('reloads a deferred update as soon as the tab is hidden', () => {
+  it('does not discard an active room when the tab is hidden', () => {
     enterRoom('websocket', ['die-1'])
     stop = startServiceWorkerUpdates({ reload })
 
@@ -213,6 +213,8 @@ describe('startServiceWorkerUpdates', () => {
     setVisibility('hidden')
     document.dispatchEvent(new Event('visibilitychange'))
 
+    expect(reload).not.toHaveBeenCalled()
+    leaveRoom()
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
