@@ -644,9 +644,9 @@ fn render_embed_text(raw: &str, max_len: usize, fallback: &str) -> String {
         return fallback.to_string();
     }
     let mut escaped = String::with_capacity(collapsed.len());
-    let ordered_dot = collapsed.find(". ").filter(|&index| {
-        index > 0 && collapsed[..index].bytes().all(|byte| byte.is_ascii_digit())
-    });
+    let ordered_dot = collapsed
+        .find(". ")
+        .filter(|&index| index > 0 && collapsed[..index].bytes().all(|byte| byte.is_ascii_digit()));
     for (index, c) in collapsed.char_indices() {
         // A single client string can still occupy column zero in a multi-line
         // roster or roll history. Escape block/list markers as well as inline
@@ -654,7 +654,8 @@ fn render_embed_text(raw: &str, max_len: usize, fallback: &str) -> String {
         if matches!(
             c,
             '*' | '_' | '~' | '`' | '|' | '\\' | '[' | ']' | '(' | ')' | '#' | '>' | '-' | '+'
-        ) || (c == '.' && ordered_dot == Some(index)) {
+        ) || (c == '.' && ordered_dot == Some(index))
+        {
             escaped.push('\\');
         }
         escaped.push(c);
@@ -1388,12 +1389,18 @@ pub fn targets_rate_limiter() -> UserRateLimiter {
     UserRateLimiter::new(TARGETS_BURST, TARGETS_REFILL_PER_SEC)
 }
 
+struct HostRegistration {
+    user_id: String,
+    revision: u64,
+}
+
 /// Which channels each room has been explicitly posted to by its host.
 #[derive(Default)]
 pub struct HostPostRegistry {
     // Channel -> original authenticated advertiser. Ownership never transfers
     // on a duplicate registration or a room host transfer.
-    rooms: RwLock<HashMap<String, HashMap<String, String>>>,
+    rooms: RwLock<HashMap<String, HashMap<String, HostRegistration>>>,
+    next_revision: std::sync::atomic::AtomicU64,
 }
 
 impl HostPostRegistry {
@@ -1410,18 +1417,28 @@ impl HostPostRegistry {
         user_id: &str,
     ) -> Result<(), AdvertiseRejection> {
         let mut rooms = self.rooms.write().await;
-        if rooms
-            .get(room_id)
-            .is_some_and(|channels| channels.contains_key(channel_id))
+        let revision = self
+            .next_revision
+            .fetch_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |value| value.checked_add(1),
+            )
+            .map_err(|_| AdvertiseRejection::TooManyAdverts)?;
+        if let Some(registration) = rooms
+            .get_mut(room_id)
+            .and_then(|channels| channels.get_mut(channel_id))
         {
+            // Re-advertising renews intent, not the original advertiser's charge.
+            registration.revision = revision;
             return Ok(());
         }
         let already_charged = rooms
             .get(room_id)
-            .is_some_and(|channels| channels.values().any(|owner| owner == user_id));
+            .is_some_and(|channels| channels.values().any(|owner| owner.user_id == user_id));
         let charged_rooms = rooms
             .values()
-            .filter(|channels| channels.values().any(|owner| owner == user_id))
+            .filter(|channels| channels.values().any(|owner| owner.user_id == user_id))
             .count();
         if !already_charged && charged_rooms >= MAX_ADVERTISED_ROOMS_PER_USER {
             return Err(AdvertiseRejection::TooManyAdverts);
@@ -1431,7 +1448,13 @@ impl HostPostRegistry {
                 if channels.len() >= MAX_CHANNELS_PER_ROOM {
                     return Err(AdvertiseRejection::TooManyAdverts);
                 }
-                channels.insert(channel_id.to_string(), user_id.to_string());
+                channels.insert(
+                    channel_id.to_string(),
+                    HostRegistration {
+                        user_id: user_id.to_string(),
+                        revision,
+                    },
+                );
             }
             None => {
                 if rooms.len() >= MAX_ADVERTISED_ROOMS {
@@ -1439,11 +1462,43 @@ impl HostPostRegistry {
                 }
                 rooms.insert(
                     room_id.to_string(),
-                    HashMap::from([(channel_id.to_string(), user_id.to_string())]),
+                    HashMap::from([(
+                        channel_id.to_string(),
+                        HostRegistration {
+                            user_id: user_id.to_string(),
+                            revision,
+                        },
+                    )]),
                 );
             }
         }
         Ok(())
+    }
+
+    async fn revision(&self, room_id: &str, channel_id: &str) -> Option<u64> {
+        self.rooms
+            .read()
+            .await
+            .get(room_id)?
+            .get(channel_id)
+            .map(|registration| registration.revision)
+    }
+
+    /// A failed in-flight request may only retire the intent it observed. A new
+    /// accepted advertise racing the response must survive for the next pass.
+    async fn forget_revision(&self, room_id: &str, channel_id: &str, revision: Option<u64>) {
+        let mut rooms = self.rooms.write().await;
+        if let Some(channels) = rooms.get_mut(room_id) {
+            if channels
+                .get(channel_id)
+                .is_some_and(|registration| Some(registration.revision) == revision)
+            {
+                channels.remove(channel_id);
+            }
+            if channels.is_empty() {
+                rooms.remove(room_id);
+            }
+        }
     }
 
     /// Drop one registration once its advert has been archived, so a recycled
@@ -1635,17 +1690,21 @@ async fn prune_registrations(
 ///
 /// A host-posted target is a registration, so dropping it is what actually ends
 /// the retry loop. The billboard is deployment configuration and cannot be
-/// unconfigured at runtime; it keeps retrying at the sync cadence, which is the
-/// pre-existing #84 behaviour and an operator-visible misconfiguration rather
-/// than something a guild member can provoke.
+/// unconfigured at runtime. It retries through the shared HTTP cooldown and
+/// aggregate pacing; a moderator can delete the configured channel, so terminal
+/// refusals must not bypass that backoff.
 async fn retire_target(
     service: &DiscordService,
     kind: AdvertKind,
     room_id: &str,
     channel_id: &str,
+    revision: Option<u64>,
 ) {
     if kind == AdvertKind::HostPosted {
-        service.registry.forget(room_id, channel_id).await;
+        service
+            .registry
+            .forget_revision(room_id, channel_id, revision)
+            .await;
     }
 }
 
@@ -1698,6 +1757,10 @@ pub async fn reconcile(
                 kind,
                 advert,
             } => {
+                let revision = service
+                    .registry
+                    .revision(&advert.room_id, &channel_id)
+                    .await;
                 let payload = build_message_payload(&advert, &service.app_base_url);
                 match service.api.create_message(&channel_id, &payload).await {
                     Ok(message_id) => {
@@ -1729,7 +1792,7 @@ pub async fn reconcile(
                             "[{}] Discord create is impossible for room {} ({error}); dropping the target",
                             *INSTANCE_ID, advert.room_id
                         );
-                        retire_target(service, kind, &advert.room_id, &channel_id).await;
+                        retire_target(service, kind, &advert.room_id, &channel_id, revision).await;
                     }
                     Err(error) => warn!(
                         "[{}] Discord create failed for room {}: {error}",
@@ -1743,6 +1806,10 @@ pub async fn reconcile(
                 kind,
                 advert,
             } => {
+                let revision = service
+                    .registry
+                    .revision(&advert.room_id, &channel_id)
+                    .await;
                 let payload = build_message_payload(&advert, &service.app_base_url);
                 let existing = tracked
                     .get(&advert.room_id)
@@ -1782,7 +1849,7 @@ pub async fn reconcile(
                             *INSTANCE_ID, advert.room_id
                         );
                         forget(tracked, &advert.room_id, &channel_id);
-                        retire_target(service, kind, &advert.room_id, &channel_id).await;
+                        retire_target(service, kind, &advert.room_id, &channel_id, revision).await;
                     }
                     Err(error) => warn!(
                         "[{}] Discord edit failed for room {}: {error}",
@@ -2929,7 +2996,13 @@ mod tests {
 
     #[test]
     fn client_names_cannot_start_markdown_blocks_in_roster_or_roll_lines() {
-        for (raw, escaped) in [("# x", "\\# x"), ("> x", "\\> x"), ("- x", "\\- x"), ("+ x", "\\+ x"), ("1. x", "1\\. x")] {
+        for (raw, escaped) in [
+            ("# x", "\\# x"),
+            ("> x", "\\> x"),
+            ("- x", "\\- x"),
+            ("+ x", "\\+ x"),
+            ("1. x", "1\\. x"),
+        ] {
             assert_eq!(render_player_name(raw), escaped);
         }
     }
@@ -3080,22 +3153,50 @@ mod tests {
         fake.edit_gate = Some(gate.clone());
         let api = Arc::new(fake);
         let service = service_with(api.clone(), None);
-        service.registry.register("a", HOST_CHANNEL, "host-a").await.unwrap();
+        service
+            .registry
+            .register("a", HOST_CHANNEL, "host-a")
+            .await
+            .unwrap();
         let mut tracked = HashMap::new();
-        reconcile(&service, &mut tracked, &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])]).await;
-        let changed = [desired(advert("a", 2), &[(HOST_CHANNEL, AdvertKind::HostPosted)])];
-        tokio::join!(
-            reconcile(&service, &mut tracked, &changed),
-            async {
-                gate.0.notified().await;
-                service.registry.register("a", HOST_CHANNEL, "host-a").await.unwrap();
-                gate.1.notify_one();
-            }
-        );
+        reconcile(
+            &service,
+            &mut tracked,
+            &[desired(
+                advert("a", 1),
+                &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+            )],
+        )
+        .await;
+        let changed = [desired(
+            advert("a", 2),
+            &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+        )];
+        tokio::join!(reconcile(&service, &mut tracked, &changed), async {
+            gate.0.notified().await;
+            service
+                .registry
+                .register("a", HOST_CHANNEL, "host-a")
+                .await
+                .unwrap();
+            gate.1.notify_one();
+        });
         assert!(!tracked.contains_key("a"));
-        assert!(service.registry.snapshot().await.get("a").is_some_and(|channels| channels.contains(HOST_CHANNEL)), "a fresh accepted intent was silently deleted");
+        assert!(
+            service
+                .registry
+                .snapshot()
+                .await
+                .get("a")
+                .is_some_and(|channels| channels.contains(HOST_CHANNEL)),
+            "a fresh accepted intent was silently deleted"
+        );
         reconcile(&service, &mut tracked, &changed).await;
-        assert_eq!(api.created.lock().unwrap().len(), 2, "fresh intent must produce a new anchor after a terminal edit");
+        assert_eq!(
+            api.created.lock().unwrap().len(),
+            2,
+            "fresh intent must produce a new anchor after a terminal edit"
+        );
     }
 
     #[tokio::test]
