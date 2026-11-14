@@ -12,15 +12,15 @@ Optional collectible assets are not all available offline. The loaded shell, loc
 
 The action rechecks room/roll state, checkout creation and unresolved pending-order status, pull preparation/commit/recovery, and unacknowledged reveal. Hidden tabs receive the same protection. A nonempty solo table must be cleared; a shared room must be left. A terminal purchase status is distinct from a pending marker or a watcher TTL.
 
-Forced activation conservatively requires one same-origin app window. With another window open, including a sleeping or legacy client, the worker refuses activation. Close the other tabs and explicitly retry, or close all app windows and let the browser activate the waiting worker naturally. This is not an all-idle multi-tab voting protocol. A page reserves account mutation admission while its activation request is accepted or uncertain.
+The worker never forces activation with `skipWaiting()`. Close every Dicesuki tab and installed-app window, then reopen to update. An explicit request checks existing activity holds and explains this restart requirement; it cannot promise an immediate in-place update, even for a sole idle tab. A one-client snapshot is not an exclusion lock: another old-controlled window can appear immediately afterward. The browser owns the final retirement boundary, not an all-idle voting protocol. Temporary account-mutation admission is released when the worker returns its restart refusal.
 
-Installing a candidate uses a separate precache namespace derived from the built HTML revision. Running clients retain their old core cache. Old fingerprinted chunks can be read from that cache after activation. Core caches are retired at a later activation with no open windows, not while a running document can still import its old chunks. Browsers can independently evict origin storage; an app cache is not durable account storage.
+Installing a candidate uses a separate precache namespace derived from the built HTML revision. Running clients retain their old controller and its core/runtime asset routes. The waiting successor activates naturally only after the old controlled documents retire; it then removes obsolete app-cache namespaces. A plain reload is not a guaranteed retirement boundary. Browsers can independently evict origin storage; an app cache is not durable account storage.
 
 ## Cache boundaries and budget
 
 Only the core shell/engine/lighting is precached. `/dice/` is excluded from precache. Runtime caching accepts same-origin public dice GLB/bin/image paths, without query parameters or Authorization headers. API, auth, entitlement, economy, checkout and third-party responses have no runtime caching route. Checkout, multiplayer, API and auth navigations do not use the offline SPA fallback.
 
-Each shell revision has a dice cache under `dicesuki-dice-assets-v2-<shell revision>`. A deploy cannot keep stale content at an unchanged model URL. Old dice-cache namespaces are retired on accepted activation. The current namespace has these ceilings:
+Each shell revision has a dice cache under `dicesuki-dice-assets-v2-<shell revision>`. A new shell does not reuse an older model-cache namespace. Old dice-cache namespaces are retired at natural successor activation, after the old controlled clients have retired. The current namespace has these ceilings:
 
 - 192 MiB total response-body bytes.
 - 24 MiB per entry. Larger downloads remain usable online but are not cached.
@@ -34,7 +34,7 @@ Guest/basic/local dice remain playable offline. Authenticated server copies are 
 
 Claim, pull, conversion and checkout dispatch recheck offline/update admission at their consuming boundary. No paid or valuable action is queued for reconnect. Connectivity return rehydrates the same account through `dataSync`; it does not submit a deferred purchase or pull. Account replacement/sign-out retains the existing generation and local/server-copy separation.
 
-A pull's idempotency pointer must be durably readable before preparation. A failed prepared-pointer write stops before commit. A prepared pointer can recover a committed reward through `get_committed_pull_reveal` without preparing a new pull. Checkout will not hand off to its SDK if persisting its pending-order marker fails. Payments remain disabled unless the existing environment flag is enabled; this work does not activate payments or supply a payment form.
+A pull's idempotency pointer must be durably readable before preparation. A failed prepared-pointer write stops before commit. A prepared pointer can recover a committed reward through `get_committed_pull_reveal` without preparing a new pull. Checkout requires a positive store-owned write/readback receipt matching the pending order and storage version before SDK handoff, including when storage is unavailable at store initialization. A refused handoff retains the in-memory order for reconciliation. Payments remain disabled unless the existing environment flag is enabled; this work does not activate payments or supply a payment form.
 
 `/checkout/return` remains status-only. Query parameters cannot confirm a payment, grant an item or start another purchase. A return in another browser/installed storage container gives same-account/original-container recovery guidance. Existing order reads remain server-authoritative and RLS-scoped.
 
