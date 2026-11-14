@@ -314,6 +314,7 @@ pub struct DiscordDirectory {
     bot_guilds: RwLock<TtlCache<(), Arc<Vec<BotGuild>>>>,
     guild_channels: RwLock<TtlCache<String, Arc<Vec<GuildChannel>>>>,
     guild_roles: RwLock<TtlCache<String, Arc<Vec<GuildRole>>>>,
+    guild_owners: RwLock<TtlCache<String, String>>,
     bot_members: RwLock<TtlCache<String, Arc<BTreeSet<String>>>>,
     /// Roles are retained (not just a boolean) because the caller's own channel
     /// visibility is computed from them.
@@ -350,6 +351,7 @@ impl DiscordDirectory {
             bot_guilds: RwLock::new(TtlCache::new(BOT_GUILD_TTL, 2)),
             guild_channels: RwLock::new(TtlCache::new(BOT_GUILD_TTL, GUILD_CACHE_MAX)),
             guild_roles: RwLock::new(TtlCache::new(BOT_GUILD_TTL, GUILD_CACHE_MAX)),
+            guild_owners: RwLock::new(TtlCache::new(BOT_GUILD_TTL, GUILD_CACHE_MAX)),
             bot_members: RwLock::new(TtlCache::new(BOT_GUILD_TTL, GUILD_CACHE_MAX)),
             membership: RwLock::new(TtlCache::new(MEMBERSHIP_TTL, MEMBERSHIP_CACHE_MAX)),
             identities: RwLock::new(TtlCache::new(IDENTITY_TTL, IDENTITY_CACHE_MAX)),
@@ -448,31 +450,32 @@ impl DiscordDirectory {
             (bot_user_id, guilds)
         };
         let bot_user_id = &bot_user_id;
-        let mut targets: Vec<_> =
-            stream::iter(guilds.as_ref().clone())
-                .map(|guild: BotGuild| async move {
-                    if !is_snowflake(&guild.id) { return None; }
-                    let _permit = self.guild_work.acquire().await.ok()?;
-                    // No guild data may be rendered or owner/channel read before membership proof.
-                    let member_roles = self.member_roles(discord_user_id, &guild.id).await?;
-                    Some(TargetGuild {
-                        id: guild.id.clone(),
-                        name: guild.name.clone(),
-                        icon: guild.icon.clone(),
-                        channels: self
-                            .shared_postable_channels(
-                                &guild,
-                                bot_user_id,
-                                discord_user_id,
-                                &member_roles,
-                            )
-                            .await,
-                    })
+        let mut targets: Vec<_> = stream::iter(guilds.as_ref().clone())
+            .map(|guild: BotGuild| async move {
+                if !is_snowflake(&guild.id) {
+                    return None;
+                }
+                let _permit = self.guild_work.acquire().await.ok()?;
+                // No guild data may be rendered or owner/channel read before membership proof.
+                let member_roles = self.member_roles(discord_user_id, &guild.id).await?;
+                Some(TargetGuild {
+                    id: guild.id.clone(),
+                    name: guild.name.clone(),
+                    icon: guild.icon.clone(),
+                    channels: self
+                        .shared_postable_channels(
+                            &guild,
+                            bot_user_id,
+                            discord_user_id,
+                            &member_roles,
+                        )
+                        .await,
                 })
-                .buffer_unordered(TARGETS_CONCURRENCY)
-                .filter_map(|guild| async { guild })
-                .collect()
-                .await;
+            })
+            .buffer_unordered(TARGETS_CONCURRENCY)
+            .filter_map(|guild| async { guild })
+            .collect()
+            .await;
         // Stable order so the share sheet does not reshuffle between requests.
         targets.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.id.cmp(&b.id)));
         targets
@@ -604,7 +607,14 @@ impl DiscordDirectory {
         let Some(roles) = self.roles_of(&guild.id).await else {
             return Vec::new();
         };
-        let caller_base = compute_base_permissions(&guild.id, &roles, member_roles);
+        let owner = self.owner_of(&guild.id).await;
+        // Discord grants the owner all permissions before role and overwrite steps.
+        // An unavailable owner read never grants anything beyond verified roles.
+        let caller_base = if owner.as_deref() == Some(discord_user_id) {
+            u64::MAX
+        } else {
+            compute_base_permissions(&guild.id, &roles, member_roles)
+        };
 
         let mut postable: Vec<(i64, TargetChannel)> = channels
             .iter()
@@ -639,6 +649,22 @@ impl DiscordDirectory {
 
     /// The guild's role definitions, needed to compute a caller's base
     /// permissions.
+    async fn owner_of(&self, guild_id: &str) -> Option<String> {
+        let key = guild_id.to_string();
+        if let Some(owner) = self.guild_owners.read().await.get(&key, Instant::now()) {
+            return Some(owner.clone());
+        }
+        let owner = self.api.guild_owner_id(guild_id).await.ok()?;
+        if !is_snowflake(&owner) {
+            return None;
+        }
+        self.guild_owners
+            .write()
+            .await
+            .insert(key, owner.clone(), Instant::now());
+        Some(owner)
+    }
+
     async fn roles_of(&self, guild_id: &str) -> Option<Arc<Vec<GuildRole>>> {
         let now = Instant::now();
         if let Some(cached) = self
@@ -907,6 +933,21 @@ pub(crate) mod test_support {
             Box::pin(async move {
                 self.failure.map_or_else(
                     || Ok(self.channels.get(guild_id).cloned().unwrap_or_default()),
+                    Err,
+                )
+            })
+        }
+
+        fn guild_owner_id<'a>(&'a self, guild_id: &'a str) -> ApiFuture<'a, String> {
+            Box::pin(async move {
+                self.failure.map_or_else(
+                    || {
+                        Ok(self
+                            .owners
+                            .get(guild_id)
+                            .cloned()
+                            .unwrap_or_else(|| "0".to_string()))
+                    },
                     Err,
                 )
             })
@@ -1465,9 +1506,24 @@ mod tests {
         fake.guilds[0].permissions = Some(crate::discord_api::PERMISSION_ADMINISTRATOR.to_string());
         fake.owners.insert(GUILD_X.to_string(), USER_A.to_string());
         let directory = DiscordDirectory::new(Arc::new(fake), None);
-        assert!(directory.verified_channel_ids(USER_A).await.contains(PRIVATE), "the authoritative owner must bypass role/channel denies");
-        assert!(!directory.verified_channel_ids(USER_B).await.contains(PRIVATE), "ownership is not shared with ordinary members");
-        assert!(directory.verified_channel_ids("999").await.is_empty(), "ownership never bypasses membership proof");
+        assert!(
+            directory
+                .verified_channel_ids(USER_A)
+                .await
+                .contains(PRIVATE),
+            "the authoritative owner must bypass role/channel denies"
+        );
+        assert!(
+            !directory
+                .verified_channel_ids(USER_B)
+                .await
+                .contains(PRIVATE),
+            "ownership is not shared with ordinary members"
+        );
+        assert!(
+            directory.verified_channel_ids("999").await.is_empty(),
+            "ownership never bypasses membership proof"
+        );
     }
 
     #[tokio::test]

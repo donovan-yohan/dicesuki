@@ -219,6 +219,8 @@ pub trait DiscordApi: Send + Sync {
     fn bot_guilds(&self) -> ApiFuture<'_, Vec<BotGuild>>;
     /// `GET /guilds/{guild_id}/channels`.
     fn guild_channels<'a>(&'a self, guild_id: &'a str) -> ApiFuture<'a, Vec<GuildChannel>>;
+    /// `GET /guilds/{guild_id}` — authoritative owner id, never client metadata.
+    fn guild_owner_id<'a>(&'a self, guild_id: &'a str) -> ApiFuture<'a, String>;
     /// `GET /guilds/{guild_id}/roles`.
     fn guild_roles<'a>(&'a self, guild_id: &'a str) -> ApiFuture<'a, Vec<GuildRole>>;
     /// `GET /guilds/{guild_id}/members/{user_id}`. `Ok(None)` means Discord
@@ -509,6 +511,28 @@ impl DiscordApi for HttpDiscordApi {
                 format!("{}/guilds/{guild_id}/channels", self.base_url),
             ))
             .await
+        })
+    }
+
+    fn guild_owner_id<'a>(&'a self, guild_id: &'a str) -> ApiFuture<'a, String> {
+        Box::pin(async move {
+            if !is_snowflake(guild_id) {
+                return Err(DiscordApiError::Status(400));
+            }
+            #[derive(Deserialize)]
+            struct GuildOwner {
+                owner_id: String,
+            }
+            let guild: GuildOwner = self
+                .send_json(self.request(
+                    reqwest::Method::GET,
+                    format!("{}/guilds/{guild_id}", self.base_url),
+                ))
+                .await?;
+            if !is_snowflake(&guild.owner_id) {
+                return Err(DiscordApiError::Transport);
+            }
+            Ok(guild.owner_id)
         })
     }
 
