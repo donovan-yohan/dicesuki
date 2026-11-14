@@ -495,9 +495,10 @@ impl HttpDiscordApi {
             body_delay.and_then(|delay| tokio::time::Instant::now().checked_add(delay))
         {
             let mut admission = self.admission.lock().await;
-            if header_delay.is_none() && admission.epoch == failure_epoch {
-                // Replace only this response's provisional fallback. Preserve
-                // any cooldown already known before it, plus actual spacing.
+            if header_delay.is_none() && admission.shared_failure_epoch == failure_epoch {
+                // Only a newer shared failure invalidates replacement of this
+                // provisional fallback; resource failures own separate deadlines.
+                // Preserve any prior shared cooldown, plus actual spacing.
                 admission.cooldown = prior_cooldown.max(until);
             } else {
                 admission.cooldown = admission.cooldown.max(until);
