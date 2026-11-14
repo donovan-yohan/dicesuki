@@ -2924,6 +2924,13 @@ mod tests {
 
     // --- registry and rate limiting ----------------------------------------
 
+    #[test]
+    fn client_names_cannot_start_markdown_blocks_in_roster_or_roll_lines() {
+        for (raw, escaped) in [("# x", "\\# x"), ("> x", "\\> x"), ("- x", "\\- x"), ("+ x", "\\+ x"), ("1. x", "1\\. x")] {
+            assert_eq!(render_player_name(raw), escaped);
+        }
+    }
+
     #[tokio::test]
     async fn one_host_cannot_reserve_the_global_advert_registry() {
         let registry = HostPostRegistry::default();
