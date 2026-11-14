@@ -739,6 +739,7 @@ pub(crate) mod test_support {
         pub channels: HashMap<String, Vec<GuildChannel>>,
         /// `guild_id -> roles defined in that guild`.
         pub roles: HashMap<String, Vec<GuildRole>>,
+        pub owners: HashMap<String, String>,
         /// `guild_id -> member user ids present in that guild`.
         pub members: HashMap<String, BTreeSet<String>>,
         /// `(guild_id, user_id) -> that member's role ids`.
@@ -778,6 +779,7 @@ pub(crate) mod test_support {
                 guilds: Vec::new(),
                 channels: HashMap::new(),
                 roles: HashMap::new(),
+                owners: HashMap::new(),
                 members: HashMap::new(),
                 member_roles: HashMap::new(),
                 failure: None,
@@ -1452,6 +1454,20 @@ mod tests {
         assert!(!targets_response(&targets)
             .to_string()
             .contains("mod-private"));
+    }
+
+    #[tokio::test]
+    async fn guild_ownership_grants_permissions_without_roles_or_overwrites() {
+        const PRIVATE: &str = "200000000000000009";
+        let mut fake = FakeDiscord::new(BOT)
+            .with_guild(GUILD_X, "Xanadu", CHANNEL_X, &[USER_A, USER_B])
+            .with_channel(GUILD_X, private_channel(PRIVATE, GUILD_X, "555"));
+        fake.guilds[0].permissions = Some(crate::discord_api::PERMISSION_ADMINISTRATOR.to_string());
+        fake.owners.insert(GUILD_X.to_string(), USER_A.to_string());
+        let directory = DiscordDirectory::new(Arc::new(fake), None);
+        assert!(directory.verified_channel_ids(USER_A).await.contains(PRIVATE), "the authoritative owner must bypass role/channel denies");
+        assert!(!directory.verified_channel_ids(USER_B).await.contains(PRIVATE), "ownership is not shared with ordinary members");
+        assert!(directory.verified_channel_ids("999").await.is_empty(), "ownership never bypasses membership proof");
     }
 
     #[tokio::test]
