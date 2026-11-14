@@ -1264,6 +1264,130 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn resource_failure_does_not_pin_json_429_provisional_shared_fallback() {
+        use axum::response::IntoResponse;
+        let (api, mut requests, server) = controlled_api().await;
+        // Accumulate a real shared streak. Advance only completed retry waits;
+        // every request and response is consumed over resumed loopback I/O.
+        for (attempt, seconds) in [1, 2, 4, 8, 16, 32].into_iter().enumerate() {
+            let failed_api = api.clone();
+            let failed = tokio::spawn(async move { failed_api.guild_roles("111").await });
+            let (path, respond) = tokio::time::timeout(Duration::from_secs(1), requests.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(path, "/guilds/111/roles");
+            respond
+                .send(axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response())
+                .unwrap();
+            assert_eq!(failed.await.unwrap(), Err(DiscordApiError::Status(500)));
+            assert_eq!(api.admission.lock().await.failures, attempt as u32 + 1);
+            tokio::time::pause();
+            tokio::time::advance(Duration::from_secs(seconds)).await;
+            tokio::time::resume();
+        }
+
+        // Dispatch the unrelated request before the seventh failure. Its held
+        // headers let a resource refusal arrive during the 429's held body.
+        let resource_api = api.clone();
+        let resource = tokio::spawn(async move { resource_api.guild_roles("222").await });
+        let (path, resource_reply) = tokio::time::timeout(Duration::from_secs(1), requests.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(path, "/guilds/222/roles");
+        let rate_api = api.clone();
+        let rate = tokio::spawn(async move { rate_api.guild_roles("111").await });
+        let (path, rate_reply) = tokio::time::timeout(Duration::from_secs(1), requests.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(path, "/guilds/111/roles");
+        let (response, waiting, release) = held_body(429, None);
+        rate_reply.send(response).unwrap();
+        waiting.await.unwrap();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while api.admission.lock().await.failures != 7 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        let (shared_epoch, provisional) = {
+            let admission = api.admission.lock().await;
+            assert_eq!(admission.epoch, admission.shared_failure_epoch);
+            assert!(
+                admission
+                    .cooldown
+                    .saturating_duration_since(tokio::time::Instant::now())
+                    >= Duration::from_secs(63)
+            );
+            (admission.shared_failure_epoch, admission.cooldown)
+        };
+        resource_reply
+            .send(axum::http::StatusCode::FORBIDDEN.into_response())
+            .unwrap();
+        assert_eq!(resource.await.unwrap(), Err(DiscordApiError::Status(403)));
+        {
+            let admission = api.admission.lock().await;
+            assert!(admission.epoch > shared_epoch);
+            assert_eq!(admission.shared_failure_epoch, shared_epoch);
+            assert_eq!(admission.failures, 7);
+            assert_eq!(admission.cooldown, provisional);
+            assert_eq!(
+                admission.resources[&RequestTarget::Guild("222".into())].failures,
+                1
+            );
+        }
+
+        let released = tokio::time::Instant::now();
+        release.send(r#"{"retry_after":0.2}"#).unwrap();
+        assert_eq!(rate.await.unwrap(), Err(DiscordApiError::Status(429)));
+        let completed = tokio::time::Instant::now();
+        let deadline = api.admission.lock().await.cooldown;
+        assert_eq!(
+            api.guild_roles("222").await,
+            Err(DiscordApiError::ResourceCooldown),
+            "shared refinement must not remove the resource cooldown"
+        );
+
+        // Exercise healthy actual dispatch as well as inspecting the deadline.
+        // A stale 64s fallback must fail this bounded native transport check.
+        let healthy = api.current_user_id();
+        tokio::pin!(healthy);
+        tokio::time::pause();
+        assert!(futures_util::poll!(&mut healthy).is_pending());
+        tokio::time::advance(Duration::from_millis(250)).await;
+        tokio::time::resume();
+        let reply = async {
+            let (path, respond) = requests.recv().await.unwrap();
+            assert_eq!(path, "/users/@me");
+            respond
+                .send(axum::Json(serde_json::json!({"id":"123"})).into_response())
+                .unwrap();
+        };
+        let result = tokio::time::timeout(Duration::from_secs(1), async {
+            let (result, ()) = tokio::join!(healthy, reply);
+            result
+        })
+        .await;
+        server.abort();
+        assert!(
+            deadline <= completed + Duration::from_millis(200),
+            "resource-only failure kept the seventh 429's provisional 64s shared fallback"
+        );
+        assert!(
+            deadline >= released + Duration::from_millis(200),
+            "the legitimate JSON delay was shortened"
+        );
+        assert_eq!(
+            result,
+            Ok(Ok("123".to_string())),
+            "healthy request remained blocked by a resource-only epoch change"
+        );
+    }
+
+    #[tokio::test]
     async fn late_json_429_cannot_shorten_a_newer_provider_cooldown() {
         use axum::response::IntoResponse;
         let (api, mut requests, server) = controlled_api().await;
