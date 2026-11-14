@@ -923,6 +923,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn slow_guild_headers_do_not_serialize_healthy_directory_reads() {
+        use axum::{response::IntoResponse, routing::any, Router};
+        use std::sync::Arc;
+        let (started, mut held) = tokio::sync::mpsc::unbounded_channel();
+        let app = Router::new().fallback(any(move |uri: axum::http::Uri| {
+            let started = started.clone();
+            async move {
+                if uri.path().starts_with("/guilds/") {
+                    started.send(uri.path().to_string()).unwrap();
+                    tokio::time::sleep(Duration::from_secs(8)).await;
+                    axum::http::StatusCode::FORBIDDEN.into_response()
+                } else {
+                    axum::Json(serde_json::json!({"id":"123"})).into_response()
+                }
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut api = HttpDiscordApi::new("test-only");
+        api.base_url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async { axum::serve(listener, app).await.unwrap() });
+        let api = Arc::new(api);
+        let first_api = api.clone();
+        let first = tokio::spawn(async move { first_api.guild_roles("111").await });
+        assert_eq!(held.recv().await.unwrap(), "/guilds/111/roles");
+        let second_api = api.clone();
+        let second = tokio::spawn(async move { second_api.guild_roles("222").await });
+        // FIFO admission puts this healthy read behind both slow requests on the
+        // predecessor, despite each request fitting its own 10-second timeout.
+        tokio::task::yield_now().await;
+        let healthy = tokio::time::timeout(Duration::from_secs(15), api.current_user_id()).await;
+        let a = first.await.unwrap();
+        let b = second.await.unwrap();
+        server.abort();
+        assert_eq!(a, Err(DiscordApiError::Status(403)));
+        assert_eq!(b, Err(DiscordApiError::Status(403)));
+        assert_eq!(healthy, Ok(Ok("123".to_string())), "healthy directory exceeded its whole handler budget behind slow headers");
+    }
+
+    #[tokio::test]
     async fn retry_after_delays_other_routes_without_replaying_a_post() {
         let (api, server) = mock_api(429, Some("0.2"), r#"{"retry_after": 0.2}"#, false).await;
         let payload = serde_json::json!({"content": "test"});
