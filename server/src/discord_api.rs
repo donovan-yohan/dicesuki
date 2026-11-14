@@ -265,6 +265,7 @@ pub trait DiscordApi: Send + Sync {
 /// Production [`DiscordApi`] over `reqwest`.
 pub struct HttpDiscordApi {
     client: reqwest::Client,
+    base_url: String,
     /// `Authorization: Bot <token>`. Never logged, never rendered.
     authorization: reqwest::header::HeaderValue,
 }
@@ -299,6 +300,7 @@ impl HttpDiscordApi {
                 .build()
                 .expect("static Discord HTTP client configuration must be valid"),
             authorization,
+            base_url: DISCORD_API_BASE.to_string(),
         }
     }
 
@@ -382,7 +384,7 @@ impl DiscordApi for HttpDiscordApi {
     fn current_user_id(&self) -> ApiFuture<'_, String> {
         Box::pin(async move {
             let user: IdOnly = Self::send_json(
-                self.request(reqwest::Method::GET, format!("{DISCORD_API_BASE}/users/@me")),
+                self.request(reqwest::Method::GET, format!("{}/users/@me", self.base_url)),
             )
             .await?;
             Ok(user.id)
@@ -392,7 +394,7 @@ impl DiscordApi for HttpDiscordApi {
     fn bot_guilds(&self) -> ApiFuture<'_, Vec<BotGuild>> {
         Box::pin(Self::send_json(self.request(
             reqwest::Method::GET,
-            format!("{DISCORD_API_BASE}/users/@me/guilds?limit={BOT_GUILD_PAGE_LIMIT}"),
+            format!("{}/users/@me/guilds?limit={BOT_GUILD_PAGE_LIMIT}", self.base_url),
         )))
     }
 
@@ -403,7 +405,7 @@ impl DiscordApi for HttpDiscordApi {
             }
             Self::send_json(self.request(
                 reqwest::Method::GET,
-                format!("{DISCORD_API_BASE}/guilds/{guild_id}/channels"),
+                format!("{}/guilds/{guild_id}/channels", self.base_url),
             ))
             .await
         })
@@ -416,7 +418,7 @@ impl DiscordApi for HttpDiscordApi {
             }
             Self::send_json(self.request(
                 reqwest::Method::GET,
-                format!("{DISCORD_API_BASE}/guilds/{guild_id}/roles"),
+                format!("{}/guilds/{guild_id}/roles", self.base_url),
             ))
             .await
         })
@@ -431,7 +433,7 @@ impl DiscordApi for HttpDiscordApi {
             if !is_snowflake(guild_id) || !is_snowflake(user_id) {
                 return Ok(None);
             }
-            let url = format!("{DISCORD_API_BASE}/guilds/{guild_id}/members/{user_id}");
+            let url = format!("{}/guilds/{guild_id}/members/{user_id}", self.base_url);
             let response = self
                 .request(reqwest::Method::GET, url)
                 .send()
@@ -466,7 +468,7 @@ impl DiscordApi for HttpDiscordApi {
             let message: IdOnly = Self::send_json(
                 self.request(
                     reqwest::Method::POST,
-                    format!("{DISCORD_API_BASE}/channels/{channel_id}/messages"),
+                    format!("{}/channels/{channel_id}/messages", self.base_url),
                 )
                 .json(payload),
             )
@@ -488,7 +490,7 @@ impl DiscordApi for HttpDiscordApi {
             Self::send_empty(
                 self.request(
                     reqwest::Method::PATCH,
-                    format!("{DISCORD_API_BASE}/channels/{channel_id}/messages/{message_id}"),
+                    format!("{}/channels/{channel_id}/messages/{message_id}", self.base_url),
                 )
                 .json(payload),
             )
@@ -507,7 +509,7 @@ impl DiscordApi for HttpDiscordApi {
             }
             match Self::send_empty(self.request(
                 reqwest::Method::DELETE,
-                format!("{DISCORD_API_BASE}/channels/{channel_id}/messages/{message_id}"),
+                format!("{}/channels/{channel_id}/messages/{message_id}", self.base_url),
             ))
             .await
             {
@@ -531,8 +533,7 @@ impl DiscordApi for HttpDiscordApi {
                 self.request(
                     reqwest::Method::POST,
                     format!(
-                        "{DISCORD_API_BASE}/channels/{channel_id}/messages/{message_id}/threads"
-                    ),
+                        "{}/channels/{channel_id}/messages/{message_id}/threads", self.base_url),
                 )
                 .json(payload),
             )
@@ -655,6 +656,67 @@ pub fn bot_can_post(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn mock_api(status: u16, retry_after: Option<&str>, body: &str) -> (HttpDiscordApi, tokio::task::JoinHandle<()>) {
+        use axum::{routing::any, Router};
+        use axum::response::IntoResponse;
+        use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+        let calls = Arc::new(AtomicUsize::new(0));
+        let header = retry_after.map(str::to_string);
+        let body = body.to_string();
+        let app = Router::new().fallback(any(move || {
+            let first = calls.fetch_add(1, Ordering::SeqCst) == 0;
+            let header = header.clone();
+            let body = body.clone();
+            async move {
+                if first {
+                    let mut response = (axum::http::StatusCode::from_u16(status).unwrap(), body).into_response();
+                    if let Some(header) = header {
+                        response.headers_mut().insert("retry-after", header.parse().unwrap());
+                    }
+                    response
+                } else {
+                    axum::Json(serde_json::json!({"id": "123", "roles": []})).into_response()
+                }
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut api = HttpDiscordApi::new("private-test-token");
+        api.base_url = format!("http://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap(); });
+        (api, task)
+    }
+
+    #[tokio::test]
+    async fn retry_after_delays_other_routes_without_replaying_a_post() {
+        let (api, server) = mock_api(429, Some("0.2"), r#"{"retry_after": 0.2}"#).await;
+        let payload = serde_json::json!({"content": "test"});
+        assert_eq!(api.create_message("123", &payload).await, Err(DiscordApiError::Status(429)));
+        let start = tokio::time::Instant::now();
+        assert_eq!(api.current_user_id().await.unwrap(), "123");
+        assert!(start.elapsed() >= Duration::from_millis(190), "shared cooldown was ignored");
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn json_retry_after_is_used_when_the_header_is_absent() {
+        let (api, server) = mock_api(429, None, r#"{"retry_after": 0.2, "global": true}"#).await;
+        assert_eq!(api.guild_member("123", "456").await, Err(DiscordApiError::Status(429)));
+        let start = tokio::time::Instant::now();
+        api.current_user_id().await.unwrap();
+        assert!(start.elapsed() >= Duration::from_millis(190), "JSON cooldown was ignored");
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn terminal_failures_back_off_instead_of_hammering_a_deleted_channel() {
+        let (api, server) = mock_api(403, None, "{}").await;
+        assert_eq!(api.current_user_id().await, Err(DiscordApiError::Status(403)));
+        let start = tokio::time::Instant::now();
+        api.current_user_id().await.unwrap();
+        assert!(start.elapsed() >= Duration::from_secs(1));
+        server.abort();
+    }
 
     const GUILD: &str = "111111111111111111";
     const BOT: &str = "222222222222222222";
