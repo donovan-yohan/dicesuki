@@ -58,7 +58,7 @@ async function clearTable(page: Page) {
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
 }
 
-test('real waiting worker refuses other tabs, preserves old caches, honors Later and updates once on explicit safe action', async ({ context, page }, info) => {
+test('real waiting worker refuses other tabs, honors Later and updates only after old documents retire', async ({ context, page }, info) => {
   selected = resolve(buildA!)
   await page.goto(origin)
   await ready(page)
@@ -93,18 +93,23 @@ test('real waiting worker refuses other tabs, preserves old caches, honors Later
   expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.waiting?.state)).toBe('installed')
   await page.screenshot({ path: info.outputPath('update-ready.png') })
   await page.getByRole('button', { name: 'Update now', exact: true }).click()
-  await page.waitForFunction(async () => !(await navigator.serviceWorker.getRegistration())?.waiting)
-  await info.attach('activation', { body: JSON.stringify(await page.evaluate(async () => ({ active: (await navigator.serviceWorker.getRegistration())?.active?.state, controller: navigator.serviceWorker.controller?.state }))), contentType: 'application/json' })
-  await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
-  await ready(page)
-  const after = await page.evaluate(() => [...document.scripts].map(script => script.src))
-  expect(after).not.toEqual(before.scripts)
+  // A sole-client snapshot is not a lease: this worker never forces activation.
+  await expect(page.getByText('Close all Dicesuki tabs and windows, then reopen Dicesuki to update.')).toBeVisible()
+  expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.waiting?.state)).toBe('installed')
   expect(await page.evaluate(async url => (await fetch(url)).text(), oldScript)).toBe(oldBytes)
-  expect(await page.evaluate(async () => Boolean((await navigator.serviceWorker.getRegistration())?.waiting))).toBe(false)
-  await page.goto(origin + '/checkout/return?status=success')
-  await expect(page.getByTestId('checkout-status')).toHaveAttribute('data-status', 'none')
-  await expect(page.getByText(/browser or installed app where you started checkout/i)).toBeVisible()
-  await page.screenshot({ path: info.outputPath('checkout-other-container.png') })
+  for (const cache of before.caches) expect(await page.evaluate(async () => caches.keys())).toContain(cache)
+  await page.close()
+  const reopened = await context.newPage()
+  await reopened.goto(origin)
+  await ready(reopened)
+  await reopened.waitForFunction(async () => !(await navigator.serviceWorker.getRegistration())?.waiting)
+  const after = await reopened.evaluate(() => [...document.scripts].map(script => script.src))
+  expect(after).not.toEqual(before.scripts)
+  for (const cache of before.caches) expect(await reopened.evaluate(async () => caches.keys())).not.toContain(cache)
+  await reopened.goto(origin + '/checkout/return?status=success')
+  await expect(reopened.getByTestId('checkout-status')).toHaveAttribute('data-status', 'none')
+  await expect(reopened.getByText(/browser or installed app where you started checkout/i)).toBeVisible()
+  await reopened.screenshot({ path: info.outputPath('checkout-other-container.png') })
 })
 
 test('compiled guest cold-boots and rolls offline while API and checkout never acquire cached authority', async ({ context, page }, info) => {

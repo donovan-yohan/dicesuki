@@ -105,7 +105,9 @@ export function startServiceWorkerUpdates(deps: ServiceWorkerUpdateDeps = {}): (
       if (stopped) return
       if (event.data?.type === 'PWA_UPDATE_BLOCKED') {
         setPwaActivating(false)
-        updates.setState({ busy: false, message: 'Close other Dicesuki tabs, then try updating again.' })
+        updates.setState({ busy: false, message: event.data.reason === 'restart-required'
+          ? 'Close all Dicesuki tabs and windows, then reopen Dicesuki to update.'
+          : 'Close other Dicesuki tabs, then try updating again.' })
       }
       channel?.port1.close()
       channel = null

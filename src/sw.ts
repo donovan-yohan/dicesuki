@@ -34,14 +34,14 @@ registerRoute(({ request, url }) => request.method === 'GET' && url.origin === s
 })
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    // Activation is allowed only after no old peer can still depend on these
-    // runtime caches. Never touch account/pull/payment storage.
-    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    // Never call skipWaiting: the browser activates this worker only after
+    // every old controlled document retires. A matchAll snapshot is not a
+    // client-admission lock, even when it contains only the requesting tab.
+    // At this natural lifecycle boundary no prior controller owns these bytes.
+    // Never touch account/pull/payment storage.
     for (const key of await caches.keys()) {
       if (key.startsWith('dicesuki-dice-assets') && key !== assetCacheName) await caches.delete(key)
-      // Old core caches are retired only at a no-window activation boundary.
-      // Keep them for a sole explicitly updating tab until its document exits.
-      if (windows.length === 0 && key.startsWith('workbox-precache-') && key !== cacheNames.precache) await caches.delete(key)
+      if (key.startsWith('workbox-precache-') && key !== cacheNames.precache) await caches.delete(key)
     }
     await self.clients.claim()
   })())
@@ -57,7 +57,10 @@ self.addEventListener('message', event => {
       event.ports[0]?.postMessage({ type: 'PWA_UPDATE_BLOCKED' })
       return
     }
-    event.ports[0]?.postMessage({ type: 'PWA_UPDATE_ACCEPTED' })
-    await self.skipWaiting()
+    // Even a sole idle client can gain a new old-controlled peer immediately
+    // after the snapshot above. Keep A's controller AND its asset route alive
+    // until native retirement instead of trying to close that interval by
+    // rechecking counts. BLOCKED remains compatible with older client code.
+    event.ports[0]?.postMessage({ type: 'PWA_UPDATE_BLOCKED', reason: 'restart-required' })
   })())
 })

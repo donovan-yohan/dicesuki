@@ -14,7 +14,7 @@ import {
 } from './swUpdate'
 import { useMultiplayerStore, type RoomTransportKind } from '../store/useMultiplayerStore'
 import { useDiceStore } from '../store/useDiceStore'
-import { setPwaActivating } from './pwaActivity'
+import { getPwaActivity, setPwaActivating } from './pwaActivity'
 
 // The plugin's virtual module is the seam the whole policy hangs off: mocking it
 // at module level lets the tests drive `onNeedReload` / `onRegisteredSW` exactly
@@ -316,6 +316,28 @@ describe('startServiceWorkerUpdates', () => {
     capturedOptions().onNeedRefresh?.()
     expect(requestServiceWorkerUpdate).not.toThrow()
     expect(getServiceWorkerUpdate()).toMatchObject({ busy: false, message: expect.stringMatching(/couldn’t finish/) })
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('releases the explicit operation hold and explains all-window restart without reloading or queuing intent', () => {
+    const port1 = { onmessage: null as ((event: MessageEvent) => void) | null, close: vi.fn() }
+    const port2 = { close: vi.fn() }
+    vi.stubGlobal('MessageChannel', class { port1 = port1; port2 = port2 })
+    const waiting = { postMessage: vi.fn() }
+    const registration = { waiting, update: vi.fn().mockResolvedValue(undefined) } as unknown as ServiceWorkerRegistration
+    stop = startServiceWorkerUpdates({ reload })
+    capturedOptions().onRegisteredSW?.('/sw.js', registration)
+    capturedOptions().onNeedRefresh?.()
+    requestServiceWorkerUpdate()
+    expect(getPwaActivity().activating).toBe(true)
+    expect(waiting.postMessage).toHaveBeenCalledTimes(1)
+    port1.onmessage?.({ data: { type: 'PWA_UPDATE_BLOCKED', reason: 'restart-required' } } as MessageEvent)
+    expect(getPwaActivity().activating).toBe(false)
+    expect(getServiceWorkerUpdate()).toMatchObject({ available: true, busy: false, message: 'Close all Dicesuki tabs and windows, then reopen Dicesuki to update.' })
+    expect(port1.close).toHaveBeenCalledTimes(1)
+    document.dispatchEvent(new Event('visibilitychange'))
+    leaveRoom()
+    expect(waiting.postMessage).toHaveBeenCalledTimes(1)
     expect(reload).not.toHaveBeenCalled()
   })
 
