@@ -1862,14 +1862,17 @@ pub async fn reconcile(
                 channel_id,
                 message_id,
             } => {
-                if let Err(error) = service.api.delete_message(&channel_id, &message_id).await {
-                    warn!(
+                match service.api.delete_message(&channel_id, &message_id).await {
+                    // No dispatch occurred. Keep the old Join-button deletion
+                    // intent so the next ordinary pass can send it after cooldown.
+                    Err(DiscordApiError::ResourceCooldown) => continue,
+                    Err(error) => warn!(
                         "[{}] Discord delete failed for message {message_id}: {error}",
                         *INSTANCE_ID
-                    );
+                    ),
+                    Ok(()) => {}
                 }
-                // Dropped either way: the room is gone, so retrying an edit
-                // against a possibly-deleted message buys nothing.
+                // Preserve the existing best-effort policy for dispatched deletes.
                 forget(tracked, &room_id, &channel_id);
             }
             SyncAction::Archive {
