@@ -644,14 +644,17 @@ fn render_embed_text(raw: &str, max_len: usize, fallback: &str) -> String {
         return fallback.to_string();
     }
     let mut escaped = String::with_capacity(collapsed.len());
-    for c in collapsed.chars() {
-        // Heading/blockquote markers (`#`, `>`) are deliberately absent: control
-        // characters are already collapsed to spaces, so client text is always a
-        // single line and those are only significant at a line start.
+    let ordered_dot = collapsed.find(". ").filter(|&index| {
+        index > 0 && collapsed[..index].bytes().all(|byte| byte.is_ascii_digit())
+    });
+    for (index, c) in collapsed.char_indices() {
+        // A single client string can still occupy column zero in a multi-line
+        // roster or roll history. Escape block/list markers as well as inline
+        // constructs; dots also neutralize numbered-list prefixes.
         if matches!(
             c,
-            '*' | '_' | '~' | '`' | '|' | '\\' | '[' | ']' | '(' | ')'
-        ) {
+            '*' | '_' | '~' | '`' | '|' | '\\' | '[' | ']' | '(' | ')' | '#' | '>' | '-' | '+'
+        ) || (c == '.' && ordered_dot == Some(index)) {
             escaped.push('\\');
         }
         escaped.push(c);
