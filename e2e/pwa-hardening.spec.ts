@@ -131,6 +131,7 @@ test('compiled guest cold-boots and rolls offline while API and checkout never a
   expect(await page.evaluate(async () => { try { await fetch('/api/economy-fixture'); return 'cached' } catch { return 'network-unavailable' } })).toBe('network-unavailable')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'App', exact: true })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCSS('transform', 'none')
   await page.screenshot({ path: info.outputPath('offline-settings.png') })
 })
 
