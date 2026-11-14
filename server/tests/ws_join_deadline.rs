@@ -6,7 +6,11 @@ use futures_util::{SinkExt, StreamExt};
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tokio::{net::TcpListener, sync::RwLock, time::{timeout, Duration, Instant}};
+use tokio::{
+    net::TcpListener,
+    sync::RwLock,
+    time::{timeout, Duration, Instant},
+};
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
@@ -21,20 +25,33 @@ async fn text(socket: &mut Socket) -> Value {
                 other => panic!("unexpected frame: {other:?}"),
             }
         }
-    }).await.unwrap()
+    })
+    .await
+    .unwrap()
 }
 
 async fn connect(addr: std::net::SocketAddr) -> (String, Socket) {
-    let response = reqwest::Client::new().post(format!("http://{addr}/api/rooms")).send().await.unwrap();
+    let response = reqwest::Client::new()
+        .post(format!("http://{addr}/api/rooms"))
+        .send()
+        .await
+        .unwrap();
     assert_eq!(response.status(), 201);
-    let room = response.json::<Value>().await.unwrap()["roomId"].as_str().unwrap().to_string();
-    let (socket, _) = connect_async(format!("ws://{addr}/ws/{room}")).await.unwrap();
+    let room = response.json::<Value>().await.unwrap()["roomId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (socket, _) = connect_async(format!("ws://{addr}/ws/{room}"))
+        .await
+        .unwrap();
     (room, socket)
 }
 
 fn join(room: &str, token: Option<&str>) -> Message {
     let mut value = json!({"type":"join", "roomId":room, "displayName":"Test", "color":"#FFF"});
-    if let Some(token) = token { value["authToken"] = token.into(); }
+    if let Some(token) = token {
+        value["authToken"] = token.into();
+    }
     Message::Text(value.to_string())
 }
 
@@ -61,9 +78,16 @@ async fn assert_reaped(mut socket: Socket, room: String, auth_invalid: bool) {
                 }
             }
         }
-    }).await;
-    assert!(closed.is_ok(), "never-joined connection survived control/auth chatter beyond grace");
-    assert!(started.elapsed() >= Duration::from_secs(14), "refresh grace was cut short");
+    })
+    .await;
+    assert!(
+        closed.is_ok(),
+        "never-joined connection survived control/auth chatter beyond grace"
+    );
+    assert!(
+        started.elapsed() >= Duration::from_secs(14),
+        "refresh grace was cut short"
+    );
 }
 
 #[tokio::test]
@@ -74,7 +98,10 @@ async fn prejoin_deadline_preserves_guest_and_one_verified_refresh_retry() {
     let jwks = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let root = format!("http://{}", jwks.local_addr().unwrap());
     std::env::set_var("SUPABASE_URL", &root);
-    let key_app = Router::new().route("/auth/v1/.well-known/jwks.json", get(move || async move { Json(keys) }));
+    let key_app = Router::new().route(
+        "/auth/v1/.well-known/jwks.json",
+        get(move || async move { Json(keys) }),
+    );
     let key_server = tokio::spawn(async move { axum::serve(jwks, key_app).await.unwrap() });
     let manager: SharedRoomManager = Arc::new(RwLock::new(RoomManager::new()));
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -86,7 +113,10 @@ async fn prejoin_deadline_preserves_guest_and_one_verified_refresh_retry() {
     guest.send(join(&guest_room, None)).await.unwrap();
     assert_eq!(text(&mut guest).await["type"], "room_state");
     let (retry_room, mut retry) = connect(addr).await;
-    retry.send(join(&retry_room, Some("not-a-jwt"))).await.unwrap();
+    retry
+        .send(join(&retry_room, Some("not-a-jwt")))
+        .await
+        .unwrap();
     assert_eq!(text(&mut retry).await["code"], "AUTH_INVALID");
     let (idle_room, idle) = connect(addr).await;
     let (bad_room, mut bad) = connect(addr).await;
@@ -95,9 +125,13 @@ async fn prejoin_deadline_preserves_guest_and_one_verified_refresh_retry() {
 
     let mut header = Header::new(Algorithm::ES256);
     header.kid = Some("ws-test-only".to_string());
-    let token = encode(&header, &json!({"sub":"verified-test-user", "aud":"authenticated",
+    let token = encode(
+        &header,
+        &json!({"sub":"verified-test-user", "aud":"authenticated",
         "iss":format!("{root}/auth/v1"), "exp":4_102_444_800_u64}),
-        &EncodingKey::from_ec_pem(include_bytes!("fixtures/ws-test-only-ec.pem")).unwrap()).unwrap();
+        &EncodingKey::from_ec_pem(include_bytes!("fixtures/ws-test-only-ec.pem")).unwrap(),
+    )
+    .unwrap();
 
     let idle_check = assert_reaped(idle, idle_room.clone(), false);
     let bad_check = assert_reaped(bad, bad_room.clone(), true);
@@ -109,11 +143,18 @@ async fn prejoin_deadline_preserves_guest_and_one_verified_refresh_retry() {
         assert_eq!(state["type"], "room_state", "refresh response: {state}");
         let local = state["localPlayerId"].as_str().unwrap();
         let room = manager.read().await.get_room(&retry_room).unwrap();
-        assert_eq!(room.read().await.players[local].user_id.as_deref(), Some("verified-test-user"));
+        assert_eq!(
+            room.read().await.players[local].user_id.as_deref(),
+            Some("verified-test-user")
+        );
         tokio::time::sleep(Duration::from_secs(6)).await;
         for (socket, room_id) in [(&mut guest, &guest_room), (&mut retry, &retry_room)] {
             socket.send(join(room_id, None)).await.unwrap();
-            assert_eq!(text(socket).await["code"], "ALREADY_JOINED", "successful join must retire prejoin deadline");
+            assert_eq!(
+                text(socket).await["code"],
+                "ALREADY_JOINED",
+                "successful join must retire prejoin deadline"
+            );
         }
     };
     tokio::join!(idle_check, bad_check, recovery_check);
