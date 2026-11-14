@@ -444,8 +444,6 @@ impl HttpDiscordApi {
             let prior = admission.cooldown;
             if matches!(status, 403 | 410) || (status == 404 && !missing_is_normal) {
                 admission.resource_failed(target.clone());
-            } else if (200..300).contains(&status) || (status == 404 && missing_is_normal) {
-                admission.succeeded(&target, epoch);
             }
             if status == 0 || matches!(status, 401 | 429 | 500..=599) {
                 // Install known headers (or a cancellation-safe fallback) before
@@ -489,15 +487,32 @@ impl HttpDiscordApi {
         request: reqwest::RequestBuilder,
         target: RequestTarget,
     ) -> Result<T, DiscordApiError> {
-        let (response, _) = self.send(request, false, target).await?;
+        let (response, epoch) = self.send(request, false, target.clone()).await?;
         let status = response.status();
         if !status.is_success() {
             return Err(classify(status.as_u16()));
         }
-        response
-            .json::<T>()
-            .await
-            .map_err(|_| DiscordApiError::Transport)
+        self.read_json(response, &target, epoch).await
+    }
+
+    async fn read_json<T: serde::de::DeserializeOwned>(
+        &self,
+        response: reqwest::Response,
+        target: &RequestTarget,
+        epoch: u64,
+    ) -> Result<T, DiscordApiError> {
+        let result = response.json::<T>().await;
+        let mut admission = self.admission.lock().await;
+        match result {
+            Ok(value) => {
+                admission.succeeded(target, epoch);
+                Ok(value)
+            }
+            Err(_) => {
+                admission.shared_failed(None);
+                Err(DiscordApiError::Transport)
+            }
+        }
     }
 
     /// Send `request`, discarding the body.
@@ -507,9 +522,10 @@ impl HttpDiscordApi {
         missing_is_normal: bool,
         target: RequestTarget,
     ) -> Result<(), DiscordApiError> {
-        let (response, _) = self.send(request, missing_is_normal, target).await?;
+        let (response, epoch) = self.send(request, missing_is_normal, target.clone()).await?;
         let status = response.status();
-        if status.is_success() {
+        if status.is_success() || (missing_is_normal && status.as_u16() == 404) {
+            self.admission.lock().await.succeeded(&target, epoch);
             Ok(())
         } else {
             Err(classify(status.as_u16()))
@@ -656,27 +672,25 @@ impl DiscordApi for HttpDiscordApi {
                 return Ok(None);
             }
             let url = format!("{}/guilds/{guild_id}/members/{user_id}", self.base_url);
-            let (response, _) = self
+            let target = RequestTarget::Guild(guild_id.to_string());
+            let (response, epoch) = self
                 .send(
                     self.request(reqwest::Method::GET, url),
                     true,
-                    RequestTarget::Guild(guild_id.to_string()),
+                    target.clone(),
                 )
                 .await?;
             let status = response.status();
             // 404 is the documented "no such member" answer and is the whole
             // point of this call — it is an outcome, not a failure.
             if status.as_u16() == 404 {
+                self.admission.lock().await.succeeded(&target, epoch);
                 return Ok(None);
             }
             if !status.is_success() {
                 return Err(classify(status.as_u16()));
             }
-            response
-                .json::<GuildMember>()
-                .await
-                .map(Some)
-                .map_err(|_| DiscordApiError::Transport)
+            self.read_json::<GuildMember>(response, &target, epoch).await.map(Some)
         })
     }
 
@@ -1025,6 +1039,150 @@ mod tests {
         assert_eq!(api.current_user_id().await, Err(DiscordApiError::Transport));
         server.await.unwrap();
         assert_eq!(api.admission.lock().await.failures, 1, "truncated body bypassed shared transport backoff");
+    }
+
+    // Each request reaches a real loopback handler before the test supplies its
+    // response. Bodies can be gated independently from headers.
+    async fn controlled_api() -> (
+        std::sync::Arc<HttpDiscordApi>,
+        tokio::sync::mpsc::UnboundedReceiver<(String, tokio::sync::oneshot::Sender<axum::response::Response>)>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        use axum::{routing::any, Router};
+        let (sent, received) = tokio::sync::mpsc::unbounded_channel();
+        let app = Router::new().fallback(any(move |uri: axum::http::Uri| {
+            let sent = sent.clone();
+            async move {
+                let (response, wait) = tokio::sync::oneshot::channel();
+                sent.send((uri.path().to_string(), response)).unwrap();
+                wait.await.unwrap()
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut api = HttpDiscordApi::new("test-only");
+        api.base_url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async { axum::serve(listener, app).await.unwrap() });
+        (std::sync::Arc::new(api), received, server)
+    }
+
+    fn held_body(status: u16, header: Option<&str>) -> (
+        axum::response::Response,
+        tokio::sync::oneshot::Receiver<()>,
+        tokio::sync::oneshot::Sender<&'static str>,
+    ) {
+        let (entered, waiting) = tokio::sync::oneshot::channel();
+        let (release, body) = tokio::sync::oneshot::channel();
+        let stream = futures_util::stream::once(async move {
+            let _ = entered.send(());
+            Ok::<_, std::io::Error>(body.await.unwrap_or(""))
+        });
+        let mut response = axum::response::Response::builder().status(status);
+        if let Some(header) = header {
+            response = response.header("retry-after", header);
+        }
+        (response.body(axum::body::Body::from_stream(stream)).unwrap(), waiting, release)
+    }
+
+    #[tokio::test]
+    async fn late_success_body_cannot_clear_newer_shared_or_resource_failure() {
+        use axum::response::IntoResponse;
+        for status in [500, 403] {
+            let (api, mut requests, server) = controlled_api().await;
+            let old_api = api.clone();
+            let old = tokio::spawn(async move { old_api.guild_roles("111").await });
+            let (_, respond) = requests.recv().await.unwrap();
+            let (response, waiting, release) = held_body(200, None);
+            respond.send(response).unwrap();
+            waiting.await.unwrap();
+            let new_api = api.clone();
+            let new = tokio::spawn(async move { new_api.guild_channels("111").await });
+            let (_, respond) = requests.recv().await.unwrap();
+            respond.send(axum::http::StatusCode::from_u16(status).unwrap().into_response()).unwrap();
+            assert_eq!(new.await.unwrap(), Err(DiscordApiError::Status(status)));
+            let cooldown = api.admission.lock().await.cooldown;
+            release.send("[]").unwrap();
+            assert_eq!(old.await.unwrap(), Ok(vec![]));
+            let admission = api.admission.lock().await;
+            if status == 500 {
+                assert_eq!(admission.failures, 1, "late successful body erased a newer failure");
+                assert_eq!(admission.cooldown, cooldown);
+            } else {
+                assert_eq!(admission.resources[&RequestTarget::Guild("111".into())].failures, 1);
+            }
+            drop(admission);
+            server.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn queued_callers_recheck_known_429_headers_even_if_body_reader_is_cancelled() {
+        use axum::response::IntoResponse;
+        let (api, mut requests, server) = controlled_api().await;
+        let rate_api = api.clone();
+        let rate = tokio::spawn(async move { rate_api.guild_roles("111").await });
+        let (_, respond) = requests.recv().await.unwrap();
+        let (response, waiting, release) = held_body(429, Some("0.4"));
+        // Establish that the next call is already queued on spacing before the
+        // provider publishes its cooldown, not merely started afterwards.
+        let next = api.current_user_id();
+        tokio::pin!(next);
+        assert!(futures_util::poll!(&mut next).is_pending());
+        respond.send(response).unwrap();
+        waiting.await.unwrap();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if api.admission.lock().await.failures == 1 { break; }
+                tokio::task::yield_now().await;
+            }
+        }).await.unwrap();
+        rate.abort();
+        assert!(rate.await.unwrap_err().is_cancelled());
+        let _ = release.send("{}");
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_millis(100)).await;
+        assert!(futures_util::poll!(&mut next).is_pending());
+        assert!(requests.try_recv().is_err(), "queued call bypassed known provider cooldown");
+        tokio::time::advance(Duration::from_millis(300)).await;
+        tokio::time::resume();
+        let reply = async {
+            let (path, respond) = requests.recv().await.unwrap();
+            assert_eq!(path, "/users/@me");
+            respond.send(axum::Json(serde_json::json!({"id":"123"})).into_response()).unwrap();
+        };
+        let (result, ()) = tokio::join!(next, reply);
+        assert_eq!(result, Ok("123".to_string()));
+        assert_eq!(api.admission.lock().await.failures, 0, "fresh successful body should reset streak");
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn late_json_429_cannot_shorten_a_newer_provider_cooldown() {
+        use axum::response::IntoResponse;
+        let (api, mut requests, server) = controlled_api().await;
+        let old_api = api.clone();
+        let old = tokio::spawn(async move { old_api.guild_roles("111").await });
+        let (_, respond) = requests.recv().await.unwrap();
+        let (response, waiting, release) = held_body(429, None);
+        respond.send(response).unwrap();
+        waiting.await.unwrap();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while api.admission.lock().await.failures != 1 { tokio::task::yield_now().await; }
+        }).await.unwrap();
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::time::resume();
+        let new_api = api.clone();
+        let new = tokio::spawn(async move { new_api.guild_roles("222").await });
+        let (_, respond) = requests.recv().await.unwrap();
+        let mut response = axum::http::StatusCode::TOO_MANY_REQUESTS.into_response();
+        response.headers_mut().insert("retry-after", "5".parse().unwrap());
+        respond.send(response).unwrap();
+        assert_eq!(new.await.unwrap(), Err(DiscordApiError::Status(429)));
+        let deadline = api.admission.lock().await.cooldown;
+        release.send(r#"{"retry_after":0.2}"#).unwrap();
+        assert_eq!(old.await.unwrap(), Err(DiscordApiError::Status(429)));
+        assert_eq!(api.admission.lock().await.cooldown, deadline, "old JSON response shortened newer cooldown");
+        server.abort();
     }
 
     #[tokio::test]
