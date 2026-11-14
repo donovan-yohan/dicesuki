@@ -118,9 +118,7 @@ const OVERWRITE_TYPE_MEMBER: u8 = 1;
 /// pathological value cannot be used to build an enormous request line.
 #[must_use]
 pub fn is_snowflake(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 20
-        && value.bytes().all(|byte| byte.is_ascii_digit())
+    !value.is_empty() && value.len() <= 20 && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// A partial guild from `GET /users/@me/guilds`.
@@ -245,11 +243,7 @@ pub trait DiscordApi: Send + Sync {
     ) -> ApiFuture<'a, ()>;
     /// `DELETE /channels/{channel_id}/messages/{message_id}`. A 404 (already
     /// gone) resolves as success — the intent is "this message must not exist".
-    fn delete_message<'a>(
-        &'a self,
-        channel_id: &'a str,
-        message_id: &'a str,
-    ) -> ApiFuture<'a, ()>;
+    fn delete_message<'a>(&'a self, channel_id: &'a str, message_id: &'a str) -> ApiFuture<'a, ()>;
     /// `POST /channels/{channel_id}/messages/{message_id}/threads` — **Start
     /// Thread from Message** (#255). Returns the new thread's id, which is also
     /// a channel id: the roll log is posted with [`Self::create_message`]
@@ -266,13 +260,32 @@ pub trait DiscordApi: Send + Sync {
 pub struct HttpDiscordApi {
     client: reqwest::Client,
     base_url: String,
+    admission: tokio::sync::Mutex<RequestAdmission>,
     /// `Authorization: Bot <token>`. Never logged, never rendered.
     authorization: reqwest::header::HeaderValue,
 }
 
+/// One owner for directory reads and reconciliation writes. Conservative global
+/// pacing avoids a separate bucket registry and bounds pressure even on a cold cache.
+struct RequestAdmission {
+    next: tokio::time::Instant,
+    failures: u32,
+}
+
+const REQUEST_SPACING: Duration = Duration::from_millis(50);
+
+fn retry_delay(value: f64) -> Option<Duration> {
+    if !value.is_finite() || value < 0.0 {
+        return None;
+    }
+    Duration::try_from_secs_f64(value).ok()
+}
+
 impl std::fmt::Debug for HttpDiscordApi {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("HttpDiscordApi").finish_non_exhaustive()
+        formatter
+            .debug_struct("HttpDiscordApi")
+            .finish_non_exhaustive()
     }
 }
 
@@ -301,6 +314,10 @@ impl HttpDiscordApi {
                 .expect("static Discord HTTP client configuration must be valid"),
             authorization,
             base_url: DISCORD_API_BASE.to_string(),
+            admission: tokio::sync::Mutex::new(RequestAdmission {
+                next: tokio::time::Instant::now(),
+                failures: 0,
+            }),
         }
     }
 
@@ -310,21 +327,101 @@ impl HttpDiscordApi {
             .header(reqwest::header::AUTHORIZATION, self.authorization.clone())
     }
 
+    /// Never replay writes here. A 429 updates the shared admission deadline;
+    /// ordinary callers/reconciliation decide whether the operation is retried.
+    async fn send(
+        &self,
+        request: reqwest::RequestBuilder,
+        missing_is_normal: bool,
+    ) -> Result<reqwest::Response, DiscordApiError> {
+        let mut admission = self.admission.lock().await;
+        tokio::time::sleep_until(admission.next).await;
+        admission.next = tokio::time::Instant::now() + REQUEST_SPACING;
+        let response = request.send().await;
+        let status = response
+            .as_ref()
+            .map(|response| response.status().as_u16())
+            .unwrap_or(0);
+        // Single-member 404s and idempotent delete 404s are ordinary outcomes.
+        // Resource 403/404s still pace the next caller, even if the reconcile
+        // planner intentionally retries an operator-configured billboard.
+        if status == 0
+            || matches!(status, 401 | 403 | 429 | 500..=599)
+            || (status == 404 && !missing_is_normal)
+        {
+            admission.failures = admission.failures.saturating_add(1);
+            let fallback =
+                Duration::from_secs(1_u64 << admission.failures.saturating_sub(1).min(6));
+            admission.next = tokio::time::Instant::now() + fallback;
+        } else {
+            admission.failures = 0;
+        }
+        let mut response = response.map_err(|_| DiscordApiError::Transport)?;
+        if status != 429 {
+            return Ok(response);
+        }
+
+        let header_delay = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<f64>().ok())
+            .and_then(retry_delay);
+        if let Some(delay) = header_delay {
+            // Set before awaiting the body so cancellation cannot lose a known cooldown.
+            admission.next = tokio::time::Instant::now()
+                .checked_add(delay)
+                .unwrap_or(admission.next)
+                .max(tokio::time::Instant::now() + REQUEST_SPACING);
+        }
+        // Discord also supplies retry_after in JSON. Bound error-body bytes and
+        // never log them. The larger supplied delay wins if both are present.
+        let mut bytes = Vec::new();
+        while let Ok(Some(chunk)) = response.chunk().await {
+            if bytes.len() + chunk.len() > 4096 {
+                break;
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        let body_delay = serde_json::from_slice::<serde_json::Value>(&bytes)
+            .ok()
+            .and_then(|body| body.get("retry_after").and_then(serde_json::Value::as_f64))
+            .and_then(retry_delay);
+        if let Some(delay) = body_delay {
+            if let Some(until) = tokio::time::Instant::now().checked_add(delay) {
+                if header_delay.is_some() {
+                    admission.next = admission.next.max(until);
+                } else {
+                    admission.next = until.max(tokio::time::Instant::now() + REQUEST_SPACING);
+                }
+            }
+        }
+        Err(DiscordApiError::Status(429))
+    }
+
     /// Send `request` and deserialize a JSON body on success.
     async fn send_json<T: serde::de::DeserializeOwned>(
+        &self,
         request: reqwest::RequestBuilder,
     ) -> Result<T, DiscordApiError> {
-        let response = request.send().await.map_err(|_| DiscordApiError::Transport)?;
+        let response = self.send(request, false).await?;
         let status = response.status();
         if !status.is_success() {
             return Err(classify(status.as_u16()));
         }
-        response.json::<T>().await.map_err(|_| DiscordApiError::Transport)
+        response
+            .json::<T>()
+            .await
+            .map_err(|_| DiscordApiError::Transport)
     }
 
     /// Send `request`, discarding the body.
-    async fn send_empty(request: reqwest::RequestBuilder) -> Result<(), DiscordApiError> {
-        let response = request.send().await.map_err(|_| DiscordApiError::Transport)?;
+    async fn send_empty(
+        &self,
+        request: reqwest::RequestBuilder,
+        missing_is_normal: bool,
+    ) -> Result<(), DiscordApiError> {
+        let response = self.send(request, missing_is_normal).await?;
         let status = response.status();
         if status.is_success() {
             Ok(())
@@ -383,18 +480,22 @@ struct IdOnly {
 impl DiscordApi for HttpDiscordApi {
     fn current_user_id(&self) -> ApiFuture<'_, String> {
         Box::pin(async move {
-            let user: IdOnly = Self::send_json(
-                self.request(reqwest::Method::GET, format!("{}/users/@me", self.base_url)),
-            )
-            .await?;
+            let user: IdOnly = self
+                .send_json(
+                    self.request(reqwest::Method::GET, format!("{}/users/@me", self.base_url)),
+                )
+                .await?;
             Ok(user.id)
         })
     }
 
     fn bot_guilds(&self) -> ApiFuture<'_, Vec<BotGuild>> {
-        Box::pin(Self::send_json(self.request(
+        Box::pin(self.send_json(self.request(
             reqwest::Method::GET,
-            format!("{}/users/@me/guilds?limit={BOT_GUILD_PAGE_LIMIT}", self.base_url),
+            format!(
+                "{}/users/@me/guilds?limit={BOT_GUILD_PAGE_LIMIT}",
+                self.base_url
+            ),
         )))
     }
 
@@ -403,7 +504,7 @@ impl DiscordApi for HttpDiscordApi {
             if !is_snowflake(guild_id) {
                 return Err(DiscordApiError::Status(400));
             }
-            Self::send_json(self.request(
+            self.send_json(self.request(
                 reqwest::Method::GET,
                 format!("{}/guilds/{guild_id}/channels", self.base_url),
             ))
@@ -416,7 +517,7 @@ impl DiscordApi for HttpDiscordApi {
             if !is_snowflake(guild_id) {
                 return Err(DiscordApiError::Status(400));
             }
-            Self::send_json(self.request(
+            self.send_json(self.request(
                 reqwest::Method::GET,
                 format!("{}/guilds/{guild_id}/roles", self.base_url),
             ))
@@ -435,10 +536,8 @@ impl DiscordApi for HttpDiscordApi {
             }
             let url = format!("{}/guilds/{guild_id}/members/{user_id}", self.base_url);
             let response = self
-                .request(reqwest::Method::GET, url)
-                .send()
-                .await
-                .map_err(|_| DiscordApiError::Transport)?;
+                .send(self.request(reqwest::Method::GET, url), true)
+                .await?;
             let status = response.status();
             // 404 is the documented "no such member" answer and is the whole
             // point of this call — it is an outcome, not a failure.
@@ -465,14 +564,15 @@ impl DiscordApi for HttpDiscordApi {
             if !is_snowflake(channel_id) {
                 return Err(DiscordApiError::Status(400));
             }
-            let message: IdOnly = Self::send_json(
-                self.request(
-                    reqwest::Method::POST,
-                    format!("{}/channels/{channel_id}/messages", self.base_url),
+            let message: IdOnly = self
+                .send_json(
+                    self.request(
+                        reqwest::Method::POST,
+                        format!("{}/channels/{channel_id}/messages", self.base_url),
+                    )
+                    .json(payload),
                 )
-                .json(payload),
-            )
-            .await?;
+                .await?;
             Ok(message.id)
         })
     }
@@ -487,31 +587,38 @@ impl DiscordApi for HttpDiscordApi {
             if !is_snowflake(channel_id) || !is_snowflake(message_id) {
                 return Err(DiscordApiError::Status(400));
             }
-            Self::send_empty(
+            self.send_empty(
                 self.request(
                     reqwest::Method::PATCH,
-                    format!("{}/channels/{channel_id}/messages/{message_id}", self.base_url),
+                    format!(
+                        "{}/channels/{channel_id}/messages/{message_id}",
+                        self.base_url
+                    ),
                 )
                 .json(payload),
+                false,
             )
             .await
         })
     }
 
-    fn delete_message<'a>(
-        &'a self,
-        channel_id: &'a str,
-        message_id: &'a str,
-    ) -> ApiFuture<'a, ()> {
+    fn delete_message<'a>(&'a self, channel_id: &'a str, message_id: &'a str) -> ApiFuture<'a, ()> {
         Box::pin(async move {
             if !is_snowflake(channel_id) || !is_snowflake(message_id) {
                 return Err(DiscordApiError::Status(400));
             }
-            match Self::send_empty(self.request(
-                reqwest::Method::DELETE,
-                format!("{}/channels/{channel_id}/messages/{message_id}", self.base_url),
-            ))
-            .await
+            match self
+                .send_empty(
+                    self.request(
+                        reqwest::Method::DELETE,
+                        format!(
+                            "{}/channels/{channel_id}/messages/{message_id}",
+                            self.base_url
+                        ),
+                    ),
+                    true,
+                )
+                .await
             {
                 Err(DiscordApiError::Status(404)) | Ok(()) => Ok(()),
                 Err(other) => Err(other),
@@ -529,15 +636,18 @@ impl DiscordApi for HttpDiscordApi {
             if !is_snowflake(channel_id) || !is_snowflake(message_id) {
                 return Err(DiscordApiError::Status(400));
             }
-            let thread: IdOnly = Self::send_json(
-                self.request(
-                    reqwest::Method::POST,
-                    format!(
-                        "{}/channels/{channel_id}/messages/{message_id}/threads", self.base_url),
+            let thread: IdOnly = self
+                .send_json(
+                    self.request(
+                        reqwest::Method::POST,
+                        format!(
+                            "{}/channels/{channel_id}/messages/{message_id}/threads",
+                            self.base_url
+                        ),
+                    )
+                    .json(payload),
                 )
-                .json(payload),
-            )
-            .await?;
+                .await?;
             Ok(thread.id)
         })
     }
@@ -568,7 +678,9 @@ pub fn compute_base_permissions(
     roles
         .iter()
         .filter(|role| role.id == guild_id || member_role_ids.contains(&role.id))
-        .fold(0_u64, |acc, role| acc | parse_permissions(&role.permissions))
+        .fold(0_u64, |acc, role| {
+            acc | parse_permissions(&role.permissions)
+        })
 }
 
 /// Discord's documented channel permission computation for a member, given the
@@ -657,10 +769,17 @@ pub fn bot_can_post(
 mod tests {
     use super::*;
 
-    async fn mock_api(status: u16, retry_after: Option<&str>, body: &str) -> (HttpDiscordApi, tokio::task::JoinHandle<()>) {
-        use axum::{routing::any, Router};
+    async fn mock_api(
+        status: u16,
+        retry_after: Option<&str>,
+        body: &str,
+    ) -> (HttpDiscordApi, tokio::task::JoinHandle<()>) {
         use axum::response::IntoResponse;
-        use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+        use axum::{routing::any, Router};
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
         let calls = Arc::new(AtomicUsize::new(0));
         let header = retry_after.map(str::to_string);
         let body = body.to_string();
@@ -670,9 +789,12 @@ mod tests {
             let body = body.clone();
             async move {
                 if first {
-                    let mut response = (axum::http::StatusCode::from_u16(status).unwrap(), body).into_response();
+                    let mut response =
+                        (axum::http::StatusCode::from_u16(status).unwrap(), body).into_response();
                     if let Some(header) = header {
-                        response.headers_mut().insert("retry-after", header.parse().unwrap());
+                        response
+                            .headers_mut()
+                            .insert("retry-after", header.parse().unwrap());
                     }
                     response
                 } else {
@@ -683,7 +805,9 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let mut api = HttpDiscordApi::new("private-test-token");
         api.base_url = format!("http://{}", listener.local_addr().unwrap());
-        let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap(); });
+        let task = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
         (api, task)
     }
 
@@ -691,27 +815,42 @@ mod tests {
     async fn retry_after_delays_other_routes_without_replaying_a_post() {
         let (api, server) = mock_api(429, Some("0.2"), r#"{"retry_after": 0.2}"#).await;
         let payload = serde_json::json!({"content": "test"});
-        assert_eq!(api.create_message("123", &payload).await, Err(DiscordApiError::Status(429)));
+        assert_eq!(
+            api.create_message("123", &payload).await,
+            Err(DiscordApiError::Status(429))
+        );
         let start = tokio::time::Instant::now();
         assert_eq!(api.current_user_id().await.unwrap(), "123");
-        assert!(start.elapsed() >= Duration::from_millis(190), "shared cooldown was ignored");
+        assert!(
+            start.elapsed() >= Duration::from_millis(190),
+            "shared cooldown was ignored"
+        );
         server.abort();
     }
 
     #[tokio::test]
     async fn json_retry_after_is_used_when_the_header_is_absent() {
         let (api, server) = mock_api(429, None, r#"{"retry_after": 0.2, "global": true}"#).await;
-        assert_eq!(api.guild_member("123", "456").await, Err(DiscordApiError::Status(429)));
+        assert_eq!(
+            api.guild_member("123", "456").await,
+            Err(DiscordApiError::Status(429))
+        );
         let start = tokio::time::Instant::now();
         api.current_user_id().await.unwrap();
-        assert!(start.elapsed() >= Duration::from_millis(190), "JSON cooldown was ignored");
+        assert!(
+            start.elapsed() >= Duration::from_millis(190),
+            "JSON cooldown was ignored"
+        );
         server.abort();
     }
 
     #[tokio::test]
     async fn terminal_failures_back_off_instead_of_hammering_a_deleted_channel() {
         let (api, server) = mock_api(403, None, "{}").await;
-        assert_eq!(api.current_user_id().await, Err(DiscordApiError::Status(403)));
+        assert_eq!(
+            api.current_user_id().await,
+            Err(DiscordApiError::Status(403))
+        );
         let start = tokio::time::Instant::now();
         api.current_user_id().await.unwrap();
         assert!(start.elapsed() >= Duration::from_secs(1));
@@ -784,9 +923,17 @@ mod tests {
             GUILD,
             &roles(&[]),
             BOT,
-            &[overwrite(GUILD, OVERWRITE_TYPE_ROLE, 0, REQUIRED_POST_PERMISSIONS)],
+            &[overwrite(
+                GUILD,
+                OVERWRITE_TYPE_ROLE,
+                0,
+                REQUIRED_POST_PERMISSIONS,
+            )],
         );
-        assert_eq!(permissions & REQUIRED_POST_PERMISSIONS, REQUIRED_POST_PERMISSIONS);
+        assert_eq!(
+            permissions & REQUIRED_POST_PERMISSIONS,
+            REQUIRED_POST_PERMISSIONS
+        );
     }
 
     #[test]
@@ -797,7 +944,12 @@ mod tests {
             GUILD,
             &roles(&[ROLE]),
             BOT,
-            &[overwrite(GUILD, OVERWRITE_TYPE_ROLE, 0, PERMISSION_SEND_MESSAGES)],
+            &[overwrite(
+                GUILD,
+                OVERWRITE_TYPE_ROLE,
+                0,
+                PERMISSION_SEND_MESSAGES,
+            )],
         );
         assert_eq!(denied & PERMISSION_SEND_MESSAGES, 0);
 
@@ -812,7 +964,10 @@ mod tests {
                 overwrite(ROLE, OVERWRITE_TYPE_ROLE, PERMISSION_SEND_MESSAGES, 0),
             ],
         );
-        assert_eq!(restored & PERMISSION_SEND_MESSAGES, PERMISSION_SEND_MESSAGES);
+        assert_eq!(
+            restored & PERMISSION_SEND_MESSAGES,
+            PERMISSION_SEND_MESSAGES
+        );
     }
 
     #[test]
@@ -828,7 +983,10 @@ mod tests {
                 overwrite(OTHER_ROLE, OVERWRITE_TYPE_ROLE, PERMISSION_SEND_MESSAGES, 0),
             ],
         );
-        assert_eq!(permissions & PERMISSION_SEND_MESSAGES, PERMISSION_SEND_MESSAGES);
+        assert_eq!(
+            permissions & PERMISSION_SEND_MESSAGES,
+            PERMISSION_SEND_MESSAGES
+        );
     }
 
     #[test]
@@ -838,9 +996,17 @@ mod tests {
             GUILD,
             &roles(&[ROLE]),
             BOT,
-            &[overwrite(OTHER_ROLE, OVERWRITE_TYPE_ROLE, 0, PERMISSION_SEND_MESSAGES)],
+            &[overwrite(
+                OTHER_ROLE,
+                OVERWRITE_TYPE_ROLE,
+                0,
+                PERMISSION_SEND_MESSAGES,
+            )],
         );
-        assert_eq!(permissions & PERMISSION_SEND_MESSAGES, PERMISSION_SEND_MESSAGES);
+        assert_eq!(
+            permissions & PERMISSION_SEND_MESSAGES,
+            PERMISSION_SEND_MESSAGES
+        );
     }
 
     #[test]
@@ -861,7 +1027,13 @@ mod tests {
     #[test]
     fn postability_requires_view_send_and_embed_on_a_text_channel() {
         let plain = channel(0, vec![]);
-        assert!(bot_can_post(&plain, REQUIRED_POST_PERMISSIONS, GUILD, &roles(&[]), BOT));
+        assert!(bot_can_post(
+            &plain,
+            REQUIRED_POST_PERMISSIONS,
+            GUILD,
+            &roles(&[]),
+            BOT
+        ));
         // Missing EMBED_LINKS: the advert is an embed, so this is not a target.
         assert!(!bot_can_post(
             &plain,
@@ -872,10 +1044,22 @@ mod tests {
         ));
         // Announcement channels (type 5) are allowed; voice (2), category (4)
         // and threads (11) are not.
-        assert!(bot_can_post(&channel(5, vec![]), REQUIRED_POST_PERMISSIONS, GUILD, &roles(&[]), BOT));
+        assert!(bot_can_post(
+            &channel(5, vec![]),
+            REQUIRED_POST_PERMISSIONS,
+            GUILD,
+            &roles(&[]),
+            BOT
+        ));
         for kind in [2_u8, 4, 11, 15] {
             assert!(
-                !bot_can_post(&channel(kind, vec![]), REQUIRED_POST_PERMISSIONS, GUILD, &roles(&[]), BOT),
+                !bot_can_post(
+                    &channel(kind, vec![]),
+                    REQUIRED_POST_PERMISSIONS,
+                    GUILD,
+                    &roles(&[]),
+                    BOT
+                ),
                 "channel type {kind} must not be offered"
             );
         }
@@ -885,9 +1069,20 @@ mod tests {
     fn channel_denied_by_everyone_overwrite_is_not_postable() {
         let locked = channel(
             0,
-            vec![overwrite(GUILD, OVERWRITE_TYPE_ROLE, 0, PERMISSION_VIEW_CHANNEL)],
+            vec![overwrite(
+                GUILD,
+                OVERWRITE_TYPE_ROLE,
+                0,
+                PERMISSION_VIEW_CHANNEL,
+            )],
         );
-        assert!(!bot_can_post(&locked, REQUIRED_POST_PERMISSIONS, GUILD, &roles(&[]), BOT));
+        assert!(!bot_can_post(
+            &locked,
+            REQUIRED_POST_PERMISSIONS,
+            GUILD,
+            &roles(&[]),
+            BOT
+        ));
     }
 
     #[test]
@@ -924,7 +1119,10 @@ mod tests {
         let api = HttpDiscordApi::new(secret);
         assert!(!format!("{api:?}").contains(secret));
         let request = api
-            .request(reqwest::Method::GET, format!("{DISCORD_API_BASE}/users/@me"))
+            .request(
+                reqwest::Method::GET,
+                format!("{DISCORD_API_BASE}/users/@me"),
+            )
             .build()
             .expect("request builds");
         assert!(request.headers()[reqwest::header::AUTHORIZATION].is_sensitive());
@@ -966,7 +1164,9 @@ mod tests {
     /// retryable, because those payloads change with room state.
     #[test]
     fn a_bad_request_is_terminal_only_for_thread_creation() {
-        assert!(is_terminal_for_thread_creation(DiscordApiError::Status(400)));
+        assert!(is_terminal_for_thread_creation(DiscordApiError::Status(
+            400
+        )));
         assert!(!is_terminal_for_resource(DiscordApiError::Status(400)));
         for terminal in [403, 404, 410] {
             assert!(is_terminal_for_thread_creation(DiscordApiError::Status(
