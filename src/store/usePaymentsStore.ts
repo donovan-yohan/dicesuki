@@ -34,10 +34,11 @@ export interface PaymentsState {
   error: string | null
 
   /**
-   * Record a freshly created order and move to `pending`. MUST be called (and
-   * thus persisted) BEFORE the checkout SDK handoff so a relaunch can reconcile.
+   * Record a freshly created order and move to `pending`. Returns true ONLY
+   * after a successful durable write and exact-order readback. A false receipt
+   * retains the in-memory order but MUST prevent checkout SDK handoff.
    */
-  beginPending: (order: PendingOrder) => void
+  beginPending: (order: PendingOrder) => boolean
   /** Update the display status from a server read/subscription. */
   setStatus: (status: PaymentUiStatus) => void
   /** Record a checkout-handoff error (SDK/network), leaving the order intact. */
@@ -63,7 +64,7 @@ export function normalizePendingOrder(value: unknown): PendingOrder | null {
 /** Normalize any persisted blob into a valid partial state (Frontend-ADR-002). */
 export function normalizePersistedPaymentsState(
   persistedState: unknown,
-): Partial<PaymentsState> {
+): Pick<PaymentsState, 'pendingOrder'> {
   const state =
     persistedState && typeof persistedState === 'object'
       ? (persistedState as Partial<PaymentsState>)
@@ -73,6 +74,11 @@ export function normalizePersistedPaymentsState(
   }
 }
 
+// Share the actual middleware adapter with the receipt check. If initialization
+// cannot acquire storage, Zustand otherwise degrades to warning-only updates.
+const paymentsStorage = createJSONStorage<Pick<PaymentsState, 'pendingOrder'>>(() => localStorage)
+const PAYMENTS_STORAGE_VERSION = 1
+
 export const usePaymentsStore = create<PaymentsState>()(
   persist(
     (set, get) => ({
@@ -80,15 +86,29 @@ export const usePaymentsStore = create<PaymentsState>()(
       status: 'unknown',
       error: null,
 
-      beginPending: (order) =>
-        set({
-          pendingOrder: normalizePendingOrder(order) ?? {
-            externalId: order.externalId,
-            createdAt: order.createdAt,
-          },
-          status: 'pending',
-          error: null,
-        }),
+      beginPending: (order) => {
+        try {
+          // Zustand updates memory before attempting its synchronous write, so
+          // even a failed write leaves this order available for reconciliation.
+          set({
+            pendingOrder: normalizePendingOrder(order) ?? {
+              externalId: order.externalId,
+              createdAt: order.createdAt,
+            },
+            status: 'pending',
+            error: null,
+          })
+          if (!paymentsStorage) return false
+          const persisted = paymentsStorage.getItem(PAYMENTS_STORAGE_KEY)
+          if (!persisted || persisted instanceof Promise || persisted.version !== PAYMENTS_STORAGE_VERSION) return false
+          const savedOrder = persisted.state?.pendingOrder
+          return savedOrder?.externalId === order.externalId
+            && savedOrder.createdAt === order.createdAt
+            && savedOrder.sku === order.sku
+        } catch {
+          return false
+        }
+      },
 
       setStatus: (status) => set({ status }),
 
@@ -100,8 +120,8 @@ export const usePaymentsStore = create<PaymentsState>()(
     }),
     {
       name: PAYMENTS_STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
-      version: 1,
+      storage: paymentsStorage,
+      version: PAYMENTS_STORAGE_VERSION,
       // Only the durable pending-order marker is persisted; status/error are
       // ephemeral and re-derived from the server on reconcile.
       partialize: (state) => ({ pendingOrder: state.pendingOrder }),

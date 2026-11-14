@@ -110,12 +110,10 @@ export async function startPurchase(
       return { ok: false, reason: err.reason, message: err.message }
     }
 
-    // Persist BEFORE handoff (invariant: reconcile-able on relaunch). This write
-    // is synchronous localStorage, so it lands before the SDK is even imported.
-    // The SKU rides along so a canceled purchase can be retried from the return route.
-    try {
-      store.beginPending({ externalId: session.externalId, createdAt: Date.now(), sku })
-    } catch {
+    // Require a positive write/readback receipt for this exact pending order
+    // BEFORE the SDK is even imported. A nonthrowing in-memory update is not
+    // proof that a cold relaunch can recover the order.
+    if (store.beginPending({ externalId: session.externalId, createdAt: Date.now(), sku }) !== true) {
       // Keep the in-memory order for reconciliation, but never hand off payment
       // when a cold relaunch would lose its only durable pointer.
       return { ok: false, reason: 'storage-unavailable', message: 'Device storage is unavailable. Checkout was not opened.' }
