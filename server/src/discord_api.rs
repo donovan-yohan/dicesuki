@@ -1441,6 +1441,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reconcile_retries_billboard_delete_skipped_by_another_rooms_cooldown() {
+        use crate::discord::{reconcile, AdvertKind, AdvertTarget, DesiredAdvert, DiscordService, RoomAdvert};
+        use axum::{response::IntoResponse, routing::any, Router};
+        use std::sync::{Arc, Mutex};
+        let operations = Arc::new(Mutex::new(Vec::new()));
+        let observed = operations.clone();
+        let app = Router::new().fallback(any(move |method: axum::http::Method, uri: axum::http::Uri| {
+            let operations = operations.clone();
+            async move {
+                let mut calls = operations.lock().unwrap();
+                calls.push((method.clone(), uri.path().to_string()));
+                match method {
+                    axum::http::Method::POST => axum::Json(serde_json::json!({"id":(100 + calls.len()).to_string()})).into_response(),
+                    // A moderator removed A. B's subsequent DELETE must be
+                    // skipped locally, then recovered by ordinary reconciliation.
+                    axum::http::Method::PATCH => axum::http::StatusCode::NOT_FOUND.into_response(),
+                    axum::http::Method::DELETE => axum::http::StatusCode::NO_CONTENT.into_response(),
+                    _ => panic!("unexpected provider method"),
+                }
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut api = HttpDiscordApi::new("test-only");
+        api.base_url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async { axum::serve(listener, app).await.unwrap() });
+        let service = DiscordService::new(Arc::new(api), None, "https://example.invalid".into(), Some("123".into()));
+        let mut desired: Vec<_> = ["a", "b"].into_iter().map(|room| DesiredAdvert {
+            advert: RoomAdvert {
+                room_id: room.into(), name: None, player_count: 1, player_cap: 8,
+                theme_id: None, player_names: vec![], recent_rolls: vec![],
+            },
+            targets: vec![AdvertTarget { channel_id: "123".into(), kind: AdvertKind::Billboard }],
+        }).collect();
+        let mut tracked = HashMap::new();
+        reconcile(&service, &mut tracked, &desired).await;
+        let old_button = tracked["b"][0].message_id.clone();
+        desired.truncate(1);
+        desired[0].advert.player_count = 2;
+        reconcile(&service, &mut tracked, &desired).await;
+        assert_eq!(observed.lock().unwrap().len(), 3, "cooling DELETE must not dispatch");
+        assert!(tracked.contains_key("b"), "no-send DELETE forgot obsolete Join-button deletion intent");
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::time::resume();
+        reconcile(&service, &mut tracked, &[]).await;
+        assert!(!tracked.contains_key("b"));
+        assert_eq!(observed.lock().unwrap().last().unwrap(), &(axum::http::Method::DELETE, format!("/channels/123/messages/{old_button}")));
+        server.abort();
+    }
+
+    #[tokio::test]
     async fn reconcile_skips_cooling_channel_without_retiring_pending_host_intent() {
         use crate::discord::{
             reconcile, AdvertKind, AdvertTarget, DesiredAdvert, DiscordService, RoomAdvert,
