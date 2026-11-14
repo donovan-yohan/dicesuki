@@ -690,6 +690,31 @@ mod tests {
         );
     }
 
+    #[tokio::test(start_paused = true)]
+    async fn advertise_rechecks_host_authority_after_discord_awaits() {
+        let (manager, room_id) = room_hosted_by(Some("supabase-a")).await;
+        let mut fake = FakeDiscord::new(BOT).with_guild(GUILD_X, "Xanadu", CHANNEL_X, &[DISCORD_A]);
+        fake.member_delay = std::time::Duration::from_secs(1);
+        let api = Arc::new(fake);
+        let service = DiscordService::with_identity_lookup(api.clone(), Some(FakeIdentities::of(&[("supabase-a", DISCORD_A)])), "https://dicesuki.app".to_string(), None);
+        let claims = discord_claims("supabase-a");
+        let pending = advertise(&manager, &service, &claims, &room_id, CHANNEL_X);
+        tokio::pin!(pending);
+        assert!(futures_util::poll!(&mut pending).is_pending());
+        assert_eq!(api.member_calls.load(std::sync::atomic::Ordering::SeqCst), 1, "membership consumer must be reached");
+        let room = manager.read().await.get_room(&room_id).unwrap();
+        {
+            let mut room = room.write().await;
+            let mut next = Player::new("p2".to_string(), "Next".to_string(), "#000".to_string(), NullSink);
+            next.user_id = Some("supabase-b".to_string());
+            room.add_player(next).unwrap();
+            room.mark_disconnected("p1");
+            assert_eq!(host_user_id(&room).as_deref(), Some("supabase-b"));
+        }
+        assert_eq!(pending.await, Err(AdvertiseRejection::NotHost));
+        assert!(service.registry.snapshot().await.is_empty());
+    }
+
     #[tokio::test]
     async fn advertise_rejects_a_caller_who_is_not_the_room_host() {
         let (manager, room_id) = room_hosted_by(Some("supabase-a")).await;
