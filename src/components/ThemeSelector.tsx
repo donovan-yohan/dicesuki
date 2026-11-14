@@ -5,7 +5,9 @@
  * Shows owned themes and purchaseable themes.
  */
 
+import { useId } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
+import { useNestedDialog } from '../hooks/useNestedDialog'
 import { useEconomyAccess } from '../hooks/useEconomyAccess'
 
 interface ThemeSelectorProps {
@@ -14,6 +16,13 @@ interface ThemeSelectorProps {
 }
 
 export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
+  // The focus owner's lifetime must match the visible picker, not Settings.
+  return isOpen ? <ThemeSelectorDialog onClose={onClose} /> : null
+}
+
+function ThemeSelectorDialog({ onClose }: Pick<ThemeSelectorProps, 'onClose'>) {
+  const { dialogRef, onKeyDown } = useNestedDialog<HTMLDivElement>(onClose)
+  const titleId = useId()
   const { currentTheme, setTheme, availableThemes, ownedThemes, purchaseTheme } = useTheme()
 
   // Priced themes are a storefront, so they obey the same per-user monetization
@@ -46,126 +55,127 @@ export function ThemeSelector({ isOpen, onClose }: ThemeSelectorProps) {
     }
   }
 
-  if (!isOpen) return null
-
   return (
     <>
-      {/* Theme Panel */}
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <div className="fixed inset-0 bg-theme-bg/60 z-40" onClick={() => onClose()} />
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-theme-bg/60 z-40" onClick={() => onClose()} />
 
-          {/* Panel Content */}
-          <div
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 max-h-[80vh] bg-theme-surface rounded-lg shadow-2xl z-50 overflow-y-auto"
-            style={{
-              backgroundColor: 'var(--color-surface)',
-              borderRadius: 'var(--border-radius-lg)',
-              boxShadow: 'var(--shadow-lg)',
-            }}
-          >
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2
-                  className="text-theme-text text-xl font-bold"
-                  style={{ color: 'var(--color-text-primary)' }}
-                >
-                  Select Theme
-                </h2>
+      {/* Panel Content */}
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
+        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 max-h-[80vh] bg-theme-surface rounded-lg shadow-2xl z-50 overflow-y-auto"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderRadius: 'var(--border-radius-lg)',
+          boxShadow: 'var(--shadow-lg)',
+        }}
+      >
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2
+              id={titleId}
+              className="text-theme-text text-xl font-bold"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
+              Select Theme
+            </h2>
+            <button
+              aria-label="Close theme selector"
+              onClick={() => onClose()}
+              className="text-theme-text-muted hover:text-theme-text text-2xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Theme List */}
+          <div className="space-y-3">
+            {availableThemes
+              // An un-flagged player cannot acquire a priced theme, so
+              // listing it is dead chrome that advertises the storefront.
+              .filter((theme) => ownedThemes.includes(theme.id) || theme.price === 0 || economyAccess)
+              .map((theme) => {
+              const isOwned = ownedThemes.includes(theme.id)
+              const isCurrent = currentTheme.id === theme.id
+
+              return (
                 <button
-                  onClick={() => onClose()}
-                  className="text-theme-text-muted hover:text-theme-text text-2xl leading-none"
+                  key={theme.id}
+                  onClick={() => handleThemeSelect(theme.id)}
+                  className="w-full p-4 rounded-md border-2 transition-all text-left"
+                  style={{
+                    borderColor: isCurrent
+                      ? 'var(--color-accent)'
+                      : 'var(--color-secondary)',
+                    backgroundColor: isCurrent
+                      ? 'var(--ui-tint-12)'
+                      : 'var(--color-background)',
+                    borderRadius: 'var(--border-radius-md)',
+                  }}
                 >
-                  ×
-                </button>
-              </div>
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h3
+                        className="text-theme-text font-semibold"
+                        style={{ color: 'var(--color-text-primary)' }}
+                      >
+                        {theme.name}
+                      </h3>
+                      {isCurrent && (
+                        <span
+                          className="text-xs font-medium"
+                          style={{ color: 'var(--color-accent)' }}
+                        >
+                          Active
+                        </span>
+                      )}
+                    </div>
 
-              {/* Theme List */}
-              <div className="space-y-3">
-                {availableThemes
-                  // An un-flagged player cannot acquire a priced theme, so
-                  // listing it is dead chrome that advertises the storefront.
-                  .filter((theme) => ownedThemes.includes(theme.id) || theme.price === 0 || economyAccess)
-                  .map((theme) => {
-                  const isOwned = ownedThemes.includes(theme.id)
-                  const isCurrent = currentTheme.id === theme.id
+                    {canPurchase(theme) && (
+                      <span
+                        className="font-bold text-sm"
+                        style={{ color: 'var(--color-accent)' }}
+                      >
+                        ${(theme.price / 100).toFixed(2)}
+                      </span>
+                    )}
 
-                  return (
-                    <button
-                      key={theme.id}
-                      onClick={() => handleThemeSelect(theme.id)}
-                      className="w-full p-4 rounded-md border-2 transition-all text-left"
-                      style={{
-                        borderColor: isCurrent
-                          ? 'var(--color-accent)'
-                          : 'var(--color-secondary)',
-                        backgroundColor: isCurrent
-                          ? 'var(--ui-tint-12)'
-                          : 'var(--color-background)',
-                        borderRadius: 'var(--border-radius-md)',
-                      }}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h3
-                            className="text-theme-text font-semibold"
-                            style={{ color: 'var(--color-text-primary)' }}
-                          >
-                            {theme.name}
-                          </h3>
-                          {isCurrent && (
-                            <span
-                              className="text-xs font-medium"
-                              style={{ color: 'var(--color-accent)' }}
-                            >
-                              Active
-                            </span>
-                          )}
-                        </div>
-
-                        {canPurchase(theme) && (
-                          <span
-                            className="font-bold text-sm"
-                            style={{ color: 'var(--color-accent)' }}
-                          >
-                            ${(theme.price / 100).toFixed(2)}
-                          </span>
-                        )}
-
-                        {isOwned && !isCurrent && (
-                          <span
-                            className="text-xs"
-                            style={{ color: 'var(--color-text-secondary)' }}
-                          >
-                            Owned
-                          </span>
-                        )}
-                      </div>
-
-                      <p
-                        className="text-sm"
+                    {isOwned && !isCurrent && (
+                      <span
+                        className="text-xs"
                         style={{ color: 'var(--color-text-secondary)' }}
                       >
-                        {theme.description}
-                      </p>
+                        Owned
+                      </span>
+                    )}
+                  </div>
 
-                      {canPurchase(theme) && (
-                        <div
-                          className="mt-2 text-xs"
-                          style={{ color: 'var(--color-text-muted)' }}
-                        >
-                          Click to purchase and activate
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+                  <p
+                    className="text-sm"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    {theme.description}
+                  </p>
+
+                  {canPurchase(theme) && (
+                    <div
+                      className="mt-2 text-xs"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
+                      Click to purchase and activate
+                    </div>
+                  )}
+                </button>
+              )
+            })}
           </div>
-        </>
-      )}
+        </div>
+      </div>
     </>
   )
 }

@@ -109,7 +109,8 @@ export function FlyoutPanel({
           <motion.div
             ref={dialog}
             role={manageFocus ? 'dialog' : undefined}
-            aria-modal={manageFocus ? true : undefined}
+            aria-modal={manageFocus && !focusSuspended ? true : undefined}
+            inert={manageFocus && focusSuspended ? true : undefined}
             aria-labelledby={manageFocus ? titleId : undefined}
             tabIndex={-1}
             className={`theme-panel fixed top-0 ${position === 'left' ? 'left-0' : 'right-0'} h-full z-50 flex flex-col overflow-hidden`}

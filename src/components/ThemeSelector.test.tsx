@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ThemeSelector } from './ThemeSelector'
@@ -21,6 +21,46 @@ import { useMultiplayerStore } from '../store/useMultiplayerStore'
 
 const FREE_THEME = { id: 'default', name: 'Default', description: 'Free', price: 0 } as unknown as Theme
 const PAID_THEME = { id: 'cozy-forest', name: 'Cozy Forest', description: 'Paid', price: 299 } as unknown as Theme
+
+describe('ThemeSelector focus lifetime', () => {
+  it('only acquires focus while open and keeps nested card keys with the latest close owner', async () => {
+    const user = userEvent.setup()
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+    const firstClose = vi.fn()
+    const latestClose = vi.fn()
+    const { rerender, unmount } = render(<ThemeProvider><ThemeSelector isOpen={false} onClose={firstClose} /></ThemeProvider>)
+    expect(opener).toHaveFocus()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    rerender(<ThemeProvider><ThemeSelector isOpen onClose={firstClose} /></ThemeProvider>)
+    const picker = screen.getByRole('dialog', { name: 'Select Theme' })
+    const close = within(picker).getByRole('button', { name: 'Close theme selector' })
+    await waitFor(() => expect(close).toHaveFocus())
+    await user.tab({ shift: true })
+    const last = within(picker).getAllByRole('button').pop()!
+    expect(last).toHaveFocus()
+    rerender(<ThemeProvider><ThemeSelector isOpen onClose={latestClose} /></ThemeProvider>)
+    expect(last).toHaveFocus()
+    // Real theme cards contain heading/description nodes. Their key events must
+    // stay with the picker, never reaching a document-level host shortcut.
+    const hostKey = vi.fn()
+    document.addEventListener('keydown', hostKey)
+    try {
+      fireEvent.keyDown(within(last).getByRole('heading'), { key: 'Tab' })
+      expect(close).toHaveFocus()
+      fireEvent.keyDown(within(last).getByRole('heading'), { key: 'Escape' })
+      expect(firstClose).not.toHaveBeenCalled()
+      expect(latestClose).toHaveBeenCalledOnce()
+      expect(hostKey).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('keydown', hostKey)
+      unmount()
+    }
+    expect(opener).toHaveFocus()
+    opener.remove()
+  })
+})
 
 describe('ThemeSelector current worlds', () => {
   it('lists only Classic and current worlds with the resolved legacy selection, then restores Classic', () => {

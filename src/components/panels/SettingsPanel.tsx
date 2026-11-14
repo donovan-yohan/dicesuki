@@ -8,7 +8,7 @@
  * PlayerPanel now — the panel is the single "go online" surface (Shared-ADR-005).
  */
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { ThemeSelector } from '../ThemeSelector'
@@ -23,7 +23,6 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const [showThemeSelector, setShowThemeSelector] = useState(false)
-  const themeButton = useRef<HTMLButtonElement>(null)
   const { isEnabled, isSupported, setEnabled } = useHapticFeedback()
 
   return (
@@ -50,7 +49,6 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
           </h3>
 
           <button
-            ref={themeButton}
             onClick={() => setShowThemeSelector(true)}
             className="w-full flex items-center justify-between p-4 rounded-lg transition-all"
             style={{
@@ -158,7 +156,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       {/* Theme Selector Modal */}
       <ThemeSelector
         isOpen={showThemeSelector}
-        onClose={() => { setShowThemeSelector(false); themeButton.current?.focus() }}
+        onClose={() => setShowThemeSelector(false)}
       />
     </>
   )
