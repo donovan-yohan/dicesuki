@@ -2841,6 +2841,15 @@ mod tests {
     // --- registry and rate limiting ----------------------------------------
 
     #[tokio::test]
+    async fn one_host_cannot_reserve_the_global_advert_registry() {
+        let registry = HostPostRegistry::default();
+        for i in 0..8 { registry.register(&format!("room-{i}"), HOST_CHANNEL).await.unwrap(); }
+        assert_eq!(registry.register("overflow", HOST_CHANNEL).await, Err(AdvertiseRejection::TooManyAdverts));
+        registry.forget_room("room-0").await;
+        assert!(registry.register("recovered", HOST_CHANNEL).await.is_ok());
+    }
+
+    #[tokio::test]
     async fn the_registry_is_idempotent_and_bounded_per_room() {
         let registry = HostPostRegistry::default();
         for _ in 0..3 {
