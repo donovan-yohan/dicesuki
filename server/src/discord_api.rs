@@ -275,7 +275,10 @@ pub struct HttpDiscordApi {
 /// failures are shared; resource refusals must not delay unrelated targets.
 struct RequestAdmission {
     next: tokio::time::Instant,
+    cooldown: tokio::time::Instant,
     failures: u32,
+    epoch: u64,
+    shared_failure_epoch: u64,
     resources: HashMap<RequestTarget, ResourceBackoff>,
 }
 
@@ -291,6 +294,7 @@ enum RequestTarget {
 struct ResourceBackoff {
     next: tokio::time::Instant,
     failures: u32,
+    epoch: u64,
 }
 
 const REQUEST_SPACING: Duration = Duration::from_millis(50);
@@ -298,7 +302,27 @@ const MAX_RESOURCE_BACKOFFS: usize = 4096;
 const RESOURCE_BACKOFF_RETENTION: Duration = Duration::from_secs(300);
 
 impl RequestAdmission {
+    fn shared_failed(&mut self, delay: Option<Duration>) {
+        self.epoch = self.epoch.checked_add(1).expect("admission epoch exhausted");
+        self.shared_failure_epoch = self.epoch;
+        self.failures = self.failures.saturating_add(1);
+        let delay = delay.unwrap_or_else(|| Duration::from_secs(1_u64 << self.failures.saturating_sub(1).min(6)));
+        if let Some(until) = tokio::time::Instant::now().checked_add(delay) {
+            self.cooldown = self.cooldown.max(until);
+        }
+    }
+
+    fn succeeded(&mut self, target: &RequestTarget, epoch: u64) {
+        if self.shared_failure_epoch <= epoch {
+            self.failures = 0;
+        }
+        if self.resources.get(target).is_some_and(|state| state.epoch <= epoch) {
+            self.resources.remove(target);
+        }
+    }
+
     fn resource_failed(&mut self, target: RequestTarget) {
+        self.epoch = self.epoch.checked_add(1).expect("admission epoch exhausted");
         let now = tokio::time::Instant::now();
         // Keep streaks across cooldown expiry, but not indefinitely idle targets.
         self.resources.retain(|_, state| {
@@ -319,7 +343,9 @@ impl RequestAdmission {
         let state = self.resources.entry(target).or_insert(ResourceBackoff {
             next: now,
             failures: 0,
+            epoch: self.epoch,
         });
+        state.epoch = self.epoch;
         state.failures = state.failures.saturating_add(1);
         state.next = now + Duration::from_secs(1_u64 << state.failures.saturating_sub(1).min(6));
     }
@@ -367,6 +393,9 @@ impl HttpDiscordApi {
             base_url: DISCORD_API_BASE.to_string(),
             admission: tokio::sync::Mutex::new(RequestAdmission {
                 next: tokio::time::Instant::now(),
+                cooldown: tokio::time::Instant::now(),
+                epoch: 0,
+                shared_failure_epoch: 0,
                 failures: 0,
                 resources: HashMap::new(),
             }),
@@ -386,61 +415,50 @@ impl HttpDiscordApi {
         request: reqwest::RequestBuilder,
         missing_is_normal: bool,
         target: RequestTarget,
-    ) -> Result<reqwest::Response, DiscordApiError> {
-        let mut admission = self.admission.lock().await;
-        // Refuse locally before any shared wait; never hold the gate asleep for
-        // a dead channel. Existing callers decide when to try pending work again.
-        if admission
-            .resources
-            .get(&target)
-            .is_some_and(|state| state.next > tokio::time::Instant::now())
-        {
-            return Err(DiscordApiError::ResourceCooldown);
-        }
-        tokio::time::sleep_until(admission.next).await;
-        admission.next = tokio::time::Instant::now() + REQUEST_SPACING;
+    ) -> Result<(reqwest::Response, u64), DiscordApiError> {
+        let epoch = loop {
+            let mut admission = self.admission.lock().await;
+            let now = tokio::time::Instant::now();
+            if admission.resources.get(&target).is_some_and(|state| state.next > now) {
+                return Err(DiscordApiError::ResourceCooldown);
+            }
+            let next = admission.next.max(admission.cooldown);
+            if next <= now {
+                admission.next = now + REQUEST_SPACING;
+                break admission.epoch;
+            }
+            drop(admission);
+            tokio::time::sleep_until(next).await;
+            // A response can extend either cooldown while we sleep. Always
+            // recheck under the short lock before reserving actual dispatch.
+        };
         let response = request.send().await;
-        let status = response
-            .as_ref()
-            .map(|response| response.status().as_u16())
-            .unwrap_or(0);
-        // Single-member 404s and idempotent delete 404s are ordinary outcomes.
-        // A terminal refusal backs off only its major resource, including all
-        // writes to the configured billboard. Do not synthesize a terminal status
-        // for skipped calls: that would retire unrelated pending host intent.
-        if matches!(status, 403 | 410) || (status == 404 && !missing_is_normal) {
-            admission.resource_failed(target);
-        } else if (200..300).contains(&status) || (status == 404 && missing_is_normal) {
-            admission.resources.remove(&target);
-        }
-        if status == 0 || matches!(status, 401 | 429 | 500..=599) {
-            admission.failures = admission.failures.saturating_add(1);
-            let fallback =
-                Duration::from_secs(1_u64 << admission.failures.saturating_sub(1).min(6));
-            admission.next = tokio::time::Instant::now() + fallback;
-        } else {
-            admission.failures = 0;
-        }
-        let mut response = response.map_err(|_| DiscordApiError::Transport)?;
-        if status != 429 {
-            return Ok(response);
-        }
-
-        let header_delay = response
-            .headers()
-            .get(reqwest::header::RETRY_AFTER)
+        let status = response.as_ref().map(|response| response.status().as_u16()).unwrap_or(0);
+        let header_delay = response.as_ref().ok().and_then(|response| response.headers()
+            .get(reqwest::header::RETRY_AFTER))
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.parse::<f64>().ok())
             .and_then(retry_delay);
-        if let Some(delay) = header_delay {
-            // Set before awaiting the body so cancellation cannot lose a known cooldown.
-            admission.next = tokio::time::Instant::now()
-                .checked_add(delay)
-                .unwrap_or(admission.next)
-                .max(tokio::time::Instant::now() + REQUEST_SPACING);
+        let (prior_cooldown, failure_epoch) = {
+            let mut admission = self.admission.lock().await;
+            let prior = admission.cooldown;
+            if matches!(status, 403 | 410) || (status == 404 && !missing_is_normal) {
+                admission.resource_failed(target.clone());
+            } else if (200..300).contains(&status) || (status == 404 && missing_is_normal) {
+                admission.succeeded(&target, epoch);
+            }
+            if status == 0 || matches!(status, 401 | 429 | 500..=599) {
+                // Install known headers (or a cancellation-safe fallback) before
+                // reading a 429 body. Never shorten another response's deadline.
+                admission.shared_failed(if status == 429 { header_delay } else { None });
+            }
+            (prior, admission.epoch)
+        };
+        let mut response = response.map_err(|_| DiscordApiError::Transport)?;
+        if status != 429 {
+            return Ok((response, epoch));
         }
-        // Discord also supplies retry_after in JSON. Bound error-body bytes and
-        // never log them. The larger supplied delay wins if both are present.
+        // Error bodies are bounded and private; no admission lock spans I/O.
         let mut bytes = Vec::new();
         while let Ok(Some(chunk)) = response.chunk().await {
             if bytes.len() + chunk.len() > 4096 {
@@ -452,13 +470,14 @@ impl HttpDiscordApi {
             .ok()
             .and_then(|body| body.get("retry_after").and_then(serde_json::Value::as_f64))
             .and_then(retry_delay);
-        if let Some(delay) = body_delay {
-            if let Some(until) = tokio::time::Instant::now().checked_add(delay) {
-                if header_delay.is_some() {
-                    admission.next = admission.next.max(until);
-                } else {
-                    admission.next = until.max(tokio::time::Instant::now() + REQUEST_SPACING);
-                }
+        if let Some(until) = body_delay.and_then(|delay| tokio::time::Instant::now().checked_add(delay)) {
+            let mut admission = self.admission.lock().await;
+            if header_delay.is_none() && admission.epoch == failure_epoch {
+                // Replace only this response's provisional fallback. Preserve
+                // any cooldown already known before it, plus actual spacing.
+                admission.cooldown = prior_cooldown.max(until);
+            } else {
+                admission.cooldown = admission.cooldown.max(until);
             }
         }
         Err(DiscordApiError::Status(429))
@@ -470,7 +489,7 @@ impl HttpDiscordApi {
         request: reqwest::RequestBuilder,
         target: RequestTarget,
     ) -> Result<T, DiscordApiError> {
-        let response = self.send(request, false, target).await?;
+        let (response, _) = self.send(request, false, target).await?;
         let status = response.status();
         if !status.is_success() {
             return Err(classify(status.as_u16()));
@@ -488,7 +507,7 @@ impl HttpDiscordApi {
         missing_is_normal: bool,
         target: RequestTarget,
     ) -> Result<(), DiscordApiError> {
-        let response = self.send(request, missing_is_normal, target).await?;
+        let (response, _) = self.send(request, missing_is_normal, target).await?;
         let status = response.status();
         if status.is_success() {
             Ok(())
@@ -637,7 +656,7 @@ impl DiscordApi for HttpDiscordApi {
                 return Ok(None);
             }
             let url = format!("{}/guilds/{guild_id}/members/{user_id}", self.base_url);
-            let response = self
+            let (response, _) = self
                 .send(
                     self.request(reqwest::Method::GET, url),
                     true,
@@ -1130,6 +1149,9 @@ mod tests {
     async fn resource_backoff_memory_is_bounded_and_idle_streaks_expire() {
         let mut admission = RequestAdmission {
             next: tokio::time::Instant::now(),
+            cooldown: tokio::time::Instant::now(),
+            epoch: 0,
+            shared_failure_epoch: 0,
             failures: 0,
             resources: HashMap::new(),
         };
