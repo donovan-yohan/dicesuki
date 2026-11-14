@@ -37,7 +37,7 @@
 //!   The created thread's id equals the source message's id, and a message can
 //!   therefore only ever have one thread.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
@@ -194,6 +194,9 @@ pub enum DiscordApiError {
     Status(u16),
     /// The request never completed, or the body was unreadable.
     Transport,
+    /// No request was sent: this target is still cooling down after a terminal
+    /// refusal. Not terminal itself; callers keep pending intent for a later pass.
+    ResourceCooldown,
 }
 
 impl std::fmt::Display for DiscordApiError {
@@ -202,6 +205,7 @@ impl std::fmt::Display for DiscordApiError {
             Self::Unauthorized => write!(formatter, "discord rejected the bot credential"),
             Self::Status(status) => write!(formatter, "discord returned status {status}"),
             Self::Transport => write!(formatter, "discord request failed"),
+            Self::ResourceCooldown => write!(formatter, "discord resource is cooling down"),
         }
     }
 }
@@ -267,14 +271,59 @@ pub struct HttpDiscordApi {
     authorization: reqwest::header::HeaderValue,
 }
 
-/// One owner for directory reads and reconciliation writes. Conservative global
-/// pacing avoids a separate bucket registry and bounds pressure even on a cold cache.
+/// One owner for directory reads and reconciliation writes. Spacing and provider
+/// failures are shared; resource refusals must not delay unrelated targets.
 struct RequestAdmission {
+    next: tokio::time::Instant,
+    failures: u32,
+    resources: HashMap<RequestTarget, ResourceBackoff>,
+}
+
+/// Explicit major resource, never a member/user id or an arbitrary URL/payload.
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum RequestTarget {
+    CurrentUser,
+    BotGuilds,
+    Guild(String),
+    Channel(String),
+}
+
+struct ResourceBackoff {
     next: tokio::time::Instant,
     failures: u32,
 }
 
 const REQUEST_SPACING: Duration = Duration::from_millis(50);
+const MAX_RESOURCE_BACKOFFS: usize = 4096;
+const RESOURCE_BACKOFF_RETENTION: Duration = Duration::from_secs(300);
+
+impl RequestAdmission {
+    fn resource_failed(&mut self, target: RequestTarget) {
+        let now = tokio::time::Instant::now();
+        // Keep streaks across cooldown expiry, but not indefinitely idle targets.
+        self.resources.retain(|_, state| {
+            now.saturating_duration_since(state.next) < RESOURCE_BACKOFF_RETENTION
+        });
+        if self.resources.len() >= MAX_RESOURCE_BACKOFFS && !self.resources.contains_key(&target) {
+            // Bounded even under target churn. Evict the earliest retry deadline;
+            // aggregate spacing still bounds pressure if a target is evicted.
+            if let Some(oldest) = self
+                .resources
+                .iter()
+                .min_by_key(|(_, state)| state.next)
+                .map(|(target, _)| target.clone())
+            {
+                self.resources.remove(&oldest);
+            }
+        }
+        let state = self.resources.entry(target).or_insert(ResourceBackoff {
+            next: now,
+            failures: 0,
+        });
+        state.failures = state.failures.saturating_add(1);
+        state.next = now + Duration::from_secs(1_u64 << state.failures.saturating_sub(1).min(6));
+    }
+}
 
 fn retry_delay(value: f64) -> Option<Duration> {
     if !value.is_finite() || value < 0.0 {
@@ -319,6 +368,7 @@ impl HttpDiscordApi {
             admission: tokio::sync::Mutex::new(RequestAdmission {
                 next: tokio::time::Instant::now(),
                 failures: 0,
+                resources: HashMap::new(),
             }),
         }
     }
@@ -335,8 +385,18 @@ impl HttpDiscordApi {
         &self,
         request: reqwest::RequestBuilder,
         missing_is_normal: bool,
+        target: RequestTarget,
     ) -> Result<reqwest::Response, DiscordApiError> {
         let mut admission = self.admission.lock().await;
+        // Refuse locally before any shared wait; never hold the gate asleep for
+        // a dead channel. Existing callers decide when to try pending work again.
+        if admission
+            .resources
+            .get(&target)
+            .is_some_and(|state| state.next > tokio::time::Instant::now())
+        {
+            return Err(DiscordApiError::ResourceCooldown);
+        }
         tokio::time::sleep_until(admission.next).await;
         admission.next = tokio::time::Instant::now() + REQUEST_SPACING;
         let response = request.send().await;
@@ -345,12 +405,15 @@ impl HttpDiscordApi {
             .map(|response| response.status().as_u16())
             .unwrap_or(0);
         // Single-member 404s and idempotent delete 404s are ordinary outcomes.
-        // Resource 403/404s still pace the next caller, even if the reconcile
-        // planner intentionally retries an operator-configured billboard.
-        if status == 0
-            || matches!(status, 401 | 403 | 410 | 429 | 500..=599)
-            || (status == 404 && !missing_is_normal)
-        {
+        // A terminal refusal backs off only its major resource, including all
+        // writes to the configured billboard. Do not synthesize a terminal status
+        // for skipped calls: that would retire unrelated pending host intent.
+        if matches!(status, 403 | 410) || (status == 404 && !missing_is_normal) {
+            admission.resource_failed(target);
+        } else if (200..300).contains(&status) || (status == 404 && missing_is_normal) {
+            admission.resources.remove(&target);
+        }
+        if status == 0 || matches!(status, 401 | 429 | 500..=599) {
             admission.failures = admission.failures.saturating_add(1);
             let fallback =
                 Duration::from_secs(1_u64 << admission.failures.saturating_sub(1).min(6));
@@ -405,8 +468,9 @@ impl HttpDiscordApi {
     async fn send_json<T: serde::de::DeserializeOwned>(
         &self,
         request: reqwest::RequestBuilder,
+        target: RequestTarget,
     ) -> Result<T, DiscordApiError> {
-        let response = self.send(request, false).await?;
+        let response = self.send(request, false, target).await?;
         let status = response.status();
         if !status.is_success() {
             return Err(classify(status.as_u16()));
@@ -422,8 +486,9 @@ impl HttpDiscordApi {
         &self,
         request: reqwest::RequestBuilder,
         missing_is_normal: bool,
+        target: RequestTarget,
     ) -> Result<(), DiscordApiError> {
-        let response = self.send(request, missing_is_normal).await?;
+        let response = self.send(request, missing_is_normal, target).await?;
         let status = response.status();
         if status.is_success() {
             Ok(())
@@ -485,6 +550,7 @@ impl DiscordApi for HttpDiscordApi {
             let user: IdOnly = self
                 .send_json(
                     self.request(reqwest::Method::GET, format!("{}/users/@me", self.base_url)),
+                    RequestTarget::CurrentUser,
                 )
                 .await?;
             Ok(user.id)
@@ -492,13 +558,16 @@ impl DiscordApi for HttpDiscordApi {
     }
 
     fn bot_guilds(&self) -> ApiFuture<'_, Vec<BotGuild>> {
-        Box::pin(self.send_json(self.request(
-            reqwest::Method::GET,
-            format!(
-                "{}/users/@me/guilds?limit={BOT_GUILD_PAGE_LIMIT}",
-                self.base_url
+        Box::pin(self.send_json(
+            self.request(
+                reqwest::Method::GET,
+                format!(
+                    "{}/users/@me/guilds?limit={BOT_GUILD_PAGE_LIMIT}",
+                    self.base_url
+                ),
             ),
-        )))
+            RequestTarget::BotGuilds,
+        ))
     }
 
     fn guild_channels<'a>(&'a self, guild_id: &'a str) -> ApiFuture<'a, Vec<GuildChannel>> {
@@ -506,10 +575,13 @@ impl DiscordApi for HttpDiscordApi {
             if !is_snowflake(guild_id) {
                 return Err(DiscordApiError::Status(400));
             }
-            self.send_json(self.request(
-                reqwest::Method::GET,
-                format!("{}/guilds/{guild_id}/channels", self.base_url),
-            ))
+            self.send_json(
+                self.request(
+                    reqwest::Method::GET,
+                    format!("{}/guilds/{guild_id}/channels", self.base_url),
+                ),
+                RequestTarget::Guild(guild_id.to_string()),
+            )
             .await
         })
     }
@@ -524,10 +596,13 @@ impl DiscordApi for HttpDiscordApi {
                 owner_id: String,
             }
             let guild: GuildOwner = self
-                .send_json(self.request(
-                    reqwest::Method::GET,
-                    format!("{}/guilds/{guild_id}", self.base_url),
-                ))
+                .send_json(
+                    self.request(
+                        reqwest::Method::GET,
+                        format!("{}/guilds/{guild_id}", self.base_url),
+                    ),
+                    RequestTarget::Guild(guild_id.to_string()),
+                )
                 .await?;
             if !is_snowflake(&guild.owner_id) {
                 return Err(DiscordApiError::Transport);
@@ -541,10 +616,13 @@ impl DiscordApi for HttpDiscordApi {
             if !is_snowflake(guild_id) {
                 return Err(DiscordApiError::Status(400));
             }
-            self.send_json(self.request(
-                reqwest::Method::GET,
-                format!("{}/guilds/{guild_id}/roles", self.base_url),
-            ))
+            self.send_json(
+                self.request(
+                    reqwest::Method::GET,
+                    format!("{}/guilds/{guild_id}/roles", self.base_url),
+                ),
+                RequestTarget::Guild(guild_id.to_string()),
+            )
             .await
         })
     }
@@ -560,7 +638,11 @@ impl DiscordApi for HttpDiscordApi {
             }
             let url = format!("{}/guilds/{guild_id}/members/{user_id}", self.base_url);
             let response = self
-                .send(self.request(reqwest::Method::GET, url), true)
+                .send(
+                    self.request(reqwest::Method::GET, url),
+                    true,
+                    RequestTarget::Guild(guild_id.to_string()),
+                )
                 .await?;
             let status = response.status();
             // 404 is the documented "no such member" answer and is the whole
@@ -595,6 +677,7 @@ impl DiscordApi for HttpDiscordApi {
                         format!("{}/channels/{channel_id}/messages", self.base_url),
                     )
                     .json(payload),
+                    RequestTarget::Channel(channel_id.to_string()),
                 )
                 .await?;
             Ok(message.id)
@@ -621,6 +704,7 @@ impl DiscordApi for HttpDiscordApi {
                 )
                 .json(payload),
                 false,
+                RequestTarget::Channel(channel_id.to_string()),
             )
             .await
         })
@@ -641,6 +725,7 @@ impl DiscordApi for HttpDiscordApi {
                         ),
                     ),
                     true,
+                    RequestTarget::Channel(channel_id.to_string()),
                 )
                 .await
             {
@@ -670,6 +755,7 @@ impl DiscordApi for HttpDiscordApi {
                         ),
                     )
                     .json(payload),
+                    RequestTarget::Channel(channel_id.to_string()),
                 )
                 .await?;
             Ok(thread.id)
@@ -874,15 +960,47 @@ mod tests {
     async fn terminal_failures_back_off_instead_of_hammering_a_deleted_channel() {
         for status in [403, 404, 410] {
             let (api, server) = mock_api(status, None, "{}", false).await;
+            let payload = serde_json::json!({});
             assert_eq!(
-                api.current_user_id().await,
+                api.create_message("123", &payload).await,
                 Err(DiscordApiError::Status(status))
             );
-            let start = tokio::time::Instant::now();
-            api.current_user_id().await.unwrap();
+            // Every operation on this channel is skipped, not slept or replayed.
+            assert_eq!(
+                api.create_message("123", &payload).await,
+                Err(DiscordApiError::ResourceCooldown)
+            );
+            assert_eq!(
+                api.edit_message("123", "456", &payload).await,
+                Err(DiscordApiError::ResourceCooldown)
+            );
+            assert_eq!(
+                api.delete_message("123", "456").await,
+                Err(DiscordApiError::ResourceCooldown)
+            );
+            assert_eq!(
+                api.create_thread_from_message("123", "456", &payload).await,
+                Err(DiscordApiError::ResourceCooldown)
+            );
+            assert!(!is_terminal_for_resource(DiscordApiError::ResourceCooldown));
+            assert!(!is_terminal_for_thread_creation(
+                DiscordApiError::ResourceCooldown
+            ));
+            assert_eq!(
+                tokio::time::timeout(Duration::from_secs(15), api.current_user_id())
+                    .await
+                    .unwrap()
+                    .unwrap(),
+                "123"
+            );
+            assert_eq!(api.create_message("789", &payload).await.unwrap(), "123");
+            tokio::time::pause();
+            tokio::time::advance(Duration::from_secs(1)).await;
+            tokio::time::resume();
+            assert_eq!(api.create_message("123", &payload).await.unwrap(), "123");
             assert!(
-                start.elapsed() >= Duration::from_secs(1),
-                "status {status} bypassed backoff"
+                api.admission.lock().await.resources.is_empty(),
+                "success retires the streak"
             );
             server.abort();
         }
@@ -902,24 +1020,109 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn consecutive_terminal_failures_increase_the_shared_cooldown() {
-        let (api, server) = mock_api(403, None, "{}", true).await;
-        for seconds in [1, 2, 4] {
-            assert_eq!(
-                api.current_user_id().await,
-                Err(DiscordApiError::Status(403))
-            );
-            let deadline = api.admission.lock().await.next;
-            assert!(
-                deadline.saturating_duration_since(tokio::time::Instant::now())
-                    >= Duration::from_millis(seconds * 1000 - 100)
-            );
-            // Real HTTP consumes the status; paused time advances only its retry wait.
-            tokio::time::pause();
-            tokio::time::advance(Duration::from_secs(seconds)).await;
-            tokio::time::resume();
+    async fn consecutive_terminal_failures_increase_only_the_resource_cooldown() {
+        use axum::{response::IntoResponse, routing::any, Router};
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        for status in [403, 404, 410] {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let observed = calls.clone();
+            let app = Router::new().fallback(any(move |uri: axum::http::Uri| {
+                let calls = calls.clone();
+                async move {
+                    if uri.path().starts_with("/channels/123/") {
+                        calls.fetch_add(1, Ordering::SeqCst);
+                        axum::http::StatusCode::from_u16(status)
+                            .unwrap()
+                            .into_response()
+                    } else {
+                        axum::Json(serde_json::json!({"id":"123"})).into_response()
+                    }
+                }
+            }));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let mut api = HttpDiscordApi::new("test-only");
+            api.base_url = format!("http://{}", listener.local_addr().unwrap());
+            let server = tokio::spawn(async { axum::serve(listener, app).await.unwrap() });
+            let payload = serde_json::json!({});
+            for (attempt, seconds) in [1, 2, 4, 8, 16, 32, 64, 64].into_iter().enumerate() {
+                assert_eq!(
+                    api.create_message("123", &payload).await,
+                    Err(DiscordApiError::Status(status))
+                );
+                let deadline = api.admission.lock().await.resources
+                    [&RequestTarget::Channel("123".to_string())]
+                    .next;
+                assert!(
+                    deadline.saturating_duration_since(tokio::time::Instant::now())
+                        >= Duration::from_millis(seconds * 1000 - 100)
+                );
+                for _ in 0..8 {
+                    assert_eq!(
+                        api.create_message("123", &payload).await,
+                        Err(DiscordApiError::ResourceCooldown)
+                    );
+                }
+                assert_eq!(
+                    observed.load(Ordering::SeqCst),
+                    attempt + 1,
+                    "skips never send or replay POSTs"
+                );
+                // Healthy reads and writes neither wait on nor reset this streak.
+                assert_eq!(
+                    tokio::time::timeout(Duration::from_secs(15), api.current_user_id())
+                        .await
+                        .unwrap()
+                        .unwrap(),
+                    "123"
+                );
+                assert_eq!(api.create_message("789", &payload).await.unwrap(), "123");
+                tokio::time::pause();
+                tokio::time::advance(Duration::from_secs(seconds)).await;
+                tokio::time::resume();
+            }
+            server.abort();
         }
-        server.abort();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn resource_backoff_memory_is_bounded_and_idle_streaks_expire() {
+        let mut admission = RequestAdmission {
+            next: tokio::time::Instant::now(),
+            failures: 0,
+            resources: HashMap::new(),
+        };
+        for id in 0..MAX_RESOURCE_BACKOFFS + 1 {
+            admission.resource_failed(RequestTarget::Channel(id.to_string()));
+            assert!(admission.resources.len() <= MAX_RESOURCE_BACKOFFS);
+        }
+        tokio::time::advance(RESOURCE_BACKOFF_RETENTION + Duration::from_secs(1)).await;
+        let fresh = RequestTarget::Channel("99999".to_string());
+        admission.resource_failed(fresh.clone());
+        assert_eq!(admission.resources.len(), 1);
+        assert_eq!(admission.resources[&fresh].failures, 1);
+        assert_eq!(
+            admission.resources[&fresh].next - tokio::time::Instant::now(),
+            Duration::from_secs(1)
+        );
+    }
+
+    #[test]
+    fn resource_cooldown_error_does_not_disclose_identity_or_look_terminal() {
+        assert_eq!(
+            DiscordApiError::ResourceCooldown.to_string(),
+            "discord resource is cooling down"
+        );
+        assert_eq!(
+            format!("{:?}", HttpDiscordApi::new("private-test-token")),
+            "HttpDiscordApi { .. }"
+        );
+        assert!(!is_terminal_for_resource(DiscordApiError::ResourceCooldown));
+        assert!(!is_terminal_for_thread_creation(
+            DiscordApiError::ResourceCooldown
+        ));
     }
 
     #[test]
@@ -928,6 +1131,202 @@ mod tests {
             assert!(retry_delay(value).is_none());
         }
         assert_eq!(retry_delay(0.25), Some(Duration::from_millis(250)));
+    }
+
+    #[tokio::test]
+    async fn reviewer_deleted_billboard_must_not_starve_healthy_directory() {
+        use axum::{response::IntoResponse, routing::any, Router};
+        let app = Router::new().fallback(any(|uri: axum::http::Uri| async move {
+            if uri.path().contains("/channels/") {
+                axum::http::StatusCode::NOT_FOUND.into_response()
+            } else {
+                axum::Json(serde_json::json!({"id":"123"})).into_response()
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut api = HttpDiscordApi::new("test-only");
+        api.base_url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async { axum::serve(listener, app).await.unwrap() });
+        for seconds in [1, 2, 4, 8, 16, 32] {
+            assert_eq!(
+                api.create_message("123", &serde_json::json!({})).await,
+                Err(DiscordApiError::Status(404))
+            );
+            // Advance only retry waits; real HTTP runs with the clock resumed.
+            tokio::time::pause();
+            tokio::time::advance(Duration::from_secs(seconds)).await;
+            tokio::time::resume();
+        }
+        api.create_message("123", &serde_json::json!({}))
+            .await
+            .unwrap_err();
+        let result = tokio::time::timeout(Duration::from_secs(15), api.current_user_id()).await;
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(64)).await;
+        tokio::time::resume();
+        assert_eq!(
+            api.current_user_id().await.unwrap(),
+            "123",
+            "same healthy route succeeds after unrelated cooldown expires"
+        );
+        server.abort();
+        assert!(result.is_ok(), "healthy directory exceeded its entire handler budget due solely to another channel's 404s");
+        assert_eq!(result.unwrap().unwrap(), "123");
+    }
+
+    #[tokio::test]
+    async fn reconcile_skips_cooling_channel_without_retiring_pending_host_intent() {
+        use crate::discord::{
+            reconcile, AdvertKind, AdvertTarget, DesiredAdvert, DiscordService, RoomAdvert,
+        };
+        use axum::{response::IntoResponse, routing::any, Router};
+        use std::sync::{
+            atomic::{AtomicBool, AtomicUsize, Ordering},
+            Arc,
+        };
+        let broken = Arc::new(AtomicBool::new(true));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        let provider_broken = broken.clone();
+        let app = Router::new().fallback(any(move |uri: axum::http::Uri| {
+            let broken = provider_broken.clone();
+            let calls = calls.clone();
+            async move {
+                if uri.path().starts_with("/channels/123/") {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    if broken.load(Ordering::SeqCst) {
+                        return axum::http::StatusCode::NOT_FOUND.into_response();
+                    }
+                }
+                axum::Json(serde_json::json!({"id":"456"})).into_response()
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut api = HttpDiscordApi::new("test-only");
+        api.base_url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async { axum::serve(listener, app).await.unwrap() });
+        let api = Arc::new(api);
+        assert_eq!(
+            api.create_message("123", &serde_json::json!({})).await,
+            Err(DiscordApiError::Status(404))
+        );
+        let service = DiscordService::new(
+            api,
+            None,
+            "https://example.invalid".to_string(),
+            Some("123".to_string()),
+        );
+        service
+            .registry
+            .register("pending", "123", "verified-test-host")
+            .await
+            .unwrap();
+        let desired: Vec<_> = [
+            ("billboard-a", "123", AdvertKind::Billboard),
+            ("billboard-b", "123", AdvertKind::Billboard),
+            ("pending", "123", AdvertKind::HostPosted),
+            ("healthy", "789", AdvertKind::HostPosted),
+        ]
+        .into_iter()
+        .map(|(room, channel, kind)| DesiredAdvert {
+            advert: RoomAdvert {
+                room_id: room.to_string(),
+                name: None,
+                player_count: 1,
+                player_cap: 8,
+                theme_id: None,
+                player_names: vec![],
+                recent_rolls: vec![],
+            },
+            targets: vec![AdvertTarget {
+                channel_id: channel.to_string(),
+                kind,
+            }],
+        })
+        .collect();
+        let mut tracked = HashMap::new();
+        tokio::time::timeout(
+            Duration::from_secs(15),
+            reconcile(&service, &mut tracked, &desired),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            observed.load(Ordering::SeqCst),
+            1,
+            "pending actions must not send during cooldown"
+        );
+        assert_eq!(tracked["healthy"][0].channel_id, "789");
+        assert!(
+            service.registry.snapshot().await["pending"].contains("123"),
+            "a skipped request is not a terminal refusal of fresh intent"
+        );
+        broken.store(false, Ordering::SeqCst);
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(1)).await;
+        tokio::time::resume();
+        reconcile(&service, &mut tracked, &desired[2..3]).await;
+        assert_eq!(
+            tracked["pending"][0].channel_id, "123",
+            "next ordinary pass recovers pending intent"
+        );
+        assert_eq!(observed.load(Ordering::SeqCst), 2);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn guild_refusal_is_local_and_expected_member_and_delete_404s_are_normal() {
+        let (api, server) = mock_api(403, None, "{}", false).await;
+        assert_eq!(
+            api.guild_roles("123").await,
+            Err(DiscordApiError::Status(403))
+        );
+        assert_eq!(
+            api.guild_channels("123").await,
+            Err(DiscordApiError::ResourceCooldown)
+        );
+        assert_eq!(
+            api.guild_member("123", "456").await,
+            Err(DiscordApiError::ResourceCooldown)
+        );
+        assert_eq!(
+            api.guild_owner_id("123").await,
+            Err(DiscordApiError::ResourceCooldown)
+        );
+        assert_eq!(api.current_user_id().await.unwrap(), "123");
+        assert_eq!(
+            api.create_message("123", &serde_json::json!({}))
+                .await
+                .unwrap(),
+            "123",
+            "guild and channel namespaces are separate"
+        );
+        server.abort();
+        let (api, server) = mock_api(404, None, "{}", true).await;
+        assert_eq!(api.guild_member("123", "456").await.unwrap(), None);
+        assert_eq!(api.delete_message("123", "456").await, Ok(()));
+        let admission = api.admission.lock().await;
+        assert!(admission.resources.is_empty());
+        assert_eq!(admission.failures, 0);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn provider_failures_and_invalid_429_delays_keep_shared_fallback() {
+        for status in [401, 500, 429] {
+            let (api, server) = mock_api(status, Some("invalid"), "{}", false).await;
+            assert_eq!(
+                api.create_message("123", &serde_json::json!({})).await,
+                Err(classify(status))
+            );
+            let start = tokio::time::Instant::now();
+            assert_eq!(api.current_user_id().await.unwrap(), "123");
+            assert!(
+                start.elapsed() >= Duration::from_secs(1),
+                "status {status} bypassed shared fallback"
+            );
+            server.abort();
+        }
     }
 
     const GUILD: &str = "111111111111111111";

@@ -1690,9 +1690,9 @@ async fn prune_registrations(
 ///
 /// A host-posted target is a registration, so dropping it is what actually ends
 /// the retry loop. The billboard is deployment configuration and cannot be
-/// unconfigured at runtime. It retries through the shared HTTP cooldown and
-/// aggregate pacing; a moderator can delete the configured channel, so terminal
-/// refusals must not bypass that backoff.
+/// unconfigured at runtime. It retries through the resource-local HTTP cooldown
+/// and aggregate pacing; cooling-channel work is skipped, not slept globally.
+/// A moderator deleting this channel must not starve healthy directory/host work.
 async fn retire_target(
     service: &DiscordService,
     kind: AdvertKind,

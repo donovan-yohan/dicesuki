@@ -145,11 +145,20 @@ Operational bounds (#250):
 - All bot REST reads and advert/thread writes share one HTTP admission gate.
   Requests start no faster than once per 50ms. A 429 honors fractional seconds
   from `Retry-After` and/or JSON `retry_after`, conservatively across all routes.
-  Missing/invalid cooldowns and repeated terminal/server/transport failures back
-  off exponentially from one second to 64 seconds. The transport does not
-  automatically replay non-idempotent POSTs; normal callers/reconciliation own
-  retries. A deleted legacy billboard channel can cause failures, so it receives
-  the same pacing/backoff rather than bypassing it as deployment configuration.
+  Missing/invalid 429 cooldowns and repeated credential/server/transport failures
+  back off globally from one second to 64 seconds. Terminal resource refusals
+  (403/404/410, excluding ordinary member/delete 404s) instead back off only that
+  channel or guild: 1/2/4/.../64 seconds. Pending calls to a cooling resource are
+  skipped without network I/O or a shared sleep; healthy unrelated work continues.
+  A skipped call is not a new terminal refusal, so pending host intent survives
+  for a later normal reconcile pass. Success clears that resource's streak.
+  Resource state is capped at 4096 entries, pruned after five idle minutes beyond
+  its retry deadline, and evicts the earliest deadline at capacity; aggregate
+  spacing still applies after eviction. No member identities or response bodies
+  enter this map or its diagnostics. The transport does not automatically replay
+  non-idempotent POSTs; normal callers/reconciliation own retries. A deleted legacy
+  billboard channel receives the same resource backoff rather than bypassing it
+  as deployment configuration, without blocking unrelated directory/host work.
 - A user may have registrations in at most eight outstanding rooms, within the
   existing four-channel-per-room and 512-room instance ceilings. Each channel
   retains its original authenticated advertiser for accounting, even across host
