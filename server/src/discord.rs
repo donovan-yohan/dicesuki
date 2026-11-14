@@ -1419,7 +1419,7 @@ impl HostPostRegistry {
         let mut rooms = self.rooms.write().await;
         let revision = self
             .next_revision
-            .fetch_update(
+            .try_update(
                 std::sync::atomic::Ordering::Relaxed,
                 std::sync::atomic::Ordering::Relaxed,
                 |value| value.checked_add(1),

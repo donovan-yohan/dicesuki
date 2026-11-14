@@ -278,6 +278,12 @@ pub async fn discord_targets(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
+    tokio::time::timeout(crate::discord_targets::TARGETS_TIMEOUT,
+        discord_targets_inner(state, headers)).await
+        .unwrap_or_else(|_| Json(targets_response(&[])).into_response())
+}
+
+async fn discord_targets_inner(state: AppState, headers: HeaderMap) -> axum::response::Response {
     let claims = match require_claims(&headers).await {
         Ok(claims) => claims,
         Err(response) => return response,
@@ -303,14 +309,10 @@ async fn targets_for_claims(
     service: &DiscordService,
     claims: &SupabaseClaims,
 ) -> Vec<crate::discord_targets::TargetGuild> {
-    tokio::time::timeout(crate::discord_targets::TARGETS_TIMEOUT, async {
-        match service.directory.resolve_discord_user_id(claims).await {
-            Some(discord_user_id) => service.directory.targets_for(&discord_user_id).await,
-            None => Vec::new(),
-        }
-    })
-    .await
-    .unwrap_or_default()
+    match service.directory.resolve_discord_user_id(claims).await {
+        Some(discord_user_id) => service.directory.targets_for(&discord_user_id).await,
+        None => Vec::new(),
+    }
 }
 
 /// `POST /api/rooms/:room_id/advertise` (#246) — the room's **host** posts it to
