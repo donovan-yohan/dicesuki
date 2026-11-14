@@ -409,7 +409,10 @@ pub async fn advertise(
         .await;
     authorize_advertise(host.as_deref(), &claims.sub, channel_id, &verified)?;
 
-    service.registry.register(room_id, channel_id).await
+    service
+        .registry
+        .register(room_id, channel_id, &claims.sub)
+        .await
 }
 
 /// Fallback handler — logs requests that don't match any route.

@@ -170,6 +170,8 @@ pub const MAX_CHANNELS_PER_ROOM: usize = 4;
 /// Hard ceiling on rooms with host-posted adverts tracked at once, so the
 /// registry cannot grow without bound.
 pub const MAX_ADVERTISED_ROOMS: usize = 512;
+/// One authenticated user cannot consume the instance-wide registry.
+pub const MAX_ADVERTISED_ROOMS_PER_USER: usize = 8;
 
 /// Burst of `advertise` calls one user may make.
 const ADVERTISE_BURST: f64 = 5.0;
@@ -1136,7 +1138,9 @@ pub fn plan_actions(
     let mut room_ids: Vec<&String> = tracked.keys().collect();
     room_ids.sort();
     for room_id in room_ids {
-        let wanted = desired.iter().find(|entry| &entry.advert.room_id == room_id);
+        let wanted = desired
+            .iter()
+            .find(|entry| &entry.advert.room_id == room_id);
         for post in &tracked[room_id] {
             let still_wanted = wanted.is_some_and(|entry| {
                 entry
@@ -1152,8 +1156,13 @@ pub fn plan_actions(
             // archive so it lands while the session record is still live. It is
             // best effort: the archive follows unconditionally, because a dead
             // Join button left in a third-party channel is the worse failure.
-            if let (AdvertKind::HostPosted, ThreadState::Live { thread_id, logged_through }) =
-                (post.kind, &post.thread)
+            if let (
+                AdvertKind::HostPosted,
+                ThreadState::Live {
+                    thread_id,
+                    logged_through,
+                },
+            ) = (post.kind, &post.thread)
             {
                 let (trailing_rolls, earlier_lost) =
                     rolls_since(&post.advert.recent_rolls, *logged_through);
@@ -1169,8 +1178,7 @@ pub fn plan_actions(
                     // succeed the latter. Taking the larger stops the summary
                     // from claiming fewer rolls than the reader can count in the
                     // thread directly above it.
-                    roll_count: observed_roll_count(&post.advert.recent_rolls)
-                        .max(*logged_through),
+                    roll_count: observed_roll_count(&post.advert.recent_rolls).max(*logged_through),
                     trailing_rolls,
                     earlier_lost,
                 });
@@ -1380,7 +1388,9 @@ pub fn targets_rate_limiter() -> UserRateLimiter {
 /// Which channels each room has been explicitly posted to by its host.
 #[derive(Default)]
 pub struct HostPostRegistry {
-    rooms: RwLock<HashMap<String, BTreeSet<String>>>,
+    // Channel -> original authenticated advertiser. Ownership never transfers
+    // on a duplicate registration or a room host transfer.
+    rooms: RwLock<HashMap<String, HashMap<String, String>>>,
 }
 
 impl HostPostRegistry {
@@ -1394,14 +1404,31 @@ impl HostPostRegistry {
         &self,
         room_id: &str,
         channel_id: &str,
+        user_id: &str,
     ) -> Result<(), AdvertiseRejection> {
         let mut rooms = self.rooms.write().await;
+        if rooms
+            .get(room_id)
+            .is_some_and(|channels| channels.contains_key(channel_id))
+        {
+            return Ok(());
+        }
+        let already_charged = rooms
+            .get(room_id)
+            .is_some_and(|channels| channels.values().any(|owner| owner == user_id));
+        let charged_rooms = rooms
+            .values()
+            .filter(|channels| channels.values().any(|owner| owner == user_id))
+            .count();
+        if !already_charged && charged_rooms >= MAX_ADVERTISED_ROOMS_PER_USER {
+            return Err(AdvertiseRejection::TooManyAdverts);
+        }
         match rooms.get_mut(room_id) {
             Some(channels) => {
-                if !channels.contains(channel_id) && channels.len() >= MAX_CHANNELS_PER_ROOM {
+                if channels.len() >= MAX_CHANNELS_PER_ROOM {
                     return Err(AdvertiseRejection::TooManyAdverts);
                 }
-                channels.insert(channel_id.to_string());
+                channels.insert(channel_id.to_string(), user_id.to_string());
             }
             None => {
                 if rooms.len() >= MAX_ADVERTISED_ROOMS {
@@ -1409,7 +1436,7 @@ impl HostPostRegistry {
                 }
                 rooms.insert(
                     room_id.to_string(),
-                    BTreeSet::from([channel_id.to_string()]),
+                    HashMap::from([(channel_id.to_string(), user_id.to_string())]),
                 );
             }
         }
@@ -1438,7 +1465,12 @@ impl HostPostRegistry {
 
     /// A snapshot for the planner.
     pub async fn snapshot(&self) -> HashMap<String, BTreeSet<String>> {
-        self.rooms.read().await.clone()
+        self.rooms
+            .read()
+            .await
+            .iter()
+            .map(|(room, channels)| (room.clone(), channels.keys().cloned().collect()))
+            .collect()
     }
 }
 
@@ -1991,8 +2023,8 @@ pub async fn reconcile(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::room::{MAX_DICE, MAX_PLAYERS, RECENT_ROLL_HISTORY};
     use crate::discord_targets::test_support::FakeDiscord;
+    use crate::room::{MAX_DICE, MAX_PLAYERS, RECENT_ROLL_HISTORY};
 
     const BILLBOARD: &str = "800000000000000001";
     const HOST_CHANNEL: &str = "800000000000000002";
@@ -2013,7 +2045,10 @@ mod tests {
     }
 
     fn die(dice_type: DiceType, face_value: u32) -> RecentRollDie {
-        RecentRollDie { dice_type, face_value }
+        RecentRollDie {
+            dice_type,
+            face_value,
+        }
     }
 
     fn roll(player_name: &str, dice: Vec<RecentRollDie>) -> RecentRoll {
@@ -2111,7 +2146,9 @@ mod tests {
     fn tracked(posts: Vec<TrackedPost>) -> HashMap<String, Vec<TrackedPost>> {
         let mut map: HashMap<String, Vec<TrackedPost>> = HashMap::new();
         for post in posts {
-            map.entry(post.advert.room_id.clone()).or_default().push(post);
+            map.entry(post.advert.room_id.clone())
+                .or_default()
+                .push(post);
         }
         map
     }
@@ -2263,7 +2300,10 @@ mod tests {
     #[test]
     fn roll_line_collapses_crit_runs_past_the_repeat_limit() {
         let three = roll_line(&roll("Alex", vec![die(DiceType::D6, 6); 3]));
-        assert_eq!(three, "Alex \u{2014} 3d6 \u{2192} 18 \u{1F4A5}\u{1F4A5}\u{1F4A5}");
+        assert_eq!(
+            three,
+            "Alex \u{2014} 3d6 \u{2192} 18 \u{1F4A5}\u{1F4A5}\u{1F4A5}"
+        );
 
         let many = roll_line(&roll("Alex", vec![die(DiceType::D6, 6); 9]));
         assert_eq!(many, "Alex \u{2014} 9d6 \u{2192} 54 \u{1F4A5}\u{00D7}9");
@@ -2307,14 +2347,13 @@ mod tests {
             2,
             "display name AND saved-roll name must both be escaped: {rolls}",
         );
-        assert_eq!(
-            rolls,
-            format!("{INERT} \u{2014} {INERT} (1d6) \u{2192} 3"),
-        );
+        assert_eq!(rolls, format!("{INERT} \u{2014} {INERT} (1d6) \u{2192} 3"),);
 
         // Archived embed: the final roster and the roll tail likewise.
         assert_eq!(field_value(&archived, "Players").unwrap(), INERT);
-        assert!(field_value(&archived, "Last rolls").unwrap().starts_with(INERT));
+        assert!(field_value(&archived, "Last rolls")
+            .unwrap()
+            .starts_with(INERT));
     }
 
     #[test]
@@ -2322,7 +2361,10 @@ mod tests {
         // Room::update_settings accepts any non-empty string, so the cap lives
         // here. Escaping must not let a long value slip past it either.
         let long = "t".repeat(200);
-        assert_eq!(render_theme_label(Some(&long)).chars().count(), THEME_LABEL_MAX_LEN);
+        assert_eq!(
+            render_theme_label(Some(&long)).chars().count(),
+            THEME_LABEL_MAX_LEN
+        );
         assert_eq!(render_theme_label(None), "default");
         assert_eq!(render_theme_label(Some("")), "default");
         assert_eq!(render_theme_label(Some("   ")), "default");
@@ -2387,7 +2429,11 @@ mod tests {
     /// just the pool, and only when the roll actually came from a saved roll.
     #[test]
     fn roll_line_names_the_saved_roll_it_came_from() {
-        let dice = vec![die(DiceType::D6, 5), die(DiceType::D6, 6), die(DiceType::D6, 3)];
+        let dice = vec![
+            die(DiceType::D6, 5),
+            die(DiceType::D6, 6),
+            die(DiceType::D6, 3),
+        ];
 
         assert_eq!(
             roll_line(&named_roll("Alex", "Sneak Attack", dice.clone())),
@@ -2458,7 +2504,10 @@ mod tests {
         let roster = render_player_roster(&names);
         assert!(roster.ends_with("+3 more"));
 
-        assert_eq!(render_player_roster(&["**Bo**".to_string()]), "\\*\\*Bo\\*\\*");
+        assert_eq!(
+            render_player_roster(&["**Bo**".to_string()]),
+            "\\*\\*Bo\\*\\*"
+        );
         assert_eq!(render_player_roster(&[]), "Nobody was left at the table");
     }
 
@@ -2507,7 +2556,9 @@ mod tests {
         );
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::Update { message_id, advert, .. } => {
+            SyncAction::Update {
+                message_id, advert, ..
+            } => {
                 assert_eq!(message_id, "m-b");
                 assert_eq!(advert.player_count, 2);
             }
@@ -2530,7 +2581,9 @@ mod tests {
 
         // Same players, same theme — only a new roll landed.
         let mut rolled = posted.clone();
-        rolled.recent_rolls.push(roll("Bo", vec![die(DiceType::D20, 20)]));
+        rolled
+            .recent_rolls
+            .push(roll("Bo", vec![die(DiceType::D20, 20)]));
 
         let actions = plan_actions(
             &map,
@@ -2538,7 +2591,9 @@ mod tests {
             now,
         );
         match actions.as_slice() {
-            [SyncAction::Update { message_id, advert, .. }] => {
+            [SyncAction::Update {
+                message_id, advert, ..
+            }] => {
                 assert_eq!(message_id, "m-a");
                 assert_eq!(advert.recent_rolls.len(), 2);
             }
@@ -2588,7 +2643,13 @@ mod tests {
 
         let actions = plan_actions(&map, &[], start + Duration::from_secs(1_800));
         match actions.as_slice() {
-            [SyncAction::Archive { room_id, channel_id, message_id, advert, duration }] => {
+            [SyncAction::Archive {
+                room_id,
+                channel_id,
+                message_id,
+                advert,
+                duration,
+            }] => {
                 assert_eq!(room_id, "gone");
                 assert_eq!(channel_id, HOST_CHANNEL);
                 assert_eq!(message_id, "m-gone");
@@ -2606,7 +2667,13 @@ mod tests {
         // Posted to the billboard and one host channel; only the host channel's
         // copy is stale.
         let map = tracked(vec![
-            tracked_post(BILLBOARD, "m-bb", AdvertKind::Billboard, advert("a", 2), now),
+            tracked_post(
+                BILLBOARD,
+                "m-bb",
+                AdvertKind::Billboard,
+                advert("a", 2),
+                now,
+            ),
             tracked_post(
                 HOST_CHANNEL,
                 "m-host",
@@ -2665,11 +2732,16 @@ mod tests {
         )]);
         let actions = plan_actions(
             &map,
-            &[desired(advert("a", 1), &[(BILLBOARD, AdvertKind::HostPosted)])],
+            &[desired(
+                advert("a", 1),
+                &[(BILLBOARD, AdvertKind::HostPosted)],
+            )],
             now,
         );
         match actions.as_slice() {
-            [SyncAction::Update { kind, message_id, .. }] => {
+            [SyncAction::Update {
+                kind, message_id, ..
+            }] => {
                 assert_eq!(*kind, AdvertKind::HostPosted);
                 assert_eq!(message_id, "m-bb");
             }
@@ -2681,7 +2753,13 @@ mod tests {
     fn plan_retires_only_the_channel_that_was_dropped() {
         let now = Instant::now();
         let map = tracked(vec![
-            tracked_post(BILLBOARD, "m-bb", AdvertKind::Billboard, advert("a", 1), now),
+            tracked_post(
+                BILLBOARD,
+                "m-bb",
+                AdvertKind::Billboard,
+                advert("a", 1),
+                now,
+            ),
             tracked_post(
                 HOST_CHANNEL,
                 "m-host",
@@ -2693,7 +2771,10 @@ mod tests {
         // The room went unlisted: the billboard copy goes, the host copy stays.
         let actions = plan_actions(
             &map,
-            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            &[desired(
+                advert("a", 1),
+                &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+            )],
             now,
         );
         // The surviving host-posted copy also picks up its session thread; the
@@ -2755,10 +2836,8 @@ mod tests {
 
     #[test]
     fn a_host_post_into_the_billboard_channel_keeps_the_archiving_lifecycle() {
-        let host_posts = HashMap::from([(
-            "pub".to_string(),
-            BTreeSet::from([BILLBOARD.to_string()]),
-        )]);
+        let host_posts =
+            HashMap::from([("pub".to_string(), BTreeSet::from([BILLBOARD.to_string()]))]);
         let desired = desired_adverts(&[snapshot("pub", true)], Some(BILLBOARD), &host_posts);
         assert_eq!(desired[0].targets.len(), 1, "not posted twice");
         assert_eq!(desired[0].targets[0].kind, AdvertKind::HostPosted);
@@ -2813,7 +2892,12 @@ mod tests {
         // A caller with no verified channels at all (no Discord identity, or no
         // shared guild) can never advertise.
         assert_eq!(
-            authorize_advertise(Some("host-user"), "host-user", HOST_CHANNEL, &BTreeSet::new()),
+            authorize_advertise(
+                Some("host-user"),
+                "host-user",
+                HOST_CHANNEL,
+                &BTreeSet::new()
+            ),
             Err(AdvertiseRejection::ChannelNotVerified)
         );
         // A malformed channel id never reaches Discord.
@@ -2843,28 +2927,62 @@ mod tests {
     #[tokio::test]
     async fn one_host_cannot_reserve_the_global_advert_registry() {
         let registry = HostPostRegistry::default();
-        for i in 0..8 { registry.register(&format!("room-{i}"), HOST_CHANNEL).await.unwrap(); }
-        assert_eq!(registry.register("overflow", HOST_CHANNEL).await, Err(AdvertiseRejection::TooManyAdverts));
+        for i in 0..8 {
+            registry
+                .register(&format!("room-{i}"), HOST_CHANNEL, "host-a")
+                .await
+                .unwrap();
+        }
+        assert_eq!(
+            registry.register("overflow", HOST_CHANNEL, "host-a").await,
+            Err(AdvertiseRejection::TooManyAdverts)
+        );
+        assert!(registry
+            .register("other-user", HOST_CHANNEL, "host-b")
+            .await
+            .is_ok());
+        assert!(
+            registry
+                .register("room-0", HOST_CHANNEL, "host-b")
+                .await
+                .is_ok(),
+            "idempotence must not transfer the original charge"
+        );
+        assert!(
+            registry
+                .register("room-0", "another-channel", "host-a")
+                .await
+                .is_ok(),
+            "adding a channel is not a new room"
+        );
         registry.forget_room("room-0").await;
-        assert!(registry.register("recovered", HOST_CHANNEL).await.is_ok());
+        assert!(registry
+            .register("recovered", HOST_CHANNEL, "host-a")
+            .await
+            .is_ok());
     }
 
     #[tokio::test]
     async fn the_registry_is_idempotent_and_bounded_per_room() {
         let registry = HostPostRegistry::default();
         for _ in 0..3 {
-            registry.register("room", HOST_CHANNEL).await.unwrap();
+            registry
+                .register("room", HOST_CHANNEL, "host-a")
+                .await
+                .unwrap();
         }
         assert_eq!(registry.snapshot().await["room"].len(), 1);
 
         for i in 0..MAX_CHANNELS_PER_ROOM {
             registry
-                .register("room", &format!("90000000000000000{i}"))
+                .register("room", &format!("90000000000000000{i}"), "host-a")
                 .await
                 .ok();
         }
         assert_eq!(
-            registry.register("room", "999999999999999999").await,
+            registry
+                .register("room", "999999999999999999", "host-a")
+                .await,
             Err(AdvertiseRejection::TooManyAdverts)
         );
 
@@ -2880,12 +2998,19 @@ mod tests {
         // lifetime — 512 of those would lock every host out of the feature.
         let api = Arc::new(FakeDiscord::new("400000000000000001"));
         let service = service_with(api, None);
-        service.registry.register("a", HOST_CHANNEL).await.unwrap();
+        service
+            .registry
+            .register("a", HOST_CHANNEL, "host-a")
+            .await
+            .unwrap();
         let mut tracked = HashMap::new();
         reconcile(
             &service,
             &mut tracked,
-            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            &[desired(
+                advert("a", 1),
+                &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+            )],
         )
         .await;
 
@@ -2913,13 +3038,20 @@ mod tests {
         let mut fake = FakeDiscord::new("400000000000000001");
         fake.failure = Some(crate::discord_api::DiscordApiError::Status(403));
         let service = service_with(Arc::new(fake), None);
-        service.registry.register("a", HOST_CHANNEL).await.unwrap();
+        service
+            .registry
+            .register("a", HOST_CHANNEL, "host-a")
+            .await
+            .unwrap();
 
         let mut tracked = HashMap::new();
         reconcile(
             &service,
             &mut tracked,
-            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            &[desired(
+                advert("a", 1),
+                &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+            )],
         )
         .await;
 
@@ -2935,12 +3067,19 @@ mod tests {
         // Post successfully, then a moderator deletes the message (404 on PATCH).
         let live = Arc::new(FakeDiscord::new("400000000000000001"));
         let service = service_with(live, None);
-        service.registry.register("a", HOST_CHANNEL).await.unwrap();
+        service
+            .registry
+            .register("a", HOST_CHANNEL, "host-a")
+            .await
+            .unwrap();
         let mut tracked = HashMap::new();
         reconcile(
             &service,
             &mut tracked,
-            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            &[desired(
+                advert("a", 1),
+                &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+            )],
         )
         .await;
         assert_eq!(tracked["a"].len(), 1);
@@ -2948,12 +3087,19 @@ mod tests {
         let mut gone = FakeDiscord::new("400000000000000001");
         gone.failure = Some(crate::discord_api::DiscordApiError::Status(404));
         let broken = service_with(Arc::new(gone), None);
-        broken.registry.register("a", HOST_CHANNEL).await.unwrap();
+        broken
+            .registry
+            .register("a", HOST_CHANNEL, "host-a")
+            .await
+            .unwrap();
         // A changed advert forces an edit, which now fails permanently.
         reconcile(
             &broken,
             &mut tracked,
-            &[desired(advert("a", 2), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            &[desired(
+                advert("a", 2),
+                &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+            )],
         )
         .await;
 
@@ -2967,12 +3113,19 @@ mod tests {
         let mut flaky = FakeDiscord::new("400000000000000001");
         flaky.failure = Some(crate::discord_api::DiscordApiError::Status(500));
         let service = service_with(Arc::new(flaky), None);
-        service.registry.register("a", HOST_CHANNEL).await.unwrap();
+        service
+            .registry
+            .register("a", HOST_CHANNEL, "host-a")
+            .await
+            .unwrap();
 
         reconcile(
             &service,
             &mut HashMap::new(),
-            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            &[desired(
+                advert("a", 1),
+                &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+            )],
         )
         .await;
 
@@ -2995,9 +3148,7 @@ mod tests {
         for i in 0..RATE_LIMIT_MAX_USERS {
             // Each new user spends one token, so no bucket is full and the
             // "drop full buckets" pass cannot reclaim anything.
-            limiter
-                .try_acquire_at(&format!("flood-{i}"), start)
-                .await;
+            limiter.try_acquire_at(&format!("flood-{i}"), start).await;
         }
 
         assert!(
@@ -3010,7 +3161,11 @@ mod tests {
     async fn a_registration_whose_room_died_before_it_was_posted_is_pruned() {
         let api = Arc::new(FakeDiscord::new("400000000000000001"));
         let service = service_with(api, None);
-        service.registry.register("ghost", HOST_CHANNEL).await.unwrap();
+        service
+            .registry
+            .register("ghost", HOST_CHANNEL, "host-a")
+            .await
+            .unwrap();
 
         // The room is gone and nothing was ever posted for it, so there is no
         // advert to archive — the registration must not linger.
@@ -3023,12 +3178,19 @@ mod tests {
     async fn a_registration_with_a_posted_advert_survives_until_it_is_archived() {
         let api = Arc::new(FakeDiscord::new("400000000000000001"));
         let service = service_with(api, None);
-        service.registry.register("a", HOST_CHANNEL).await.unwrap();
+        service
+            .registry
+            .register("a", HOST_CHANNEL, "host-a")
+            .await
+            .unwrap();
         let mut tracked = HashMap::new();
         reconcile(
             &service,
             &mut tracked,
-            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            &[desired(
+                advert("a", 1),
+                &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+            )],
         )
         .await;
 
@@ -3056,9 +3218,11 @@ mod tests {
         // A different user has their own budget.
         assert!(limiter.try_acquire_at("other", start).await);
         // Thirty seconds later one token is back.
-        assert!(limiter
-            .try_acquire_at("user", start + Duration::from_secs(31))
-            .await);
+        assert!(
+            limiter
+                .try_acquire_at("user", start + Duration::from_secs(31))
+                .await
+        );
     }
 
     // --- reconciliation against a scripted Discord --------------------------
@@ -3110,7 +3274,10 @@ mod tests {
         reconcile(
             &service,
             &mut tracked,
-            &[desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            &[desired(
+                advert("a", 1),
+                &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+            )],
         )
         .await;
 
@@ -3135,14 +3302,20 @@ mod tests {
     // --- session threads: rendering (#255) ---------------------------------
 
     fn content(payload: &serde_json::Value) -> String {
-        payload["content"].as_str().expect("a content string").to_string()
+        payload["content"]
+            .as_str()
+            .expect("a content string")
+            .to_string()
     }
 
     #[test]
     fn thread_create_payload_names_the_room_and_the_day_and_auto_archives() {
         let payload = build_thread_create_payload(&advert("abc123", 2), "2026-08-10");
         assert_eq!(payload["name"], "Taverna \u{2014} 2026-08-10");
-        assert_eq!(payload["auto_archive_duration"], THREAD_AUTO_ARCHIVE_MINUTES);
+        assert_eq!(
+            payload["auto_archive_duration"],
+            THREAD_AUTO_ARCHIVE_MINUTES
+        );
 
         // An unnamed room falls back to its id rather than an empty name, which
         // Discord would reject with a 400 and permanently disable the thread.
@@ -3473,7 +3646,11 @@ mod tests {
         let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
 
         match plan_actions(&map, std::slice::from_ref(&live), now).as_slice() {
-            [SyncAction::CreateThread { channel_id, message_id, .. }] => {
+            [SyncAction::CreateThread {
+                channel_id,
+                message_id,
+                ..
+            }] => {
                 assert_eq!(channel_id, HOST_CHANNEL);
                 assert_eq!(message_id, "m-a");
             }
@@ -3482,13 +3659,25 @@ mod tests {
 
         // Once live, nothing plans a second create — one thread per advert
         // lifetime is the whole rate-limit posture.
-        let threaded = tracked(vec![threaded_post(HOST_CHANNEL, "m-a", advert("a", 1), now, 0)]);
+        let threaded = tracked(vec![threaded_post(
+            HOST_CHANNEL,
+            "m-a",
+            advert("a", 1),
+            now,
+            0,
+        )]);
         assert!(plan_actions(&threaded, std::slice::from_ref(&live), now).is_empty());
 
         // And a refusal is permanent: no retry every pass.
         let disabled = tracked(vec![TrackedPost {
             thread: ThreadState::Disabled,
-            ..tracked_post(HOST_CHANNEL, "m-a", AdvertKind::HostPosted, advert("a", 1), now)
+            ..tracked_post(
+                HOST_CHANNEL,
+                "m-a",
+                AdvertKind::HostPosted,
+                advert("a", 1),
+                now,
+            )
         }]);
         assert!(plan_actions(&disabled, &[live], now).is_empty());
     }
@@ -3503,10 +3692,16 @@ mod tests {
             advert("a", 1),
             now,
         )]);
-        assert_eq!(ThreadState::initial(AdvertKind::Billboard), ThreadState::Disabled);
+        assert_eq!(
+            ThreadState::initial(AdvertKind::Billboard),
+            ThreadState::Disabled
+        );
         assert!(plan_actions(
             &map,
-            &[desired(advert("a", 1), &[(BILLBOARD, AdvertKind::Billboard)])],
+            &[desired(
+                advert("a", 1),
+                &[(BILLBOARD, AdvertKind::Billboard)]
+            )],
             now
         )
         .is_empty());
@@ -3532,9 +3727,18 @@ mod tests {
         // — never one message per roll.
         assert_eq!(actions.len(), 2);
         match &actions[1] {
-            SyncAction::PostRollLog { thread_id, rolls, through_sequence, earlier_lost, .. } => {
+            SyncAction::PostRollLog {
+                thread_id,
+                rolls,
+                through_sequence,
+                earlier_lost,
+                ..
+            } => {
                 assert_eq!(thread_id, THREAD);
-                assert_eq!(rolls.iter().map(|r| r.sequence).collect::<Vec<_>>(), vec![3, 4, 5]);
+                assert_eq!(
+                    rolls.iter().map(|r| r.sequence).collect::<Vec<_>>(),
+                    vec![3, 4, 5]
+                );
                 assert_eq!(*through_sequence, 5);
                 assert!(!earlier_lost);
             }
@@ -3549,7 +3753,13 @@ mod tests {
         let now = Instant::now();
         let mut state = advert("a", 1);
         state.recent_rolls = vec![sequenced_roll(1, "Alex", vec![die(DiceType::D6, 3)])];
-        let map = tracked(vec![threaded_post(HOST_CHANNEL, "m-a", state.clone(), now, 0)]);
+        let map = tracked(vec![threaded_post(
+            HOST_CHANNEL,
+            "m-a",
+            state.clone(),
+            now,
+            0,
+        )]);
 
         match plan_actions(
             &map,
@@ -3558,7 +3768,9 @@ mod tests {
         )
         .as_slice()
         {
-            [SyncAction::PostRollLog { through_sequence, .. }] => assert_eq!(*through_sequence, 1),
+            [SyncAction::PostRollLog {
+                through_sequence, ..
+            }] => assert_eq!(*through_sequence, 1),
             other => panic!("expected only a PostRollLog, got {other:?}"),
         }
     }
@@ -3591,7 +3803,10 @@ mod tests {
                 assert_eq!(*duration, Duration::from_secs(1_800));
                 assert_eq!(*roll_count, 14, "counts the rolls the ring evicted too");
                 assert_eq!(
-                    trailing_rolls.iter().map(|r| r.sequence).collect::<Vec<_>>(),
+                    trailing_rolls
+                        .iter()
+                        .map(|r| r.sequence)
+                        .collect::<Vec<_>>(),
                     vec![13, 14],
                     "rolls that never made it into the log ride the summary",
                 );
@@ -3627,14 +3842,20 @@ mod tests {
 
         let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
         reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
-        assert!(api.threads_started.lock().unwrap().is_empty(), "no message id yet");
+        assert!(
+            api.threads_started.lock().unwrap().is_empty(),
+            "no message id yet"
+        );
 
         // Pass two starts the thread off the anchor message.
         reconcile(&service, &mut tracked, std::slice::from_ref(&live)).await;
         let started = api.threads_started.lock().unwrap().clone();
         assert_eq!(started.len(), 1);
         assert_eq!(started[0].0, HOST_CHANNEL);
-        assert_eq!(started[0].2["auto_archive_duration"], THREAD_AUTO_ARCHIVE_MINUTES);
+        assert_eq!(
+            started[0].2["auto_archive_duration"],
+            THREAD_AUTO_ARCHIVE_MINUTES
+        );
         let thread_id = started[0].1.clone();
 
         // Pass three logs the rolls that landed since.
@@ -3669,7 +3890,10 @@ mod tests {
             2,
             "one embed edit for the rolls, then the anchor archive PATCH",
         );
-        assert!(api.deleted.lock().unwrap().is_empty(), "the thread is never deleted");
+        assert!(
+            api.deleted.lock().unwrap().is_empty(),
+            "the thread is never deleted"
+        );
         assert!(tracked.is_empty());
     }
 
@@ -3731,7 +3955,11 @@ mod tests {
                 fake
             });
             let service = service_with(api.clone(), None);
-            service.registry.register("a", HOST_CHANNEL).await.unwrap();
+            service
+                .registry
+                .register("a", HOST_CHANNEL, "host-a")
+                .await
+                .unwrap();
             let mut tracked = HashMap::new();
 
             let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
@@ -3774,7 +4002,11 @@ mod tests {
         let live = desired(advert("a", 1), &[(HOST_CHANNEL, AdvertKind::HostPosted)]);
         reconcile(&broken, &mut tracked, std::slice::from_ref(&live)).await;
         reconcile(&broken, &mut tracked, std::slice::from_ref(&live)).await;
-        assert_eq!(tracked["a"][0].thread, ThreadState::Pending, "still plannable");
+        assert_eq!(
+            tracked["a"][0].thread,
+            ThreadState::Pending,
+            "still plannable"
+        );
 
         // Discord recovers.
         let api = Arc::new(FakeDiscord::new("400000000000000001"));
@@ -3833,7 +4065,10 @@ mod tests {
         reconcile(&broken, &mut tracked, std::slice::from_ref(&rolling)).await;
         assert!(matches!(
             tracked["a"][0].thread,
-            ThreadState::Live { logged_through: 0, .. }
+            ThreadState::Live {
+                logged_through: 0,
+                ..
+            }
         ));
 
         // Discord recovers and the same roll is posted, exactly once.
@@ -3881,7 +4116,10 @@ mod tests {
         // directly: the only message it received IS the closing summary.
         let posted = patch_only.created.lock().unwrap().clone();
         assert_eq!(posted.len(), 1, "the summary posted during the outage");
-        assert!(posted[0].1["content"].as_str().unwrap().contains("Session ended"));
+        assert!(posted[0].1["content"]
+            .as_str()
+            .unwrap()
+            .contains("Session ended"));
         assert!(
             api.thread_messages().is_empty(),
             "the retry must not duplicate a summary that already landed",
@@ -3920,7 +4158,10 @@ mod tests {
         reconcile(
             &service,
             &mut tracked,
-            &[desired(rolled.clone(), &[(HOST_CHANNEL, AdvertKind::HostPosted)])],
+            &[desired(
+                rolled.clone(),
+                &[(HOST_CHANNEL, AdvertKind::HostPosted)],
+            )],
         )
         .await;
 
@@ -3937,7 +4178,10 @@ mod tests {
         assert_eq!(api.thread_messages().len(), 1, "the log is not replayed");
         assert!(matches!(
             tracked["a"][0].thread,
-            ThreadState::Live { logged_through: 1, .. }
+            ThreadState::Live {
+                logged_through: 1,
+                ..
+            }
         ));
     }
 
