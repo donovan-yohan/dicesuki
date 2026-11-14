@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 const WS_PING_INTERVAL: std::time::Duration = std::time::Duration::from_secs(20);
 const WS_SILENT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+const WS_JOIN_GRACE: std::time::Duration = std::time::Duration::from_secs(15);
 
 /// Pure timing seam for the liveness policy. The async handler supplies elapsed
 /// wall time; tests exercise the threshold without sleeping for a minute.
@@ -88,13 +89,32 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter:
     let mut player_id = Uuid::new_v4().to_string();
     let mut is_joined = false;
     let mut intentional_leave = false;
+    // Control frames, malformed messages and repeated invalid joins never renew
+    // this deadline. Only the first auth rejection earns one refresh grace.
+    let mut join_deadline = tokio::time::Instant::now() + WS_JOIN_GRACE;
+    let mut auth_grace_used = false;
 
     // Read loop: process incoming messages
     loop {
+        // timeout_at may prefer an already-ready read over an expired timer.
+        // Check the absolute deadline too, so a continuously readable flood
+        // cannot keep a never-joined connection alive.
+        if !is_joined && tokio::time::Instant::now() >= join_deadline {
+            break;
+        }
         let wait_started = tokio::time::Instant::now();
-        let msg_result = match tokio::time::timeout(WS_SILENT_TIMEOUT, ws_receiver.next()).await {
+        let deadline = if is_joined {
+            wait_started + WS_SILENT_TIMEOUT
+        } else {
+            join_deadline
+        };
+        let msg_result = match tokio::time::timeout_at(deadline, ws_receiver.next()).await {
             Ok(Some(result)) => result,
             Ok(None) => break,
+            Err(_) if !is_joined => {
+                warn!("WebSocket did not complete join within grace; disconnecting");
+                break;
+            }
             Err(_) if connection_is_silent(wait_started.elapsed()) => {
                 warn!("WebSocket from {player_id} silent for 60s; disconnecting");
                 break;
@@ -150,23 +170,36 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter:
                 // Optional Supabase auth (ADR 006): absent → guest; valid →
                 // bind to the Supabase user id; invalid/expired → reject so a
                 // stale token fails loudly rather than silently downgrading.
-                let user_id = match crate::auth::verifier()
-                    .authenticate(auth_token.as_deref())
-                    .await
+                let user_id = match tokio::time::timeout_at(
+                    join_deadline,
+                    crate::auth::verifier().authenticate(auth_token.as_deref()),
+                )
+                .await
                 {
-                    Ok(crate::auth::AuthOutcome::Guest) => None,
-                    Ok(crate::auth::AuthOutcome::Authenticated { user_id }) => Some(user_id),
-                    Err(err) => {
+                    Ok(Ok(crate::auth::AuthOutcome::Guest)) => None,
+                    Ok(Ok(crate::auth::AuthOutcome::Authenticated { user_id })) => Some(user_id),
+                    Ok(Err(err)) => {
+                        if !auth_grace_used {
+                            join_deadline = tokio::time::Instant::now() + WS_JOIN_GRACE;
+                            auth_grace_used = true;
+                        }
                         let _ = tx.send(ServerMessage::Error {
                             code: err.code().to_string(),
                             message: err.message(),
                         });
                         continue;
                     }
+                    Err(_) => break,
                 };
 
-                let mut room_guard = room.write().await;
+                let Ok(mut room_guard) = tokio::time::timeout_at(join_deadline, room.write()).await
+                else {
+                    break;
+                };
 
+                if tokio::time::Instant::now() >= join_deadline {
+                    break;
+                }
                 match room_guard.join(
                     player_id.clone(),
                     display_name.clone(),
@@ -255,9 +288,7 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter:
                             RoomError::DiceLimit => {
                                 format!("Table is full ({}/30 dice)", room_guard.dice_count())
                             }
-                            RoomError::InvalidDiceId => {
-                                "Dice ID is invalid".to_string()
-                            }
+                            RoomError::InvalidDiceId => "Dice ID is invalid".to_string(),
                             RoomError::DuplicateDiceId => {
                                 "Duplicate dice ID in spawn request".to_string()
                             }
