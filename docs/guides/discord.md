@@ -62,7 +62,10 @@ commonly holds `ADMINISTRATOR`, so filtering on its permissions alone would name
 every private channel to every member, and permitting read-only channels would
 let a rank-and-file member use the bot as a proxy to post in `#announcements`.
 The caller's permissions are computed from their guild roles
-(`GET /guilds/{id}/roles`) with the same documented algorithm.
+(`GET /guilds/{id}/roles`) with the same documented algorithm. The authoritative
+`owner_id` from `GET /guilds/{id}` grants the guild owner all permissions before
+role/overwrite evaluation. Owner reads are membership-gated; neither client
+metadata nor the bot's partial-guild `owner` flag proves caller ownership.
 
 #### Embed content is untrusted
 
@@ -72,7 +75,9 @@ host-chosen `themeId`, a roll's saved-roll name) passes through one sanitizer �
 `render_embed_text` — before it can enter a field value: control characters
 collapse to spaces, a hard length cap applies, and Discord markdown is escaped —
 including `[`, `]`, `(`, `)`, so a name like `[go](http://a.gd)` renders inert
-instead of becoming a live masked link.
+instead of becoming a live masked link. Heading, quote and list markers are
+escaped too, because a name can occupy column zero in a roster or roll-history
+line even after its embedded newlines have been collapsed.
 
 A **Recent rolls** line reads `Alex — 3d6 → 14 💥`, or
 `Alex — Sneak Attack (3d6) → 14 💥` when the roll came from a saved roll (#244).
@@ -106,6 +111,7 @@ A host-posted embed is a **session record**, not just an advertisement:
 | Phase | Behaviour |
 |-------|-----------|
 | Room live | Reconciler `PATCH`es the embed as players/theme/rolls change (edits only on a real change) |
+| Terminal live edit failure (403/404/410) | Stop tracking the inaccessible advert. Permission restoration alone does not resume it; the current host must explicitly re-advertise. A renewed request accepted while the failing edit is in flight is retained for the next pass |
 | Room closes | One final `PATCH` rewrites it as an archive: the Join button is removed (`"components": []`), the colour goes grey, and a closing summary reports the final player list, session length, and the tail of the roll history |
 | After close | The message **stays in the channel** as history. It is never deleted |
 
@@ -124,7 +130,41 @@ Both require `Authorization: Bearer <supabase access token>`.
 Caching: bot guild list, per-guild channels and roles ~60s; per-user membership
 ~5min; Supabase user → Discord user id ~10min. All caches are size-bounded, and
 both endpoints are per-user rate limited (the listing fans out across every bot
-guild on a cold cache, against the bot's shared Discord budget).
+guild on a cold cache, against the bot's shared Discord budget). Identity reads
+are single-flight through a fixed, bounded lock table. Only authoritative absence
+gets the normal identity TTL; transport/status/malformed-body failures get a
+one-second retry cooldown rather than a ten-minute negative identity entry.
+
+Operational bounds (#250):
+
+- `GET /api/discord/targets` has a 15-second aggregate deadline, including JWT
+  key retrieval, admin identity resolution, queueing and Discord reads. Deadline
+  expiry returns the existing fail-closed empty-guild response, never a partial
+  unverified guild list. Directory work admits at most four guild workflows
+  process-wide; no per-guild tasks outlive a cancelled lookup.
+- All bot REST reads and advert/thread writes share one HTTP admission gate.
+  Requests start no faster than once per 50ms. A 429 honors fractional seconds
+  from `Retry-After` and/or JSON `retry_after`, conservatively across all routes.
+  Missing/invalid cooldowns and repeated terminal/server/transport failures back
+  off exponentially from one second to 64 seconds. The transport does not
+  automatically replay non-idempotent POSTs; normal callers/reconciliation own
+  retries. A deleted legacy billboard channel can cause failures, so it receives
+  the same pacing/backoff rather than bypassing it as deployment configuration.
+- A user may have registrations in at most eight outstanding rooms, within the
+  existing four-channel-per-room and 512-room instance ceilings. Each channel
+  retains its original authenticated advertiser for accounting, even across host
+  transfer or idempotent re-advertising. Archive, terminal retirement and pruning
+  release charges. Capacity pressure never deletes a session archive.
+- A successful advertise rechecks the current room host after network work and
+  renews a registration revision. A failed in-flight write cannot silently
+  retire a newer accepted intent.
+
+WebSocket join grace (#266): a socket must join within 15 seconds. The first auth
+rejection grants one additional 15-second refresh window; repeated errors,
+malformed messages, pings and pongs do not extend it. A successful guest or
+verified-token join retires this deadline and retains the existing 60-second
+joined-connection silence policy and reconnect-seat lifecycle. A stalled auth
+lookup is also bounded by the current join deadline.
 
 > **Caveat:** because `advertise` re-verifies against the same 5-minute
 > membership cache the listing uses, a user removed from a guild keeps the
