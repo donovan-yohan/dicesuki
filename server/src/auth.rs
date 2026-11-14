@@ -413,6 +413,22 @@ mod tests {
     }
 
     #[test]
+    fn production_algorithm_allowlist_accepts_a_valid_es256_key() {
+        let jwks: JwkSet = serde_json::from_value(serde_json::json!({"keys":[{
+            "kty":"EC", "crv":"P-256", "kid":"ws-test-only", "alg":"ES256",
+            "x":"jJcomY6ab9CQfi4gZjMhBkk8kl7XQS4X6KwFntrwq-8",
+            "y":"tWsThK81u2NxaXxURCSbHQzZa0SDZRdbHeqiB4-tu1o"
+        }]})).unwrap();
+        let mut header = Header::new(Algorithm::ES256);
+        header.kid = Some("ws-test-only".to_string());
+        let token = encode(&header, &valid_claims(), &EncodingKey::from_ec_pem(
+            include_bytes!("../tests/fixtures/ws-test-only-ec.pem")).unwrap()).unwrap();
+        assert!(verify_with_jwks(&token, &jwks, Some(TEST_ISSUER), PROD_ALGORITHMS).is_ok());
+        assert!(verify_with_jwks(&token, &jwks, Some(TEST_ISSUER), &[Algorithm::RS256]).is_err());
+        assert!(verify_with_jwks(&sign(&valid_claims()), &test_jwks(), Some(TEST_ISSUER), PROD_ALGORITHMS).is_err(), "HMAC is never a production algorithm");
+    }
+
+    #[test]
     fn accepts_valid_token_and_extracts_sub() {
         let token = sign(&valid_claims());
         let claims = verify_with_jwks(
