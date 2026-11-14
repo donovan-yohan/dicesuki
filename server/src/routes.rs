@@ -1,3 +1,4 @@
+use axum::http::{HeaderMap, HeaderValue, Method};
 use axum::{
     extract::{Path, Query, Request, State},
     http::StatusCode,
@@ -5,10 +6,9 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use axum::http::{HeaderMap, HeaderValue, Method};
+use log::info;
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;
-use log::info;
 
 use crate::auth::SupabaseClaims;
 use crate::discord::{authorize_advertise, host_user_id, AdvertiseRejection, DiscordService};
@@ -47,7 +47,9 @@ pub fn paginate_listings(
     listings.sort_by(|a, b| a.room_id.cmp(&b.room_id));
     let total = listings.len();
     let page = page.unwrap_or(0);
-    let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
+    let page_size = page_size
+        .unwrap_or(DEFAULT_PAGE_SIZE)
+        .clamp(1, MAX_PAGE_SIZE);
     let start = page.saturating_mul(page_size);
     let paged = listings
         .into_iter()
@@ -62,23 +64,41 @@ pub async fn log_requests(req: Request, next: Next) -> impl IntoResponse {
     let method = req.method().clone();
     let uri = req.uri().clone();
     let version = req.version();
-    let upgrade_header = req.headers().get("upgrade").map(|v| v.to_str().unwrap_or("?").to_string());
+    let upgrade_header = req
+        .headers()
+        .get("upgrade")
+        .map(|v| v.to_str().unwrap_or("?").to_string());
 
     // Log extra headers for WebSocket requests to diagnose proxy issues
     if uri.path().starts_with("/ws/") {
-        let connection = req.headers().get("connection").map(|v| v.to_str().unwrap_or("?").to_string());
-        let ws_version = req.headers().get("sec-websocket-version").map(|v| v.to_str().unwrap_or("?").to_string());
+        let connection = req
+            .headers()
+            .get("connection")
+            .map(|v| v.to_str().unwrap_or("?").to_string());
+        let ws_version = req
+            .headers()
+            .get("sec-websocket-version")
+            .map(|v| v.to_str().unwrap_or("?").to_string());
         let ws_key = req.headers().get("sec-websocket-key").is_some();
         info!(
             "[{}] --> {:?} {} {} (upgrade: {:?}, connection: {:?}, sec-ws-version: {:?}, sec-ws-key: {})",
             *INSTANCE_ID, version, method, uri, upgrade_header, connection, ws_version, ws_key
         );
     } else {
-        info!("[{}] --> {:?} {} {} (upgrade: {:?})", *INSTANCE_ID, version, method, uri, upgrade_header);
+        info!(
+            "[{}] --> {:?} {} {} (upgrade: {:?})",
+            *INSTANCE_ID, version, method, uri, upgrade_header
+        );
     }
 
     let response = next.run(req).await;
-    info!("[{}] <-- {} {} => {}", *INSTANCE_ID, method, uri, response.status());
+    info!(
+        "[{}] <-- {} {} => {}",
+        *INSTANCE_ID,
+        method,
+        uri,
+        response.status()
+    );
     response
 }
 
@@ -106,7 +126,12 @@ pub async fn health(State(state): State<AppState>) -> impl IntoResponse {
 pub async fn create_room(State(mgr): State<SharedRoomManager>) -> impl IntoResponse {
     let mut mgr = mgr.write().await;
     let (room_id, _) = mgr.create_room();
-    info!("[{}] Room created via API: {} (total: {})", *INSTANCE_ID, room_id, mgr.room_count());
+    info!(
+        "[{}] Room created via API: {} (total: {})",
+        *INSTANCE_ID,
+        room_id,
+        mgr.room_count()
+    );
     (
         StatusCode::CREATED,
         Json(serde_json::json!({"roomId": room_id, "instanceId": *INSTANCE_ID})),
@@ -135,8 +160,7 @@ pub async fn list_rooms(
         }
     }
 
-    let (paged, page, page_size, total) =
-        paginate_listings(listings, query.page, query.page_size);
+    let (paged, page, page_size, total) = paginate_listings(listings, query.page, query.page_size);
 
     info!(
         "[{}] GET /api/rooms (public: {}, page: {}, pageSize: {})",
@@ -160,7 +184,12 @@ pub async fn get_room_info(
     // the manager read lock across a nested room read lock acquisition.
     let maybe_room = {
         let mgr = mgr.read().await;
-        info!("[{}] GET /api/rooms/{} (total rooms: {})", *INSTANCE_ID, room_id, mgr.room_count());
+        info!(
+            "[{}] GET /api/rooms/{} (total rooms: {})",
+            *INSTANCE_ID,
+            room_id,
+            mgr.room_count()
+        );
         mgr.get_room(&room_id)
     };
     // Manager lock is released here.
@@ -194,7 +223,10 @@ pub struct AdvertiseRequest {
 /// well-formed. The scheme match is case-insensitive per RFC 7235.
 #[must_use]
 pub fn bearer_token(headers: &HeaderMap) -> Option<&str> {
-    let value = headers.get(axum::http::header::AUTHORIZATION)?.to_str().ok()?;
+    let value = headers
+        .get(axum::http::header::AUTHORIZATION)?
+        .to_str()
+        .ok()?;
     let (scheme, token) = value.split_once(' ')?;
     scheme
         .eq_ignore_ascii_case("bearer")
@@ -259,7 +291,10 @@ pub async fn discord_targets(
     if !service.targets_rate_limiter.try_acquire(&claims.sub).await {
         return rejection_response(AdvertiseRejection::RateLimited);
     }
-    Json(targets_response(&targets_for_claims(&service, &claims).await)).into_response()
+    Json(targets_response(
+        &targets_for_claims(&service, &claims).await,
+    ))
+    .into_response()
 }
 
 /// Resolve a verified caller to their posting targets. Split out so the
@@ -268,10 +303,14 @@ async fn targets_for_claims(
     service: &DiscordService,
     claims: &SupabaseClaims,
 ) -> Vec<crate::discord_targets::TargetGuild> {
-    match service.directory.resolve_discord_user_id(claims).await {
-        Some(discord_user_id) => service.directory.targets_for(&discord_user_id).await,
-        None => Vec::new(),
-    }
+    tokio::time::timeout(crate::discord_targets::TARGETS_TIMEOUT, async {
+        match service.directory.resolve_discord_user_id(claims).await {
+            Some(discord_user_id) => service.directory.targets_for(&discord_user_id).await,
+            None => Vec::new(),
+        }
+    })
+    .await
+    .unwrap_or_default()
 }
 
 /// `POST /api/rooms/:room_id/advertise` (#246) — the room's **host** posts it to
@@ -305,7 +344,15 @@ pub async fn advertise_room(
     let Some(service) = state.discord.clone() else {
         return rejection_response(AdvertiseRejection::Disabled);
     };
-    match advertise(&state.room_manager, &service, &claims, &room_id, &body.channel_id).await {
+    match advertise(
+        &state.room_manager,
+        &service,
+        &claims,
+        &room_id,
+        &body.channel_id,
+    )
+    .await
+    {
         Ok(()) => {
             info!(
                 "[{}] Room {room_id} advertised to a host-chosen Discord channel",
@@ -356,7 +403,10 @@ pub async fn advertise(
         .resolve_discord_user_id(claims)
         .await
         .ok_or(AdvertiseRejection::NoDiscordIdentity)?;
-    let verified = service.directory.verified_channel_ids(&discord_user_id).await;
+    let verified = service
+        .directory
+        .verified_channel_ids(&discord_user_id)
+        .await;
     authorize_advertise(host.as_deref(), &claims.sub, channel_id, &verified)?;
 
     service.registry.register(room_id, channel_id).await
@@ -390,7 +440,10 @@ pub async fn ws_upgrade(
     if let Some(ws) = ws {
         let mgr_read = mgr.read().await;
         if let Some(room) = mgr_read.get_room(&room_id) {
-            info!("[{}] Room {} found, upgrading WebSocket", *INSTANCE_ID, room_id);
+            info!(
+                "[{}] Room {} found, upgrading WebSocket",
+                *INSTANCE_ID, room_id
+            );
             drop(mgr_read);
             let reporter = state.roll_reporter.clone();
             ws.on_upgrade(move |socket| {
@@ -559,10 +612,16 @@ mod tests {
         let mut headers = HeaderMap::new();
         assert!(bearer_token(&headers).is_none());
 
-        headers.insert(axum::http::header::AUTHORIZATION, "Bearer abc.def".parse().unwrap());
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            "Bearer abc.def".parse().unwrap(),
+        );
         assert_eq!(bearer_token(&headers), Some("abc.def"));
 
-        headers.insert(axum::http::header::AUTHORIZATION, "bearer abc.def".parse().unwrap());
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            "bearer abc.def".parse().unwrap(),
+        );
         assert_eq!(bearer_token(&headers), Some("abc.def"));
 
         for hostile in ["Basic abc", "Bearer", "Bearer   ", "abc.def"] {
@@ -585,11 +644,17 @@ mod tests {
 
         let body_a = targets_response(&for_a).to_string();
         for leaked in [GUILD_Y, CHANNEL_Y, "Yonder"] {
-            assert!(!body_a.contains(leaked), "user A's response leaked {leaked}");
+            assert!(
+                !body_a.contains(leaked),
+                "user A's response leaked {leaked}"
+            );
         }
         let body_b = targets_response(&for_b).to_string();
         for leaked in [GUILD_X, CHANNEL_X, "Xanadu"] {
-            assert!(!body_b.contains(leaked), "user B's response leaked {leaked}");
+            assert!(
+                !body_b.contains(leaked),
+                "user B's response leaked {leaked}"
+            );
         }
     }
 

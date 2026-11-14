@@ -29,13 +29,15 @@
 //! permissions bitfield, or a membership lookup that errors all yield "not a
 //! target" rather than a guess.
 
+use futures_util::{stream, StreamExt};
 use std::collections::{BTreeSet, HashMap};
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use tokio::time::Instant;
 
 use log::{debug, warn};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock, Semaphore};
 
 use std::future::Future;
 use std::pin::Pin;
@@ -62,6 +64,10 @@ pub const MEMBERSHIP_TTL: Duration = Duration::from_secs(300);
 /// links change rarely, so this mostly exists to keep the admin-API fallback off
 /// the request path.
 pub const IDENTITY_TTL: Duration = Duration::from_secs(600);
+/// One short cooldown coalesces failed cohorts without caching absence for ten minutes.
+const IDENTITY_FAILURE_TTL: Duration = Duration::from_secs(1);
+pub const TARGETS_TIMEOUT: Duration = Duration::from_secs(15);
+const TARGETS_CONCURRENCY: usize = 4;
 
 /// Size bound on the per-user membership cache. Well past any plausible
 /// concurrent host population, and small enough that the map cannot grow without
@@ -221,7 +227,11 @@ fn is_supabase_user_id(value: &str) -> bool {
 }
 
 /// Boxed future returned by [`IdentityLookup`] (used behind `dyn`).
-pub type IdentityFuture<'a> = Pin<Box<dyn Future<Output = Option<String>> + Send + 'a>>;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IdentityLookupError;
+
+pub type IdentityFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<Option<String>, IdentityLookupError>> + Send + 'a>>;
 
 /// Resolves a Supabase user id to the Discord user id **actually linked** to
 /// that account.
@@ -255,7 +265,7 @@ impl IdentityLookup for AdminIdentityLookup {
     fn discord_user_id<'a>(&'a self, supabase_user_id: &'a str) -> IdentityFuture<'a> {
         Box::pin(async move {
             if !is_supabase_user_id(supabase_user_id) {
-                return None;
+                return Ok(None);
             }
             let url = self.config.auth_admin_user_url(supabase_user_id);
             let response = self
@@ -263,16 +273,27 @@ impl IdentityLookup for AdminIdentityLookup {
                 .apply_auth(self.client.get(url))
                 .send()
                 .await
-                .ok()?;
+                .map_err(|_| IdentityLookupError)?;
             if !response.status().is_success() {
                 debug!(
                     "[{}] Supabase admin identity lookup returned {}",
                     *INSTANCE_ID,
                     response.status()
                 );
-                return None;
+                return Err(IdentityLookupError);
             }
-            discord_id_from_admin_user(&response.json::<serde_json::Value>().await.ok()?)
+            let user = response
+                .json::<serde_json::Value>()
+                .await
+                .map_err(|_| IdentityLookupError)?;
+            // A malformed successful body is not proof that no identity is linked.
+            if !user
+                .get("identities")
+                .is_some_and(serde_json::Value::is_array)
+            {
+                return Err(IdentityLookupError);
+            }
+            Ok(discord_id_from_admin_user(&user))
         })
     }
 }
@@ -299,6 +320,11 @@ pub struct DiscordDirectory {
     membership: RwLock<TtlCache<MembershipKey, MemberRoles>>,
     /// `supabase_user_id -> discord_user_id`, `None` for "no Discord identity".
     identities: RwLock<TtlCache<String, Option<String>>>,
+    identity_failures: RwLock<TtlCache<String, ()>>,
+    // Fixed stripes bound lock memory even under high-cardinality caller ids.
+    identity_flights: [Mutex<()>; 64],
+    bootstrap: Mutex<()>,
+    guild_work: Semaphore,
 }
 
 impl DiscordDirectory {
@@ -306,9 +332,8 @@ impl DiscordDirectory {
     /// admin API when a privileged credential is configured.
     #[must_use]
     pub fn new(api: Arc<dyn DiscordApi>, supabase: Option<SupabaseServiceConfig>) -> Self {
-        let identity = supabase.map(|config| {
-            Arc::new(AdminIdentityLookup::new(config)) as Arc<dyn IdentityLookup>
-        });
+        let identity = supabase
+            .map(|config| Arc::new(AdminIdentityLookup::new(config)) as Arc<dyn IdentityLookup>);
         Self::with_identity_lookup(api, identity)
     }
 
@@ -328,6 +353,10 @@ impl DiscordDirectory {
             bot_members: RwLock::new(TtlCache::new(BOT_GUILD_TTL, GUILD_CACHE_MAX)),
             membership: RwLock::new(TtlCache::new(MEMBERSHIP_TTL, MEMBERSHIP_CACHE_MAX)),
             identities: RwLock::new(TtlCache::new(IDENTITY_TTL, IDENTITY_CACHE_MAX)),
+            identity_failures: RwLock::new(TtlCache::new(IDENTITY_FAILURE_TTL, IDENTITY_CACHE_MAX)),
+            identity_flights: std::array::from_fn(|_| Mutex::new(())),
+            bootstrap: Mutex::new(()),
+            guild_work: Semaphore::new(TARGETS_CONCURRENCY),
         }
     }
 
@@ -348,7 +377,21 @@ impl DiscordDirectory {
         if !claims.has_discord_provider() {
             return None;
         }
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        claims.sub.hash(&mut hasher);
+        let _flight = self.identity_flights[hasher.finish() as usize % self.identity_flights.len()]
+            .lock()
+            .await;
         let now = Instant::now();
+        if self
+            .identity_failures
+            .read()
+            .await
+            .get(&claims.sub, now)
+            .is_some()
+        {
+            return None;
+        }
         if let Some(cached) = self.identities.read().await.get(&claims.sub, now) {
             return cached.clone();
         }
@@ -359,7 +402,21 @@ impl DiscordDirectory {
             );
             return None;
         };
-        let resolved = identity.discord_user_id(&claims.sub).await;
+        let resolved = match tokio::time::timeout(
+            ADMIN_REQUEST_TIMEOUT,
+            identity.discord_user_id(&claims.sub),
+        )
+        .await
+        {
+            Ok(Ok(resolved)) => resolved.filter(|id| is_snowflake(id)),
+            Ok(Err(_)) | Err(_) => {
+                self.identity_failures
+                    .write()
+                    .await
+                    .insert(claims.sub.clone(), (), Instant::now());
+                return None;
+            }
+        };
         self.identities
             .write()
             .await
@@ -371,34 +428,51 @@ impl DiscordDirectory {
     /// a caller with no Discord identity, for a caller who shares no guild with
     /// the bot, and whenever Discord cannot be reached.
     pub async fn targets_for(&self, discord_user_id: &str) -> Vec<TargetGuild> {
+        tokio::time::timeout(TARGETS_TIMEOUT, self.targets_inner(discord_user_id))
+            .await
+            .unwrap_or_default()
+    }
+
+    async fn targets_inner(&self, discord_user_id: &str) -> Vec<TargetGuild> {
         if !is_snowflake(discord_user_id) {
             return Vec::new();
         }
-        let Some(bot_user_id) = self.bot_user_id().await else {
-            return Vec::new();
-        };
-        let Some(guilds) = self.bot_guild_list().await else {
-            return Vec::new();
-        };
-
-        let mut targets = Vec::new();
-        for guild in guilds.iter() {
-            if !is_snowflake(&guild.id) {
-                continue;
-            }
-            // Membership is the gate *and* the source of the caller's roles.
-            let Some(member_roles) = self.member_roles(discord_user_id, &guild.id).await else {
-                continue;
+        let (bot_user_id, guilds) = {
+            let _bootstrap = self.bootstrap.lock().await;
+            let Some(bot_user_id) = self.bot_user_id().await else {
+                return Vec::new();
             };
-            targets.push(TargetGuild {
-                id: guild.id.clone(),
-                name: guild.name.clone(),
-                icon: guild.icon.clone(),
-                channels: self
-                    .shared_postable_channels(guild, &bot_user_id, discord_user_id, &member_roles)
-                    .await,
-            });
-        }
+            let Some(guilds) = self.bot_guild_list().await else {
+                return Vec::new();
+            };
+            (bot_user_id, guilds)
+        };
+        let bot_user_id = &bot_user_id;
+        let mut targets: Vec<_> =
+            stream::iter(guilds.as_ref().clone())
+                .map(|guild: BotGuild| async move {
+                    if !is_snowflake(&guild.id) { return None; }
+                    let _permit = self.guild_work.acquire().await.ok()?;
+                    // No guild data may be rendered or owner/channel read before membership proof.
+                    let member_roles = self.member_roles(discord_user_id, &guild.id).await?;
+                    Some(TargetGuild {
+                        id: guild.id.clone(),
+                        name: guild.name.clone(),
+                        icon: guild.icon.clone(),
+                        channels: self
+                            .shared_postable_channels(
+                                &guild,
+                                bot_user_id,
+                                discord_user_id,
+                                &member_roles,
+                            )
+                            .await,
+                    })
+                })
+                .buffer_unordered(TARGETS_CONCURRENCY)
+                .filter_map(|guild| async { guild })
+                .collect()
+                .await;
         // Stable order so the share sheet does not reshuffle between requests.
         targets.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.id.cmp(&b.id)));
         targets
@@ -428,7 +502,10 @@ impl DiscordDirectory {
                 Some(id)
             }
             Err(error) => {
-                warn!("[{}] Discord bot identity lookup failed: {error}", *INSTANCE_ID);
+                warn!(
+                    "[{}] Discord bot identity lookup failed: {error}",
+                    *INSTANCE_ID
+                );
                 None
             }
         }
@@ -474,8 +551,8 @@ impl DiscordDirectory {
         }
         match self.api.guild_member(guild_id, discord_user_id).await {
             Ok(member) => {
-                let roles =
-                    member.map(|member| Arc::new(member.roles.into_iter().collect::<BTreeSet<_>>()));
+                let roles = member
+                    .map(|member| Arc::new(member.roles.into_iter().collect::<BTreeSet<_>>()));
                 self.membership
                     .write()
                     .await
@@ -547,7 +624,10 @@ impl DiscordDirectory {
                     channel.position.unwrap_or(i64::MAX),
                     TargetChannel {
                         id: channel.id.clone(),
-                        name: channel.name.clone().unwrap_or_else(|| "channel".to_string()),
+                        name: channel
+                            .name
+                            .clone()
+                            .unwrap_or_else(|| "channel".to_string()),
                     },
                 )
             })
@@ -561,7 +641,12 @@ impl DiscordDirectory {
     /// permissions.
     async fn roles_of(&self, guild_id: &str) -> Option<Arc<Vec<GuildRole>>> {
         let now = Instant::now();
-        if let Some(cached) = self.guild_roles.read().await.get(&guild_id.to_string(), now) {
+        if let Some(cached) = self
+            .guild_roles
+            .read()
+            .await
+            .get(&guild_id.to_string(), now)
+        {
             return Some(cached.clone());
         }
         match self.api.guild_roles(guild_id).await {
@@ -583,7 +668,12 @@ impl DiscordDirectory {
 
     async fn channels_of(&self, guild_id: &str) -> Option<Arc<Vec<GuildChannel>>> {
         let now = Instant::now();
-        if let Some(cached) = self.guild_channels.read().await.get(&guild_id.to_string(), now) {
+        if let Some(cached) = self
+            .guild_channels
+            .read()
+            .await
+            .get(&guild_id.to_string(), now)
+        {
             return Some(cached.clone());
         }
         match self.api.guild_channels(guild_id).await {
@@ -608,7 +698,12 @@ impl DiscordDirectory {
     /// treat that as "offer nothing" rather than "no roles".
     async fn bot_roles_in(&self, guild_id: &str) -> Option<Arc<BTreeSet<String>>> {
         let now = Instant::now();
-        if let Some(cached) = self.bot_members.read().await.get(&guild_id.to_string(), now) {
+        if let Some(cached) = self
+            .bot_members
+            .read()
+            .await
+            .get(&guild_id.to_string(), now)
+        {
             return Some(cached.clone());
         }
         let bot_user_id = self.bot_user_id().await?;
@@ -619,11 +714,10 @@ impl DiscordDirectory {
             .ok()
             .flatten()?;
         let roles = Arc::new(member.roles.into_iter().collect::<BTreeSet<_>>());
-        self.bot_members.write().await.insert(
-            guild_id.to_string(),
-            roles.clone(),
-            Instant::now(),
-        );
+        self.bot_members
+            .write()
+            .await
+            .insert(guild_id.to_string(), roles.clone(), Instant::now());
         Some(roles)
     }
 }
@@ -762,7 +856,10 @@ pub(crate) mod test_support {
 
         /// Add a channel to an existing guild.
         pub fn with_channel(mut self, guild_id: &str, channel: GuildChannel) -> Self {
-            self.channels.entry(guild_id.to_string()).or_default().push(channel);
+            self.channels
+                .entry(guild_id.to_string())
+                .or_default()
+                .push(channel);
             self
         }
     }
@@ -785,7 +882,7 @@ pub(crate) mod test_support {
 
     impl IdentityLookup for FakeIdentities {
         fn discord_user_id<'a>(&'a self, supabase_user_id: &'a str) -> IdentityFuture<'a> {
-            Box::pin(async move { self.0.get(supabase_user_id).cloned() })
+            Box::pin(async move { Ok(self.0.get(supabase_user_id).cloned()) })
         }
     }
 
@@ -961,8 +1058,7 @@ mod tests {
             Box::pin(async move {
                 self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 tokio::time::sleep(Duration::from_secs(1)).await;
-                Some(USER_A)
-                    .map(str::to_string)
+                Ok(Some(USER_A.to_string()))
             })
         }
     }
@@ -970,36 +1066,62 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn concurrent_identity_cache_misses_share_one_admin_read() {
         let source = Arc::new(CountingIdentity(std::sync::atomic::AtomicUsize::new(0)));
-        let directory = DiscordDirectory::with_identity_lookup(Arc::new(FakeDiscord::new(BOT)), Some(source.clone()));
-        let caller = claims(serde_json::json!({"sub":"same-user", "app_metadata":{"provider":"discord"}}));
-        let resolved = futures_util::future::join_all((0..8).map(|_| directory.resolve_discord_user_id(&caller))).await;
+        let directory = DiscordDirectory::with_identity_lookup(
+            Arc::new(FakeDiscord::new(BOT)),
+            Some(source.clone()),
+        );
+        let caller =
+            claims(serde_json::json!({"sub":"same-user", "app_metadata":{"provider":"discord"}}));
+        let resolved = futures_util::future::join_all(
+            (0..8).map(|_| directory.resolve_discord_user_id(&caller)),
+        )
+        .await;
         assert!(resolved.iter().all(|id| id.as_deref() == Some(USER_A)));
         assert_eq!(source.0.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
     async fn transient_admin_failure_does_not_hide_a_link_for_ten_minutes() {
-        use axum::{Router, routing::get, response::IntoResponse};
+        use axum::{response::IntoResponse, routing::get, Router};
         use std::sync::atomic::{AtomicUsize, Ordering};
         let count = Arc::new(AtomicUsize::new(0));
         let counter = count.clone();
-        let app = Router::new().route("/auth/v1/admin/users/same-user", get(move || {
-            let first = counter.fetch_add(1, Ordering::SeqCst) == 0;
-            async move {
-                if first { axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response() }
-                else { axum::Json(serde_json::json!({"identities":[{"provider":"discord","id":USER_A}]})).into_response() }
-            }
-        }));
+        let app = Router::new().route(
+            "/auth/v1/admin/users/same-user",
+            get(move || {
+                let first = counter.fetch_add(1, Ordering::SeqCst) == 0;
+                async move {
+                    if first {
+                        axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response()
+                    } else {
+                        axum::Json(
+                            serde_json::json!({"identities":[{"provider":"discord","id":USER_A}]}),
+                        )
+                        .into_response()
+                    }
+                }
+            }),
+        );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let config = SupabaseServiceConfig::from_values(Some(format!("http://{}",listener.local_addr().unwrap())), Some("sb_secret_fixture".to_string()), None).unwrap().unwrap();
-        let server = tokio::spawn(async { axum::serve(listener,app).await.unwrap() });
+        let config = SupabaseServiceConfig::from_values(
+            Some(format!("http://{}", listener.local_addr().unwrap())),
+            Some("sb_secret_fixture".to_string()),
+            None,
+        )
+        .unwrap()
+        .unwrap();
+        let server = tokio::spawn(async { axum::serve(listener, app).await.unwrap() });
         let directory = DiscordDirectory::new(Arc::new(FakeDiscord::new(BOT)), Some(config));
-        let caller = claims(serde_json::json!({"sub":"same-user", "app_metadata":{"provider":"discord"}}));
+        let caller =
+            claims(serde_json::json!({"sub":"same-user", "app_metadata":{"provider":"discord"}}));
         assert_eq!(directory.resolve_discord_user_id(&caller).await, None);
         tokio::time::pause();
         tokio::time::advance(Duration::from_secs(2)).await;
         tokio::time::resume();
-        assert_eq!(directory.resolve_discord_user_id(&caller).await.as_deref(), Some(USER_A));
+        assert_eq!(
+            directory.resolve_discord_user_id(&caller).await.as_deref(),
+            Some(USER_A)
+        );
         assert_eq!(count.load(Ordering::SeqCst), 2);
         server.abort();
     }
@@ -1007,15 +1129,23 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn cold_membership_fanout_is_concurrent_but_bounded() {
         let mut fake = FakeDiscord::new(BOT);
-        for id in 100..112 { fake = fake.with_guild(&id.to_string(), "hidden", "999", &[]); }
+        for id in 100..112 {
+            fake = fake.with_guild(&id.to_string(), "hidden", "999", &[]);
+        }
         fake.member_delay = Duration::from_secs(1);
         let api = Arc::new(fake);
         let directory = DiscordDirectory::new(api.clone(), None);
         let start = tokio::time::Instant::now();
         assert!(directory.targets_for(USER_A).await.is_empty());
-        assert!(start.elapsed() <= Duration::from_secs(4), "sequential fanout");
+        assert!(
+            start.elapsed() <= Duration::from_secs(4),
+            "sequential fanout"
+        );
         let peak = api.peak_members.load(std::sync::atomic::Ordering::SeqCst);
-        assert!(peak > 1 && peak <= 4, "unbounded or serialized fanout: {peak}");
+        assert!(
+            peak > 1 && peak <= 4,
+            "unbounded or serialized fanout: {peak}"
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -1025,7 +1155,10 @@ mod tests {
         let directory = DiscordDirectory::new(Arc::new(fake), None);
         let start = tokio::time::Instant::now();
         assert!(directory.targets_for(USER_A).await.is_empty());
-        assert!(start.elapsed() <= Duration::from_secs(15), "aggregate deadline missing");
+        assert!(
+            start.elapsed() <= Duration::from_secs(15),
+            "aggregate deadline missing"
+        );
     }
 
     /// Guild X holds user A, guild Y holds user B; the bot is in both.
@@ -1141,7 +1274,8 @@ mod tests {
         directory.targets_for(USER_A).await;
         directory.targets_for(USER_B).await;
         assert_eq!(
-            api.guild_list_calls.load(std::sync::atomic::Ordering::Acquire),
+            api.guild_list_calls
+                .load(std::sync::atomic::Ordering::Acquire),
             1,
             "the bot guild list is fetched once per TTL, not per caller"
         );
@@ -1173,10 +1307,8 @@ mod tests {
                 .with_guild(GUILD_X, "Xanadu", CHANNEL_X, &[USER_A])
                 .with_guild(GUILD_Y, "Yonder", CHANNEL_Y, &[USER_B]),
         );
-        let directory = DiscordDirectory::with_identity_lookup(
-            api.clone(),
-            Some(FakeIdentities::of(pairs)),
-        );
+        let directory =
+            DiscordDirectory::with_identity_lookup(api.clone(), Some(FakeIdentities::of(pairs)));
         (api, directory)
     }
 
@@ -1298,8 +1430,7 @@ mod tests {
         let mut fake = FakeDiscord::new(BOT)
             .with_guild(GUILD_X, "Xanadu", CHANNEL_X, &[USER_A])
             .with_channel(GUILD_X, private_channel(PRIVATE, GUILD_X, MOD_ROLE));
-        fake.guilds[0].permissions =
-            Some(crate::discord_api::PERMISSION_ADMINISTRATOR.to_string());
+        fake.guilds[0].permissions = Some(crate::discord_api::PERMISSION_ADMINISTRATOR.to_string());
         let api = Arc::new(fake);
         let directory = DiscordDirectory::new(api.clone(), None);
 
@@ -1314,8 +1445,13 @@ mod tests {
             [CHANNEL_X],
             "the staff channel must not be named to an ordinary member"
         );
-        assert!(!directory.verified_channel_ids(USER_A).await.contains(PRIVATE));
-        assert!(!targets_response(&targets).to_string().contains("mod-private"));
+        assert!(!directory
+            .verified_channel_ids(USER_A)
+            .await
+            .contains(PRIVATE));
+        assert!(!targets_response(&targets)
+            .to_string()
+            .contains("mod-private"));
     }
 
     #[tokio::test]
@@ -1326,15 +1462,17 @@ mod tests {
         let mut fake = FakeDiscord::new(BOT)
             .with_guild(GUILD_X, "Xanadu", CHANNEL_X, &[USER_A])
             .with_channel(GUILD_X, private_channel(PRIVATE, GUILD_X, MOD_ROLE));
-        fake.guilds[0].permissions =
-            Some(crate::discord_api::PERMISSION_ADMINISTRATOR.to_string());
+        fake.guilds[0].permissions = Some(crate::discord_api::PERMISSION_ADMINISTRATOR.to_string());
         fake.member_roles.insert(
             (GUILD_X.to_string(), USER_A.to_string()),
             vec![MOD_ROLE.to_string()],
         );
         let directory = DiscordDirectory::new(Arc::new(fake), None);
 
-        assert!(directory.verified_channel_ids(USER_A).await.contains(PRIVATE));
+        assert!(directory
+            .verified_channel_ids(USER_A)
+            .await
+            .contains(PRIVATE));
     }
 
     #[tokio::test]
@@ -1360,8 +1498,7 @@ mod tests {
                     }],
                 },
             );
-        fake.guilds[0].permissions =
-            Some(crate::discord_api::PERMISSION_ADMINISTRATOR.to_string());
+        fake.guilds[0].permissions = Some(crate::discord_api::PERMISSION_ADMINISTRATOR.to_string());
         let directory = DiscordDirectory::new(Arc::new(fake), None);
 
         let targets = directory.targets_for(USER_A).await;
