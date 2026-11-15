@@ -31,6 +31,7 @@ import {
 } from '../lib/pullRpc'
 import { assemblePullReveal } from '../lib/pullFlow'
 import { refreshPullInventory } from '../lib/pullInventoryRefresh'
+import { assertAccountMutationAvailable, holdPwaActivity } from '../lib/pwaActivity'
 
 export interface UsePullFlowOptions {
   client: SupabaseClient | null
@@ -69,6 +70,8 @@ function delay(ms: number): Promise<void> {
 export function usePullFlow(options: UsePullFlowOptions): UsePullFlowResult {
   const [state, dispatch] = useReducer(reducePullFlow, INITIAL_PULL_FLOW_STATE)
   const stateRef = useRef(state)
+  const updateHold = useRef<(() => void) | null>(null)
+  useEffect(() => () => { updateHold.current?.(); updateHold.current = null }, [])
   const generationRef = useRef(0)
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoResumeOwnerRef = useRef<string | null>(null)
@@ -84,6 +87,9 @@ export function usePullFlow(options: UsePullFlowOptions): UsePullFlowResult {
 
   const send = useCallback((event: PullFlowEvent) => {
     stateRef.current = reducePullFlow(stateRef.current, event)
+    const active = !['idle', 'cancelled', 'expired'].includes(stateRef.current.status)
+    if (active && !updateHold.current) updateHold.current = holdPwaActivity()
+    if (!active) { updateHold.current?.(); updateHold.current = null }
     dispatch(event)
   }, [])
 
@@ -179,16 +185,21 @@ export function usePullFlow(options: UsePullFlowOptions): UsePullFlowResult {
     clearHoldTimer()
     setAssembly(null)
     setInventoryRefreshError(null)
-    persistPullSession(toPersistedPullSession(intent, null, 'intent'))
     send({ type: 'START', intent })
     try {
+      assertAccountMutationAvailable()
+      if (!persistPullSession(toPersistedPullSession(intent, null, 'intent'))) {
+        throw new Error('Device storage is unavailable. No pull was started.')
+      }
       const preparation = await preparePull(options.client, {
         bannerVersionId: intent.bannerVersionId,
         pullCount: intent.pullCount,
         idempotencyKey: intent.idempotencyKey,
       })
       if (generation !== generationRef.current) return
-      persistPullSession(toPersistedPullSession(intent, preparation, 'prepared'))
+      if (!persistPullSession(toPersistedPullSession(intent, preparation, 'prepared'))) {
+        throw new Error('Device storage is unavailable. Your held pull will be recovered on retry.')
+      }
       const sealingStartedAt = now()
       send({ type: 'PREPARED', receipt: preparation, sealingStartedAt })
       holdTimerRef.current = setTimeout(() => {

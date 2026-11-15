@@ -20,10 +20,12 @@ import { getSupabaseClient } from './supabaseClient'
 import { isPaymentsEnabled, isPaymentsSandbox } from './paymentsConfig'
 import { openHeadlessCheckout } from './paymentsCheckout'
 import { usePaymentsStore } from '../store/usePaymentsStore'
+import { assertAccountMutationAvailable, holdPwaActivity } from './pwaActivity'
 
 /** Reasons a purchase could not even start (distinct from a payment failure). */
 export type StartPurchaseReason =
   | 'disabled'
+  | 'storage-unavailable'
   | 'unconfigured'
   | 'checkout-failed'
   | 'sdk-failed'
@@ -59,6 +61,7 @@ export async function createCheckoutSession(
   sku: string,
   options: { client?: SupabaseClient | null } = {},
 ): Promise<CreateCheckoutResult> {
+  assertAccountMutationAvailable()
   const client = options.client ?? getSupabaseClient()
   if (!client) {
     throw new PurchaseError('unconfigured', 'Supabase is not configured.')
@@ -95,33 +98,40 @@ export async function startPurchase(
     return { ok: false, reason: 'disabled', message: 'Payments are disabled.' }
   }
 
-  const store = usePaymentsStore.getState()
-  let session: CreateCheckoutResult
+  const release = holdPwaActivity()
   try {
-    session = await createCheckoutSession(sku, { client: options.client })
-  } catch (caught) {
-    const err = asPurchaseError(caught, 'checkout-failed')
-    store.setError(err.message)
-    return { ok: false, reason: err.reason, message: err.message }
-  }
+    const store = usePaymentsStore.getState()
+    let session: CreateCheckoutResult
+    try {
+      session = await createCheckoutSession(sku, { client: options.client })
+    } catch (caught) {
+      const err = asPurchaseError(caught, 'checkout-failed')
+      store.setError(err.message)
+      return { ok: false, reason: err.reason, message: err.message }
+    }
 
-  // Persist BEFORE handoff (invariant: reconcile-able on relaunch). This write
-  // is synchronous localStorage, so it lands before the SDK is even imported.
-  // The SKU rides along so a canceled purchase can be retried from the return route.
-  store.beginPending({ externalId: session.externalId, createdAt: Date.now(), sku })
+    // Require a positive write/readback receipt for this exact pending order
+    // BEFORE the SDK is even imported. A nonthrowing in-memory update is not
+    // proof that a cold relaunch can recover the order.
+    if (store.beginPending({ externalId: session.externalId, createdAt: Date.now(), sku }) !== true) {
+      // Keep the in-memory order for reconciliation, but never hand off payment
+      // when a cold relaunch would lose its only durable pointer.
+      return { ok: false, reason: 'storage-unavailable', message: 'Device storage is unavailable. Checkout was not opened.' }
+    }
 
-  const openCheckout = options.openCheckout ?? openHeadlessCheckout
-  try {
-    await openCheckout({ token: session.token, sandbox: isPaymentsSandbox() })
-  } catch (caught) {
-    const err = asPurchaseError(caught, 'sdk-failed')
-    // Leave the pending order intact — the payment may still complete in a
-    // popup/redirect; the return route reconciles from the persisted marker.
-    store.setError(err.message)
-    return { ok: false, reason: 'sdk-failed', message: err.message }
-  }
+    const openCheckout = options.openCheckout ?? openHeadlessCheckout
+    try {
+      await openCheckout({ token: session.token, sandbox: isPaymentsSandbox() })
+    } catch (caught) {
+      const err = asPurchaseError(caught, 'sdk-failed')
+      // Leave the pending order intact — the payment may still complete in a
+      // popup/redirect; the return route reconciles from the persisted marker.
+      store.setError(err.message)
+      return { ok: false, reason: 'sdk-failed', message: err.message }
+    }
 
-  return { ok: true, externalId: session.externalId }
+    return { ok: true, externalId: session.externalId }
+  } finally { release() }
 }
 
 /** A typed buy-flow error carrying a machine-readable reason. */

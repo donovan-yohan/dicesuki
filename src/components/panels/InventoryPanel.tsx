@@ -16,6 +16,7 @@ import type { Theme } from '../../themes/tokens'
 import { BottomSheet } from './BottomSheet'
 import { HeroDieInspector } from './HeroDieInspector'
 import { SharedInventoryDicePreviewCanvas } from './SharedInventoryDicePreviewCanvas'
+import { AccountOfflineNotice } from './AccountOfflineNotice'
 
 interface InventoryPanelProps {
   isOpen: boolean
@@ -208,6 +209,7 @@ export function InventoryPanel({
           color: currentTheme.tokens.colors.text.primary,
         }}
       >
+        <AccountOfflineNotice />
         <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h2

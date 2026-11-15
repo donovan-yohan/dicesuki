@@ -14,6 +14,7 @@ import { useHapticFeedback } from '../../hooks/useHapticFeedback'
 import { ThemeSelector } from '../ThemeSelector'
 import { FlyoutPanel } from './FlyoutPanel'
 import { AccountSection } from './AccountSection'
+import { PwaAppSection } from './PwaAppSection'
 
 interface SettingsPanelProps {
   isOpen: boolean
@@ -30,6 +31,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         isOpen={isOpen}
         onClose={onClose}
         title="Settings"
+        manageFocus
+        focusSuspended={showThemeSelector}
         position="left"
         width="360px"
       >
@@ -131,6 +134,8 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
             )}
           </div>
         </div>
+
+        <PwaAppSection />
 
         <footer
           className="flex items-center gap-4 border-t pt-4 text-xs"

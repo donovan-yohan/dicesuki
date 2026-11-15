@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { assertAccountMutationAvailable } from './pwaActivity'
 import { getSupabaseClient } from './supabaseClient'
 
 export const LUNAR_PASS_PRODUCT_ID = 'lunar-pass' as const
@@ -430,6 +431,7 @@ export async function convertStarsToStandardRoll(
   let data: unknown
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
+      assertAccountMutationAvailable()
       const result = await resolved.rpc(operation, {
         p_roll_count: count,
         p_idempotency_key: stableIdempotencyKey,

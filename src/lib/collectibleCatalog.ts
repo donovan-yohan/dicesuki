@@ -320,6 +320,7 @@ export async function fetchMyEntitlements(
  */
 export async function ensureStarterEntitlements(client: SupabaseClient): Promise<boolean> {
   try {
+    if (navigator.onLine === false) return false
     const { error } = await client.rpc('ensure_starter_entitlements')
     return !error
   } catch {

@@ -379,11 +379,14 @@ function defaultStorage(): PullStorage | null {
 export function persistPullSession(
   record: PersistedPullSession,
   storage: PullStorage | null = defaultStorage(),
-): void {
+): boolean {
   try {
-    storage?.setItem(PULL_SESSION_STORAGE_KEY, JSON.stringify(record))
+    if (!storage) return false
+    const encoded = JSON.stringify(record)
+    storage.setItem(PULL_SESSION_STORAGE_KEY, encoded)
+    return storage.getItem(PULL_SESSION_STORAGE_KEY) === encoded
   } catch {
-    // Persistence is best-effort; server idempotency still protects retries.
+    return false
   }
 }
 

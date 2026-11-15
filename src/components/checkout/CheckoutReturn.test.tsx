@@ -62,6 +62,7 @@ describe('CheckoutReturn (status-only state machine)', () => {
   it('shows an empty state when there is no pending order', () => {
     render(<CheckoutReturn client={null} />)
     expect(screen.getByTestId('checkout-status')).toHaveAttribute('data-status', 'none')
+    expect(screen.getByText(/browser or installed app where you started checkout/i)).toBeInTheDocument()
   })
 
   it('renders "pending" from the initial read, then "confirming", then "fulfilled"', async () => {

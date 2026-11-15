@@ -455,6 +455,8 @@ export async function hydrateTarget(
 // ---------------------------------------------------------------------------
 
 interface StartOptions {
+  /** Re-read this same account after reconnect or an explicit retry. */
+  refresh?: boolean
   client?: SupabaseClient | null
   targets?: SyncTarget[]
   debounceMs?: number
@@ -628,8 +630,8 @@ async function startSyncGeneration(
 export function startSync(userId: string, options: StartOptions = {}): Promise<void> {
   const client = options.client ?? getSupabaseClient()
   if (!client || !userId) return Promise.resolve()
-  if (startingUserId === userId && startPromise) return startPromise
-  if (activeUserId === userId) return Promise.resolve()
+  if (startingUserId === userId && startPromise && !options.refresh) return startPromise
+  if (activeUserId === userId && !options.refresh) return Promise.resolve()
   if (activeUserId || startPromise) {
     const previousGeneration = syncGeneration
     stopSync() // switch accounts cleanly
@@ -711,6 +713,7 @@ export function stopSync(): void {
 // ---------------------------------------------------------------------------
 
 let initialized = false
+let stopConnectivity: (() => void) | null = null
 
 /**
  * Wire data sync to auth state. Call once at startup (alongside auth
@@ -723,19 +726,32 @@ export function initDataSync(): void {
 
   const react = (status: string, userId: string | null) => {
     if (status === 'authenticated' && userId) {
-      void startSync(userId)
+      void startSync(userId).catch(() => {})
     } else if (status === 'guest') {
       stopSync()
     }
   }
 
-  useAuthStore.subscribe((state) => react(state.status, state.user?.id ?? null))
+  const unsubscribeAuth = useAuthStore.subscribe((state) => react(state.status, state.user?.id ?? null))
+  const online = () => {
+    const auth = useAuthStore.getState()
+    if (auth.status === 'authenticated' && auth.user) void startSync(auth.user.id, { refresh: true }).catch(() => {})
+  }
+  const offline = () => {
+    useWalletStore.setState({ stale: true })
+    if (activeUserId) inventoryHydration.setState({ status: 'unavailable' })
+  }
+  window.addEventListener('online', online)
+  window.addEventListener('offline', offline)
+  stopConnectivity = () => { unsubscribeAuth(); window.removeEventListener('online', online); window.removeEventListener('offline', offline) }
   const s = useAuthStore.getState()
   react(s.status, s.user?.id ?? null)
 }
 
 /** Test-only: reset all module-level sync state. */
 export function __resetDataSyncForTests(): void {
+  stopConnectivity?.()
+  stopConnectivity = null
   stopSync()
   initialized = false
   applyingRemote = false

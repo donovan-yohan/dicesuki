@@ -11,6 +11,8 @@ import type {
   PullPrepareReceipt,
 } from '../types/pull'
 import { usePullFlow } from './usePullFlow'
+import { readUpdateBlock } from '../lib/swUpdate'
+vi.mock('virtual:pwa-register', () => ({ registerSW: vi.fn() }))
 
 const ownerId = 'user-a'
 const sessionId = '11111111-1111-4111-8111-111111111111'
@@ -86,6 +88,27 @@ describe('usePullFlow', () => {
     vi.restoreAllMocks()
   })
 
+  it('recovers the same committed reward after both commit replies are interrupted without a new prepare', async () => {
+    const calls: string[] = []
+    const rpc = vi.fn(async (operation: string) => {
+      calls.push(operation)
+      if (operation === 'prepare_pull') return { data: prepareData, error: null }
+      if (operation === 'commit_pull_session') throw new Error('response interrupted after commit')
+      return { data: revealData, error: null }
+    })
+    const client = clientWith(rpc)
+    const first = renderHook(() => usePullFlow({ client, ownerId, inventoryRefresh: unavailableInventory }))
+    await act(async () => { await first.result.current.startPull(bannerVersionId, 1); await Promise.resolve() })
+    expect(first.result.current.state.status).toBe('hold')
+    const persisted = JSON.parse(localStorage.getItem(PULL_SESSION_STORAGE_KEY)!)
+    expect(persisted.preparation.sessionId).toBe(sessionId)
+    first.unmount()
+    const restored = renderHook(() => usePullFlow({ client, ownerId, inventoryRefresh: unavailableInventory }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(restored.result.current.state).toMatchObject({ status: 'revealed', reveal: { sessionId, results: [{ catalogItemId: 'item-a' }] } })
+    expect(calls).toEqual(['prepare_pull', 'commit_pull_session', 'commit_pull_session', 'get_committed_pull_reveal'])
+  })
+
   it('holds an instant commit behind the >=800ms sealing beat', async () => {
     const rpc = vi.fn(async (operation: string) => ({
       data: operation === 'prepare_pull' ? prepareData : revealData,
@@ -102,11 +125,15 @@ describe('usePullFlow', () => {
       await Promise.resolve()
     })
     expect(result.current.state.status).toBe('sealing')
+    expect(readUpdateBlock()).not.toBeNull()
 
     await act(async () => { await vi.advanceTimersByTimeAsync(799) })
     expect(result.current.state.status).toBe('sealing')
     await act(async () => { await vi.advanceTimersByTimeAsync(1) })
     expect(result.current.state.status).toBe('revealed')
+    expect(readUpdateBlock()).not.toBeNull()
+    act(() => result.current.clearReveal())
+    expect(readUpdateBlock()).toBeNull()
     expect(rpc).toHaveBeenCalledWith('prepare_pull', expect.objectContaining({
       p_idempotency_key: expect.stringMatching(/^pull:/),
     }))

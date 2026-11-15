@@ -8,6 +8,31 @@ beforeEach(() => { __resetDataSyncForTests(); localStorage.clear(); useInventory
 afterEach(() => { __resetDataSyncForTests(); vi.useRealTimers() })
 
 describe('actual copy hydration lifecycle receipt', () => {
+  it('reconnect can supersede a hung same-account read and permanently fences its late result', async () => {
+    const old = controlledInventoryClient()
+    const first = startSync('a', { client: old.client, targets: [] })
+    await old.copiesRequested
+    const generation = getInventoryHydration().generation
+    const fresh = controlledInventoryClient()
+    const next = startSync('a', { client: fresh.client, targets: [], refresh: true })
+    fresh.acceptCatalog(); fresh.acceptCopies(['fresh-copy'])
+    expect(getInventoryHydration().generation).toBeGreaterThan(generation)
+    await next
+    old.acceptCatalog(); old.acceptCopies(['old-copy']); await first
+    expect(useInventoryStore.getState().dice.map(die => die.id)).toEqual(['fresh-copy'])
+  })
+
+  it('reconciles the same account on an explicit reconnect refresh instead of trusting its old ready snapshot', async () => {
+    const old = controlledInventoryClient()
+    const first = startSync('a', { client: old.client, targets: [] })
+    old.acceptCatalog(); old.acceptCopies(); await first
+    const fresh = controlledInventoryClient()
+    const next = startSync('a', { client: fresh.client, targets: [], refresh: true })
+    fresh.acceptCatalog(); fresh.acceptCopies(['fresh-copy'])
+    expect(getInventoryHydration().status).toBe('pending')
+    await next
+    expect(useInventoryStore.getState().dice.map(die => die.id)).toEqual(['fresh-copy'])
+  })
   it('publishes pending synchronously and ready only after both readers and accepted inventory join', async () => {
     const fake = controlledInventoryClient()
     const sync = startSync('a', { client: fake.client, targets: [] })

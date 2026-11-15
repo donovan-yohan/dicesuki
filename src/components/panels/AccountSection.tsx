@@ -9,6 +9,7 @@
 
 import { useEffect } from 'react'
 import { useAuthStore } from '../../store/useAuthStore'
+import { AccountOfflineNotice } from './AccountOfflineNotice'
 
 export function AccountSection() {
   const isConfigured = useAuthStore((s) => s.isConfigured)
@@ -35,6 +36,8 @@ export function AccountSection() {
       >
         Account
       </h3>
+
+      <AccountOfflineNotice />
 
       {status === 'authenticated' && profile ? (
         <div
