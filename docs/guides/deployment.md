@@ -11,7 +11,7 @@ Dicesuki is two independently deployable pieces:
 | Room server | Rust/Axum binary (`server/`) — REST + WebSocket only | Long-running process / container |
 | Frontend | Vite SPA (`src/` → `dist/`) — static files | Any static host (Vite preview, Netlify, Vercel, nginx, S3…) |
 
-**The room server does NOT serve static files** (routes are only `/health`, `/api/rooms`, `/api/rooms/:id`, `/ws/:room_id`; see `server/src/lib.rs`). So the Docker image below is the **room server only**. The frontend is built and hosted separately, and connects to the server via a build-time URL (see [Frontend → server wiring](#frontend--server-wiring)). This is the simplest layout that yields one runnable server artifact and mirrors the production split (server on Render, static frontend elsewhere).
+**The room server does NOT serve static files** (routes are only `/health`, `/api/rooms`, `/api/rooms/:id`, `/ws/:room_id`; see `server/src/lib.rs`). So the Docker image below is the **room server only**. The frontend is built and hosted separately, and connects to the server via a build-time URL (see [Frontend → server wiring](#frontend--server-wiring)). This yields one provider-configurable server artifact with a separately hosted frontend. See the [Railway room-server guide](railway.md) for the migration settings and cutover gates; keep Render available for rollback.
 
 ## Ports & env vars
 
@@ -34,7 +34,7 @@ Frontend build-time env vars (baked into the bundle, `src/lib/multiplayerServer.
 
 | Env var | Default | Used by |
 |---------|---------|---------|
-| `VITE_MULTIPLAYER_SERVER_URL` | `ws://localhost:8080` | Public multiplayer (the only network room server). `.env.production` sets the Render URL. |
+| `VITE_MULTIPLAYER_SERVER_URL` | `ws://localhost:8080` | Public multiplayer. Set the production WSS origin through the existing Vercel build environment. |
 | `VITE_MULTIPLAYER_SERVER_HTTP_URL` | derived from WS URL | Optional; REST base for the public server. |
 
 > **Solo needs no server.** The default `/` route runs a one-player room in the in-browser WASM room worker (`src/workers/roomWorker.ts` + `src/generated/wasm-room/`) — the SAME `dicesuki-core` engine as the native server, compiled to WASM. There is no native loopback server and no `VITE_LOCAL_ROOM_SERVER_*` config; the whole `dev:local-room` / "Open Local Solo Room" / `?server=local` apparatus was retired in #114.
@@ -96,7 +96,7 @@ docker run --rm -p 8080:8080 \
 curl http://localhost:8080/health
 ```
 
-Runtime image ships only the ~4 MB static-ish Rust binary + `ca-certificates`. `server/render.yaml` deploys this same Dockerfile to Render (`healthCheckPath: /health`).
+Runtime image ships only the Rust server binary + `ca-certificates`. [Railway deployment](railway.md) uses this Dockerfile with service root `/server`. `server/render.yaml` remains available for the existing Render service and rollback (`healthCheckPath: /health`).
 
 ## WSL2 / exposing to friends
 

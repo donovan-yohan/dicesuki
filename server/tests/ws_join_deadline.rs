@@ -61,11 +61,16 @@ fn join(room: &str, token: Option<&str>) -> Message {
 async fn assert_reaped(mut socket: Socket, room: String, auth_invalid: bool) {
     let started = Instant::now();
     let mut chatter = tokio::time::interval(Duration::from_secs(1));
+    let mut chatter_writable = true;
     let closed = timeout(Duration::from_secs(17), async {
         loop {
             tokio::select! {
                 message = socket.next() => match message {
-                    None | Some(Err(_)) | Some(Ok(Message::Close(_))) => break,
+                    None | Some(Err(_)) => panic!("prejoin retirement omitted the WebSocket Close frame"),
+                    Some(Ok(Message::Close(frame))) => {
+                        assert_eq!(frame.unwrap().code, tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode::Normal);
+                        break;
+                    },
                     Some(Ok(Message::Text(value))) => {
                         let value: Value = serde_json::from_str(&value).unwrap();
                         assert_ne!(value["type"], "room_state", "invalid connection joined");
@@ -74,10 +79,10 @@ async fn assert_reaped(mut socket: Socket, room: String, auth_invalid: bool) {
                     Some(Ok(Message::Ping(_))) => { let _ = socket.flush().await; }
                     _ => {}
                 },
-                _ = chatter.tick() => {
+                _ = chatter.tick(), if chatter_writable => {
                     let message = if auth_invalid { join(&room, Some("not-a-jwt")) }
                         else { Message::Pong(vec![1,2,3]) };
-                    if socket.send(message).await.is_err() { break; }
+                    chatter_writable = socket.send(message).await.is_ok();
                 }
             }
         }
@@ -90,6 +95,53 @@ async fn assert_reaped(mut socket: Socket, room: String, auth_invalid: bool) {
     assert!(
         started.elapsed() >= Duration::from_secs(14),
         "refresh grace was cut short"
+    );
+}
+
+#[tokio::test]
+async fn cancelling_connection_retires_its_socket() {
+    use axum::extract::ws::WebSocketUpgrade;
+    use dicesuki_server::{ws_handler::handle_ws_connection, RollReporter};
+    let (_, room) = RoomManager::new().create_room();
+    let (tasks, mut connections) = tokio::sync::mpsc::unbounded_channel();
+    let app = Router::new().route(
+        "/ws",
+        get(move |upgrade: WebSocketUpgrade| {
+            let room = room.clone();
+            let tasks = tasks.clone();
+            async move {
+                upgrade.on_upgrade(move |socket| async move {
+                    let connection =
+                        tokio::spawn(handle_ws_connection(socket, room, RollReporter::disabled()));
+                    tasks.send(connection.abort_handle()).unwrap();
+                    let _ = connection.await;
+                })
+            }
+        }),
+    );
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let (mut socket, _) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
+    let connection = timeout(IO_TIMEOUT, connections.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    socket.send(Message::Text("{}".into())).await.unwrap();
+    assert_eq!(
+        text(&mut socket).await["code"],
+        "INVALID_MESSAGE",
+        "writer must be positively active before cancellation"
+    );
+    connection.abort();
+    let retired = timeout(Duration::from_secs(1), socket.next()).await;
+    server.abort();
+    assert!(
+        matches!(
+            retired,
+            Ok(None) | Ok(Some(Err(_))) | Ok(Some(Ok(Message::Close(_))))
+        ),
+        "cancelled handler detached its writer and kept the socket alive"
     );
 }
 

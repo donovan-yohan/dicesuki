@@ -1,5 +1,7 @@
 # Dicesuki server workspace
 
+Deployment uses the server-root [Docker image](../docs/guides/deployment.md#docker-server-distribution-artifact). See [Railway settings and cutover](../docs/guides/railway.md) for the single-instance, always-awake production configuration.
+
 A Cargo workspace with two crates (issue #112):
 
 ```
