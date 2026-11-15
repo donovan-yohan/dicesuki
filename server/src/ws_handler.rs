@@ -1,12 +1,13 @@
-use axum::extract::ws::{Message, WebSocket};
+use axum::extract::ws::{CloseFrame, Message, WebSocket};
 use futures_util::{SinkExt, StreamExt};
 use log::{error, info, warn};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 const WS_PING_INTERVAL: std::time::Duration = std::time::Duration::from_secs(20);
 const WS_SILENT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 const WS_JOIN_GRACE: std::time::Duration = std::time::Duration::from_secs(15);
+const WS_CLOSE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// Pure timing seam for the liveness policy. The async handler supplies elapsed
 /// wall time; tests exercise the threshold without sleeping for a minute.
@@ -50,6 +51,18 @@ fn auth_log_marker(user_id: Option<&str>) -> &'static str {
     }
 }
 
+/// Request a Close frame, then bound and acknowledge writer retirement.
+async fn retire_writer(close: oneshot::Sender<()>, mut task: tokio::task::JoinHandle<()>) {
+    let _ = close.send(());
+    if tokio::time::timeout(WS_CLOSE_TIMEOUT, &mut task)
+        .await
+        .is_err()
+    {
+        task.abort();
+        let _ = task.await;
+    }
+}
+
 /// Handle a single WebSocket connection for a room
 #[allow(clippy::too_many_lines)]
 pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter: RollReporter) {
@@ -58,30 +71,47 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter:
     // Channel for sending messages to this client
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerMessage>();
 
-    // Spawn write loop: forward messages from channel to WebSocket
+    // Spawn write loop: forward messages from channel to WebSocket.
+    let (close_writer, closing) = oneshot::channel();
     let write_task = tokio::spawn(async move {
         let start = tokio::time::Instant::now() + WS_PING_INTERVAL;
         let mut ping = tokio::time::interval_at(start, WS_PING_INTERVAL);
-        loop {
-            tokio::select! {
-                maybe_msg = rx.recv() => {
-                    let Some(msg) = maybe_msg else { break };
-                    match serde_json::to_string(&msg) {
-                        Ok(json) => {
-                            if ws_sender.send(Message::Text(json)).await.is_err() {
+        // Sender drop also interrupts a blocked write when the handler itself
+        // is cancelled. The close attempt has its own bound in that case.
+        tokio::select! {
+            biased;
+            _ = closing => {}
+            _ = async {
+                loop {
+                    tokio::select! {
+                        maybe_msg = rx.recv() => {
+                            let Some(msg) = maybe_msg else { break };
+                            match serde_json::to_string(&msg) {
+                                Ok(json) => {
+                                    if ws_sender.send(Message::Text(json)).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                Err(e) => error!("Failed to serialize message: {e}"),
+                            }
+                        }
+                        _ = ping.tick() => {
+                            if ws_sender.send(Message::Ping(Vec::new())).await.is_err() {
                                 break;
                             }
                         }
-                        Err(e) => error!("Failed to serialize message: {e}"),
                     }
                 }
-                _ = ping.tick() => {
-                    if ws_sender.send(Message::Ping(Vec::new())).await.is_err() {
-                        break;
-                    }
-                }
-            }
+            } => return,
         }
+        let _ = tokio::time::timeout(
+            WS_CLOSE_TIMEOUT,
+            ws_sender.send(Message::Close(Some(CloseFrame {
+                code: 1000,
+                reason: "".into(),
+            }))),
+        )
+        .await;
     });
 
     // Candidate id for a fresh seat; on graceful rejoin the room hands back the
@@ -617,12 +647,54 @@ pub async fn handle_ws_connection(socket: WebSocket, room: SharedRoom, reporter:
         }
     }
 
-    write_task.abort();
+    retire_writer(close_writer, write_task).await;
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{auth_log_marker, connection_is_silent, is_valid_hex_color};
+    use super::{
+        auth_log_marker, connection_is_silent, is_valid_hex_color, retire_writer, WS_CLOSE_TIMEOUT,
+    };
+
+    #[tokio::test]
+    async fn writer_retirement_acknowledges_ordinary_close_completion() {
+        let (close, closing) = tokio::sync::oneshot::channel();
+        let (finished, completion) = tokio::sync::oneshot::channel();
+        let task = tokio::spawn(async move {
+            closing.await.unwrap();
+            finished.send(()).unwrap();
+        });
+        retire_writer(close, task).await;
+        assert_eq!(completion.await, Ok(()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn writer_retirement_cancels_and_awaits_a_stalled_close() {
+        struct Retired(Option<tokio::sync::oneshot::Sender<()>>);
+        impl Drop for Retired {
+            fn drop(&mut self) {
+                let _ = self.0.take().unwrap().send(());
+            }
+        }
+        let (close, closing) = tokio::sync::oneshot::channel();
+        let (entered, active) = tokio::sync::oneshot::channel();
+        let (retired, mut cancellation) = tokio::sync::oneshot::channel();
+        let task = tokio::spawn(async move {
+            let _retired = Retired(Some(retired));
+            entered.send(()).unwrap();
+            closing.await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        active.await.unwrap();
+        let start = tokio::time::Instant::now();
+        retire_writer(close, task).await;
+        assert_eq!(start.elapsed(), WS_CLOSE_TIMEOUT);
+        assert_eq!(
+            cancellation.try_recv(),
+            Ok(()),
+            "writer cancellation must be acknowledged before retirement returns"
+        );
+    }
 
     #[test]
     fn auth_log_marker_never_contains_supabase_user_id() {
