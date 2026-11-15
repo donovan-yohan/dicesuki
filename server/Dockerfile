@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #
 # Multi-stage build for the Dicesuki multiplayer room server.
-# Build context is ./server (see server/render.yaml -> dockerContext).
+# Build context is ./server for Railway and Render.
 #
 #   docker build -t dicesuki-server ./server
 #   docker run --rm -p 8080:8080 dicesuki-server
@@ -14,24 +14,26 @@ FROM rust:1.93-slim AS builder
 
 WORKDIR /app
 
-# Copy manifests first so the dependency layer is cached independently of
-# source changes. dicesuki-server is a lib + bin crate, so both src/lib.rs
-# and src/main.rs must exist for `cargo build` to resolve the manifest. The
-# workspace also has the `dicesuki-core` member (issue #112), so its manifest
-# and a stub lib must be present for the workspace to resolve.
-COPY Cargo.toml Cargo.lock* ./
+# Copy all workspace manifests first, including non-default members. Cargo
+# resolves every declared member even when only the native server is built.
+# Stub targets keep the dependency layer independent of source changes.
+COPY Cargo.toml Cargo.lock ./
 COPY core/Cargo.toml core/Cargo.toml
-RUN mkdir src core/src \
+COPY wasm/Cargo.toml wasm/Cargo.toml
+RUN mkdir src core/src wasm/src \
     && echo 'fn main() {}' > src/main.rs \
     && echo '// dependency-cache stub' > src/lib.rs \
     && echo '// dependency-cache stub' > core/src/lib.rs \
-    && cargo build --release || true
+    && echo '// dependency-cache stub' > wasm/src/lib.rs \
+    && cargo build --release --locked --jobs 2
 
 # Copy the real source and build the release binary. Touching the sources
 # invalidates the stub fingerprint so the crates themselves are recompiled.
 COPY src/ src/
 COPY core/src/ core/src/
-RUN touch src/main.rs src/lib.rs core/src/lib.rs && cargo build --release
+COPY wasm/src/ wasm/src/
+RUN touch src/main.rs src/lib.rs core/src/lib.rs wasm/src/lib.rs \
+    && cargo build --release --locked --jobs 2
 
 # ---- Runtime stage -------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
