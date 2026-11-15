@@ -1,0 +1,16 @@
+# Server-root context only. Never send env files, credentials, tests or caches.
+**
+!Dockerfile
+!.dockerignore
+!Cargo.toml
+!Cargo.lock
+!src/
+!src/*.rs
+!core/
+!core/Cargo.toml
+!core/src/
+!core/src/*.rs
+!wasm/
+!wasm/Cargo.toml
+!wasm/src/
+!wasm/src/*.rs
